@@ -1,0 +1,63 @@
+---
+title: "EpiExposure: An epidemiological workflow for DLNM interpretation"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{EpiExposure workflow}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, message=FALSE}
+library(EpiExposure)
+library(dlnm)
+---
+
+## 1. Motivation
+
+Distributed lag non-linear models (DLNMs) are widely used to quantify
+exposure–lag–response associations. However, applied epidemiological studies
+require additional methodological structure to support interpretation,
+including biologically meaningful exposure windows and standardised summaries.
+
+The **EpiExposure** package was developed to address this gap.
+
+---
+
+## 2. Defining epidemiological exposure
+
+```r
+exp <- define_exposure(
+  data   = weather,
+  vars   = c("tmean"),
+  lag    = 85,
+  argvar = list(fun = "ns", df = 4),
+  arglag = list(fun = "ns", df = 4),
+  id     = "plot",
+  time   = "dpp"
+)
+
+
+fit <- fit_epidlnm(
+  exposure = exp,
+  outcome  = epi$severity,
+  family   = beta_family()
+)
+
+win <- define_windows(
+  lag    = 85,
+  breaks = c(0, 30, 60, 85)
+)
+
+eff <- summarise_effects(
+  fit,
+  windows = win,
+  at  = quantile(weather$tmean, 0.9),
+  cen = quantile(weather$tmean, 0.5)
+)
+
+plot_epi_effects(eff, type = "windows")
+
+EpiExposure relies internally on dlnm::crossbasis() and
+dlnm::crosspred(). All statistical estimation is conducted using the
+original DLNM framework; EpiExposure adds a domain-specific epidemiological
+layer focused on interpretation and reproducibility.

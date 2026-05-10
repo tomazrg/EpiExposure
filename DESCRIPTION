@@ -1,16 +1,38 @@
 Package: EpiExposure
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Epidemiological Framework for Interpreting Distributed Lag Models
 Version: 0.1.0
-Authors@R: c(
-    person(
-      "Jane", "Doe",
-      email = "jane@example.com",
-      role = c("aut", "cre")
-    )
-  )
-Description: More about what it does (maybe more than one line).
-    Continuation lines should be indented.
-License: What license is it under?
+Authors@R:
+	person("Ricardo", "Tomaz",
+       	email = "ricardogomesagro@gmail.com",
+       	role = c("aut", "cre"))
+Description:
+	Provides an epidemiological framework for structuring and interpreting
+	exposure–lag–response associations fitted using distributed lag non-linear
+	models (DLNMs). The package builds on the statistical infrastructure of the
+	'dlnm' package by formalising epidemiological concepts such as exposure
+	windows, biologically meaningful lag periods, and standardised cumulative
+	summaries. EpiExposure does not redefine DLNM methodology, but supplies
+	reproducible, domain-oriented workflows for epidemiological studies,
+	particularly in climate–disease and plant disease epidemiology.
+Depends:
+	R (>= 4.2)
+Imports:
+	dlnm,
+	stats,
+	graphics,
+	ggplot2,
+	dplyr,
+	tidyr
+Suggests:
+	glmmTMB,
+	testthat (>= 3.0.0),
+	knitr,
+	rmarkdown
+License: GPL (>= 2)
 Encoding: UTF-8
-LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+VignetteBuilder: knitr
+URL: https://github.com/SEU_USUARIO/EpiExposure
+BugReports: https://github.com/SEU_USUARIO/EpiExposure/issues
