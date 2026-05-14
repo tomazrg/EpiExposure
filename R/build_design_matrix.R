@@ -7,8 +7,13 @@
 #' @return data.frame
 #' @export
 build_design_matrix <- function(wx_long, cb_templates, lag_max) {
-  
-  extract_last <- function(x, cb_template) {
+
+  stopifnot("epi_id" %in% names(wx_long))
+  for (v in names(cb_templates)) {
+    stopifnot(v %in% names(wx_long))
+  }
+
+  extract_last_cb_row <- function(x, cb_template) {
     cb <- dlnm::crossbasis(
       x,
       lag    = lag_max,
@@ -17,23 +22,23 @@ build_design_matrix <- function(wx_long, cb_templates, lag_max) {
     )
     as.numeric(cb[length(x), ])
   }
-  
+
   X_list <- purrr::imap(cb_templates, function(cb, v) {
-    
+
     tmp <- wx_long |>
       dplyr::group_by(epi_id) |>
       dplyr::summarise(
-        cb = list(extract_last(.data[[v]], cb)),
+        cb = list(extract_last_cb_row(.data[[v]], cb)),
         .groups = "drop"
       )
-    
+
     p  <- length(tmp$cb[[1]])
     nm <- paste0("cb_", v, "_", seq_len(p))
-    
+
     tmp |>
       dplyr::mutate(cb = lapply(cb, setNames, nm)) |>
       tidyr::unnest_wider(cb)
   })
-  
+
   purrr::reduce(X_list, dplyr::left_join, by = "epi_id")
 }

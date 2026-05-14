@@ -1,19 +1,25 @@
-#' Check DLNM identifiability issues
+#' Check DLNM cross-basis identifiability
 #'
-#' @param cb_template Crossbasis object
+#' Evaluates whether a DLNM cross-basis matrix is full rank.
+#' Rank deficiency may lead to non-identifiable or unstable model parameters.
 #'
-#' @return logical
+#' @param cb_template A crossbasis object
+#'
+#' @return Logical value indicating whether the cross-basis is identifiable.
 #' @export
 check_identifiability <- function(cb_template) {
-  
+
   X <- as.matrix(cb_template)
-  k <- qr(X)$rank
   p <- ncol(X)
-  
+  k <- qr(X)$rank
+
   if (k < p) {
-    warning("Crossbasis is rank-deficient (potential identifiability issues).")
+    warning(
+      "Cross-basis is rank-deficient (", k, " < ", p,
+      "). Consider reducing df_var, df_lag, or lag_max."
+    )
     return(FALSE)
   }
-  
+
   TRUE
 }

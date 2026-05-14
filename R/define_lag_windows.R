@@ -14,12 +14,21 @@
 #'
 #' @export
 define_lag_windows <- function(lag_max, cuts = NULL) {
-  
+
+  # -------------------------------
+  # Basic input checks (optional)
+  # -------------------------------
+  stopifnot(is.numeric(lag_max), lag_max > 0)
+
+  if (!is.null(cuts)) {
+    stopifnot(is.numeric(cuts))
+  }
+
   # -------------------------------
   # Single cumulative window
   # -------------------------------
   if (is.null(cuts) || length(cuts) == 0) {
-    
+
     return(
       data.frame(
         window_id = 1,
@@ -28,15 +37,20 @@ define_lag_windows <- function(lag_max, cuts = NULL) {
       )
     )
   }
-  
+
   # -------------------------------
   # Multiple windows
   # -------------------------------
   cuts <- sort(unique(as.integer(cuts)))
   cuts <- cuts[cuts > 0 & cuts < lag_max]
-  
-  # if cuts collapse after filtering
+
+  # If cuts collapse after filtering
   if (length(cuts) == 0) {
+
+    message(
+      "No valid cut points found; using a single cumulative lag window (0–lag_max)."
+    )
+
     return(
       data.frame(
         window_id = 1,
@@ -45,10 +59,10 @@ define_lag_windows <- function(lag_max, cuts = NULL) {
       )
     )
   }
-  
+
   starts <- c(0, cuts + 1)
   ends   <- c(cuts, lag_max)
-  
+
   data.frame(
     window_id = seq_along(starts),
     lag_start = starts,

@@ -17,11 +17,20 @@ define_exposure <- function(wx_long, vars,
                             fun_var = "ns",
                             fun_lag = "ns") {
 
-  stopifnot(all(c("epi_id", "dpp") %in% names(wx_long)))
-  stopifnot(fun_var %in% c("ns", "bs", "poly", "lin"))
-  stopifnot(fun_lag %in% c("ns", "ps", "lin"))
 
-  # ----- pooled series (igual ao seu Shiny / artigo) -----
+  # ---- basic input checks ----
+  stopifnot(
+    all(c("epi_id", "dpp") %in% names(wx_long)),
+    fun_var %in% c("ns", "bs", "poly", "lin"),
+    fun_lag %in% c("ns", "ps", "lin")
+  )
+
+  # ---- check exposure variables ----
+  for (v in vars) {
+    stopifnot(v %in% names(wx_long))
+  }
+
+  # ----- pooled series  -----
   build_pooled <- function(dat, var, sep_n) {
     ids <- unique(dat$epi_id)
     out <- vector("list", length(ids))
@@ -41,7 +50,7 @@ define_exposure <- function(wx_long, vars,
 
     x_pool <- build_pooled(wx_long, v, lag_max)
 
-    # ----- argvar: exposição -----
+    # ----- argvar: exposure -----
     argvar <- switch(
       fun_var,
       ns   = list(fun = "ns",  df = df_var),
@@ -50,7 +59,7 @@ define_exposure <- function(wx_long, vars,
       lin  = list(fun = "lin")
     )
 
-    # IMPORTANTÍSSIMO: evitar intercepto na exposição
+    # Avoid intercept in exposure basis to prevent collinearity with
     if (!is.null(argvar$fun) && argvar$fun != "lin") {
       argvar$intercept <- FALSE
     }
