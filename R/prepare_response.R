@@ -9,7 +9,7 @@
 #'
 #' @return data.frame
 #' @export
-prepare_response_data <- function(dat, y_var, family_choice) {
+prepare_response <- function(dat, y_var, family_choice) {
 
   y <- dat[[y_var]]
   y_scale <- 1
