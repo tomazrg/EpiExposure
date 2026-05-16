@@ -6,7 +6,8 @@
 #' @param fit Fitted model object from fit_epidlnm()
 #' @param cb_template Crossbasis template for one exposure
 #' @param wx_values Observed exposure values
-#' @param cen Optional centering value (default = median)
+#' @param ref Reference exposure definition:
+#'   list(method = "median" | "percentile" | "fixed", value = NULL)
 #' @param probs Quantiles defining exposure grid
 #'
 #' @return A crosspred object containing the exposure-lag-response surface
@@ -15,7 +16,7 @@
 predict_surface <- function(fit,
                             cb_template,
                             wx_values,
-                            cen = NULL,
+                            ref = list(method = "median", value = NULL),
                             probs = seq(0.05, 0.95, by = 0.01)) {
 
   # ------------------------------------------------------------
@@ -23,7 +24,6 @@ predict_surface <- function(fit,
   # ------------------------------------------------------------
   extract_beta_vcov <- function(fit) {
 
-    # glmmTMB
     if (inherits(fit, "glmmTMB")) {
       return(list(
         beta = fixef(fit)$cond,
@@ -31,7 +31,6 @@ predict_surface <- function(fit,
       ))
     }
 
-    # brms (Bayesian)
     if (inherits(fit, "brmsfit")) {
       fe <- brms::fixef(fit)
       beta <- fe[, "Estimate"]
@@ -40,7 +39,6 @@ predict_surface <- function(fit,
       return(list(beta = beta, V = V))
     }
 
-    # INLA (Bayesian)
     if (inherits(fit, "inla")) {
       beta <- fit$summary.fixed$mean
       V <- diag(fit$summary.fixed$sd^2)
@@ -49,7 +47,6 @@ predict_surface <- function(fit,
       return(list(beta = beta, V = V))
     }
 
-    # spaMM
     if (inherits(fit, "HLfit")) {
       return(list(
         beta = spaMM::fixef(fit),
@@ -57,7 +54,6 @@ predict_surface <- function(fit,
       ))
     }
 
-    # Default: glm, gam, gamm, gls
     return(list(
       beta = coef(fit),
       V    = vcov(fit)
@@ -83,14 +79,20 @@ predict_surface <- function(fit,
   ))
 
   # ------------------------------------------------------------
-  # Reference exposure (cen)
+  # ✅ NEW: Reference (cen) choice
   # ------------------------------------------------------------
-  if (is.null(cen)) {
-    cen <- as.numeric(stats::median(wx_values, na.rm = TRUE))
-  }
+  cen <- switch(
+    ref$method,
+    median     = median(wx_values, na.rm = TRUE),
+    percentile = quantile(wx_values, ref$value, na.rm = TRUE),
+    fixed      = ref$value,
+    stop("Invalid ref$method")
+  )
+
+  cen <- as.numeric(cen)
 
   # ------------------------------------------------------------
-  # ✅ DLNM full surface prediction
+  # ✅ DLNM full surface
   # ------------------------------------------------------------
   cp <- dlnm::crosspred(
     cb_template,
