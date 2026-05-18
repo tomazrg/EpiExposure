@@ -7,18 +7,16 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r setup, message=FALSE}
+```{r, eval=FALSE}
+
 library(EpiExposure)
 library(dlnm)
-define_exposure(
-  data = TargetSpot,
-  id = "epi_id",
-  time = "dpp",
-  vars = c("tmean")
-)
+
+sim_data$dpp = sim_data$dpp-1
+
 
 t = define_exposure(
-  sim_data,
+  wx_long = TargetSpot,
   vars = c("tmean","vpd","rain"),
   lag_max = 85,
   df_var = 4,
@@ -26,6 +24,8 @@ t = define_exposure(
   fun_var = "ns",
   fun_lag = "ns"
 )
+
+
 
 t2 <- build_design_matrix(sim_data, t, lag_max = 85)
 
@@ -51,9 +51,17 @@ fit <- fit_epidlnm(
 
 summary(fit)
 
-summarise_effects(fit, family_choice = "beta")
+
+res <- summarise_effects(
+  wx_long = sim_data,
+  fit = fit,
+  var = "tmean",
+  lag_max = 85,
+  effect_measure = "ratio"
+)
+
 ```
-```{r}
+```{r, eval=FALSE}
 set.seed(123)
 
 # ---------------------------

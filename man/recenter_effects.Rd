@@ -6,8 +6,13 @@
 \usage{
 recenter_effects(
   fit,
-  cb_template,
-  wx_values,
+  wx_long,
+  var,
+  lag_max,
+  df_var = 4,
+  df_lag = 4,
+  fun_var = "ns",
+  fun_lag = "ns",
   ref = list(method = "median", value = NULL),
   probs = seq(0.05, 0.95, by = 0.01)
 )
@@ -15,17 +20,26 @@ recenter_effects(
 \arguments{
 \item{fit}{Fitted model from fit_epidlnm()}
 
-\item{cb_template}{Crossbasis template}
+\item{wx_long}{Long-format weather data}
 
-\item{wx_values}{Observed exposure values}
+\item{var}{Exposure variable (e.g. "tmax")}
 
-\item{ref}{New reference definition:
-list(method = "median" | "percentile" | "fixed", value = NULL)}
+\item{lag_max}{Maximum lag}
+
+\item{df_var}{Degrees of freedom (exposure)}
+
+\item{df_lag}{Degrees of freedom (lag)}
+
+\item{fun_var}{Basis ("ns","bs","poly","lin")}
+
+\item{fun_lag}{Basis ("ns","ps","lin")}
+
+\item{ref}{New reference definition}
 
 \item{probs}{Quantiles for exposure grid}
 }
 \value{
-crosspred object with recentered effects
+crosspred object
 }
 \description{
 Recomputes the DLNM effect surface using a different centering value,

@@ -6,28 +6,41 @@
 \usage{
 predict_surface(
   fit,
-  cb_template,
-  wx_values,
+  wx_long,
+  var,
+  lag_max,
+  df_var = 4,
+  df_lag = 4,
+  fun_var = "ns",
+  fun_lag = "ns",
   ref = list(method = "median", value = NULL),
   probs = seq(0.05, 0.95, by = 0.01)
 )
 }
 \arguments{
-\item{fit}{Fitted model object from fit_epidlnm()}
+\item{fit}{...}
 
-\item{cb_template}{Crossbasis template for one exposure}
+\item{wx_long}{...}
 
-\item{wx_values}{Observed exposure values}
+\item{var}{...}
 
-\item{ref}{Reference exposure definition:
-list(method = "median" | "percentile" | "fixed", value = NULL)}
+\item{lag_max}{...}
+
+\item{df_var}{Degrees of freedom (exposure dimension)}
+
+\item{df_lag}{Degrees of freedom (lag dimension)}
+
+\item{fun_var}{Basis function ("ns","bs","poly","lin")}
+
+\item{fun_lag}{Basis function ("ns","ps","lin")}
+
+\item{ref}{Reference exposure definition}
 
 \item{probs}{Quantiles defining exposure grid}
 }
 \value{
-A crosspred object containing the exposure-lag-response surface
+crosspred object
 }
 \description{
-Generates the full DLNM surface (exposure × lag) based on
-fitted model coefficients and cross-basis structure.
+Predict full DLNM exposure-lag-response surface
 }

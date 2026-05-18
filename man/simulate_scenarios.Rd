@@ -7,35 +7,43 @@
 simulate_scenarios(
   fit,
   dat,
-  cb_templates,
-  wx_ref,
+  wx_long,
   lag_windows,
   scenarios,
+  lag_max,
+  df_var = 4,
+  df_lag = 4,
+  fun_var = "ns",
+  fun_lag = "ns",
   ref_vals = NULL,
   pop_level = TRUE
 )
 }
 \arguments{
-\item{fit}{Fitted model (from fit_epidlnm)}
+\item{fit}{Fitted model}
 
 \item{dat}{Original design matrix}
 
-\item{cb_templates}{List of crossbasis templates (one per variable)}
+\item{wx_long}{Long-format weather data}
 
-\item{wx_ref}{Reference weather data}
+\item{lag_windows}{Lag windows}
 
-\item{lag_windows}{Output from define_lag_windows()}
+\item{scenarios}{Output from simulate_range()}
 
-\item{scenarios}{Output from simulate_range() OR named list of scenarios}
+\item{lag_max}{Maximum lag}
 
-\item{ref_vals}{Optional reference values (default = median)}
+\item{df_var}{Degrees of freedom (exposure)}
 
-\item{pop_level}{Logical for population-level prediction}
-}
-\value{
-data.frame (scenario or profile-ready)
+\item{df_lag}{Degrees of freedom (lag)}
+
+\item{fun_var}{Basis function for exposure}
+
+\item{fun_lag}{Basis function for lag}
+
+\item{ref_vals}{Reference values}
+
+\item{pop_level}{Logical}
 }
 \description{
-Builds exposure profiles over lag periods and predicts outcomes under
-different environmental scenarios.
+Simulate epidemiological DLNM scenarios
 }

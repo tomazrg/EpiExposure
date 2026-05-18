@@ -2,31 +2,48 @@
 % Please edit documentation in R/reduce_effects.R
 \name{reduce_effects}
 \alias{reduce_effects}
-\title{Reduce DLNM effects to one dimension}
+\title{Reduce DLNM effects to one dimension (article-consistent)}
 \usage{
 reduce_effects(
   fit,
-  cb_template,
+  wx_long,
+  var,
+  lag_max,
+  df_var = 4,
+  df_lag = 4,
+  fun_var = "ns",
+  fun_lag = "ns",
   type = c("overall", "lag", "var"),
   value = NULL,
   scale = c("percent", "response", "link")
 )
 }
 \arguments{
-\item{fit}{Fitted model object (glm, glmmTMB, gam, brms, INLA, spaMM, etc.)}
+\item{fit}{Fitted model object}
 
-\item{cb_template}{Crossbasis template for one exposure}
+\item{wx_long}{Long-format weather data}
 
-\item{type}{Reduction type: "overall", "lag", or "var"}
+\item{var}{Exposure variable (ex: "tmax")}
 
-\item{value}{Optional numeric value (required for "lag" or "var")}
+\item{lag_max}{Maximum lag}
 
-\item{scale}{Output scale: "link", "response", "percent"}
+\item{df_var}{Degrees of freedom (exposure)}
+
+\item{df_lag}{Degrees of freedom (lag)}
+
+\item{fun_var}{Basis ("ns","bs","poly","lin")}
+
+\item{fun_lag}{Basis ("ns","ps","lin")}
+
+\item{type}{"overall", "lag", "var"}
+
+\item{value}{Required for type = "lag" or "var"}
+
+\item{scale}{"link", "response", "percent"}
 }
 \value{
-data.frame with reduced DLNM effects
+data.frame
 }
 \description{
-Reduces a DLNM exposure-lag surface into a one-dimensional
-exposure-response or lag-response relationship.
+Reduce DLNM effects to one dimension (article-consistent)
 }

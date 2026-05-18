@@ -1,4 +1,0 @@
-"0","summarise_effects(fit, family_choice = ""beta"")
-"
-"2","Error in fixef(fit) : could not find function ""fixef""
-"

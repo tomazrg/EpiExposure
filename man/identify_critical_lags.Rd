@@ -15,7 +15,7 @@ One of "max", "mean", or "absmean".}
 }
 \value{
 A data.frame with one row per lag and summary statistics
-used to identify critical lags.
+  used to identify critical lags.
 }
 \description{
 Identifies lags with the strongest disease association by summarising

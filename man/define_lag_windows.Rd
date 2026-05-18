@@ -15,11 +15,9 @@ define_lag_windows(lag_max, cuts = NULL, prefix = "W")
 }
 \value{
 data.frame with columns:
-\itemize{
-\item window_id (character labels: e.g., "W1", "W2", ...)
-\item lag_start
-\item lag_end
-}
+  - window_id (character labels: e.g., "W1", "W2", ...)
+  - lag_start
+  - lag_end
 }
 \description{
 Creates lag windows to summarise cumulative DLNM effects.

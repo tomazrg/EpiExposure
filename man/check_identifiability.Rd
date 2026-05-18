@@ -4,15 +4,34 @@
 \alias{check_identifiability}
 \title{Check DLNM cross-basis identifiability}
 \usage{
-check_identifiability(cb_template)
+check_identifiability(
+  wx_long,
+  var,
+  lag_max,
+  df_var = 4,
+  df_lag = 4,
+  fun_var = "ns",
+  fun_lag = "ns"
+)
 }
 \arguments{
-\item{cb_template}{A crossbasis object}
+\item{wx_long}{Long-format weather data}
+
+\item{var}{Exposure variable (e.g. "tmax")}
+
+\item{lag_max}{Maximum lag}
+
+\item{df_var}{Degrees of freedom (exposure)}
+
+\item{df_lag}{Degrees of freedom (lag)}
+
+\item{fun_var}{Basis ("ns","bs","poly","lin")}
+
+\item{fun_lag}{Basis ("ns","ps","lin")}
 }
 \value{
-Logical value indicating whether the cross-basis is identifiable.
+TRUE/FALSE
 }
 \description{
 Evaluates whether a DLNM cross-basis matrix is full rank.
-Rank deficiency may lead to non-identifiable or unstable model parameters.
 }

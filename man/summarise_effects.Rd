@@ -2,13 +2,17 @@
 % Please edit documentation in R/summarise_effects.R
 \name{summarise_effects}
 \alias{summarise_effects}
-\title{Summarise DLNM effects}
+\title{Summarise DLNM effects (article-consistent)}
 \usage{
 summarise_effects(
   fit,
-  cb_template,
-  wx_values,
-  family_choice,
+  wx_long,
+  var,
+  lag_max,
+  df_var = 4,
+  df_lag = 4,
+  fun_var = "ns",
+  fun_lag = "ns",
   scale = c("daily", "accumulated"),
   lag_windows = NULL,
   probs = seq(0.05, 0.95, by = 0.01),
@@ -17,36 +21,35 @@ summarise_effects(
 )
 }
 \arguments{
-\item{fit}{A fitted model object returned by \code{fit_epidlnm()}.}
+\item{fit}{Fitted model}
 
-\item{cb_template}{Cross-basis template for a single exposure variable.}
+\item{wx_long}{Long-format weather data}
 
-\item{wx_values}{Observed exposure values used to define the prediction grid.}
+\item{var}{Exposure variable name (e.g. "tmax")}
 
-\item{family_choice}{Distribution of the response variable. One of
-\code{"beta"}, \code{"gamma"}, \code{"poisson"}, \code{"binomial"},
-\code{"negbin"}, or \code{"gaussian"}.}
+\item{lag_max}{Maximum lag}
 
-\item{scale}{Effect scale to summarise. Either \code{"daily"} or
-\code{"accumulated"}.}
+\item{df_var}{Degrees of freedom for exposure}
 
-\item{lag_windows}{Epidemiological lag windows defined by
-\code{define_lag_windows()}. Required if \code{scale = "accumulated"}.}
+\item{df_lag}{Degrees of freedom for lag}
 
-\item{probs}{Quantiles used to define the exposure prediction grid.}
+\item{fun_var}{Exposure basis function}
 
-\item{ref}{Reference exposure definition. A list with elements
-\code{method} (\code{"median"}, \code{"percentile"}, or \code{"fixed"})
-and \code{value}.}
+\item{fun_lag}{Lag basis function}
 
-\item{effect_measure}{Scale used to report effects. One of
-\code{"percent"}, \code{"ratio"}, or \code{"linear"}.}
+\item{scale}{"daily" or "accumulated"}
+
+\item{lag_windows}{Lag windows (required for accumulated)}
+
+\item{probs}{Quantiles}
+
+\item{ref}{Reference definition list}
+
+\item{effect_measure}{"percent","ratio","linear"}
 }
 \value{
-A data.frame containing summarised DLNM effects.
+data.frame
 }
 \description{
-Summarises estimated DLNM effects as daily (lag-specific) or accumulated
-effects across epidemiological lag windows. The function is model-agnostic
-and can be applied to both frequentist and Bayesian regression engines.
+Summarise DLNM effects (article-consistent)
 }

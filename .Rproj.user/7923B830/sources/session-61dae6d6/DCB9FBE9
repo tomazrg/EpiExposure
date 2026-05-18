@@ -1,0 +1,26 @@
+{
+    "id": "DCB9FBE9",
+    "path": "~/GitHub/EpiExposure/R/predict_surface.R",
+    "project_path": "R/predict_surface.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1779070502131.0,
+    "source_on_save": false,
+    "relative_order": 6,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "89,19",
+        "scrollLine": "68"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1779072183,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1779072183848,
+    "read_only": false,
+    "read_only_alternatives": []
+}
