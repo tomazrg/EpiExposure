@@ -1,4 +1,14 @@
+<img src="reference/figures/sticker.png"
+     align="right"
+     width="380px"
+     style="margin-left: 20px; margin-right: -100px; margin-top: 10px;"/>
+
 # EpiExposure
+
+**Tools for DLNM analysis in epidemiology.**
+
+EpiExposure provides a complete workflow for analyzing, interpreting,
+and simulating Distributed Lag Non-linear Models (DLNM).
 
 ## Overview
 
@@ -46,7 +56,43 @@ In short:
 
 ## Installation
 
+## Core workflow
+
+<div class="row">
+
+<div class="col-md-4">
+
+### Simulate
+
+Create exposure scenarios across lag windows for ecological inference.
+
+</div>
+
+<div class="col-md-4">
+
+### Analyse
+
+Model DLNM effects using flexible statistical frameworks.
+
+</div>
+
+<div class="col-md-4">
+
+### Interpret
+
+Summarise exposure-lag-response relationships in epidemiological terms.
+
+</div>
+
+</div>
+
+## Learning path
+
+1. Start with `summarise_effects()`
+2. Explore `predict_surface()`
+3. Use `simulate_scenarios()` for scenario analysis
+
 ```r
 # development version
-remotes::install_github("yourusername/EpiExposure")
-
+remotes::install_github("tomazrg/EpiExposure")
+```

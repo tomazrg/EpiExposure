@@ -3,7 +3,7 @@ Type: Package
 Title: DLNM Tools for Epidemiological Exposure Analysis
 Version: 0.0.1
 Authors@R: c(person(
-  given = "Ricardo",
+  given = "Ricardo Gomes",
   family = "Tomaz",
   email = "ricardogomes@gmail.com",
   role = c("aut", "cre"),

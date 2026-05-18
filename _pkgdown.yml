@@ -1,4 +1,19 @@
-url: ~
+url: https://tomazrg.github.io/EpiExposure/
+
 template:
   bootstrap: 5
+  bslib:
+    bootswatch: darkly
+    primary: "#7ED957"
 
+navbar:
+  structure:
+    right:
+      - search
+      - github
+      - theme
+
+  components:
+    github:
+      icon: fab fa-github
+      href: https://github.com/tomazrg/EpiExposure
