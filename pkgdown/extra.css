@@ -1,58 +1,126 @@
-/* ========= NAVBAR ========= *//* =========EBAR ========= */
+
+/* ========================= */
+/* ✅ NAVBAR */
+/* ========================= */
+
+.navbar {
+  background-color: #0b2b1d !important;
+}
+
+/* ========================= */
+/* ✅ VERSION (0.1.0) */
+/* ========================= */
+
+.navbar .navbar-brand small {
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+/* ========================= */
+/* ✅ NAVBAR LINKS */
+/* ========================= */
+
+/* todos os links */
+.navbar .navbar-nav .nav-link {
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+/* dropdown (Articles) */
+.navbar .navbar-nav .dropdown-toggle {
+  color: #ffffff !important;
+}
+
+/* ativo (Reference, etc.) */
+.navbar .navbar-nav .nav-link.active {
+  color: #7ED957 !important;
+}
+
+/* dropdown aberto */
+.navbar .navbar-nav .show > .nav-link {
+  color: #7ED957 !important;
+}
+
+/* hover */
+.navbar .navbar-nav .nav-link:hover {
+  color: #a6ff7a !important;
+}
+
+/* ========================= */
+/* ✅ TITLES */
+/* ========================= */
+
+h1, h2, h3 {
+  color: #7ED957 !important;
+}
+
+/* ========================= */
+/* ✅ LINKS */
+/* ========================= */
+
+a {
+  color: #7ED957 !important;
+}
+
+/* ========================= */
+/* ✅ SIDEBAR */
+/* ========================= */
+
 .list-unstyled a {
   color: #7ED957 !important;
 }
 
-/* ================================= */
-/* ✅ CODE BLOCKS - DARK FIX (CRÍTICO) */
-/* ================================= */
 
-/* blocos de código principais */
+/* ========================= */
+/* ✅ CODE BLOCKS (ESTILO r4pde) */
+/* ========================= */
+
 pre {
-  background-color: #1e1e1e !important;
-  color: #d4d4d4 !important;
+  background-color: #2b2f33 !important;   /* cinza escuro suave */
+  color: #e8e8e8 !important;
   border-radius: 10px;
   padding: 12px;
-  border: 1px solid #2a2a2a;
+  border: 1px solid #3a3f44;
   overflow-x: auto;
 }
 
-/* código dentro do bloco */
+/* interior */
 pre code {
   background-color: transparent !important;
-  color: #d4d4d4 !important;
+  color: #e8e8e8 !important;
 }
 
 /* código inline */
 code {
-  background-color: #2a2a2a !important;
+  background-color: #353a40 !important;
   color: #7ED957 !important;
   padding: 2px 6px;
   border-radius: 4px;
 }
 
-/* ================================= */
-/* ✅ OPTIONAL: syntax highlight style */
-/* ================================= */
+/* ========================= */
+/* ✅ SYNTAX HIGHLIGHT */
+/* ========================= */
 
-/* comentários */
-code span.co { color: #6A9955; }
+code span.co { color: #6A9955 !important; }
+code span.kw { color: #569CD6 !important; }
+code span.st { color: #CE9178 !important; }
 
-/* keywords */
-code span.kw { color: #569CD6; }
 
-/* strings */
-code span.st { color: #CE9178; }
-.navbar {
-  background-color: #0b2b1d !important;
+/* ========================= */
+/* ✅ VERSION TEXT (FORCE WHITE REAL) */
+/* ========================= */
+
+/* força tudo dentro do brand */
+.navbar .navbar-brand {
+  color: #ffffff !important;
 }
 
-/* ========= TITLES ========= */
-h1, h2, h3 {
-  color: #7ED957 !important;
+/* força especificamente a versão */
+.navbar .navbar-brand *,
+.navbar .navbar-brand span,
+.navbar .navbar-brand small {
+  color: #ffffff !important;
+  opacity: 1 !important;
 }
 
-/* ========= LINKS ========= */
-a {
-  color: #7ED957 !important;
-}

@@ -1,5 +1,5 @@
 ---
-title: "EpiExposure: An epidemiological workflow for DLNM interpretation"
+title: "An epidemiological workflow for DLNM interpretation"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{EpiExposure workflow}
