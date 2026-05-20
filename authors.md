@@ -16,12 +16,13 @@
 Source:
 [`DESCRIPTION`](https://github.com/tomazrg/EpiExposure/blob/HEAD/DESCRIPTION)
 
-Tomaz R, Del Ponte E, Dalla Lana F (2026). *EpiExposure: DLNM Tools for
-Epidemiological Exposure Analysis*. R package version 0.1.0,
+Tomaz R, Del Ponte E, Dalla Lana F (2026). *EpiExposure: R package
+designed to advance the epidemiological interpretation of environmental
+drivers of plant disease epidemics*. R package version 0.1.0,
 <https://github.com/tomazrg/EpiExposure>.
 
     @Manual{,
-      title = {EpiExposure: DLNM Tools for Epidemiological Exposure Analysis},
+      title = {EpiExposure: R package designed to advance the epidemiological interpretation of environmental drivers of plant disease epidemics},
       author = {Ricardo Gomes Tomaz and Emerson M. {Del Ponte} and Felipe {Dalla Lana}},
       year = {2026},
       note = {R package version 0.1.0},

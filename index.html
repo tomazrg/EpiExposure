@@ -5,15 +5,20 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>DLNM Tools for Epidemiological Exposure Analysis • EpiExposure</title>
+<title>EpiExposure • EpiExposure</title>
+<!-- favicons --><link rel="icon" type="image/png" sizes="96x96" href="favicon-96x96.png">
+<link rel="icon" type="”image/svg+xml”" href="favicon.svg">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" sizes="any" href="favicon.ico">
+<link rel="manifest" href="site.webmanifest">
 <script src="lightswitch.js"></script><script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
 <script src="deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><link href="extra.css" rel="stylesheet">
-<meta property="og:title" content="DLNM Tools for Epidemiological Exposure Analysis">
-<meta name="description" content="Tools for analyzing and interpreting distributed lag nonlinear models (DLNM) in epidemiological contexts. Includes functions to simulate exposure scenarios, compute effect summaries, predict exposure-lag-response surfaces, reduce DLNM effects to one dimension, and perform sensitivity analyses. Designed for multi-variable environmental epidemiology with support for frequentist and Bayesian models.">
-<meta property="og:description" content="Tools for analyzing and interpreting distributed lag nonlinear models (DLNM) in epidemiological contexts. Includes functions to simulate exposure scenarios, compute effect summaries, predict exposure-lag-response surfaces, reduce DLNM effects to one dimension, and perform sensitivity analyses. Designed for multi-variable environmental epidemiology with support for frequentist and Bayesian models.">
+<meta property="og:title" content="EpiExposure">
+<meta name="description" content="R package designed to advance the epidemiological interpretation">
+<meta property="og:description" content="R package designed to advance the epidemiological interpretation">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -23,7 +28,7 @@
 
     <a class="navbar-brand me-2" href="index.html">EpiExposure</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Released version">0.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -32,13 +37,23 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="articles/epiexposure-workflow.html">An epidemiological workflow for DLNM interpretation</a></li>
   </ul>
 </li>
+<li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
+<li class="nav-item dropdown">
+  <button class="nav-link dropdown-toggle" type="button" id="dropdown-examples" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Examples</button>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-examples">
+<li><a class="dropdown-item" href="examples/examples-fungi.html">Fungi</a></li>
+    <li><a class="dropdown-item" href="examples/examples-bacteria.html">Bacteria</a></li>
+    <li><a class="dropdown-item" href="examples/examples-virus.html">Virus</a></li>
+    <li><a class="dropdown-item" href="examples/examples-nematode.html">Nematode</a></li>
+  </ul>
+</li>
+<li class="nav-item"><a class="nav-link" href="news/news.html">News</a></li>
       </ul>
 <ul class="navbar-nav">
 <li class="nav-item"><form class="form-inline" role="search">
@@ -54,95 +69,57 @@
 </nav><div class="container template-home">
 <div class="row">
   <main id="main" class="col-md-9"><p><img src="reference/figures/sticker.png" align="right" width="380px" style="margin-left: 20px; margin-right: -100px; margin-top: 10px;"></p>
-<div class="section level2">
-<h2 id="epiexposure">EpiExposure<a class="anchor" aria-label="anchor" href="#epiexposure"></a>
-</h2>
-<p><code>EpiExposure</code> is an R package designed to advance the epidemiological interpretation of environmental drivers of plant disease epidemics. It provides a structured and reproducible framework for analysing exposure–lag–response relationships, enabling researchers to move beyond descriptive associations toward biologically meaningful inference.</p>
-<p>In plant disease epidemiology, environmental effects are inherently dynamic, cumulative, and time-dependent. However, traditional analytical approaches often rely on arbitrarily defined temporal windows, which can fragment continuous processes and obscure critical epidemiological signals.</p>
-<p>EpiExposure addresses these limitations by providing tools that explicitly account for temporal continuity, lagged effects, and biologically interpretable summaries. By integrating epidemiological reasoning directly into the analytical workflow, the package allows users to identify critical exposure periods, quantify cumulative effects, and interpret environmental drivers within the context of disease development.</p>
+<div class="section level1">
+<div class="page-header"><h1 id="epiexposure">EpiExposure<a class="anchor" aria-label="anchor" href="#epiexposure"></a>
+</h1></div>
+<p><code>EpiExposure</code> is an R package designed to advance the epidemiological interpretation of environmental drivers of plant disease epidemics.</p>
 <hr>
-</div>
-<div class="section level2">
-<h2 id="scope-and-scientific-contribution">Scope and Scientific Contribution<a class="anchor" aria-label="anchor" href="#scope-and-scientific-contribution"></a>
-</h2>
-<p>EpiExposure introduces an epidemiological layer for modelling environmental effects on plant disease dynamics. Rather than focusing solely on statistical estimation, the package structures the entire analytical pipeline around epidemiologically meaningful concepts.</p>
-<p>Specifically, EpiExposure enables:</p>
-<ul>
-<li>Formal definition of exposure windows aligned with biological processes .</li>
-<li>Quantification of cumulative and phase-specific effects across epidemics.</li>
-<li>Consistent separation between model fitting and epidemiological interpretation.<br>
-</li>
-<li>Identification of critical time periods driving disease development.<br>
-</li>
-<li>Reproducible workflows for comparative and multi-epidemic analyses.</li>
-</ul>
-<p>By embedding these components into a unified framework, the package transforms how exposure–disease relationships are analysed, interpreted, and communicated.</p>
-<hr>
-</div>
-<div class="section level2">
-<h2 id="conceptual-framework">Conceptual Framework<a class="anchor" aria-label="anchor" href="#conceptual-framework"></a>
-</h2>
-<p>Plant diseases arise from complex and dynamic interactions between host, pathogen, and environment. Environmental drivers do not act instantaneously but accumulate and interact over time, influencing infection cycles, latent periods, and epidemic progression.</p>
-<p>EpiExposure operationalizes this perspective by treating environmental exposure as a continuous and structured process. Instead of relying on discrete summaries, it enables the estimation and interpretation of time-resolved exposure effects, capturing both immediate and lagged influences.</p>
-<p>This approach allows researchers to:</p>
-<ul>
-<li>Detect non-linear and delayed environmental effects<br>
-</li>
-<li>Distinguish between short-term and cumulative drivers<br>
-</li>
-<li>Link climatic variability to specific epidemiological phases<br>
-</li>
-<li>Improve mechanistic understanding of disease–environment interactions</li>
-</ul>
-<hr>
-</div>
-<div class="section level2">
-<h2 id="key-features">Key Features<a class="anchor" aria-label="anchor" href="#key-features"></a>
-</h2>
-<ul>
-<li>Epidemiology-driven analytical framework for exposure–lag modelling<br>
-</li>
-<li>Structured definition of biologically meaningful exposure windows<br>
-</li>
-<li>Integrated tools for daily and cumulative effect estimation<br>
-</li>
-<li>Scenario simulation for exploring environmental impacts on epidemics<br>
-</li>
-<li>Compatibility with multiple statistical engines (frequentist and Bayesian)<br>
-</li>
-<li>Reproducible workflows for research, teaching, and decision support</li>
-</ul>
-<hr>
-</div>
-<div class="section level2">
-<h2 id="why-epiexposure">Why EpiExposure?<a class="anchor" aria-label="anchor" href="#why-epiexposure"></a>
-</h2>
-<p>EpiExposure is not simply an implementation tool — it is a framework for translating complex statistical outputs into epidemiological knowledge.</p>
-<p>In short:</p>
-<blockquote>
-<p>EpiExposure enables researchers to move from statistical estimation to epidemiological understanding of environmental drivers of disease.</p>
-</blockquote>
-</div>
 <div class="section level2">
 <h2 id="core-workflow">Core workflow<a class="anchor" aria-label="anchor" href="#core-workflow"></a>
 </h2>
 <div class="row">
 <div class="section level3 col-md-4">
-<h3 id="simulate">Simulate<a class="anchor" aria-label="anchor" href="#simulate"></a>
-</h3>
-<p>Create exposure scenarios across lag windows for ecological inference.</p>
-</div>
-<div class="section level3 col-md-4">
 <h3 id="analyse">Analyse<a class="anchor" aria-label="anchor" href="#analyse"></a>
 </h3>
-<p>Model DLNM effects using flexible statistical frameworks.</p>
+<p>Model DLNM effects using flexible and integrated statistical frameworks.</p>
 </div>
 <div class="section level3 col-md-4">
 <h3 id="interpret">Interpret<a class="anchor" aria-label="anchor" href="#interpret"></a>
 </h3>
 <p>Summarise exposure-lag-response relationships in epidemiological terms.</p>
 </div>
+<div class="section level3 col-md-4">
+<h3 id="simulate">Simulate<a class="anchor" aria-label="anchor" href="#simulate"></a>
+</h3>
+<p>Create exposure scenarios across lag windows for epidemiological inference.</p>
 </div>
+</div>
+<hr>
+</div>
+<div class="section level2">
+<h2 id="why-epiexposure">Why EpiExposure?<a class="anchor" aria-label="anchor" href="#why-epiexposure"></a>
+</h2>
+<blockquote>
+<p><code>In plant disease epidemiology</code>, environmental effects are inherently dynamic, cumulative, and time-dependent. However, traditional analytical approaches often rely on arbitrarily defined temporal windows, which can fragment continuous processes and obscure critical epidemiological signals. <code>EpiExposure</code> addresses these limitations by providing tools that explicitly account for temporal continuity, lagged effects, and biologically interpretable summaries.</p>
+</blockquote>
+<hr>
+</div>
+<div class="section level2">
+<h2 id="what-does-it-do">What does it do?<a class="anchor" aria-label="anchor" href="#what-does-it-do"></a>
+</h2>
+<p><code>EpiExposure</code> enables you to:</p>
+<ul>
+<li>Define biologically meaningful exposure windows<br>
+</li>
+<li>Quantify daily, cumulative, and phase-specific environmental effects<br>
+</li>
+<li>Identify critical time periods driving epidemics<br>
+</li>
+<li>Separate statistical modelling from epidemiological interpretation<br>
+</li>
+<li>Compare exposure–disease relationships across epidemics</li>
+</ul>
+<hr>
 </div>
 <div class="section level2">
 <h2 id="learning-path">Learning path<a class="anchor" aria-label="anchor" href="#learning-path"></a>
@@ -161,6 +138,7 @@
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># development version</span></span>
 <span><span class="fu">remotes</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"tomazrg/EpiExposure"</span><span class="op">)</span></span></code></pre></div>
+</div>
 </div>
 
   </main><aside class="col-md-3"><div class="links">
