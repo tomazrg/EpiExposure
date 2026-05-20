@@ -4,7 +4,7 @@
 /* ========================= */
 
 .navbar {
-  background-color: #0b2b1d !important;
+  background-color: #458a3f !important;
 }
 
 /* ========================= */
@@ -122,5 +122,31 @@ code span.st { color: #CE9178 !important; }
 .navbar .navbar-brand small {
   color: #ffffff !important;
   opacity: 1 !important;
+}
+
+
+/* ========================= */
+/* ✅ PAGE BACKGROUND (IGUAL r4pde) */
+/* ========================= */
+
+body {
+  background-color: #1f262d !important;
+}
+
+/* container principal */
+.container-fluid,
+.container-lg,
+.container-xl,
+.container-xxl {
+  background-color: transparent !important;
+}
+
+
+/* ========================= */
+/* ✅ PACKAGE TITLE (HOME) */
+/* ========================= */
+
+h1 {
+  font-weight: 700 !important;
 }
 

@@ -1,6 +1,6 @@
 Package: EpiExposure
 Type: Package
-Title: DLNM Tools for Epidemiological Exposure Analysis
+Title: R package designed to advance the epidemiological interpretation of environmental drivers of plant disease epidemics
 Version: 0.1.0
 Authors@R: c(person(
   given = "Ricardo Gomes",

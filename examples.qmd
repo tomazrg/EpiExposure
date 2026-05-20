@@ -1,0 +1,11 @@
+---
+title: "Examples"
+---
+
+
+## Example workflows by pathogen group
+
+- [Fungi](examples-fungi.html)
+- [Bacteria](examples-bacteria.html)
+- [Virus](examples-virus.html)
+- [Nematode](examples-nematode.html)
