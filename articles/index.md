@@ -2,5 +2,5 @@
 
 ### All vignettes
 
-- [EpiExposure: An epidemiological workflow for DLNM
-  interpretation](epiexposure-workflow.md):
+- [An epidemiological workflow for DLNM
+  interpretation](https://tomazrg.github.io/EpiExposure/articles/epiexposure-workflow.md):

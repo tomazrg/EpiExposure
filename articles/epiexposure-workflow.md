@@ -1,4 +1,4 @@
-# EpiExposure: An epidemiological workflow for DLNM interpretation
+# An epidemiological workflow for DLNM interpretation
 
 ``` r
 library(EpiExposure)
