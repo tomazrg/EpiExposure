@@ -1,21 +1,18 @@
-
 url: https://tomazrg.github.io/EpiExposure/
 
 template:
   bootstrap: 5
+  bootswatch: flatly
   light-switch: true
 
 home:
   title: EpiExposure
   description:  R package designed to advance the epidemiological interpretation
-  license: FALSE
-development:
-  mode: auto
 
 navbar:
   structure:
     left:  [home, articles, reference, examples, newslink]
-    right: [search, github, linkedin, theme]
+    right: [search, github, linkedin, lightswitch]
 
   components:
 
@@ -27,21 +24,9 @@ navbar:
       icon: fab fa-linkedin
       href: https://www.linkedin.com/in/ricardo-gomes-tom%C3%A1z-0137ba189/?skipRedirect=true
 
-    examples:
-      text: Examples
-      menu:
-        - text: Fungi
-          href: examples/examples-fungi.html
-        - text: Bacteria
-          href: examples/examples-bacteria.html
-        - text: Virus
-          href: examples/examples-virus.html
-        - text: Nematode
-          href: examples/examples-nematode.html
-
     newslink:
       text: News
-      href: news/news.html
+      href: news/index.html
 
 reference:
 
