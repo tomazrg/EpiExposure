@@ -1,8 +1,8 @@
 ---
-title: "Introducing the EpiExposure package"
+title: "An epidemiological workflow for DLNM interpretation"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{EpiExposure workflow}
+  %\VignetteIndexEntry{An epidemiological workflow for DLNM interpretation}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
