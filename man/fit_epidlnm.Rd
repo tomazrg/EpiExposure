@@ -4,7 +4,14 @@
 \alias{fit_epidlnm}
 \title{Fit DLNM inferential model}
 \usage{
-fit_epidlnm(dat, model_engine, family, random_effect = NULL, ...)
+fit_epidlnm(
+  dat,
+  model_engine,
+  family,
+  random_effect = NULL,
+  epiexposure_spec = NULL,
+  ...
+)
 }
 \arguments{
 \item{dat}{Design matrix containing y_model and cb_* terms}
@@ -12,14 +19,23 @@ fit_epidlnm(dat, model_engine, family, random_effect = NULL, ...)
 \item{model_engine}{Modeling engine
 ("glm","glmmTMB","gam","gamm","gls","spamm","brms","inla")}
 
-\item{family}{Distribution}
+\item{family}{Distribution (engine-specific; can be character or family object)}
 
 \item{random_effect}{Random effect variable (optional)}
+
+\item{epiexposure_spec}{Optional list describing how crossbasis was built.
+Recommended structure (by variable name):
+list(
+  tmean = list(lag_max=85, argvar=list(...), arglag=list(...)),
+  vpd   = list(lag_max=85, argvar=list(...), arglag=list(...))
+)
+If NULL, the model is fit normally but predict_outcome() will not be able
+to rebuild cb terms from a profile without this spec.}
 
 \item{...}{Additional arguments passed to the modeling engine}
 }
 \value{
-Fitted model object
+Fitted model object (same class as before), with extra attributes
 }
 \description{
 Fit DLNM inferential model

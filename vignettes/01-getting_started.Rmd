@@ -7,26 +7,58 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+# What EpiExposure does?
+
+`Introduzir o usuário ao workflow básico: da exposição ao modelo.`
+
+
+```{r, eval = FALSE}
+# carregar dados
+data("TargetSpot")
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r, eval = FALSE}
+# definir exposição (DLNM structure)
+cb <- define_exposure(
+  wx_long = TargetSpot,
+  vars = c("tmean", "vpd"),
+  lag_max = 85
+)
 ```
 
-## Including Plots
+```{r, eval = FALSE}
 
-You can also embed plots, for example:
+# construir design matrix
+dat <- build_design_matrix(
+  wx_long = TargetSpot,
+  cb_templates = cb,
+  lag_max = 85
+)
 
-```{r pressure, echo=FALSE}
-plot(pressure)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r, eval = FALSE}
+
+# preparar resposta
+dat <- prepare_response(dat, y_var = "severity", family = "beta")
+```
+
+```{r, eval = FALSE}
+# ajustar modelo
+fit <- fit_epidlnm(
+  dat = dat,
+  model_engine = "glmmTMB",
+  family = "beta",
+  random_effect = "epi_id",
+  epiexposure_spec = attr(cb, "spec")
+)
+```
+
+` DLNM não é só modelo — é estrutura epidemiológica`
+`define_exposure() define como a exposição atua no tempo`
+`fit_epidlnm() estimula a relação exposição–doença`
+
+```{r, eval = FALSE}
+hist(dat$y_model, main="Distribution of disease response", col="steelblue")
+```
+

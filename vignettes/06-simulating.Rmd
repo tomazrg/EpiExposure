@@ -7,26 +7,28 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+# Objective
+
+Interpretar efeitos por janelas biológicas
+
+```{r}
+windows <- define_lag_windows(lag_max = 85, cuts = c(7, 21, 40))
+
+sum_eff <- summarise_effects(fit, lag_windows = windows)
 ```
 
-## R Markdown
+🧠 Discussão
+👉 Aqui conecta com biologia:
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+pré-infecção
+desenvolvimento
+sintoma
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+👉 você traduz estatística → biologia
 
-```{r cars}
-summary(cars)
+```{r}
+boxplot(effect ~ window, data = sum_eff,
+        col="lightgreen",
+        main="Effects by epidemiological windows")
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

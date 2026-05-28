@@ -30,7 +30,7 @@ define_exposure(
 \item{fun_lag}{Basis function for lag ("ns","ps","lin")}
 }
 \value{
-Named list of crossbasis templates
+Named list of crossbasis templates (with attribute "spec")
 }
 \description{
 Define DLNM exposure templates with flexible splines

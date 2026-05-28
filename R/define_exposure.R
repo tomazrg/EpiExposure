@@ -8,7 +8,7 @@
 #' @param fun_var Basis function for exposure ("ns","bs","poly","lin")
 #' @param fun_lag Basis function for lag ("ns","ps","lin")
 #'
-#' @return Named list of crossbasis templates
+#' @return Named list of crossbasis templates (with attribute "spec")
 #' @export
 define_exposure <- function(wx_long, vars,
                             lag_max,
@@ -34,13 +34,16 @@ define_exposure <- function(wx_long, vars,
   build_pooled <- function(dat, var, sep_n) {
     ids <- unique(dat$epi_id)
     out <- vector("list", length(ids))
+
     for (i in seq_along(ids)) {
       v <- dat |>
         dplyr::filter(epi_id == ids[i]) |>
         dplyr::arrange(dpp) |>
         dplyr::pull(.data[[var]])
+
       out[[i]] <- c(v, rep(NA_real_, sep_n))
     }
+
     unlist(out)
   }
 
@@ -59,7 +62,7 @@ define_exposure <- function(wx_long, vars,
       lin  = list(fun = "lin")
     )
 
-    # Avoid intercept in exposure basis to prevent collinearity with
+    # evitar intercepto na dimensão da exposição
     if (!is.null(argvar$fun) && argvar$fun != "lin") {
       argvar$intercept <- FALSE
     }
@@ -80,5 +83,21 @@ define_exposure <- function(wx_long, vars,
     )
   }
 
-  cb_templates
+  # ----------------------------
+  # ✅ NOVO: criar spec automaticamente
+  # ----------------------------
+  epiexposure_spec <- lapply(cb_templates, function(cb) {
+    list(
+      lag_max = attr(cb, "lag"),
+      argvar  = attr(cb, "argvar"),
+      arglag  = attr(cb, "arglag")
+    )
+  })
+
+  # ----------------------------
+  # ✅ NOVO: anexar como atributo (SEM quebrar nada)
+  # ----------------------------
+  attr(cb_templates, "spec") <- epiexposure_spec
+
+  return(cb_templates)
 }
