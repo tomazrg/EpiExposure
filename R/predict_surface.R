@@ -1,19 +1,20 @@
 #' Predict full DLNM exposure-lag-response surface
 #'
-##' @param lag_max Maximum lag#' Generates the full DLNM surface (exposure × lag) based on
-#' @param fit ...
-#' @param wx_long ...
-#' @param var ...
-#' @param lag_max ...
-#' @param df_var Degrees of freedom (exposure dimension)
-#' @param df_lag Degrees of freedom (lag dimension)
-#' @param fun_var Basis function ("ns","bs","poly","lin")
-#' @param fun_lag Basis function ("ns","ps","lin")
+#' @param fit Fitted model object
+#' @param wx_long Long-format weather data
+#' @param var Exposure variable name
+#' @param lag_max Maximum lag
+#' @param df_var Degrees of freedom (exposure)
+#' @param df_lag Degrees of freedom (lag)
+#' @param fun_var Basis function
+#' @param fun_lag Basis function
 #' @param ref Reference exposure definition
-#' @param probs Quantiles defining exposure grid
+#' @param probs Quantiles for exposure grid
+#' @param uncertainty Logical
+#' @param output "summary" or "samples"
+#' @param n_samples Number of simulations
 #'
-#' @return crosspred object
-#'
+#' @return crosspred object OR list
 #' @export
 predict_surface <- function(
     fit,
@@ -25,11 +26,18 @@ predict_surface <- function(
     fun_var = "ns",
     fun_lag = "ns",
     ref = list(method = "median", value = NULL),
-    probs = seq(0.05, 0.95, by = 0.01)
+    probs = seq(0.05, 0.95, by = 0.01),
+    uncertainty = FALSE,
+    output = c("summary", "samples"),
+    n_samples = 1000
 ) {
 
+  output <- match.arg(output)
+
+  `%||%` <- function(a, b) if (!is.null(a)) a else b
+
   # ----------------------------------------------------------
-  # 1) pooled series (IGUAL AO ARTIGO)
+  # pooled series
   # ----------------------------------------------------------
   build_pooled_series <- function(dat, var, sep_n) {
     ids <- unique(dat$epi_id)
@@ -51,7 +59,7 @@ predict_surface <- function(
   x_pool <- build_pooled_series(wx_long, var, SEPARATOR)
 
   # ----------------------------------------------------------
-  # 2) reconstruir crossbasis (IGUAL ARTIGO)
+  # crossbasis
   # ----------------------------------------------------------
   argvar <- switch(
     fun_var,
@@ -80,63 +88,56 @@ predict_surface <- function(
   )
 
   # ----------------------------------------------------------
-  # 3) ✅ Extract beta and vcov (TODOS OS MODELOS PRESERVADOS)
+  # extract beta / vcov
   # ----------------------------------------------------------
-  extract_beta_vcov <- function(fit) {
+  extract_coef_vcov <- function(model) {
 
-    if (inherits(fit, "glmmTMB")) {
+    if (inherits(model, "glmmTMB")) {
       return(list(
-        beta = glmmTMB::fixef(fit)$cond,
-        V    = vcov(fit)$cond
+        beta = glmmTMB::fixef(model)$cond,
+        vcov = vcov(model)$cond
       ))
     }
 
-    if (inherits(fit, "brmsfit")) {
-      fe <- brms::fixef(fit)
+    if (inherits(model, "brmsfit")) {
+      fe <- brms::fixef(model)
       beta <- fe[, "Estimate"]
-      V <- as.matrix(stats::vcov(fit))
+      V <- as.matrix(stats::vcov(model))
       names(beta) <- rownames(fe)
-      return(list(beta = beta, V = V))
+      return(list(beta = beta, vcov = V))
     }
 
-    if (inherits(fit, "inla")) {
-      beta <- fit$summary.fixed$mean
-      V <- diag(fit$summary.fixed$sd^2)
+    if (inherits(model, "inla")) {
+      beta <- model$summary.fixed$mean
+      V <- diag(model$summary.fixed$sd^2)
       rownames(V) <- names(beta)
       colnames(V) <- names(beta)
-      return(list(beta = beta, V = V))
+      return(list(beta = beta, vcov = V))
     }
 
-    if (inherits(fit, "HLfit")) {
+    if (inherits(model, "bdlnm")) {
       return(list(
-        beta = spaMM::fixef(fit),
-        V    = stats::vcov(fit)
+        beta = model$coefficients.summary[, "mean"],
+        vcov = stats::cov(t(model$coefficients))
       ))
     }
 
     return(list(
-      beta = coef(fit),
-      V    = vcov(fit)
+      beta = coef(model),
+      vcov = vcov(model)
     ))
   }
 
-  bv <- extract_beta_vcov(fit)
+  bv <- extract_coef_vcov(fit)
   beta <- bv$beta
-  V    <- bv$V
+  V    <- bv$vcov
 
-  # ----------------------------------------------------------
-  # 4) ✅ selecionar APENAS a variável correta
-  # ----------------------------------------------------------
   idx <- grepl(paste0("^cb_", var, "_"), names(beta))
-
   beta_sub <- beta[idx]
   V_sub    <- V[idx, idx, drop = FALSE]
 
-  stopifnot(length(beta_sub) == ncol(cb))
-  stopifnot(nrow(V_sub) == ncol(cb))
-
   # ----------------------------------------------------------
-  # 5) grid de exposição
+  # grid
   # ----------------------------------------------------------
   x_all <- wx_long[[var]]
 
@@ -155,9 +156,9 @@ predict_surface <- function(
   cen <- as.numeric(cen)
 
   # ----------------------------------------------------------
-  # 6) DLNM SURFACE
+  # BASE (no uncertainty)
   # ----------------------------------------------------------
-  cp <- dlnm::crosspred(
+  base_cp <- dlnm::crosspred(
     cb,
     coef  = beta_sub,
     vcov  = V_sub,
@@ -166,10 +167,66 @@ predict_surface <- function(
     bylag = 1
   )
 
-  return(cp)
+  if (!uncertainty) {
+    return(base_cp)
+  }
+
+  # ----------------------------------------------------------
+  # UNCERTAINTY
+  # ----------------------------------------------------------
+
+  if (!requireNamespace("MASS", quietly = TRUE)) {
+    stop("Package 'MASS' required for uncertainty.")
+  }
+
+  beta_draws <- MASS::mvrnorm(
+    n = n_samples,
+    mu = beta_sub,
+    Sigma = V_sub
+  )
+
+  samples <- vector("list", n_samples)
+
+  for (i in seq_len(n_samples)) {
+    samples[[i]] <- dlnm::crosspred(
+      cb,
+      coef  = beta_draws[i, ],
+      vcov  = NULL,
+      at    = at_vals,
+      cen   = cen,
+      bylag = 1
+    )
+  }
+
+  if (output == "samples") {
+    return(samples)
+  }
+
+  # ----------------------------------------------------------
+  # SUMMARY
+  # ----------------------------------------------------------
+
+  get_array <- function(samples, slot) {
+    simplify2array(lapply(samples, function(x) x[[slot]]))
+  }
+
+  matfit_arr <- get_array(samples, "matfit")
+
+  mean_fit <- apply(matfit_arr, c(1, 2), mean)
+  lower_fit <- apply(matfit_arr, c(1, 2), quantile, probs = 0.025)
+  upper_fit <- apply(matfit_arr, c(1, 2), quantile, probs = 0.975)
+
+  cp_mean  <- base_cp
+  cp_lower <- base_cp
+  cp_upper <- base_cp
+
+  cp_mean$matfit  <- mean_fit
+  cp_lower$matfit <- lower_fit
+  cp_upper$matfit <- upper_fit
+
+  return(list(
+    mean  = cp_mean,
+    lower = cp_lower,
+    upper = cp_upper
+  ))
 }
-#' fitted model coefficients and reconstructed cross-basis.
-#'
-#' @param fit Fitted model object from fit_epidlnm()
-#' @param wx_long Long-format weather data
-#' @param var Exposure variable name (e.g. "tmax")
