@@ -1,76 +1,156 @@
 #' Quantify lag contributions to the cumulative DLNM effect
 #'
-#' Decomposes the cumulative DLNM effect into relative contributions
-#' of individual lags based on daily lag-specific effects.
+#' Supports:
+#' 1) Deterministic input
+#' 2) Summary input (effect with sd/CI)
+#' 3) Samples input (with 'sample' column)
 #'
-#' @param daily_df Output from summarise_effects(scale = "daily").
-#'   Must contain columns: lag, effect.
-#' @param lag_window Optional vector of length 2 specifying the lag
-#'   interval c(lag_start, lag_end). If NULL, the full lag range is used.
-#' @param absolute Logical. If TRUE (default), contributions are calculated
-#'   using absolute effects to avoid sign cancellation.
+#' @param daily_df Output from summarise_effects(scale = "daily")
+#' @param lag_window Optional lag interval c(start, end)
+#' @param absolute Logical (default TRUE)
 #'
-#' @return A data.frame with lag-specific contributions to the cumulative effect.
-#'
+#' @return data.frame
 #' @export
-lag_contribution <- function(daily_df,
-                             lag_window = NULL,
-                             absolute = TRUE) {
+lag_contribution <- function(
+    daily_df,
+    lag_window = NULL,
+    absolute = TRUE
+) {
+
+  if (!all(c("lag", "effect") %in% names(daily_df))) {
+    stop("daily_df must contain columns 'lag' and 'effect'.")
+  }
+
+  has_samples <- "sample" %in% names(daily_df)
+  has_var     <- "var" %in% names(daily_df)
 
   # ------------------------------------------------------------
-  # Basic input checks
-  # ------------------------------------------------------------
-  stopifnot(all(c("lag", "effect") %in% names(daily_df)))
-
-  # ------------------------------------------------------------
-  # Select lag interval
+  # Subset lag window
   # ------------------------------------------------------------
   if (!is.null(lag_window)) {
-    stopifnot(length(lag_window) == 2)
+    if (length(lag_window) != 2) stop("lag_window must have length 2.")
 
     daily_df <- daily_df |>
-      dplyr::filter(
-        lag >= min(lag_window),
-        lag <= max(lag_window)
+      dplyr::filter(lag >= min(lag_window), lag <= max(lag_window))
+  }
+
+  # ------------------------------------------------------------
+  # Helper: core computation (single dataset)
+  # ------------------------------------------------------------
+  compute_contribution <- function(df) {
+
+    lag_effect <- df |>
+      dplyr::group_by(lag) |>
+      dplyr::summarise(
+        eta_lag = sum(effect, na.rm = TRUE),
+        .groups = "drop"
+      )
+
+    total_effect <- if (absolute) {
+      sum(abs(lag_effect$eta_lag), na.rm = TRUE)
+    } else {
+      sum(lag_effect$eta_lag, na.rm = TRUE)
+    }
+
+    if (is.na(total_effect) || total_effect == 0) {
+      return(NULL)
+    }
+
+    lag_effect |>
+      dplyr::mutate(
+        contribution = if (absolute) {
+          abs(eta_lag) / total_effect
+        } else {
+          eta_lag / total_effect
+        },
+        contribution_percent = 100 * contribution
       )
   }
 
-  # ------------------------------------------------------------
-  # Collapse exposure dimension (sum over x)
-  # ------------------------------------------------------------
-  lag_effect <- daily_df |>
-    dplyr::group_by(lag) |>
-    dplyr::summarise(
-      eta_lag = sum(effect, na.rm = TRUE),
-      .groups = "drop"
-    )
+  # ============================================================
+  # ✅ CASE 1 & 2: deterministic or summary
+  # ============================================================
+  if (!has_samples) {
 
-  # ------------------------------------------------------------
-  # Compute total cumulative effect
-  # ------------------------------------------------------------
-  if (absolute) {
-    total_effect <- sum(abs(lag_effect$eta_lag), na.rm = TRUE)
-  } else {
-    total_effect <- sum(lag_effect$eta_lag, na.rm = TRUE)
-  }
+    if (!has_var) {
 
-  if (total_effect == 0) {
-    warning("Total cumulative effect is zero; contributions cannot be computed.")
-    return(NULL)
-  }
-
-  # ------------------------------------------------------------
-  # Calculate lag contributions
-  # ------------------------------------------------------------
-  lag_effect |>
-    dplyr::mutate(
-      contribution = if (absolute) {
-        abs(eta_lag) / total_effect
-      } else {
-        eta_lag / total_effect
+      out <- compute_contribution(daily_df)
+      if (is.null(out)) {
+        warning("Total cumulative effect is zero.")
+        return(NULL)
       }
-    ) |>
-    dplyr::mutate(
-      contribution_percent = 100 * contribution
-    )
+
+      return(out)
+
+    } else {
+
+      out <- daily_df |>
+        dplyr::group_by(var) |>
+        dplyr::group_modify(~ compute_contribution(.x)) |>
+        dplyr::ungroup()
+
+      if (is.null(out) || nrow(out) == 0) {
+        warning("Total cumulative effect is zero.")
+        return(NULL)
+      }
+
+      return(out)
+    }
+  }
+
+  # ============================================================
+  # ✅ CASE 3: samples (uncertainty)
+  # ============================================================
+
+  if (!has_var) {
+
+    # sample-level contributions
+    lag_sample <- daily_df |>
+      dplyr::group_by(sample) |>
+      dplyr::group_modify(~ compute_contribution(.x)) |>
+      dplyr::ungroup()
+
+    lag_summary <- lag_sample |>
+      dplyr::group_by(lag) |>
+      dplyr::summarise(
+        contribution_mean  = mean(contribution, na.rm = TRUE),
+        contribution_sd    = stats::sd(contribution, na.rm = TRUE),
+        contribution_lower = stats::quantile(contribution, 0.025, na.rm = TRUE),
+        contribution_upper = stats::quantile(contribution, 0.975, na.rm = TRUE),
+
+        contribution_percent_mean  = mean(contribution_percent, na.rm = TRUE),
+        contribution_percent_sd    = stats::sd(contribution_percent, na.rm = TRUE),
+        contribution_percent_lower = stats::quantile(contribution_percent, 0.025, na.rm = TRUE),
+        contribution_percent_upper = stats::quantile(contribution_percent, 0.975, na.rm = TRUE),
+
+        .groups = "drop"
+      )
+
+    return(lag_summary)
+
+  } else {
+
+    lag_sample <- daily_df |>
+      dplyr::group_by(sample, var) |>
+      dplyr::group_modify(~ compute_contribution(.x)) |>
+      dplyr::ungroup()
+
+    lag_summary <- lag_sample |>
+      dplyr::group_by(var, lag) |>
+      dplyr::summarise(
+        contribution_mean  = mean(contribution, na.rm = TRUE),
+        contribution_sd    = stats::sd(contribution, na.rm = TRUE),
+        contribution_lower = stats::quantile(contribution, 0.025, na.rm = TRUE),
+        contribution_upper = stats::quantile(contribution, 0.975, na.rm = TRUE),
+
+        contribution_percent_mean  = mean(contribution_percent, na.rm = TRUE),
+        contribution_percent_sd    = stats::sd(contribution_percent, na.rm = TRUE),
+        contribution_percent_lower = stats::quantile(contribution_percent, 0.025, na.rm = TRUE),
+        contribution_percent_upper = stats::quantile(contribution_percent, 0.975, na.rm = TRUE),
+
+        .groups = "drop"
+      )
+
+    return(lag_summary)
+  }
 }
