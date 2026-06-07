@@ -14,7 +14,10 @@ recenter_effects(
   fun_var = "ns",
   fun_lag = "ns",
   ref = list(method = "median", value = NULL),
-  probs = seq(0.05, 0.95, by = 0.01)
+  probs = seq(0.05, 0.95, by = 0.01),
+  uncertainty = FALSE,
+  output = c("summary", "samples"),
+  n_samples = 1000
 )
 }
 \arguments{
@@ -37,9 +40,19 @@ recenter_effects(
 \item{ref}{New reference definition}
 
 \item{probs}{Quantiles for exposure grid}
+
+\item{uncertainty}{Logical; if TRUE, quantify uncertainty}
+
+\item{output}{"summary" or "samples"}
+
+\item{n_samples}{Number of samples for uncertainty}
 }
 \value{
-crosspred object
+- If uncertainty = FALSE: crosspred object
+- If uncertainty = TRUE and output = "summary":
+    list(mean = crosspred, lower = crosspred, upper = crosspred)
+- If uncertainty = TRUE and output = "samples":
+    list(mean = ..., lower = ..., upper = ..., samples = list_of_crosspred)
 }
 \description{
 Recomputes the DLNM effect surface using a different centering value,

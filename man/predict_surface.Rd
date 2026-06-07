@@ -14,32 +14,41 @@ predict_surface(
   fun_var = "ns",
   fun_lag = "ns",
   ref = list(method = "median", value = NULL),
-  probs = seq(0.05, 0.95, by = 0.01)
+  probs = seq(0.05, 0.95, by = 0.01),
+  uncertainty = FALSE,
+  output = c("summary", "samples"),
+  n_samples = 1000
 )
 }
 \arguments{
-\item{fit}{...}
+\item{fit}{Fitted model object}
 
-\item{wx_long}{...}
+\item{wx_long}{Long-format weather data}
 
-\item{var}{...}
+\item{var}{Exposure variable name}
 
-\item{lag_max}{...}
+\item{lag_max}{Maximum lag}
 
-\item{df_var}{Degrees of freedom (exposure dimension)}
+\item{df_var}{Degrees of freedom (exposure)}
 
-\item{df_lag}{Degrees of freedom (lag dimension)}
+\item{df_lag}{Degrees of freedom (lag)}
 
-\item{fun_var}{Basis function ("ns","bs","poly","lin")}
+\item{fun_var}{Basis function}
 
-\item{fun_lag}{Basis function ("ns","ps","lin")}
+\item{fun_lag}{Basis function}
 
 \item{ref}{Reference exposure definition}
 
-\item{probs}{Quantiles defining exposure grid}
+\item{probs}{Quantiles for exposure grid}
+
+\item{uncertainty}{Logical}
+
+\item{output}{"summary" or "samples"}
+
+\item{n_samples}{Number of simulations}
 }
 \value{
-crosspred object
+crosspred object OR list
 }
 \description{
 Predict full DLNM exposure-lag-response surface

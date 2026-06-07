@@ -10,7 +10,10 @@ predict_outcome(
   re = c("population", "conditional"),
   id = NULL,
   allow_new_levels = FALSE,
-  type = c("response", "link", "conditional")
+  type = c("response", "link", "conditional"),
+  uncertainty = FALSE,
+  output = c("summary", "samples"),
+  n_samples = 1000
 )
 }
 \arguments{
@@ -25,9 +28,18 @@ predict_outcome(
 \item{allow_new_levels}{Allow unseen grouping levels (for mixed models)}
 
 \item{type}{Prediction scale ("response","link","conditional")}
+
+\item{uncertainty}{Logical; if TRUE, quantify uncertainty}
+
+\item{output}{"summary" or "samples"}
+
+\item{n_samples}{Number of samples used for uncertainty quantification}
 }
 \value{
-data.frame with predictions
+data.frame
+  - If uncertainty = FALSE: same as before, with column `prediction`
+  - If uncertainty = TRUE and output = "summary": `prediction`, `sd`, `lower`, `upper`
+  - If uncertainty = TRUE and output = "samples": one row per sample (and id if provided)
 }
 \description{
 This function predicts the outcome (single value per scenario/ID) given

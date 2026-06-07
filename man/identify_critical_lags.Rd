@@ -8,16 +8,18 @@ identify_critical_lags(daily_df, metric = c("max", "mean", "absmean"))
 }
 \arguments{
 \item{daily_df}{Output from summarise_effects(scale = "daily").
-Must contain columns: lag, effect.}
+Must contain at least: lag, effect.
+Optional columns: sample, var, effect_sd, effect_lower, effect_upper}
 
 \item{metric}{Summary metric used to quantify lag importance.
 One of "max", "mean", or "absmean".}
 }
 \value{
-A data.frame with one row per lag and summary statistics
-  used to identify critical lags.
+A data.frame with lag importance ranking
 }
 \description{
-Identifies lags with the strongest disease association by summarising
-daily DLNM effects across exposure levels.
+Supports three input types:
+1) Deterministic (no uncertainty)
+2) Summary (with sd / CI)
+3) Samples (posterior / simulated draws)
 }

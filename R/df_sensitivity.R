@@ -42,6 +42,13 @@ df_sensitivity <- function(df,
 
     d <- d[order(d[[x]]), ]
 
+    # ✅ validação leve de monotonicidade (warn, não quebra fluxo)
+    dx_check <- diff(d[[x]])
+    if (any(dx_check <= 0, na.rm = TRUE)) {
+      warning("Non-strictly increasing '", x,
+              "' detected. Consider using unique/ordered values for stable GAM derivatives.")
+    }
+
     form <- as.formula(paste0(y, " ~ s(", x, ", k=", k, ", bs='cs')"))
     fit  <- mgcv::gam(form, data = d)
 
@@ -60,7 +67,7 @@ df_sensitivity <- function(df,
   }
 
   # ------------------------------------------------------------
-  # ✅ Finite difference
+  # ✅ Finite difference (robusto)
   # ------------------------------------------------------------
   compute_derivative_finite <- function(d) {
 
@@ -69,7 +76,12 @@ df_sensitivity <- function(df,
     dx <- diff(d[[x]])
     dy <- diff(d[[y]])
 
-    d$sensitivity <- c(NA, dy / dx)
+    # ✅ proteção contra dx = 0
+    sens <- rep(NA_real_, length(dx))
+    valid <- abs(dx) > eps
+    sens[valid] <- dy[valid] / dx[valid]
+
+    d$sensitivity <- c(NA, sens)
     d
   }
 
@@ -114,7 +126,7 @@ df_sensitivity <- function(df,
   }
 
   # ------------------------------------------------------------
-  # ✅ Apply per scenario (CORRIGIDO)
+  # ✅ Apply per scenario
   # ------------------------------------------------------------
   if (!is.null(scenario_var)) {
 
@@ -122,9 +134,15 @@ df_sensitivity <- function(df,
     res_list   <- lapply(split_list, compute_all)
     out        <- do.call(rbind, res_list)
 
+    # ✅ ordenação global por cenário + x
+    out <- out[order(out[[scenario_var]], out[[x]]), ]
+
   } else {
 
     out <- compute_all(df)
+
+    # ✅ ordenação global por x
+    out <- out[order(out[[x]]), ]
   }
 
   rownames(out) <- NULL

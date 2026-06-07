@@ -2,13 +2,55 @@
 % Please edit documentation in R/simulate_exposure.R
 \name{simulate_exposure}
 \alias{simulate_exposure}
-\title{Simulate exposure history across lags (alias)}
+\title{Simulate exposure history across lags (full or patterned)}
 \usage{
-simulate_exposure(...)
+simulate_exposure(
+  lag_max,
+  n = 1,
+  mode = c("profile", "pattern"),
+  pattern = c("random_lags", "alternating_lags", "block_lags"),
+  fixed_value = NULL,
+  n_lags = NULL,
+  lag_range = NULL,
+  alternating_values = NULL,
+  block_lags = NULL,
+  background = list(dist = "normal", mean = 0, sd = 1),
+  bounds = NULL,
+  seed = NULL,
+  cumulative = FALSE
+)
+}
+\arguments{
+\item{lag_max}{Integer. Maximum lag (profile length = lag_max + 1)}
+
+\item{n}{Integer. Number of simulations (default = 1)}
+
+\item{mode}{Character. "profile" or "pattern"}
+
+\item{pattern}{Character. Pattern type}
+
+\item{fixed_value}{Numeric. Value for pattern-controlled lags}
+
+\item{n_lags}{Integer for "random_lags"}
+
+\item{lag_range}{Integer vector of lags}
+
+\item{alternating_values}{Numeric vector (>=2)}
+
+\item{block_lags}{Integer length-2}
+
+\item{background}{List controlling background}
+
+\item{bounds}{Optional numeric length-2}
+
+\item{seed}{Optional seed}
+
+\item{cumulative}{Logical. If TRUE, returns cumulative (cumsum) profile}
 }
 \value{
-list(profile = numeric, meta = list)
+- If n = 1: list(profile, meta)
+- If n > 1: list(profiles, meta)
 }
 \description{
-User-facing short alias to \code{simulate_exposure_profile()}.
+Creates one or multiple exposure-lag profiles of length (lag_max + 1)
 }

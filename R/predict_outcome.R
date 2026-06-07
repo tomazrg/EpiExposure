@@ -77,10 +77,6 @@ predict_outcome <- function(
   # -----------------------
   `%||%` <- function(a, b) if (!is.null(a)) a else b
 
-  is_bayesian_model <- function(model) {
-    inherits(model, "brmsfit") || inherits(model, "inla") || inherits(model, "bdlnm")
-  }
-
   safe_quantile <- function(x, probs = c(0.025, 0.975)) {
     stats::quantile(x, probs = probs, na.rm = TRUE, names = FALSE)
   }
@@ -107,7 +103,6 @@ predict_outcome <- function(
     as.numeric(cb[lag_max + 1L, ])
   }
 
-  # inverse link helper
   get_linkinv <- function(model, family_fit, default_identity = TRUE) {
 
     if (!is.null(model$family) && !is.null(model$family$linkinv)) {
@@ -138,6 +133,21 @@ predict_outcome <- function(
     NULL
   }
 
+  # apply inverse link preserving matrix shape
+  apply_linkinv_matrix <- function(mat, linkinv) {
+    dims <- dim(mat)
+    out <- linkinv(as.vector(mat))
+    matrix(out, nrow = dims[1], ncol = dims[2], byrow = FALSE)
+  }
+
+  # add intercept if needed
+  ensure_intercept <- function(X, coef_names) {
+    if ("(Intercept)" %in% coef_names && !("(Intercept)" %in% names(X))) {
+      X[["(Intercept)"]] <- 1
+    }
+    X
+  }
+
   # -----------------------
   # Normalize profiles
   # -----------------------
@@ -153,9 +163,6 @@ predict_outcome <- function(
 
   vars <- names(profiles)
 
-  # -----------------------
-  # Validate spec
-  # -----------------------
   miss <- setdiff(vars, names(spec))
   if (length(miss) > 0) {
     stop("Missing spec for variable(s): ", paste(miss, collapse = ", "))
@@ -180,9 +187,7 @@ predict_outcome <- function(
     nd[[id_col]] <- id
   }
 
-  # -----------------------
   # Replace cb columns
-  # -----------------------
   for (v in vars) {
 
     cols <- get_cb_cols(nd, v)
@@ -219,9 +224,7 @@ predict_outcome <- function(
     want_population <- identical(re, "population")
 
     if (inherits(model, "glmmTMB")) {
-
       re_form <- if (want_population) NA else NULL
-
       return(as.numeric(predict(
         model,
         newdata = newdata,
@@ -232,9 +235,7 @@ predict_outcome <- function(
     }
 
     if (inherits(model, "merMod")) {
-
       re_form <- if (want_population) NA else NULL
-
       return(as.numeric(predict(
         model,
         newdata = newdata,
@@ -245,23 +246,29 @@ predict_outcome <- function(
     }
 
     if (inherits(model, "brmsfit")) {
-
       re_formula <- if (want_population) NA else NULL
 
-      pp <- brms::fitted(
-        model,
-        newdata = newdata,
-        re_formula = re_formula,
-        summary = TRUE
-      )
-
-      return(as.numeric(pp[, "Estimate"]))
+      if (type == "link") {
+        tmp <- brms::posterior_linpred(
+          model,
+          newdata = newdata,
+          re_formula = re_formula,
+          ndraws = 1
+        )
+        return(as.numeric(tmp[1, ]))
+      } else {
+        tmp <- brms::posterior_epred(
+          model,
+          newdata = newdata,
+          re_formula = re_formula,
+          ndraws = 1
+        )
+        return(as.numeric(tmp[1, ]))
+      }
     }
 
     if (inherits(model, "HLfit")) {
-
       re_form <- if (want_population) NA else NULL
-
       return(as.numeric(predict(
         model,
         newdata = newdata,
@@ -271,9 +278,7 @@ predict_outcome <- function(
     }
 
     if (inherits(model, "lme")) {
-
       level <- if (want_population) 0 else 1
-
       return(as.numeric(nlme::predict.lme(model, newdata = newdata, level = level)))
     }
 
@@ -291,13 +296,14 @@ predict_outcome <- function(
 
     if (inherits(model, "inla")) {
       beta <- model$summary.fixed$mean
-      common <- intersect(names(beta), names(newdata))
+      X <- ensure_intercept(newdata, names(beta))
+      common <- intersect(names(beta), names(X))
 
       if (length(common) == 0) {
         stop("No matching covariates for INLA prediction.")
       }
 
-      eta <- as.numeric(as.matrix(newdata[, common, drop = FALSE]) %*% beta[common])
+      eta <- as.numeric(as.matrix(X[, common, drop = FALSE]) %*% beta[common])
 
       if (!want_population) {
         warning("INLA conditional prediction not implemented; using fixed-effects only.")
@@ -316,18 +322,19 @@ predict_outcome <- function(
       }
 
       beta_mean <- model$coefficients.summary[, "mean"]
-      common <- intersect(names(beta_mean), names(newdata))
+      X <- ensure_intercept(newdata, names(beta_mean))
+      common <- intersect(names(beta_mean), names(X))
 
       if (length(common) == 0) {
-        common <- intersect(cb_cols_fit %||% character(0), names(newdata))
-        common <- intersect(common, names(beta_mean))
+        common <- intersect(c(cb_cols_fit %||% character(0), "(Intercept)"), names(beta_mean))
+        common <- intersect(common, names(X))
       }
 
       if (length(common) == 0) {
         stop("Could not match bdlnm coefficient names to newdata columns.")
       }
 
-      eta <- as.numeric(as.matrix(newdata[, common, drop = FALSE]) %*% beta_mean[common])
+      eta <- as.numeric(as.matrix(X[, common, drop = FALSE]) %*% beta_mean[common])
 
       if (type == "link") return(eta)
 
@@ -359,31 +366,49 @@ predict_outcome <- function(
     return(out)
   }
 
+  # ============================================================
+  # ✅ BAYESIAN: REAL UNCERTAINTY
+  # ============================================================
+
   # -----------------------
-  # Bayesian models
+  # brms: REAL posterior draws
   # -----------------------
   if (inherits(fit, "brmsfit")) {
 
     want_population <- identical(re, "population")
     re_formula <- if (want_population) NA else NULL
 
-    draws <- brms::fitted(
-      fit,
-      newdata = nd,
-      re_formula = re_formula,
-      summary = FALSE,
-      ndraws = n_samples
-    )
+    if (type == "link") {
+      draws <- brms::posterior_linpred(
+        fit,
+        newdata = nd,
+        re_formula = re_formula,
+        ndraws = n_samples
+      )
+    } else {
+      draws <- brms::posterior_epred(
+        fit,
+        newdata = nd,
+        re_formula = re_formula,
+        ndraws = n_samples
+      )
+    }
 
-    draws <- as.matrix(draws)
+    draws <- as.matrix(draws)  # draws x obs
 
     if (output == "samples") {
       if (ncol(draws) == 1) {
-        out <- data.frame(sample = seq_len(nrow(draws)), prediction = as.numeric(draws[, 1]))
+        out <- data.frame(
+          sample = seq_len(nrow(draws)),
+          prediction = as.numeric(draws[, 1])
+        )
       } else {
         out_list <- vector("list", ncol(draws))
         for (j in seq_len(ncol(draws))) {
-          tmp <- data.frame(sample = seq_len(nrow(draws)), prediction = as.numeric(draws[, j]))
+          tmp <- data.frame(
+            sample = seq_len(nrow(draws)),
+            prediction = as.numeric(draws[, j])
+          )
           if (!is.null(id)) tmp[[id_col]] <- id[j]
           out_list[[j]] <- tmp
         }
@@ -393,8 +418,8 @@ predict_outcome <- function(
       return(out)
     }
 
-    mean_pred <- apply(draws, 2, mean)
-    sd_pred   <- apply(draws, 2, stats::sd)
+    mean_pred <- apply(draws, 2, mean, na.rm = TRUE)
+    sd_pred   <- apply(draws, 2, stats::sd, na.rm = TRUE)
     q_pred    <- t(apply(draws, 2, safe_quantile))
 
     out <- data.frame(
@@ -412,6 +437,9 @@ predict_outcome <- function(
     return(out)
   }
 
+  # -----------------------
+  # INLA: REAL posterior draws
+  # -----------------------
   if (inherits(fit, "inla")) {
 
     if (!requireNamespace("INLA", quietly = TRUE)) {
@@ -432,10 +460,16 @@ predict_outcome <- function(
     }
 
     beta_names <- rownames(fit$summary.fixed)
-    if (is.null(beta_names)) stop("Could not determine fixed-effect names from INLA model.")
+    if (is.null(beta_names)) {
+      stop("Could not determine fixed-effect names from INLA model.")
+    }
 
-    common <- intersect(beta_names, names(nd))
-    if (length(common) == 0) stop("No matching covariates for INLA uncertainty prediction.")
+    X <- ensure_intercept(nd, beta_names)
+    common <- intersect(beta_names, names(X))
+
+    if (length(common) == 0) {
+      stop("No matching covariates for INLA uncertainty prediction.")
+    }
 
     beta_draws <- do.call(cbind, lapply(posterior, function(s) {
       latent <- s$latent
@@ -443,20 +477,26 @@ predict_outcome <- function(
       latent[common]
     }))
 
-    eta_draws <- t(as.matrix(nd[, common, drop = FALSE]) %*% beta_draws)
+    eta_draws <- t(as.matrix(X[, common, drop = FALSE]) %*% beta_draws)
 
     if (type != "link") {
       linkinv <- get_linkinv(fit, family_fit)
-      eta_draws <- apply(eta_draws, 2, linkinv)
+      eta_draws <- apply_linkinv_matrix(eta_draws, linkinv)
     }
 
     if (output == "samples") {
       if (ncol(eta_draws) == 1) {
-        out <- data.frame(sample = seq_len(nrow(eta_draws)), prediction = as.numeric(eta_draws[, 1]))
+        out <- data.frame(
+          sample = seq_len(nrow(eta_draws)),
+          prediction = as.numeric(eta_draws[, 1])
+        )
       } else {
         out_list <- vector("list", ncol(eta_draws))
         for (j in seq_len(ncol(eta_draws))) {
-          tmp <- data.frame(sample = seq_len(nrow(eta_draws)), prediction = as.numeric(eta_draws[, j]))
+          tmp <- data.frame(
+            sample = seq_len(nrow(eta_draws)),
+            prediction = as.numeric(eta_draws[, j])
+          )
           if (!is.null(id)) tmp[[id_col]] <- id[j]
           out_list[[j]] <- tmp
         }
@@ -466,8 +506,8 @@ predict_outcome <- function(
       return(out)
     }
 
-    mean_pred <- apply(eta_draws, 2, mean)
-    sd_pred   <- apply(eta_draws, 2, stats::sd)
+    mean_pred <- apply(eta_draws, 2, mean, na.rm = TRUE)
+    sd_pred   <- apply(eta_draws, 2, stats::sd, na.rm = TRUE)
     q_pred    <- t(apply(eta_draws, 2, safe_quantile))
 
     out <- data.frame(
@@ -485,6 +525,9 @@ predict_outcome <- function(
     return(out)
   }
 
+  # -----------------------
+  # bdlnm: REAL posterior coefficient draws
+  # -----------------------
   if (inherits(fit, "bdlnm")) {
 
     if (is.null(fit$coefficients)) {
@@ -504,31 +547,38 @@ predict_outcome <- function(
       beta_draws <- beta_draws[, keep, drop = FALSE]
     }
 
-    common <- intersect(rownames(beta_draws), names(nd))
+    X <- ensure_intercept(nd, rownames(beta_draws))
+    common <- intersect(rownames(beta_draws), names(X))
 
     if (length(common) == 0) {
-      common <- intersect(cb_cols_fit %||% character(0), names(nd))
-      common <- intersect(common, rownames(beta_draws))
+      common <- intersect(c(cb_cols_fit %||% character(0), "(Intercept)"), rownames(beta_draws))
+      common <- intersect(common, names(X))
     }
 
     if (length(common) == 0) {
       stop("Could not match bdlnm coefficient names to newdata columns.")
     }
 
-    eta_draws <- t(as.matrix(nd[, common, drop = FALSE]) %*% beta_draws[common, , drop = FALSE])
+    eta_draws <- t(as.matrix(X[, common, drop = FALSE]) %*% beta_draws[common, , drop = FALSE])
 
     if (type != "link") {
       linkinv <- get_linkinv(fit, family_fit)
-      eta_draws <- apply(eta_draws, 2, linkinv)
+      eta_draws <- apply_linkinv_matrix(eta_draws, linkinv)
     }
 
     if (output == "samples") {
       if (ncol(eta_draws) == 1) {
-        out <- data.frame(sample = seq_len(nrow(eta_draws)), prediction = as.numeric(eta_draws[, 1]))
+        out <- data.frame(
+          sample = seq_len(nrow(eta_draws)),
+          prediction = as.numeric(eta_draws[, 1])
+        )
       } else {
         out_list <- vector("list", ncol(eta_draws))
         for (j in seq_len(ncol(eta_draws))) {
-          tmp <- data.frame(sample = seq_len(nrow(eta_draws)), prediction = as.numeric(eta_draws[, j]))
+          tmp <- data.frame(
+            sample = seq_len(nrow(eta_draws)),
+            prediction = as.numeric(eta_draws[, j])
+          )
           if (!is.null(id)) tmp[[id_col]] <- id[j]
           out_list[[j]] <- tmp
         }
@@ -538,8 +588,8 @@ predict_outcome <- function(
       return(out)
     }
 
-    mean_pred <- apply(eta_draws, 2, mean)
-    sd_pred   <- apply(eta_draws, 2, stats::sd)
+    mean_pred <- apply(eta_draws, 2, mean, na.rm = TRUE)
+    sd_pred   <- apply(eta_draws, 2, stats::sd, na.rm = TRUE)
     q_pred    <- t(apply(eta_draws, 2, safe_quantile))
 
     out <- data.frame(
@@ -557,9 +607,9 @@ predict_outcome <- function(
     return(out)
   }
 
-  # -----------------------
-  # Frequentist models: automatic normal approximation
-  # -----------------------
+  # ============================================================
+  # ✅ Frequentist models: normal approximation
+  # ============================================================
   extract_coef_vcov <- function(model) {
 
     if (inherits(model, "glmmTMB")) {
@@ -604,7 +654,6 @@ predict_outcome <- function(
       return(list(beta = b, vcov = V))
     }
 
-    # glm / lm fallback
     return(list(
       beta = stats::coef(model),
       vcov = as.matrix(stats::vcov(model))
@@ -615,7 +664,8 @@ predict_outcome <- function(
   beta_hat <- cv$beta
   V_hat <- cv$vcov
 
-  common <- intersect(names(beta_hat), names(nd))
+  X <- ensure_intercept(nd, names(beta_hat))
+  common <- intersect(names(beta_hat), names(X))
   if (length(common) == 0) {
     stop("Could not match model coefficients to newdata columns for uncertainty approximation.")
   }
@@ -630,13 +680,11 @@ predict_outcome <- function(
   beta_draws <- MASS::mvrnorm(n = n_samples, mu = beta_hat, Sigma = V_hat)
 
   if (is.null(dim(beta_draws))) {
-    beta_draws <- matrix(beta_draws, nrow = n_samples, byrow = FALSE)
+    beta_draws <- matrix(beta_draws, nrow = 1)
     colnames(beta_draws) <- names(beta_hat)
   }
 
-  X <- as.matrix(nd[, common, drop = FALSE])
-
-  eta_draws <- beta_draws %*% t(X)  # n_samples x n_obs
+  eta_draws <- beta_draws %*% t(as.matrix(X[, common, drop = FALSE]))  # n_samples x n_obs
 
   if (!identical(re, "population") &&
       (inherits(fit, "glmmTMB") || inherits(fit, "merMod") || inherits(fit, "lme"))) {
@@ -645,16 +693,22 @@ predict_outcome <- function(
 
   if (type != "link") {
     linkinv <- get_linkinv(fit, family_fit)
-    eta_draws <- apply(eta_draws, 2, linkinv)
+    eta_draws <- apply_linkinv_matrix(eta_draws, linkinv)
   }
 
   if (output == "samples") {
     if (ncol(eta_draws) == 1) {
-      out <- data.frame(sample = seq_len(nrow(eta_draws)), prediction = as.numeric(eta_draws[, 1]))
+      out <- data.frame(
+        sample = seq_len(nrow(eta_draws)),
+        prediction = as.numeric(eta_draws[, 1])
+      )
     } else {
       out_list <- vector("list", ncol(eta_draws))
       for (j in seq_len(ncol(eta_draws))) {
-        tmp <- data.frame(sample = seq_len(nrow(eta_draws)), prediction = as.numeric(eta_draws[, j]))
+        tmp <- data.frame(
+          sample = seq_len(nrow(eta_draws)),
+          prediction = as.numeric(eta_draws[, j])
+        )
         if (!is.null(id)) tmp[[id_col]] <- id[j]
         out_list[[j]] <- tmp
       }
@@ -664,8 +718,8 @@ predict_outcome <- function(
     return(out)
   }
 
-  mean_pred <- apply(eta_draws, 2, mean)
-  sd_pred   <- apply(eta_draws, 2, stats::sd)
+  mean_pred <- apply(eta_draws, 2, mean, na.rm = TRUE)
+  sd_pred   <- apply(eta_draws, 2, stats::sd, na.rm = TRUE)
   q_pred    <- t(apply(eta_draws, 2, safe_quantile))
 
   out <- data.frame(

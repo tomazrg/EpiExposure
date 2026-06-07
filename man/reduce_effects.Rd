@@ -15,7 +15,10 @@ reduce_effects(
   fun_lag = "ns",
   type = c("overall", "lag", "var"),
   value = NULL,
-  scale = c("percent", "response", "link")
+  scale = c("percent", "response", "link"),
+  uncertainty = FALSE,
+  output = c("summary", "samples"),
+  n_samples = 1000
 )
 }
 \arguments{
@@ -40,6 +43,12 @@ reduce_effects(
 \item{value}{Required for type = "lag" or "var"}
 
 \item{scale}{"link", "response", "percent"}
+
+\item{uncertainty}{Logical}
+
+\item{output}{"summary" or "samples"}
+
+\item{n_samples}{Number of samples}
 }
 \value{
 data.frame

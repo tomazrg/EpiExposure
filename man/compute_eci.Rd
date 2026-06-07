@@ -4,18 +4,30 @@
 \alias{compute_eci}
 \title{Compute Exposure Cumulative Impact (ECI)}
 \usage{
-compute_eci(profile, fit = NULL)
+compute_eci(
+  profile,
+  fit = NULL,
+  uncertainty = FALSE,
+  output = c("summary", "samples"),
+  n_samples = 1000
+)
 }
 \arguments{
 \item{profile}{Numeric vector of exposure values (lag profile)}
 
 \item{fit}{Fitted model from fit_epidlnm() (required for weighted ECI)}
+
+\item{uncertainty}{Logical; if TRUE, quantify uncertainty}
+
+\item{output}{"summary" or "samples"}
+
+\item{n_samples}{Number of samples used for uncertainty quantification}
 }
 \value{
-data.frame with ECI_raw and ECI_weighted
+data.frame
 }
 \description{
 Computes:
 1) ECI_raw (sum of exposure values; unweighted)
-2) ECI_weighted using DLNM model coefficients
+2) ECI_weighted (DLNM-based, using model coefficients)
 }

@@ -14,7 +14,7 @@
 #'   - lag_end
 #'
 #' @export
-define_lag_windows <- function(lag_max, cuts = NULL, prefix = "W") {
+define_periods <- function(lag_max, cuts = NULL, prefix = "W") {
 
   # -------------------------------
   # NOVO: check prefix

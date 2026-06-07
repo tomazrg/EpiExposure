@@ -7,19 +7,18 @@
 lag_contribution(daily_df, lag_window = NULL, absolute = TRUE)
 }
 \arguments{
-\item{daily_df}{Output from summarise_effects(scale = "daily").
-Must contain columns: lag, effect.}
+\item{daily_df}{Output from summarise_effects(scale = "daily")}
 
-\item{lag_window}{Optional vector of length 2 specifying the lag
-interval c(lag_start, lag_end). If NULL, the full lag range is used.}
+\item{lag_window}{Optional lag interval c(start, end)}
 
-\item{absolute}{Logical. If TRUE (default), contributions are calculated
-using absolute effects to avoid sign cancellation.}
+\item{absolute}{Logical (default TRUE)}
 }
 \value{
-A data.frame with lag-specific contributions to the cumulative effect.
+data.frame
 }
 \description{
-Decomposes the cumulative DLNM effect into relative contributions
-of individual lags based on daily lag-specific effects.
+Supports:
+1) Deterministic input
+2) Summary input (effect with sd/CI)
+3) Samples input (with 'sample' column)
 }

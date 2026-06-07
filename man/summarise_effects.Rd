@@ -7,7 +7,7 @@
 summarise_effects(
   fit,
   wx_long,
-  var,
+  var = NULL,
   lag_max,
   df_var = 4,
   df_lag = 4,
@@ -17,7 +17,11 @@ summarise_effects(
   lag_windows = NULL,
   probs = seq(0.05, 0.95, by = 0.01),
   ref = list(method = "median", value = NULL),
-  effect_measure = c("percent", "ratio", "linear")
+  effect_measure = c("percent", "ratio", "linear"),
+  incremental = FALSE,
+  uncertainty = FALSE,
+  output = c("summary", "samples"),
+  n_samples = 1000
 )
 }
 \arguments{
@@ -25,7 +29,8 @@ summarise_effects(
 
 \item{wx_long}{Long-format weather data}
 
-\item{var}{Exposure variable name (e.g. "tmax")}
+\item{var}{Exposure variable name (character scalar), character vector of variables,
+or NULL. If NULL, all variables stored in fit metadata are used.}
 
 \item{lag_max}{Maximum lag}
 
@@ -39,13 +44,22 @@ summarise_effects(
 
 \item{scale}{"daily" or "accumulated"}
 
-\item{lag_windows}{Lag windows (required for accumulated)}
+\item{lag_windows}{Lag windows (required for accumulated unless incremental = TRUE)}
 
 \item{probs}{Quantiles}
 
 \item{ref}{Reference definition list}
 
 \item{effect_measure}{"percent","ratio","linear"}
+
+\item{incremental}{Logical; if TRUE and scale = "accumulated", return cumulative
+effects from lag 0 up to each lag}
+
+\item{uncertainty}{Logical; if TRUE, quantify uncertainty}
+
+\item{output}{"summary" or "samples"}
+
+\item{n_samples}{Number of samples used for uncertainty}
 }
 \value{
 data.frame

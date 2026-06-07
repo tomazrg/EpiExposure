@@ -6,43 +6,68 @@
 \usage{
 simulate_scenarios(
   fit,
-  dat,
-  wx_long,
-  lag_windows,
   scenarios,
-  lag_max,
-  df_var = 4,
-  df_lag = 4,
-  fun_var = "ns",
-  fun_lag = "ns",
+  wx_long = NULL,
+  lag_windows = NULL,
+  lag_max = NULL,
+  df_var = NULL,
+  df_lag = NULL,
+  fun_var = NULL,
+  fun_lag = NULL,
   ref_vals = NULL,
-  pop_level = TRUE
+  pop_level = TRUE,
+  uncertainty = FALSE,
+  output = c("summary", "samples"),
+  n_samples = 1000
 )
 }
 \arguments{
-\item{fit}{Fitted model}
+\item{fit}{Fitted model returned by fit_epidlnm()}
 
-\item{dat}{Original design matrix}
+\item{scenarios}{Output from simulate_range() or a named list of scenarios.
+Recommended structured object:
+list(
+  scenarios = ...,
+  info = ...,
+  lag_windows = ...
+)}
 
-\item{wx_long}{Long-format weather data}
+\item{wx_long}{Optional long-format weather data. Used only as fallback
+to derive default reference values when `ref_vals` are not supplied
+and the fitted model does not store centering information.}
 
-\item{lag_windows}{Lag windows}
+\item{lag_windows}{Optional lag window table. If NULL, the function will
+try to read it from `scenarios$lag_windows`. This keeps backward compatibility.}
 
-\item{scenarios}{Output from simulate_range()}
+\item{lag_max}{Optional maximum lag. Used only if fit does not store lag_max.}
 
-\item{lag_max}{Maximum lag}
+\item{df_var}{Optional degrees of freedom (exposure). Ignored if fit contains
+`epiexposure_spec`. Kept only for backward compatibility.}
 
-\item{df_var}{Degrees of freedom (exposure)}
+\item{df_lag}{Optional degrees of freedom (lag). Ignored if fit contains
+`epiexposure_spec`. Kept only for backward compatibility.}
 
-\item{df_lag}{Degrees of freedom (lag)}
+\item{fun_var}{Optional basis function for exposure. Ignored if fit contains
+`epiexposure_spec`. Kept only for backward compatibility.}
 
-\item{fun_var}{Basis function for exposure}
+\item{fun_lag}{Optional basis function for lag. Ignored if fit contains
+`epiexposure_spec`. Kept only for backward compatibility.}
 
-\item{fun_lag}{Basis function for lag}
+\item{ref_vals}{Optional named list of reference values for each variable.
+If NULL, the function tries in order:
+1) median from wx_long
+2) centering value stored in fit spec (argvar$cen)}
 
-\item{ref_vals}{Reference values}
+\item{pop_level}{Logical; if TRUE, predictions exclude random effects where supported}
 
-\item{pop_level}{Logical}
+\item{uncertainty}{Logical; if TRUE quantify uncertainty}
+
+\item{output}{"summary" or "samples"}
+
+\item{n_samples}{Number of samples used for uncertainty quantification}
+}
+\value{
+data.frame
 }
 \description{
 Simulate epidemiological DLNM scenarios

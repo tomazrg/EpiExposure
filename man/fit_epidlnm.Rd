@@ -10,6 +10,7 @@ fit_epidlnm(
   family,
   random_effect = NULL,
   epiexposure_spec = NULL,
+  basis_objects = NULL,
   ...
 )
 }
@@ -17,7 +18,7 @@ fit_epidlnm(
 \item{dat}{Design matrix containing y_model and cb_* terms}
 
 \item{model_engine}{Modeling engine
-("glm","glmmTMB","gam","gamm","gls","spamm","brms","inla")}
+("glm","glmmTMB","gam","gamm","gls","spamm","brms","inla","bdlnm")}
 
 \item{family}{Distribution (engine-specific; can be character or family object)}
 
@@ -29,8 +30,12 @@ list(
   tmean = list(lag_max=85, argvar=list(...), arglag=list(...)),
   vpd   = list(lag_max=85, argvar=list(...), arglag=list(...))
 )
-If NULL, the model is fit normally but predict_outcome() will not be able
-to rebuild cb terms from a profile without this spec.}
+If NULL, the model is fit normally but downstream prediction from profiles
+will not be available.}
+
+\item{basis_objects}{Optional named list of original crossbasis/onebasis objects.
+Required when model_engine = "bdlnm", because bdlnm::bdlnm() needs the basis
+objects explicitly in the formula environment.}
 
 \item{...}{Additional arguments passed to the modeling engine}
 }
