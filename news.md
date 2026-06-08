@@ -1,4 +1,4 @@
-<img src="../reference/figures/sticker.png"
+<img src="reference/figures/sticker.png"
      align="right"
      width="140px"
      style="margin-left: 15px; margin-top: 5px;" />

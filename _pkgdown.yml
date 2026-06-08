@@ -30,43 +30,46 @@ navbar:
 
 reference:
 
-  - title: "Core workflow"
-    contents:
-      - summarise_effects
-      - predict_surface
-      - reduce_effects
 
-  - title: "Simulation"
-    contents:
-      - simulate_scenarios
-      - simulate_range
-      - simulate_exposure
+- title: "Data & Exposure Setup"
+  contents:
+    - define_exposure
+    - check_identifiability
+    - build_design_matrix
+    - prepare_response
 
-  - title: "Interpretation"
-    contents:
-      - identify_critical_lags
-      - lag_contribution
-      - compute_eci
-      - compute_ecilag
-      - predict_outcome
-      - compare_exposures
-      - compare_predictions
 
-  - title: "Utilities"
-    contents:
-      - define_periods
+- title: "Model Fitting"
+  contents:
+    - fit_epidlnm
 
-  - title: "Datasets"
-    contents:
-      - TargetSpot
 
-  - title: "Other"
-    contents:
-      - build_design_matrix
-      - check_identifiability
-      - compare_periods
-      - define_exposure
-      - df_sensitivity
-      - fit_epidlnm
-      - prepare_response
-      - recenter_effects
+- title: "Predictions & Simulations"
+  contents:
+    - predict_surface
+    - predict_outcome
+    - simulate_exposure
+    - simulate_range
+    - simulate_scenarios
+    - compare_exposures
+    - compare_predictions
+    - compare_periods
+
+- title: "Periods & Summaries"
+  contents:
+    - define_periods
+    - summarise_effects
+    - recenter_effects
+    - reduce_effects
+
+- title: "Effect Decomposition & Analysis"
+  contents:
+    - compute_eci
+    - compute_ecilag
+    - identify_critical_lags
+    - lag_contribution
+    - df_sensitivity
+
+- title: "Datasets"
+  contents:
+    - TargetSpot
