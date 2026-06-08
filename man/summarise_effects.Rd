@@ -2,19 +2,19 @@
 % Please edit documentation in R/summarise_effects.R
 \name{summarise_effects}
 \alias{summarise_effects}
-\title{Summarise DLNM effects (article-consistent)}
+\title{Summarise DLNM effects}
 \usage{
 summarise_effects(
   fit,
   wx_long,
   var = NULL,
-  lag_max,
-  df_var = 4,
-  df_lag = 4,
-  fun_var = "ns",
-  fun_lag = "ns",
+  lag_max = NULL,
+  df_var = NULL,
+  df_lag = NULL,
+  fun_var = NULL,
+  fun_lag = NULL,
   scale = c("daily", "accumulated"),
-  lag_windows = NULL,
+  lag_periods = NULL,
   probs = seq(0.05, 0.95, by = 0.01),
   ref = list(method = "median", value = NULL),
   effect_measure = c("percent", "ratio", "linear"),
@@ -25,45 +25,85 @@ summarise_effects(
 )
 }
 \arguments{
-\item{fit}{Fitted model}
+\item{fit}{Fitted model.}
 
-\item{wx_long}{Long-format weather data}
+\item{wx_long}{Long-format weather data.}
 
 \item{var}{Exposure variable name (character scalar), character vector of variables,
-or NULL. If NULL, all variables stored in fit metadata are used.}
+or `NULL`. If `NULL`, all variables stored in fit metadata are used.}
 
-\item{lag_max}{Maximum lag}
+\item{lag_max}{Optional maximum lag. Ignored if `fit` contains `epiexposure_spec`.}
 
-\item{df_var}{Degrees of freedom for exposure}
+\item{df_var}{Optional degrees of freedom for exposure. Ignored if `fit`
+contains `epiexposure_spec`.}
 
-\item{df_lag}{Degrees of freedom for lag}
+\item{df_lag}{Optional degrees of freedom for lag. Ignored if `fit`
+contains `epiexposure_spec`.}
 
-\item{fun_var}{Exposure basis function}
+\item{fun_var}{Optional exposure basis function. Ignored if `fit`
+contains `epiexposure_spec`.}
 
-\item{fun_lag}{Lag basis function}
+\item{fun_lag}{Optional lag basis function. Ignored if `fit`
+contains `epiexposure_spec`.}
 
-\item{scale}{"daily" or "accumulated"}
+\item{scale}{Character. `"daily"` or `"accumulated"`.}
 
-\item{lag_windows}{Lag windows (required for accumulated unless incremental = TRUE)}
+\item{lag_periods}{Optional lag-period table used when
+`scale = "accumulated"` and `incremental = FALSE`. The table must
+contain columns `period`, `lag_start`, and `lag_end`.}
 
-\item{probs}{Quantiles}
+\item{probs}{Quantiles used to define the exposure grid.}
 
-\item{ref}{Reference definition list}
+\item{ref}{Reference definition list.}
 
-\item{effect_measure}{"percent","ratio","linear"}
+\item{effect_measure}{Character. `"percent"`, `"ratio"`, or `"linear"`.}
 
-\item{incremental}{Logical; if TRUE and scale = "accumulated", return cumulative
-effects from lag 0 up to each lag}
+\item{incremental}{Logical. If `TRUE` and `scale = "accumulated"`,
+returns cumulative effects from lag 0 up to each lag.}
 
-\item{uncertainty}{Logical; if TRUE, quantify uncertainty}
+\item{uncertainty}{Logical. If `TRUE`, quantify uncertainty using
+simulated or posterior coefficient draws.}
 
-\item{output}{"summary" or "samples"}
+\item{output}{Character. `"summary"` or `"samples"`.}
 
-\item{n_samples}{Number of samples used for uncertainty}
+\item{n_samples}{Integer. Number of samples used for uncertainty.}
 }
 \value{
-data.frame
+A data.frame.
+
+If `uncertainty = FALSE`, returns deterministic summaries of DLNM effects.
+
+If `uncertainty = TRUE` and `output = "summary"`, returns one row per
+grid value / lag / period combination (depending on `scale`) with
+median-based central estimates and empirical interval limits.
+
+If `uncertainty = TRUE` and `output = "samples"`, returns one row per
+simulated sample.
 }
 \description{
-Summarise DLNM effects (article-consistent)
+Summarises DLNM effects on either the daily or accumulated scale,
+using exposure grids derived from the observed data and the DLNM
+specification stored in the fitted model.
+}
+\details{
+This function supports both deterministic summaries and uncertainty
+propagation. When `uncertainty = TRUE`, summaries are computed from
+simulated or posterior draws of the model coefficients. If
+`output = "summary"`, the central estimate is computed as the median
+of the simulated effects, while interval limits are obtained from
+empirical quantiles (default: 2.5% and 97.5%).
+
+**Important:** when `uncertainty = TRUE` and `output = "summary"`,
+columns such as `eta`, `effect`, `delta`, `delta_pp`, `baseline`,
+and `predicted` represent the *central estimate*, computed as the
+median of the simulated distribution.
+
+
+Uncertainty is propagated using model-consistent sampling:
+- Bayesian models (e.g., `brms`, `INLA`, `bdlnm`) use posterior draws
+- Frequentist models use simulation from the asymptotic coefficient distribution
+
+For summary outputs under uncertainty, the median is used instead of the
+mean to provide a more robust central estimate under asymmetric effect
+distributions, which are common in nonlinear DLNM settings.
 }

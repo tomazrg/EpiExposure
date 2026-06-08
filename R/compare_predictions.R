@@ -1,21 +1,78 @@
 #' Compare predicted outcomes between multiple exposure scenarios
 #'
-#' @param fit Fitted model (output of fit_epidlnm())
-#' @param profiles Can be:
-#'   - list(profile1 = ..., profile2 = ...) (new recommended)
-#'   - OR profiles1 / profiles2 (for backward compatibility)
-#' @param profiles1 (legacy) first profile
-#' @param profiles2 (legacy) second profile
-#' @param re "population" or "conditional"
-#' @param id Optional vector of IDs
-#' @param allow_new_levels Passed to predict_outcome
-#' @param type Prediction scale
-#' @param uncertainty Logical; if TRUE, propagate uncertainty
-#' @param output "summary" or "samples"
-#' @param n_samples Number of samples
-#' @param eps Small constant for stability
+#' Compares predicted outcomes across two or more exposure scenarios,
+#' using `predict_outcome()` as the computational backend.
 #'
-#' @return data.frame
+#' This function supports both deterministic comparisons and uncertainty
+#' propagation. When `uncertainty = TRUE`, predictions are computed at the
+#' sample level and comparisons are derived from these simulated values.
+#'
+#' If `output = "summary"`, the central estimate is computed as the median
+#' of the sample-based distributions, and interval limits are derived from
+#' empirical quantiles (default: 2.5% and 97.5%).
+#'
+#' **Important:** although traditional terminology might suggest "mean",
+#' all central estimates in summary outputs correspond to the *median*
+#' when uncertainty is propagated, ensuring robustness under asymmetric
+#' distributions.
+#'
+#' @param fit Fitted model (output of `fit_epidlnm()`).
+#'
+#' @param profiles Can be:
+#'   - a named list of profiles (recommended), e.g.:
+#'     `list(scenario1 = ..., scenario2 = ...)`, or
+#'   - `NULL` when using `profiles1` and `profiles2` for backward compatibility.
+#'
+#' @param profiles1 (legacy) First profile (used only if `profiles` is NULL).
+#'
+#' @param profiles2 (legacy) Second profile (used only if `profiles` is NULL).
+#'
+#' @param re Character. Prediction level:
+#'   - `"population"`: excludes random effects (default).
+#'   - `"conditional"`: includes random effects where supported.
+#'
+#' @param id Optional character string indicating the column used as identifier.
+#'
+#' @param allow_new_levels Logical. Passed to `predict_outcome()`.
+#'
+#' @param type Character. Scale of prediction:
+#'   `"response"` (default), `"link"`, or `"conditional"`.
+#'
+#' @param uncertainty Logical. If `TRUE`, uncertainty is propagated using
+#'   sample-based predictions.
+#'
+#' @param output Character. Output type when `uncertainty = TRUE`:
+#'   - `"summary"`: returns median-based summaries (default)
+#'   - `"samples"`: returns all simulated samples
+#'
+#' @param n_samples Integer. Number of samples used for uncertainty propagation.
+#'
+#' @param eps Small positive constant used for numerical stability.
+#'
+#' @return A data.frame with pairwise comparisons including:
+#'   - `scenario1`, `scenario2`
+#'   - `pred1`, `pred2`
+#'   - `diff`
+#'   - `percent_change`
+#'   - `ratio`
+#'
+#' When `uncertainty = TRUE`:
+#' - `"samples"`: returns sample-level comparisons
+#' - `"summary"`: returns median-based estimates, standard deviation,
+#'   and empirical interval limits
+#'
+#' @details
+#' When `uncertainty = TRUE`, this function always operates on simulated
+#' prediction samples obtained from `predict_outcome(output = "samples")`.
+#'
+#' Summaries are then computed as:
+#' - central estimate: median
+#' - uncertainty intervals: empirical quantiles
+#'
+#' This approach ensures coherent uncertainty propagation for both
+#' frequentist (simulation-based) and Bayesian (posterior-based) models,
+#' avoiding incorrect analytic variance approximations.
+#'
 #' @export
 compare_predictions <- function(
     fit,
@@ -38,12 +95,15 @@ compare_predictions <- function(
 
   if (!is.numeric(eps) || eps <= 0) stop("eps must be positive.")
 
+  `%||%` <- function(a, b) if (!is.null(a)) a else b
+
   # -----------------------
-  # ✅ BACKWARD COMPATIBILITY
+  # BACKWARD COMPAT
   # -----------------------
   if (is.null(profiles)) {
+
     if (is.null(profiles1) || is.null(profiles2)) {
-      stop("Provide either `profiles` (list) OR both `profiles1` and `profiles2`.")
+      stop("Provide either `profiles` OR both `profiles1` and `profiles2`.")
     }
 
     profiles <- list(
@@ -56,14 +116,15 @@ compare_predictions <- function(
     stop("`profiles` must be a named list.")
   }
 
-  n_prof <- length(profiles)
-  if (n_prof < 2) {
+  if (length(profiles) < 2) {
     stop("At least two profiles are required.")
   }
 
-  # -----------------------
-  # Run predictions
-  # -----------------------
+  # ------------------------------------------------------------
+  # ALWAYS USE SAMPLES IF UNCERTAINTY
+  # ------------------------------------------------------------
+  use_output <- if (uncertainty) "samples" else "summary"
+
   preds_list <- lapply(names(profiles), function(nm) {
 
     p <- predict_outcome(
@@ -74,7 +135,7 @@ compare_predictions <- function(
       allow_new_levels = allow_new_levels,
       type = type,
       uncertainty = uncertainty,
-      output = output,
+      output = use_output,
       n_samples = n_samples
     )
 
@@ -84,32 +145,18 @@ compare_predictions <- function(
 
   preds <- do.call(rbind, preds_list)
 
-  # -----------------------
-  # ✅ NO UNCERTAINTY
-  # -----------------------
+  # ============================================================
+  # NO UNCERTAINTY
+  # ============================================================
   if (!uncertainty) {
 
-    # reshape wide
-    if (!is.null(id)) {
+    wide <- reshape(
+      preds,
+      idvar = id %||% NULL,
+      timevar = "scenario",
+      direction = "wide"
+    )
 
-      wide <- reshape(
-        preds,
-        idvar = id,
-        timevar = "scenario",
-        direction = "wide"
-      )
-
-    } else {
-
-      wide <- reshape(
-        preds,
-        idvar = NULL,
-        timevar = "scenario",
-        direction = "wide"
-      )
-    }
-
-    # pairwise comparisons
     combs <- combn(names(profiles), 2, simplify = FALSE)
 
     out_list <- lapply(combs, function(cb) {
@@ -117,14 +164,14 @@ compare_predictions <- function(
       s1 <- cb[1]
       s2 <- cb[2]
 
-      pred1 <- wide[[paste0("prediction.", s1)]]
-      pred2 <- wide[[paste0("prediction.", s2)]]
+      p1 <- wide[[paste0("prediction.", s1)]]
+      p2 <- wide[[paste0("prediction.", s2)]]
 
       df <- data.frame(
         scenario1 = s1,
         scenario2 = s2,
-        pred1 = pred1,
-        pred2 = pred2
+        pred1 = p1,
+        pred2 = p2
       )
 
       df$diff <- df$pred2 - df$pred1
@@ -143,52 +190,12 @@ compare_predictions <- function(
     return(do.call(rbind, out_list))
   }
 
-  # -----------------------
-  # ✅ UNCERTAINTY: SAMPLES
-  # -----------------------
-  if (output == "samples") {
-
-    # ensure join by sample (and id if exists)
-    merge_cols <- c("scenario", "sample")
-    if (!is.null(id)) merge_cols <- c(id, merge_cols)
-
-    combs <- combn(names(profiles), 2, simplify = FALSE)
-
-    out_list <- lapply(combs, function(cb) {
-
-      s1 <- cb[1]
-      s2 <- cb[2]
-
-      p1 <- preds[preds$scenario == s1, ]
-      p2 <- preds[preds$scenario == s2, ]
-
-      by_cols <- "sample"
-      if (!is.null(id)) by_cols <- c(id, "sample")
-
-      m <- merge(p1, p2, by = by_cols, suffixes = c("_1", "_2"))
-
-      names(m)[names(m) == "prediction_1"] <- "pred1"
-      names(m)[names(m) == "prediction_2"] <- "pred2"
-
-      m$diff <- m$pred2 - m$pred1
-      m$percent_change <- m$diff / (abs(m$pred1) + eps) * 100
-      m$ratio <- m$pred2 / (m$pred1 + eps)
-
-      m$scenario1 <- s1
-      m$scenario2 <- s2
-
-      m
-    })
-
-    return(do.call(rbind, out_list))
-  }
-
-  # -----------------------
-  # ✅ UNCERTAINTY: SUMMARY
-  # -----------------------
+  # ============================================================
+  # UNCERTAINTY (SAMPLE-BASED)
+  # ============================================================
   combs <- combn(names(profiles), 2, simplify = FALSE)
 
-  out_list <- lapply(combs, function(cb) {
+  out_samples <- lapply(combs, function(cb) {
 
     s1 <- cb[1]
     s2 <- cb[2]
@@ -196,30 +203,51 @@ compare_predictions <- function(
     p1 <- preds[preds$scenario == s1, ]
     p2 <- preds[preds$scenario == s2, ]
 
-    df <- data.frame(
-      scenario1 = s1,
-      scenario2 = s2,
-      pred1 = p1$prediction,
-      pred2 = p2$prediction,
-      sd1 = p1$sd,
-      sd2 = p2$sd
-    )
+    by_cols <- "sample"
+    if (!is.null(id)) by_cols <- c(id, "sample")
 
-    df$diff <- df$pred2 - df$pred1
-    df$sd_diff <- sqrt(df$sd1^2 + df$sd2^2)
+    m <- merge(p1, p2, by = by_cols, suffixes = c("_1", "_2"))
 
-    df$percent_change <- df$diff / (abs(df$pred1) + eps) * 100
-    df$ratio <- df$pred2 / (df$pred1 + eps)
+    names(m)[names(m) == "prediction_1"] <- "pred1"
+    names(m)[names(m) == "prediction_2"] <- "pred2"
 
-    if (!is.null(id)) {
-      df[[id]] <- p1[[id]]
-      df <- df[, c(id, "scenario1", "scenario2", "pred1", "pred2",
-                   "sd1", "sd2", "sd_diff",
-                   "diff", "percent_change", "ratio")]
-    }
+    m$diff <- m$pred2 - m$pred1
+    m$percent_change <- m$diff / (abs(m$pred1) + eps) * 100
+    m$ratio <- m$pred2 / (m$pred1 + eps)
 
-    df
+    m$scenario1 <- s1
+    m$scenario2 <- s2
+
+    m
   })
 
-  return(do.call(rbind, out_list))
+  samples_df <- do.call(rbind, out_samples)
+
+  if (output == "samples") {
+    return(samples_df)
+  }
+
+  # ============================================================
+  # SUMMARY (MEDIAN-BASED)
+  # ============================================================
+  group_vars <- intersect(c(id, "scenario1", "scenario2"), names(samples_df))
+
+  summary_df <- samples_df |>
+    dplyr::group_by(dplyr::across(dplyr::all_of(group_vars))) |>
+    dplyr::summarise(
+      pred1 = stats::median(.data$pred1, na.rm = TRUE),
+      pred2 = stats::median(.data$pred2, na.rm = TRUE),
+
+      diff = stats::median(.data$diff, na.rm = TRUE),
+      diff_sd = stats::sd(.data$diff, na.rm = TRUE),
+      diff_lower = stats::quantile(.data$diff, 0.025, na.rm = TRUE),
+      diff_upper = stats::quantile(.data$diff, 0.975, na.rm = TRUE),
+
+      percent_change = stats::median(.data$percent_change, na.rm = TRUE),
+      ratio = stats::median(.data$ratio, na.rm = TRUE),
+
+      .groups = "drop"
+    )
+
+  as.data.frame(summary_df)
 }

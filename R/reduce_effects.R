@@ -1,31 +1,59 @@
 #' Reduce DLNM effects to one dimension (article-consistent)
 #'
-#' @param fit Fitted model object
-#' @param wx_long Long-format weather data
-#' @param var Exposure variable (ex: "tmax")
-#' @param lag_max Maximum lag
-#' @param df_var Degrees of freedom (exposure)
-#' @param df_lag Degrees of freedom (lag)
-#' @param fun_var Basis ("ns","bs","poly","lin")
-#' @param fun_lag Basis ("ns","ps","lin")
-#' @param type "overall", "lag", "var"
-#' @param value Required for type = "lag" or "var"
-#' @param scale "link", "response", "percent"
-#' @param uncertainty Logical
-#' @param output "summary" or "samples"
-#' @param n_samples Number of samples
+#' Reduces a DLNM exposure-lag-response surface into a one-dimensional summary
+#' using `dlnm::crossreduce()`, with optional uncertainty propagation.
 #'
-#' @return data.frame
+#' When `uncertainty = TRUE`, summaries are computed from simulated/posterior
+#' samples of the model coefficients. The central estimate is obtained as the
+#' median of the simulated effects, while uncertainty intervals are derived
+#' from empirical quantiles (default: 2.5% and 97.5%).
+#'
+#' **Important:** although the output element is named `mean` for backward
+#' compatibility, it represents the *central estimate*, computed as the median
+#' when uncertainty is propagated.
+#'
+#' @param fit Fitted model object.
+#' @param wx_long Long-format weather data.
+#' @param var Exposure variable (e.g. `"tmax"`).
+#' @param lag_max Optional maximum lag. Ignored if `fit` contains `epiexposure_spec`.
+#' @param df_var Optional degrees of freedom (exposure). Ignored if `fit` contains `epiexposure_spec`.
+#' @param df_lag Optional degrees of freedom (lag). Ignored if `fit` contains `epiexposure_spec`.
+#' @param fun_var Optional basis (`"ns"`, `"bs"`, `"poly"`, `"lin"`). Ignored if `fit` contains `epiexposure_spec`.
+#' @param fun_lag Optional basis (`"ns"`, `"ps"`, `"lin"`). Ignored if `fit` contains `epiexposure_spec`.
+#' @param type Reduction type: `"overall"`, `"lag"`, or `"var"`.
+#' @param value Required for `type = "lag"` or `type = "var"`.
+#' @param scale Output scale: `"link"`, `"response"`, or `"percent"`.
+#' @param uncertainty Logical. If `TRUE`, propagate uncertainty using simulated
+#' or posterior draws of the model coefficients.
+#' @param output Character. `"summary"` returns aggregated estimates; `"samples"`
+#' returns all simulated values.
+#' @param n_samples Integer. Number of samples used for uncertainty propagation.
+#'
+#' @return A data.frame containing reduced effects. When `uncertainty = TRUE`
+#' and `output = "summary"`, the result includes:
+#'   - central estimate (median; stored in `eta`)
+#'   - `eta_sd`: standard deviation of simulated values
+#'   - `low` / `high`: empirical interval limits (quantiles)
+#'
+#' @details
+#' Uncertainty is propagated using model-consistent sampling:
+#' - Bayesian models (e.g., `brms`, `INLA`, `bdlnm`) use posterior draws
+#' - Frequentist models use a normal approximation of the coefficient distribution
+#'
+#' The use of the median as the central estimate improves robustness under
+#' non-normal or asymmetric effect distributions, which commonly arise in
+#' DLNM applications.
+#'
 #' @export
 reduce_effects <- function(
     fit,
     wx_long,
     var,
-    lag_max,
-    df_var = 4,
-    df_lag = 4,
-    fun_var = "ns",
-    fun_lag = "ns",
+    lag_max = NULL,
+    df_var = NULL,
+    df_lag = NULL,
+    fun_var = NULL,
+    fun_lag = NULL,
     type = c("overall", "lag", "var"),
     value = NULL,
     scale = c("percent", "response", "link"),
@@ -45,7 +73,75 @@ reduce_effects <- function(
   }
 
   # ----------------------------------------------------------
-  # 1) pooled series
+  # basic validation
+  # ----------------------------------------------------------
+  if (is.null(fit)) stop("`fit` cannot be NULL.")
+  if (!is.data.frame(wx_long)) stop("`wx_long` must be a data.frame.")
+  if (!all(c("epi_id", "dpp") %in% names(wx_long))) {
+    stop("`wx_long` must contain at least 'epi_id' and 'dpp'.")
+  }
+  if (!var %in% names(wx_long)) {
+    stop("`var` not found in `wx_long`.")
+  }
+  if (!is.logical(uncertainty) || length(uncertainty) != 1L) {
+    stop("`uncertainty` must be TRUE or FALSE.")
+  }
+  if (!is.numeric(n_samples) || length(n_samples) != 1L || !is.finite(n_samples) || n_samples <= 0) {
+    stop("`n_samples` must be a positive integer.")
+  }
+  n_samples <- as.integer(n_samples)
+
+  fit_spec <- attr(fit, "epiexposure_spec")
+  cb_cols_fit <- attr(fit, "epiexposure_cb_cols")
+
+  # ----------------------------------------------------------
+  # 1) Resolve basis spec (PRIORITIZE FIT)
+  # ----------------------------------------------------------
+  if (!is.null(fit_spec) && !is.null(fit_spec[[var]])) {
+
+    spec_v <- fit_spec[[var]]
+    lag_max_use <- as.integer(spec_v$lag_max)
+    argvar <- spec_v$argvar
+    arglag <- spec_v$arglag
+
+  } else {
+
+    if (is.null(lag_max)) {
+      stop("Model does not contain `epiexposure_spec` for variable '", var,
+           "'. Please provide `lag_max`.")
+    }
+
+    lag_max_use <- as.integer(lag_max)
+
+    fun_var_use <- fun_var %||% "ns"
+    fun_lag_use <- fun_lag %||% "ns"
+    df_var_use  <- df_var %||% 4
+    df_lag_use  <- df_lag %||% 4
+
+    argvar <- switch(
+      fun_var_use,
+      ns   = list(fun = "ns", df = df_var_use),
+      bs   = list(fun = "bs", df = df_var_use),
+      poly = list(fun = "poly", degree = df_var_use),
+      lin  = list(fun = "lin"),
+      stop("Unsupported fun_var: ", fun_var_use)
+    )
+
+    if (!is.null(argvar$fun) && argvar$fun != "lin") {
+      argvar$intercept <- FALSE
+    }
+
+    arglag <- switch(
+      fun_lag_use,
+      ns  = list(fun = "ns", df = df_lag_use),
+      ps  = list(fun = "ps", df = df_lag_use),
+      lin = list(fun = "lin"),
+      stop("Unsupported fun_lag: ", fun_lag_use)
+    )
+  }
+
+  # ----------------------------------------------------------
+  # 2) pooled series
   # ----------------------------------------------------------
   build_pooled_series <- function(dat, var, sep_n) {
     ids <- unique(dat$epi_id)
@@ -63,39 +159,27 @@ reduce_effects <- function(
     unlist(out)
   }
 
-  x_pool <- build_pooled_series(wx_long, var, lag_max)
+  x_pool <- build_pooled_series(wx_long, var, lag_max_use)
 
   # ----------------------------------------------------------
-  # 2) crossbasis
+  # 3) crossbasis
   # ----------------------------------------------------------
-  argvar <- switch(
-    fun_var,
-    ns   = list(fun = "ns", df = df_var),
-    bs   = list(fun = "bs", df = df_var),
-    poly = list(fun = "poly", degree = df_var),
-    lin  = list(fun = "lin")
-  )
-
-  if (!is.null(argvar$fun) && argvar$fun != "lin") {
-    argvar$intercept <- FALSE
-  }
-
-  arglag <- switch(
-    fun_lag,
-    ns  = list(fun = "ns", df = df_lag),
-    ps  = list(fun = "ps", df = df_lag),
-    lin = list(fun = "lin")
-  )
-
   cb <- dlnm::crossbasis(
     x_pool,
-    lag    = lag_max,
+    lag    = lag_max_use,
     argvar = argvar,
     arglag = arglag
   )
 
+  p <- ncol(cb)
+
+  cb_cols_var <- NULL
+  if (!is.null(cb_cols_fit)) {
+    cb_cols_var <- grep(paste0("^cb_", var, "_"), cb_cols_fit, value = TRUE)
+  }
+
   # ----------------------------------------------------------
-  # 3) deterministic coef + vcov
+  # 4) coef/vcov extraction
   # ----------------------------------------------------------
   extract_coef_vcov <- function(model) {
 
@@ -168,17 +252,45 @@ reduce_effects <- function(
     ))
   }
 
+  get_cb_coef_names <- function(coef_names, var, p, cb_cols_var = NULL) {
+
+    nm <- if (!is.null(cb_cols_var)) {
+      intersect(cb_cols_var, coef_names)
+    } else {
+      grep(paste0("^cb_", var, "_"), coef_names, value = TRUE)
+    }
+
+    if (length(nm) == 0) {
+      nm <- grep(paste0("^cb_", var, "_"), coef_names, value = TRUE)
+    }
+
+    if (length(nm) != p) {
+      stop("Could not match coefficient names to crossbasis columns.")
+    }
+
+    nm
+  }
+
   # ----------------------------------------------------------
-  # 4) posterior/simulated draws by engine
+  # 5) posterior/simulated draws by engine
   # returns matrix n_draws x p
   # ----------------------------------------------------------
-  extract_beta_draws <- function(model, var, p, n_samples) {
+  extract_beta_draws <- function(model, var, p, n_samples, cb_cols_var = NULL) {
 
     # ---------- brms: REAL posterior draws ----------
     if (inherits(model, "brmsfit")) {
+
       draws <- as.matrix(brms::as_draws_matrix(model))
 
-      nm <- grep(paste0("^b_cb_", var, "_"), colnames(draws), value = TRUE)
+      nm <- if (!is.null(cb_cols_var)) {
+        paste0("b_", cb_cols_var)
+      } else {
+        grep(paste0("^b_cb_", var, "_"), colnames(draws), value = TRUE)
+      }
+
+      if (length(nm) == 0) {
+        nm <- grep(paste0("^b_cb_", var, "_"), colnames(draws), value = TRUE)
+      }
       if (length(nm) == 0) {
         nm <- grep(paste0("^b_.*", var), colnames(draws), value = TRUE)
       }
@@ -206,7 +318,7 @@ reduce_effects <- function(
 
       posterior <- INLA::inla.posterior.sample(n = n_samples, result = model)
 
-      cb_names <- paste0("cb_", var, "_", seq_len(p))
+      cb_names <- cb_cols_var %||% paste0("cb_", var, "_", seq_len(p))
 
       draws <- do.call(rbind, lapply(posterior, function(s) {
         latent <- s$latent
@@ -221,15 +333,15 @@ reduce_effects <- function(
     # ---------- bdlnm: REAL posterior draws ----------
     if (inherits(model, "bdlnm")) {
       beta_draws <- model$coefficients
+
       if (is.null(dim(beta_draws))) {
         beta_draws <- matrix(beta_draws, ncol = 1)
       }
 
-      cb_names <- intersect(
-        rownames(beta_draws),
-        paste0("cb_", var, "_", seq_len(p))
-      )
-
+      cb_names <- intersect(rownames(beta_draws), cb_cols_var %||% character(0))
+      if (length(cb_names) == 0) {
+        cb_names <- intersect(rownames(beta_draws), paste0("cb_", var, "_", seq_len(p)))
+      }
       if (length(cb_names) == 0) {
         cb_names <- grep(paste0("^cb_", var, "_"), rownames(beta_draws), value = TRUE)
       }
@@ -258,13 +370,10 @@ reduce_effects <- function(
     beta <- cv$beta
     V    <- cv$vcov
 
-    idx <- grepl(paste0("^cb_", var, "_"), names(beta))
-    beta_sub <- beta[idx]
-    V_sub    <- V[idx, idx, drop = FALSE]
+    nm <- get_cb_coef_names(names(beta), var, p, cb_cols_var)
 
-    if (length(beta_sub) != p) {
-      stop("Mismatch between coefficient vector and crossbasis columns.")
-    }
+    beta_sub <- beta[nm]
+    V_sub    <- V[nm, nm, drop = FALSE]
 
     draws <- MASS::mvrnorm(
       n = n_samples,
@@ -276,6 +385,7 @@ reduce_effects <- function(
       draws <- matrix(draws, nrow = 1)
     }
 
+    colnames(draws) <- nm
     return(draws)
   }
 
@@ -283,14 +393,13 @@ reduce_effects <- function(
   beta <- cv$beta
   V    <- cv$vcov
 
-  idx <- grepl(paste0("^cb_", var, "_"), names(beta))
-  if (!any(idx)) stop("No DLNM terms found for variable: ", var)
+  nm <- get_cb_coef_names(names(beta), var, p, cb_cols_var)
 
-  beta_sub <- beta[idx]
-  V_sub    <- V[idx, idx, drop = FALSE]
+  beta_sub <- beta[nm]
+  V_sub    <- V[nm, nm, drop = FALSE]
 
   # ----------------------------------------------------------
-  # NO UNCERTAINTY
+  # 6) NO UNCERTAINTY
   # ----------------------------------------------------------
   if (!uncertainty) {
 
@@ -314,8 +423,9 @@ reduce_effects <- function(
     beta_draws <- extract_beta_draws(
       model = fit,
       var = var,
-      p = ncol(cb),
-      n_samples = n_samples
+      p = p,
+      n_samples = n_samples,
+      cb_cols_var = cb_cols_var
     )
 
     n_draws <- nrow(beta_draws)
@@ -323,11 +433,9 @@ reduce_effects <- function(
 
     for (i in seq_len(n_draws)) {
 
-      beta_i <- beta_draws[i, ]
-
       cr_i <- dlnm::crossreduce(
         cb,
-        coef  = beta_i,
+        coef  = beta_draws[i, ],
         vcov  = NULL,
         type  = type,
         value = value
@@ -343,15 +451,12 @@ reduce_effects <- function(
     all_draws <- do.call(rbind, res_list)
 
     if (output == "samples") {
-
       df <- all_draws
-
     } else {
-
       df <- all_draws |>
         dplyr::group_by(x) |>
         dplyr::summarise(
-          eta = mean(eta, na.rm = TRUE),
+          eta = stats::median(eta, na.rm = TRUE),
           eta_sd = stats::sd(eta, na.rm = TRUE),
           low = safe_quantile(eta)[1],
           high = safe_quantile(eta)[2],
@@ -361,7 +466,7 @@ reduce_effects <- function(
   }
 
   # ----------------------------------------------------------
-  # scale transformation
+  # 7) scale transformation
   # ----------------------------------------------------------
   if (scale == "link") {
 

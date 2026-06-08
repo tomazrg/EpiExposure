@@ -5,7 +5,7 @@
 \title{Generate DLNM simulation scenarios (scenario or profile mode)}
 \usage{
 simulate_range(
-  lag_windows,
+  periods,
   vary = list(),
   fixed = list(),
   scenario_type = c("grid", "paired"),
@@ -15,7 +15,7 @@ simulate_range(
 )
 }
 \arguments{
-\item{lag_windows}{Output from define_lag_windows()}
+\item{periods}{Output from define_periods()}
 
 \item{vary}{Named list of variables to vary (vectors of values)}
 
@@ -32,7 +32,7 @@ simulate_range(
 \value{
 A structured list with:
   - scenarios: named list of scenarios
-  - lag_windows: lag window table used to define timing
+  - periods: period table used to define timing
   - info: data.frame describing scenario values (NULL for profile mode if not needed)
 }
 \description{

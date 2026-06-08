@@ -3,7 +3,7 @@
 #' Creates structured input for simulate_scenarios(), supporting both
 #' discrete scenarios and continuous profiles (ranges).
 #'
-#' @param lag_windows Output from define_lag_windows()
+#' @param periods Output from define_periods()
 #' @param vary Named list of variables to vary (vectors of values)
 #' @param fixed Named list of fixed values
 #' @param scenario_type "grid" (all combinations) or "paired"
@@ -13,12 +13,12 @@
 #'
 #' @return A structured list with:
 #'   - scenarios: named list of scenarios
-#'   - lag_windows: lag window table used to define timing
+#'   - periods: period table used to define timing
 #'   - info: data.frame describing scenario values (NULL for profile mode if not needed)
 #'
 #' @export
 simulate_range <- function(
-    lag_windows,
+    periods,
     vary = list(),
     fixed = list(),
     scenario_type = c("grid", "paired"),
@@ -33,13 +33,13 @@ simulate_range <- function(
   # ------------------------------------------------------------
   # validations
   # ------------------------------------------------------------
-  if (!is.data.frame(lag_windows)) {
-    stop("`lag_windows` must be a data.frame.")
+  if (!is.data.frame(periods)) {
+    stop("`periods` must be a data.frame.")
   }
 
-  req_cols <- c("window_id", "lag_start", "lag_end")
-  if (!all(req_cols %in% names(lag_windows))) {
-    stop("`lag_windows` must contain columns: window_id, lag_start, lag_end.")
+  req_cols <- c("period", "lag_start", "lag_end")
+  if (!all(req_cols %in% names(periods))) {
+    stop("`periods` must contain columns: period, lag_start, lag_end.")
   }
 
   if (!is.list(vary) || length(vary) == 0) {
@@ -53,6 +53,10 @@ simulate_range <- function(
 
   if (!is.list(fixed)) {
     stop("`fixed` must be a named list.")
+  }
+
+  if (anyDuplicated(periods$period)) {
+    stop("`periods$period` must contain unique labels.")
   }
 
   # ============================================================
@@ -108,15 +112,15 @@ simulate_range <- function(
       scen_row <- as.list(grid[i, , drop = FALSE])
       scen_i <- list()
 
-      for (w in lag_windows$window_id) {
+      for (p in periods$period) {
 
-        scen_window <- scen_row
+        scen_period <- scen_row
 
         if (length(fixed) > 0) {
-          scen_window <- c(scen_window, fixed)
+          scen_period <- c(scen_period, fixed)
         }
 
-        scen_i[[w]] <- scen_window
+        scen_i[[p]] <- scen_period
       }
 
       scenarios_out[[i]] <- scen_i
@@ -130,7 +134,7 @@ simulate_range <- function(
 
     return(list(
       scenarios = scenarios_out,
-      lag_windows = lag_windows,
+      periods = periods,
       info = info_df
     ))
   }
@@ -159,14 +163,14 @@ simulate_range <- function(
 
     scen <- list()
 
-    for (w in lag_windows$window_id) {
+    for (p in periods$period) {
 
-      scen_window <- c(
+      scen_period <- c(
         setNames(list(x_vals), var),
         fixed
       )
 
-      scen[[w]] <- scen_window
+      scen[[p]] <- scen_period
     }
 
     scenarios_out <- list(scen)
@@ -181,7 +185,7 @@ simulate_range <- function(
 
     return(list(
       scenarios = scenarios_out,
-      lag_windows = lag_windows,
+      periods = periods,
       info = info_df
     ))
   }

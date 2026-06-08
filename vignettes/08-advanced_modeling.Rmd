@@ -7,7 +7,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r}
+```{r, eval = FALSE}
 compare_exposures(profile1, profile2)
 ```
 
@@ -18,7 +18,7 @@ diferença estrutural
 mudança de timing
 intensidade acumulada
 
-```{r}
+```{r, eval = FALSE}
 p1 <- predict_outcome(fit, profile1)
 p2 <- predict_outcome(fit, profile2)
 ```
@@ -28,7 +28,7 @@ p2 <- predict_outcome(fit, profile2)
 
 Transformar histórico de exposição → valor esperado
 
-```{r}
+```{r, eval = FALSE}
 compare_predictions(fit, profile1, profile2)
 ```
 
@@ -37,14 +37,14 @@ compare_predictions(fit, profile1, profile2)
 
 “Qual cenário gera maior risco?”
 
-```{r}
+```{r, eval = FALSE}
 barplot(c(p1$prediction, p2$prediction),
         names.arg=c("Scenario 1","Scenario 2"),
         col=c("blue","red"),
         main="Predicted outcomes under scenarios")
 ```
 
-```{r}
+```{r, eval = FALSE}
 compare_predictions(
   fit,
   profile1,
@@ -62,7 +62,7 @@ heterogeneidade epidemiológica
 
 # Advanced modeling strategies in EpiExposure
 
-```{r}
+```{r, eval = FALSE}
 df_sensitivity(dat)
 recenter_effects(fit)
 check_identifiability(cb)
@@ -75,7 +75,7 @@ influência de df
 impacto do baseline
 estabilidade do modelo
 
-```{r}
+```{r, eval = FALSE}
 plot(df_sensitivity(dat))
 ```
 

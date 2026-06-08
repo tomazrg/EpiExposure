@@ -11,7 +11,7 @@ vignette: >
 
 Reduzir dimensionalidade (interpretabilidade)
 
-```{r}
+```{r, eval = FALSE}
 red <- reduce_effects(fit)
 
 plot(red)
@@ -24,7 +24,7 @@ redução permite visualizar:
 
 Efeito acumulado ao longo do tempo
 
-```{r}
+```{r, eval = FALSE}
 plot(red$type, red$effect,
      type="l", lwd=2,
      main="Reduced exposure-response relationship")

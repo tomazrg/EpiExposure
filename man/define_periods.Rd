@@ -2,25 +2,23 @@
 % Please edit documentation in R/define_periods.R
 \name{define_periods}
 \alias{define_periods}
-\title{Define epidemiological lag windows}
+\title{Define epidemiological lag periods}
 \usage{
 define_periods(lag_max, cuts = NULL, prefix = "W")
 }
 \arguments{
 \item{lag_max}{Maximum lag (integer)}
 
-\item{cuts}{Optional numeric vector of cut points defining windows}
+\item{cuts}{Optional numeric vector of cut points defining periods}
 
-\item{prefix}{Character string used to label windows (default = "W")}
+\item{prefix}{Character string used to label periods (default = "W")}
 }
 \value{
 data.frame with columns:
-  - window_id (character labels: e.g., "W1", "W2", ...)
+  - period
   - lag_start
   - lag_end
 }
 \description{
-Creates lag windows to summarise cumulative DLNM effects.
-If no cut points are provided, a single window from
-lag 0 to lag_max is returned.
+Creates lag periods to summarise cumulative DLNM effects.
 }

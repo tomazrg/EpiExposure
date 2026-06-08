@@ -16,7 +16,7 @@ surf <- predict_surface(fit)
 plot(surf)
 ```
 
-```{r}
+```{r, eval = FALSE}
 plot(surf, type="contour", main="Exposure–lag–response surface")
 ```
 

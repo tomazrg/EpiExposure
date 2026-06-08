@@ -2,7 +2,7 @@
 % Please edit documentation in R/compute_eci.R
 \name{compute_eci}
 \alias{compute_eci}
-\title{Compute Exposure Cumulative Impact (ECI)}
+\title{Compute Exposure Cumulative Impact (ECI - the exposure profile with the fitted model coefficients)}
 \usage{
 compute_eci(
   profile,
@@ -13,21 +13,61 @@ compute_eci(
 )
 }
 \arguments{
-\item{profile}{Numeric vector of exposure values (lag profile)}
+\item{profile}{Numeric vector of exposure values representing a lag profile.
+Its length must be equal to `lag_max + 1` for the exposure variable stored
+in the fitted model.}
 
-\item{fit}{Fitted model from fit_epidlnm() (required for weighted ECI)}
+\item{fit}{Fitted model from `fit_epidlnm()`. Required to compute
+`ECI_weighted`. If `NULL`, only `ECI_raw` is returned.}
 
-\item{uncertainty}{Logical; if TRUE, quantify uncertainty}
+\item{uncertainty}{Logical. If `TRUE`, quantify uncertainty.}
 
-\item{output}{"summary" or "samples"}
+\item{output}{Character. `"summary"` or `"samples"`.}
 
-\item{n_samples}{Number of samples used for uncertainty quantification}
+\item{n_samples}{Integer. Number of samples used for uncertainty quantification.}
 }
 \value{
-data.frame
+A data.frame.
+
+- If `fit = NULL`, returns:
+  - `ECI_raw`
+  - `ECI_weighted = NA`
+
+- If `uncertainty = FALSE`, returns:
+  - `ECI_raw`
+  - `ECI_weighted`
+
+- If `uncertainty = TRUE` and `output = "summary"`, returns:
+  - `ECI_raw`
+  - `ECI_weighted` (median-based central estimate)
+  - `sd`
+  - `lower`
+  - `upper`
+
+- If `uncertainty = TRUE` and `output = "samples"`, returns:
+  - `sample`
+  - `ECI_raw`
+  - `ECI_weighted`
 }
 \description{
-Computes:
-1) ECI_raw (sum of exposure values; unweighted)
-2) ECI_weighted (DLNM-based, using model coefficients)
+This function supports both deterministic estimation and uncertainty
+propagation. When `uncertainty = TRUE`, the weighted ECI is recomputed
+across simulated or posterior draws of the model coefficients.
+}
+\details{
+If `output = "summary"`, the central estimate is computed as the median of
+the simulated ECI values, while interval limits are obtained from empirical
+quantiles (default: 2.5% and 97.5%).
+
+**Important:** when `uncertainty = TRUE` and `output = "summary"`,
+`ECI_weighted` represents the *central estimate*, computed as the median
+of the simulated distribution.
+
+
+Uncertainty is propagated using model-consistent sampling:
+- Bayesian models (e.g., `brms`, `INLA`, `bdlnm`) use posterior draws
+- Frequentist models use simulation from the asymptotic coefficient distribution
+
+The use of the median as the central estimate improves robustness under
+asymmetric or non-normal simulated ECI distributions.
 }

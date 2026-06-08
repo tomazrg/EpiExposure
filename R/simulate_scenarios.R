@@ -1,43 +1,83 @@
 #' Simulate epidemiological DLNM scenarios
 #'
-#' @param fit Fitted model returned by fit_epidlnm()
-#' @param scenarios Output from simulate_range() or a named list of scenarios.
+#' Generates predicted outcomes for one or more user-defined epidemiological
+#' scenarios, using exposure profiles assembled across lag periods.
+#'
+#' Scenarios can be supplied either as:
+#' - a structured object returned by `simulate_range()`, or
+#' - a named list of scenario definitions.
+#'
+#' When `uncertainty = TRUE`, uncertainty is propagated through
+#' `predict_outcome()`. If `output = "summary"`, the central estimate is
+#' computed as the median of simulated predictions, and interval limits are
+#' obtained from empirical quantiles (default: 2.5% and 97.5%).
+#'
+#' **Important:** in the summary output, the column `prediction` represents the
+#' central estimate, computed as the median when uncertainty is propagated.
+#'
+#' @param fit Fitted model returned by `fit_epidlnm()`.
+#' @param scenarios Output from `simulate_range()` or a named list of scenarios.
 #'   Recommended structured object:
-#'   list(
-#'     scenarios = ...,
-#'     info = ...,
-#'     lag_windows = ...
-#'   )
+#'   `list(scenarios = ..., info = ..., periods = ...)`.
 #' @param wx_long Optional long-format weather data. Used only as fallback
 #'   to derive default reference values when `ref_vals` are not supplied
 #'   and the fitted model does not store centering information.
-#' @param lag_windows Optional lag window table. If NULL, the function will
-#'   try to read it from `scenarios$lag_windows`. This keeps backward compatibility.
-#' @param lag_max Optional maximum lag. Used only if fit does not store lag_max.
-#' @param df_var Optional degrees of freedom (exposure). Ignored if fit contains
-#'   `epiexposure_spec`. Kept only for backward compatibility.
-#' @param df_lag Optional degrees of freedom (lag). Ignored if fit contains
-#'   `epiexposure_spec`. Kept only for backward compatibility.
-#' @param fun_var Optional basis function for exposure. Ignored if fit contains
-#'   `epiexposure_spec`. Kept only for backward compatibility.
-#' @param fun_lag Optional basis function for lag. Ignored if fit contains
-#'   `epiexposure_spec`. Kept only for backward compatibility.
+#' @param periods Optional period table. If `NULL`, the function will
+#'   try to read it from `scenarios$periods`.
+#' @param lag_max Optional maximum lag. Used only if `fit` does not store lag_max.
+#' @param df_var Optional degrees of freedom (exposure). Ignored if `fit` contains
+#'   `epiexposure_spec`. Kept only for fallback compatibility.
+#' @param df_lag Optional degrees of freedom (lag). Ignored if `fit` contains
+#'   `epiexposure_spec`. Kept only for fallback compatibility.
+#' @param fun_var Optional basis function for exposure. Ignored if `fit` contains
+#'   `epiexposure_spec`. Kept only for fallback compatibility.
+#' @param fun_lag Optional basis function for lag. Ignored if `fit` contains
+#'   `epiexposure_spec`. Kept only for fallback compatibility.
 #' @param ref_vals Optional named list of reference values for each variable.
-#'   If NULL, the function tries in order:
-#'   1) median from wx_long
-#'   2) centering value stored in fit spec (argvar$cen)
-#' @param pop_level Logical; if TRUE, predictions exclude random effects where supported
-#' @param uncertainty Logical; if TRUE quantify uncertainty
-#' @param output "summary" or "samples"
-#' @param n_samples Number of samples used for uncertainty quantification
+#'   If `NULL`, the function tries in order:
+#'   1. median from `wx_long`
+#'   2. centering value stored in `fit` spec (`argvar$cen`)
+#' @param pop_level Logical. If `TRUE`, predictions exclude random effects
+#'   where supported.
+#' @param uncertainty Logical. If `TRUE`, quantify uncertainty.
+#' @param output Character. `"summary"` or `"samples"`.
+#' @param n_samples Integer. Number of samples used for uncertainty quantification.
 #'
-#' @return data.frame
+#' @return A data.frame.
+#'
+#' If `uncertainty = FALSE`, returns one row per scenario point with column:
+#' - `prediction`
+#'
+#' If `uncertainty = TRUE` and `output = "summary"`, returns one row per scenario
+#' point with columns:
+#' - `prediction` (median-based central estimate)
+#' - `sd`
+#' - `lower`
+#' - `upper`
+#'
+#' If `uncertainty = TRUE` and `output = "samples"`, returns one row per sample
+#' with columns:
+#' - `sample`
+#' - `prediction`
+#'
+#' Additional metadata columns from `scenarios$info` are preserved.
+#'
+#' @details
+#' Uncertainty is propagated through `predict_outcome()`, which uses
+#' model-consistent sampling:
+#' - Bayesian models use posterior draws
+#' - Frequentist models use simulation from the asymptotic coefficient distribution
+#'
+#' For summary outputs under uncertainty, the median is used instead of the mean
+#' to provide a more robust central estimate under asymmetric predictive
+#' distributions.
+#'
 #' @export
 simulate_scenarios <- function(
     fit,
     scenarios,
     wx_long = NULL,
-    lag_windows = NULL,
+    periods = NULL,
     lag_max = NULL,
     df_var = NULL,
     df_lag = NULL,
@@ -54,6 +94,10 @@ simulate_scenarios <- function(
 
   `%||%` <- function(a, b) if (!is.null(a)) a else b
 
+  safe_quantile <- function(x, probs = c(0.025, 0.975)) {
+    stats::quantile(x, probs = probs, na.rm = TRUE, names = FALSE)
+  }
+
   # ------------------------------------------------------------
   # validations
   # ------------------------------------------------------------
@@ -69,9 +113,9 @@ simulate_scenarios <- function(
   }
   n_samples <- as.integer(n_samples)
 
-  fit_spec      <- attr(fit, "epiexposure_spec")
-  fit_vars      <- attr(fit, "epiexposure_vars")
-  dat_template  <- attr(fit, "epiexposure_dat_template")
+  fit_spec     <- attr(fit, "epiexposure_spec")
+  fit_vars     <- attr(fit, "epiexposure_vars")
+  dat_template <- attr(fit, "epiexposure_dat_template")
 
   if (is.null(dat_template) || !is.data.frame(dat_template) || nrow(dat_template) < 1) {
     stop("The fitted model does not contain `epiexposure_dat_template`. Refit with fit_epidlnm().")
@@ -85,11 +129,11 @@ simulate_scenarios <- function(
   # Handle structured scenarios
   # ------------------------------------------------------------
   scenario_info <- NULL
-  lag_windows_from_scenarios <- NULL
+  periods_from_scenarios <- NULL
 
   if (is.list(scenarios) && "scenarios" %in% names(scenarios)) {
     scenario_info <- scenarios$info %||% NULL
-    lag_windows_from_scenarios <- scenarios$lag_windows %||% NULL
+    periods_from_scenarios <- scenarios$periods %||% NULL
     scenarios <- scenarios$scenarios
   }
 
@@ -98,17 +142,21 @@ simulate_scenarios <- function(
   }
 
   # ------------------------------------------------------------
-  # Resolve lag_windows
+  # Resolve periods
   # ------------------------------------------------------------
-  lag_windows <- lag_windows %||% lag_windows_from_scenarios
+  periods <- periods %||% periods_from_scenarios
 
-  if (is.null(lag_windows)) {
-    stop("`lag_windows` is missing. Provide it explicitly or include it inside the `scenarios` object.")
+  if (is.null(periods)) {
+    stop("`periods` is missing. Provide it explicitly or include it inside the `scenarios` object.")
   }
 
-  req_cols <- c("window_id", "lag_start", "lag_end")
-  if (!all(req_cols %in% names(lag_windows))) {
-    stop("`lag_windows` must contain columns: window_id, lag_start, lag_end.")
+  req_cols <- c("period", "lag_start", "lag_end")
+  if (!all(req_cols %in% names(periods))) {
+    stop("`periods` must contain columns: period, lag_start, lag_end.")
+  }
+
+  if (anyDuplicated(periods$period)) {
+    stop("`periods$period` must contain unique labels.")
   }
 
   # ------------------------------------------------------------
@@ -153,13 +201,11 @@ simulate_scenarios <- function(
 
     for (v in vars) {
 
-      # 1) wx_long median
       if (!is.null(wx_long) && is.data.frame(wx_long) && v %in% names(wx_long)) {
         ref_vals[[v]] <- as.numeric(stats::median(wx_long[[v]], na.rm = TRUE))
         next
       }
 
-      # 2) fit spec center if available
       if (!is.null(fit_spec[[v]]) &&
           !is.null(fit_spec[[v]]$argvar) &&
           !is.null(fit_spec[[v]]$argvar$cen)) {
@@ -190,17 +236,17 @@ simulate_scenarios <- function(
     N_var <- var_lagmax[[var]] + 1L
     x <- rep(ref_vals[[var]], N_var)
 
-    for (i in seq_len(nrow(lag_windows))) {
+    for (i in seq_len(nrow(periods))) {
 
-      w_id <- lag_windows$window_id[i]
+      p_id <- periods$period[i]
 
-      if (!is.null(scen_values[[w_id]]) &&
-          !is.null(scen_values[[w_id]][[var]])) {
+      if (!is.null(scen_values[[p_id]]) &&
+          !is.null(scen_values[[p_id]][[var]])) {
 
-        lags <- seq(lag_windows$lag_start[i], lag_windows$lag_end[i])
+        lags <- seq(periods$lag_start[i], periods$lag_end[i])
         idx <- lag_to_idx(lags, N_var)
 
-        x[idx] <- scen_values[[w_id]][[var]]
+        x[idx] <- scen_values[[p_id]][[var]]
       }
     }
 
@@ -212,8 +258,8 @@ simulate_scenarios <- function(
   # ------------------------------------------------------------
   expand_scenario_points <- function(scen_values) {
 
-    lens <- unlist(lapply(scen_values, function(win) {
-      sapply(win, length)
+    lens <- unlist(lapply(scen_values, function(block) {
+      sapply(block, length)
     }), use.names = FALSE)
 
     lens_gt1 <- unique(lens[lens > 1])
@@ -230,8 +276,8 @@ simulate_scenarios <- function(
     pts <- vector("list", n_pts)
 
     for (i in seq_len(n_pts)) {
-      pts[[i]] <- lapply(scen_values, function(w) {
-        lapply(w, function(val) {
+      pts[[i]] <- lapply(scen_values, function(block) {
+        lapply(block, function(val) {
           if (length(val) > 1) val[i] else val
         })
       })
@@ -279,6 +325,8 @@ simulate_scenarios <- function(
   # ------------------------------------------------------------
   re_mode <- if (isTRUE(pop_level)) "population" else "conditional"
 
+  pred_output <- if (uncertainty) "samples" else output
+
   out_list <- purrr::imap(scenarios, function(scen, name) {
 
     scen_pts <- expand_scenario_points(scen)
@@ -298,7 +346,7 @@ simulate_scenarios <- function(
         allow_new_levels = TRUE,
         type = "response",
         uncertainty = uncertainty,
-        output = output,
+        output = pred_output,
         n_samples = n_samples
       )
 
@@ -311,10 +359,10 @@ simulate_scenarios <- function(
 
       } else if (output == "summary") {
 
-        meta_j$prediction <- pred_j$prediction[1]
-        meta_j$sd <- pred_j$sd[1]
-        meta_j$lower <- pred_j$lower[1]
-        meta_j$upper <- pred_j$upper[1]
+        meta_j$prediction <- stats::median(pred_j$prediction, na.rm = TRUE)
+        meta_j$sd <- stats::sd(pred_j$prediction, na.rm = TRUE)
+        meta_j$lower <- safe_quantile(pred_j$prediction)[1]
+        meta_j$upper <- safe_quantile(pred_j$prediction)[2]
         pred_list[[j]] <- meta_j
 
       } else {

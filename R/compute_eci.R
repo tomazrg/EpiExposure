@@ -1,16 +1,56 @@
-#' Compute Exposure Cumulative Impact (ECI)
+#' Compute Exposure Cumulative Impact (ECI - the exposure profile with the fitted model coefficients)
 #'
-#' Computes:
-#' 1) ECI_raw (sum of exposure values; unweighted)
-#' 2) ECI_weighted (DLNM-based, using model coefficients)
+#' This function supports both deterministic estimation and uncertainty
+#' propagation. When `uncertainty = TRUE`, the weighted ECI is recomputed
+#' across simulated or posterior draws of the model coefficients.
 #'
-#' @param profile Numeric vector of exposure values (lag profile)
-#' @param fit Fitted model from fit_epidlnm() (required for weighted ECI)
-#' @param uncertainty Logical; if TRUE, quantify uncertainty
-#' @param output "summary" or "samples"
-#' @param n_samples Number of samples used for uncertainty quantification
+#' If `output = "summary"`, the central estimate is computed as the median of
+#' the simulated ECI values, while interval limits are obtained from empirical
+#' quantiles (default: 2.5% and 97.5%).
 #'
-#' @return data.frame
+#' **Important:** when `uncertainty = TRUE` and `output = "summary"`,
+#' `ECI_weighted` represents the *central estimate*, computed as the median
+#' of the simulated distribution.
+#'
+#' @param profile Numeric vector of exposure values representing a lag profile.
+#'   Its length must be equal to `lag_max + 1` for the exposure variable stored
+#'   in the fitted model.
+#' @param fit Fitted model from `fit_epidlnm()`. Required to compute
+#'   `ECI_weighted`. If `NULL`, only `ECI_raw` is returned.
+#' @param uncertainty Logical. If `TRUE`, quantify uncertainty.
+#' @param output Character. `"summary"` or `"samples"`.
+#' @param n_samples Integer. Number of samples used for uncertainty quantification.
+#'
+#' @return A data.frame.
+#'
+#' - If `fit = NULL`, returns:
+#'   - `ECI_raw`
+#'   - `ECI_weighted = NA`
+#'
+#' - If `uncertainty = FALSE`, returns:
+#'   - `ECI_raw`
+#'   - `ECI_weighted`
+#'
+#' - If `uncertainty = TRUE` and `output = "summary"`, returns:
+#'   - `ECI_raw`
+#'   - `ECI_weighted` (median-based central estimate)
+#'   - `sd`
+#'   - `lower`
+#'   - `upper`
+#'
+#' - If `uncertainty = TRUE` and `output = "samples"`, returns:
+#'   - `sample`
+#'   - `ECI_raw`
+#'   - `ECI_weighted`
+#'
+#' @details
+#' Uncertainty is propagated using model-consistent sampling:
+#' - Bayesian models (e.g., `brms`, `INLA`, `bdlnm`) use posterior draws
+#' - Frequentist models use simulation from the asymptotic coefficient distribution
+#'
+#' The use of the median as the central estimate improves robustness under
+#' asymmetric or non-normal simulated ECI distributions.
+#'
 #' @export
 compute_eci <- function(
     profile,
@@ -26,11 +66,11 @@ compute_eci <- function(
   # Validation
   # -----------------------
   if (!is.numeric(profile)) {
-    stop("profile must be a numeric vector.")
+    stop("`profile` must be a numeric vector.")
   }
 
   if (any(!is.finite(profile))) {
-    stop("profile must contain only finite values.")
+    stop("`profile` must contain only finite values.")
   }
 
   if (!is.logical(uncertainty) || length(uncertainty) != 1L) {
@@ -47,10 +87,6 @@ compute_eci <- function(
 
   safe_quantile <- function(x, probs = c(0.025, 0.975)) {
     stats::quantile(x, probs = probs, na.rm = TRUE, names = FALSE)
-  }
-
-  is_bayesian_model <- function(model) {
-    inherits(model, "brmsfit") || inherits(model, "inla") || inherits(model, "bdlnm")
   }
 
   # -----------------------
@@ -74,11 +110,10 @@ compute_eci <- function(
   spec <- attr(fit, "epiexposure_spec")
   vars <- attr(fit, "epiexposure_vars")
   cb_cols_fit <- attr(fit, "epiexposure_cb_cols")
-  family_fit <- attr(fit, "epiexposure_family")
 
-  if (is.null(spec)) stop("fit does not contain epiexposure_spec.")
+  if (is.null(spec)) stop("`fit` does not contain `epiexposure_spec`.")
   if (length(vars) != 1) {
-    stop("compute_eci currently supports a single exposure variable.")
+    stop("`compute_eci()` currently supports a single exposure variable.")
   }
 
   var <- vars[1]
@@ -91,11 +126,11 @@ compute_eci <- function(
   lag_max <- as.integer(spec_v$lag_max)
 
   if (length(profile) != lag_max + 1L) {
-    stop("Profile length must be lag_max + 1.")
+    stop("`profile` length must be equal to lag_max + 1.")
   }
 
   # -----------------------
-  # Rebuild crossbasis
+  # Rebuild crossbasis and extract final row
   # -----------------------
   cb <- dlnm::crossbasis(
     profile,
@@ -107,27 +142,67 @@ compute_eci <- function(
   cb_row <- as.numeric(cb[lag_max + 1L, ])
 
   # -----------------------
-  # Helper: linkinv
+  # Helper: deterministic coefficients
   # -----------------------
-  get_linkinv <- function(model, family_fit) {
+  extract_coef <- function(model) {
 
-    if (!is.null(model$family) && !is.null(model$family$linkinv)) {
-      return(model$family$linkinv)
+    if (inherits(model, "glmmTMB")) {
+      return(glmmTMB::fixef(model)$cond)
     }
 
-    if (is.character(family_fit)) {
-      if (family_fit %in% c("binomial", "beta")) {
-        return(stats::binomial(link = "logit")$linkinv)
-      }
-      if (family_fit %in% c("poisson", "gamma")) {
-        return(stats::poisson(link = "log")$linkinv)
-      }
-      if (family_fit %in% c("gaussian")) {
-        return(stats::gaussian()$linkinv)
-      }
+    if (inherits(model, "merMod")) {
+      return(lme4::fixef(model))
     }
 
-    return(function(x) x)
+    if (inherits(model, "lme")) {
+      return(nlme::fixef(model))
+    }
+
+    if (inherits(model, "gls")) {
+      return(stats::coef(model))
+    }
+
+    if (inherits(model, "gam")) {
+      return(stats::coef(model))
+    }
+
+    if (inherits(model, "HLfit")) {
+      return(spaMM::fixef(model))
+    }
+
+    if (inherits(model, "brmsfit")) {
+      b <- brms::fixef(model)
+      beta <- b[, "Estimate"]
+      names(beta) <- rownames(b)
+      return(beta)
+    }
+
+    if (inherits(model, "inla")) {
+      return(fit$summary.fixed$mean)
+    }
+
+    if (inherits(model, "bdlnm")) {
+      return(model$coefficients.summary[, "mean"])
+    }
+
+    return(stats::coef(model))
+  }
+
+  # -----------------------
+  # Helper: coefficient names for cb terms
+  # -----------------------
+  get_cb_names <- function(coef_names, row_names = NULL) {
+    cb_names <- grep(paste0("^cb_", var, "_"), coef_names, value = TRUE)
+
+    if (length(cb_names) == 0 && !is.null(row_names)) {
+      cb_names <- intersect(row_names, paste0("cb_", var, "_", seq_along(cb_row)))
+    }
+
+    if (length(cb_names) == 0 && !is.null(cb_cols_fit)) {
+      cb_names <- intersect(cb_cols_fit, coef_names %||% row_names %||% character(0))
+    }
+
+    cb_names
   }
 
   # -----------------------
@@ -135,34 +210,15 @@ compute_eci <- function(
   # -----------------------
   if (!uncertainty) {
 
-    beta <- NULL
+    beta <- extract_coef(fit)
 
-    if (inherits(fit, "glmmTMB")) {
-      beta <- glmmTMB::fixef(fit)$cond
-    } else if (inherits(fit, "merMod")) {
-      beta <- lme4::fixef(fit)
-    } else if (inherits(fit, "glm") || inherits(fit, "gam")) {
-      beta <- stats::coef(fit)
-    } else if (inherits(fit, "gls")) {
-      beta <- stats::coef(fit)
-    } else if (inherits(fit, "brmsfit")) {
-      b <- brms::fixef(fit)
-      beta <- b[, "Estimate"]
-      names(beta) <- rownames(b)
-    } else if (inherits(fit, "inla")) {
-      beta <- fit$summary.fixed$mean
-    } else {
-      stop("Unsupported model class for weighted ECI.")
-    }
-
-    cb_names <- grep(paste0("^cb_", var, "_"), names(beta), value = TRUE)
+    cb_names <- get_cb_names(names(beta))
 
     if (length(cb_names) != length(cb_row)) {
-      stop("Mismatch between cb coefficients and basis.")
+      stop("Mismatch between basis columns and model coefficients for weighted ECI.")
     }
 
     beta_cb <- beta[cb_names]
-
     eci_weighted <- sum(cb_row * beta_cb)
 
     return(data.frame(
@@ -172,51 +228,65 @@ compute_eci <- function(
   }
 
   # -----------------------
-  # ✅ UNCERTAINTY
-  # -----------------------
-
-  # -----------------------
-  # Bayesian: brms
+  # Uncertainty: coefficient draws
   # -----------------------
   if (inherits(fit, "brmsfit")) {
 
+    # REAL posterior draws
     beta_draws <- as.matrix(brms::as_draws_matrix(fit))
 
     cb_names <- grep(paste0("^b_cb_", var, "_"), colnames(beta_draws), value = TRUE)
-
     if (length(cb_names) == 0) {
       cb_names <- grep(paste0("^b_.*", var), colnames(beta_draws), value = TRUE)
     }
 
     if (length(cb_names) != length(cb_row)) {
-      stop("Mismatch between bdlnm/brms coefficient names and cb structure.")
+      stop("Mismatch between brms posterior draws and crossbasis structure.")
     }
 
-    beta_draws <- beta_draws[, cb_names, drop = FALSE]
+    if (nrow(beta_draws) > n_samples) {
+      set.seed(1)
+      keep <- sample(seq_len(nrow(beta_draws)), n_samples)
+      beta_draws <- beta_draws[keep, cb_names, drop = FALSE]
+    } else {
+      beta_draws <- beta_draws[, cb_names, drop = FALSE]
+    }
 
     eci_draws <- as.numeric(beta_draws %*% cb_row)
 
-    # -----------------------
-    # Bayesian: INLA
-    # -----------------------
   } else if (inherits(fit, "inla")) {
 
-    posterior <- INLA::inla.posterior.sample(n = n_samples, result = fit)
+    # REAL posterior draws
+    if (!requireNamespace("INLA", quietly = TRUE)) {
+      stop("Package 'INLA' is required for INLA uncertainty quantification.")
+    }
+
+    posterior <- tryCatch(
+      INLA::inla.posterior.sample(n = n_samples, result = fit),
+      error = function(e) NULL
+    )
+
+    if (is.null(posterior)) {
+      stop("INLA posterior samples could not be drawn. Ensure the model was fitted with control.compute = list(config = TRUE).")
+    }
 
     cb_names <- paste0("cb_", var, "_", seq_along(cb_row))
 
     beta_draws <- do.call(cbind, lapply(posterior, function(s) {
       latent <- s$latent
+      names(latent) <- gsub(":1$", "", names(latent))
       latent[cb_names]
     }))
 
+    if (nrow(beta_draws) != length(cb_row)) {
+      stop("Mismatch between INLA posterior draws and crossbasis structure.")
+    }
+
     eci_draws <- as.numeric(t(beta_draws) %*% cb_row)
 
-    # -----------------------
-    # Bayesian: bdlnm
-    # -----------------------
   } else if (inherits(fit, "bdlnm")) {
 
+    # REAL posterior draws
     beta_draws <- fit$coefficients
 
     if (is.null(dim(beta_draws))) {
@@ -224,30 +294,27 @@ compute_eci <- function(
     }
 
     cb_names <- intersect(rownames(beta_draws), paste0("cb_", var, "_", seq_along(cb_row)))
-
     if (length(cb_names) == 0) {
       cb_names <- intersect(cb_cols_fit %||% character(0), rownames(beta_draws))
     }
 
     if (length(cb_names) != length(cb_row)) {
-      stop("Mismatch between bdlnm coefficients and cb structure.")
+      stop("Mismatch between bdlnm posterior draws and crossbasis structure.")
     }
-
-    beta_draws <- beta_draws[cb_names, , drop = FALSE]
 
     if (ncol(beta_draws) > n_samples) {
       set.seed(1)
       keep <- sample(seq_len(ncol(beta_draws)), n_samples)
-      beta_draws <- beta_draws[, keep, drop = FALSE]
+      beta_draws <- beta_draws[cb_names, keep, drop = FALSE]
+    } else {
+      beta_draws <- beta_draws[cb_names, , drop = FALSE]
     }
 
     eci_draws <- as.numeric(t(beta_draws) %*% cb_row)
 
-    # -----------------------
-    # Frequentist → normal approximation
-    # -----------------------
   } else {
 
+    # Frequentist: normal approximation
     extract_coef_vcov <- function(model) {
 
       if (inherits(model, "glmmTMB")) {
@@ -264,6 +331,34 @@ compute_eci <- function(
         ))
       }
 
+      if (inherits(model, "lme")) {
+        return(list(
+          beta = nlme::fixef(model),
+          vcov = as.matrix(stats::vcov(model))
+        ))
+      }
+
+      if (inherits(model, "gls")) {
+        return(list(
+          beta = stats::coef(model),
+          vcov = as.matrix(stats::vcov(model))
+        ))
+      }
+
+      if (inherits(model, "gam")) {
+        return(list(
+          beta = stats::coef(model),
+          vcov = as.matrix(stats::vcov(model))
+        ))
+      }
+
+      if (inherits(model, "HLfit")) {
+        b <- spaMM::fixef(model)
+        V <- tryCatch(as.matrix(stats::vcov(model)), error = function(e) NULL)
+        if (is.null(V)) stop("Could not extract vcov from spaMM model.")
+        return(list(beta = b, vcov = V))
+      }
+
       return(list(
         beta = stats::coef(model),
         vcov = as.matrix(stats::vcov(model))
@@ -275,16 +370,28 @@ compute_eci <- function(
     beta_hat <- cv$beta
     V_hat <- cv$vcov
 
-    cb_names <- grep(paste0("^cb_", var, "_"), names(beta_hat), value = TRUE)
+    cb_names <- get_cb_names(names(beta_hat))
 
     if (length(cb_names) != length(cb_row)) {
-      stop("Mismatch between coefficient vector and cb.")
+      stop("Mismatch between coefficient vector and crossbasis structure.")
     }
 
     beta_hat <- beta_hat[cb_names]
     V_hat <- V_hat[cb_names, cb_names, drop = FALSE]
 
-    beta_draws <- MASS::mvrnorm(n = n_samples, mu = beta_hat, Sigma = V_hat)
+    if (!requireNamespace("MASS", quietly = TRUE)) {
+      stop("Package 'MASS' is required for frequentist uncertainty approximation.")
+    }
+
+    beta_draws <- MASS::mvrnorm(
+      n = n_samples,
+      mu = beta_hat,
+      Sigma = V_hat
+    )
+
+    if (is.null(dim(beta_draws))) {
+      beta_draws <- matrix(beta_draws, nrow = 1)
+    }
 
     eci_draws <- as.numeric(beta_draws %*% cb_row)
   }
@@ -302,9 +409,14 @@ compute_eci <- function(
 
   return(data.frame(
     ECI_raw = eci_raw,
-    ECI_weighted = mean(eci_draws),
-    sd = stats::sd(eci_draws),
+    ECI_weighted = stats::median(eci_draws, na.rm = TRUE),
+    sd = stats::sd(eci_draws, na.rm = TRUE),
     lower = safe_quantile(eci_draws)[1],
     upper = safe_quantile(eci_draws)[2]
   ))
 }
+#'
+#' Computes two complementary summaries for a lagged exposure profile:
+#'
+#' 1. `ECI_raw`: the unweighted cumulative exposure (simple sum of profile values)
+#' 2. `ECI_weighted`: the DLNM-based cumulative impact, obtained by combining

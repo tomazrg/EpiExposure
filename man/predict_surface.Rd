@@ -2,17 +2,20 @@
 % Please edit documentation in R/predict_surface.R
 \name{predict_surface}
 \alias{predict_surface}
-\title{Predict full DLNM exposure-lag-response surface}
+\title{Predict full DLNM exposure-lag-response surface
+Computes the full DLNM exposure–lag–response surface using the fitted model,#'
+without refitting. The surface is evaluated over a grid of exposure values
+and lags defined by the model specification or user input.}
 \usage{
 predict_surface(
   fit,
   wx_long,
   var,
-  lag_max,
-  df_var = 4,
-  df_lag = 4,
-  fun_var = "ns",
-  fun_lag = "ns",
+  lag_max = NULL,
+  df_var = NULL,
+  df_lag = NULL,
+  fun_var = NULL,
+  fun_lag = NULL,
   ref = list(method = "median", value = NULL),
   probs = seq(0.05, 0.95, by = 0.01),
   uncertainty = FALSE,
@@ -21,35 +24,63 @@ predict_surface(
 )
 }
 \arguments{
-\item{fit}{Fitted model object}
+\item{fit}{Fitted model object.}
 
-\item{wx_long}{Long-format weather data}
+\item{wx_long}{Long-format weather data.}
 
-\item{var}{Exposure variable name}
+\item{var}{Exposure variable name.}
 
-\item{lag_max}{Maximum lag}
+\item{lag_max}{Optional maximum lag. Ignored if fit contains `epiexposure_spec`.}
 
-\item{df_var}{Degrees of freedom (exposure)}
+\item{df_var}{Optional degrees of freedom (exposure). Ignored if fit contains metadata.}
 
-\item{df_lag}{Degrees of freedom (lag)}
+\item{df_lag}{Optional degrees of freedom (lag). Ignored if fit contains metadata.}
 
-\item{fun_var}{Basis function}
+\item{fun_var}{Optional basis function for exposure.}
 
-\item{fun_lag}{Basis function}
+\item{fun_lag}{Optional basis function for lag.}
 
-\item{ref}{Reference exposure definition}
+\item{ref}{Reference exposure definition.}
 
-\item{probs}{Quantiles for exposure grid}
+\item{probs}{Quantiles used for the exposure grid.}
 
-\item{uncertainty}{Logical}
+\item{uncertainty}{Logical. If `TRUE`, quantify uncertainty.}
 
-\item{output}{"summary" or "samples"}
+\item{output}{Character. `"summary"` or `"samples"`.}
 
-\item{n_samples}{Number of simulations}
+\item{n_samples}{Number of simulations.}
 }
 \value{
-crosspred object OR list
+- If `uncertainty = FALSE`: a `crosspred` object.
+
+- If `uncertainty = TRUE` and `output = "summary"`:
+  a list with:
+  - `mean`: central surface (median-based)
+  - `lower`: lower surface (quantile-based)
+  - `upper`: upper surface (quantile-based)
+
+- If `uncertainty = TRUE` and `output = "samples"`:
+  a list of `crosspred` objects (one per simulation).
 }
 \description{
-Predict full DLNM exposure-lag-response surface
+This function supports both deterministic predictions and uncertainty
+propagation. When `uncertainty = TRUE`, the surface is recomputed across
+simulated or posterior draws of the model coefficients.
+}
+\details{
+If `output = "summary"`, the central surface is computed as the median
+of the simulated surfaces, while interval limits are obtained from
+empirical quantiles (default: 2.5% and 97.5%).
+
+**Important:** although the returned object uses the name `mean` for backward
+compatibility, it represents the *central estimate*, computed as the median
+when uncertainty is propagated.
+
+
+Uncertainty is propagated using model-consistent sampling:
+- Bayesian models (e.g., `brms`, `INLA`, `bdlnm`) use posterior draws
+- Frequentist models use simulation from the asymptotic coefficient distribution
+
+Using the median as the central estimate improves robustness to asymmetric
+distributions commonly observed in DLNM surfaces.
 }

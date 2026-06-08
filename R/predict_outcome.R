@@ -1,23 +1,61 @@
 #' Predict outcome under user-defined exposure-lag profile(s)
 #'
-#' This function predicts the outcome (single value per scenario/ID) given
-#' exposure-lag profile(s). It retrieves DLNM specification and template data
-#' from the fitted model (via attributes).
+#' Predicts the outcome associated with one or more user-defined
+#' exposure-lag profiles, using the DLNM specification and template data
+#' stored in the fitted model.
 #'
-#' @param fit Fitted model returned by fit_epidlnm()
-#' @param profiles Numeric vector (single exposure) OR named list of numeric vectors
-#' @param re "population" (no random effect) or "conditional" (include random effect)
-#' @param id Optional vector of grouping levels (e.g., epi_id)
-#' @param allow_new_levels Allow unseen grouping levels (for mixed models)
-#' @param type Prediction scale ("response","link","conditional")
-#' @param uncertainty Logical; if TRUE, quantify uncertainty
-#' @param output "summary" or "samples"
-#' @param n_samples Number of samples used for uncertainty quantification
+#' This function supports both deterministic prediction and uncertainty
+#' propagation. When `uncertainty = TRUE`, predictions are generated from
+#' simulated or posterior draws of the model coefficients. If
+#' `output = "summary"`, the central estimate is computed as the median of
+#' the simulated predictions, while interval limits are obtained from
+#' empirical quantiles (default: 2.5% and 97.5%).
 #'
-#' @return data.frame
-#'   - If uncertainty = FALSE: same as before, with column `prediction`
-#'   - If uncertainty = TRUE and output = "summary": `prediction`, `sd`, `lower`, `upper`
-#'   - If uncertainty = TRUE and output = "samples": one row per sample (and id if provided)
+#' **Important:** when `uncertainty = TRUE` and `output = "summary"`, the
+#' column `prediction` represents the *central estimate*, computed as the
+#' median of the predictive distribution.
+#'
+#' @param fit Fitted model returned by `fit_epidlnm()`.
+#' @param profiles Numeric vector (single exposure) or named list of numeric
+#'   vectors. If the fitted model contains multiple exposure variables,
+#'   `profiles` must be a named list matching those variables.
+#' @param re Character. Prediction level:
+#'   - `"population"`: excludes random effects
+#'   - `"conditional"`: includes random effects where supported
+#' @param id Optional vector of grouping levels (e.g., `epi_id`).
+#' @param allow_new_levels Logical. Allow unseen grouping levels for mixed models.
+#' @param type Prediction scale: `"response"`, `"link"`, or `"conditional"`.
+#' @param uncertainty Logical. If `TRUE`, quantify uncertainty using simulated
+#'   or posterior coefficient draws.
+#' @param output Character. `"summary"` returns aggregated predictions;
+#'   `"samples"` returns one row per sample (and per `id`, if provided).
+#' @param n_samples Integer. Number of samples used for uncertainty quantification.
+#'
+#' @return A data.frame.
+#'
+#' - If `uncertainty = FALSE`: same as before, with column `prediction`.
+#'
+#' - If `uncertainty = TRUE` and `output = "summary"`:
+#'   returns columns:
+#'   - `prediction` (median-based central estimate)
+#'   - `sd`
+#'   - `lower`
+#'   - `upper`
+#'
+#' - If `uncertainty = TRUE` and `output = "samples"`:
+#'   returns one row per sample (and per `id`, if provided), with columns:
+#'   - `sample`
+#'   - `prediction`
+#'
+#' @details
+#' Uncertainty is propagated using model-consistent sampling:
+#' - Bayesian models (e.g., `brms`, `INLA`, `bdlnm`) use posterior draws
+#' - Frequentist models use simulation from the asymptotic coefficient distribution
+#'
+#' For summary outputs under uncertainty, the median is used instead of the
+#' mean to provide a more robust central estimate under asymmetric predictive
+#' distributions.
+#'
 #' @export
 predict_outcome <- function(
     fit,
@@ -418,12 +456,12 @@ predict_outcome <- function(
       return(out)
     }
 
-    mean_pred <- apply(draws, 2, mean, na.rm = TRUE)
+    center_pred <- apply(draws, 2, stats::median, na.rm = TRUE)
     sd_pred   <- apply(draws, 2, stats::sd, na.rm = TRUE)
     q_pred    <- t(apply(draws, 2, safe_quantile))
 
     out <- data.frame(
-      prediction = mean_pred,
+      prediction = center_pred,
       sd = sd_pred,
       lower = q_pred[, 1],
       upper = q_pred[, 2]
@@ -506,12 +544,12 @@ predict_outcome <- function(
       return(out)
     }
 
-    mean_pred <- apply(eta_draws, 2, mean, na.rm = TRUE)
+    center_pred <- apply(eta_draws, 2, stats::median, na.rm = TRUE)
     sd_pred   <- apply(eta_draws, 2, stats::sd, na.rm = TRUE)
     q_pred    <- t(apply(eta_draws, 2, safe_quantile))
 
     out <- data.frame(
-      prediction = mean_pred,
+      prediction = center_pred,
       sd = sd_pred,
       lower = q_pred[, 1],
       upper = q_pred[, 2]
@@ -588,12 +626,12 @@ predict_outcome <- function(
       return(out)
     }
 
-    mean_pred <- apply(eta_draws, 2, mean, na.rm = TRUE)
+    center_pred <- apply(eta_draws, 2, stats::median, na.rm = TRUE)
     sd_pred   <- apply(eta_draws, 2, stats::sd, na.rm = TRUE)
     q_pred    <- t(apply(eta_draws, 2, safe_quantile))
 
     out <- data.frame(
-      prediction = mean_pred,
+      prediction = center_pred,
       sd = sd_pred,
       lower = q_pred[, 1],
       upper = q_pred[, 2]
@@ -718,12 +756,12 @@ predict_outcome <- function(
     return(out)
   }
 
-  mean_pred <- apply(eta_draws, 2, mean, na.rm = TRUE)
+  center_pred <- apply(eta_draws, 2, stats::median, na.rm = TRUE)
   sd_pred   <- apply(eta_draws, 2, stats::sd, na.rm = TRUE)
   q_pred    <- t(apply(eta_draws, 2, safe_quantile))
 
   out <- data.frame(
-    prediction = mean_pred,
+    prediction = center_pred,
     sd = sd_pred,
     lower = q_pred[, 1],
     upper = q_pred[, 2]

@@ -20,35 +20,79 @@ compare_predictions(
 )
 }
 \arguments{
-\item{fit}{Fitted model (output of fit_epidlnm())}
+\item{fit}{Fitted model (output of `fit_epidlnm()`).}
 
 \item{profiles}{Can be:
-- list(profile1 = ..., profile2 = ...) (new recommended)
-- OR profiles1 / profiles2 (for backward compatibility)}
+- a named list of profiles (recommended), e.g.:
+  `list(scenario1 = ..., scenario2 = ...)`, or
+- `NULL` when using `profiles1` and `profiles2` for backward compatibility.}
 
-\item{profiles1}{(legacy) first profile}
+\item{profiles1}{(legacy) First profile (used only if `profiles` is NULL).}
 
-\item{profiles2}{(legacy) second profile}
+\item{profiles2}{(legacy) Second profile (used only if `profiles` is NULL).}
 
-\item{re}{"population" or "conditional"}
+\item{re}{Character. Prediction level:
+- `"population"`: excludes random effects (default).
+- `"conditional"`: includes random effects where supported.}
 
-\item{id}{Optional vector of IDs}
+\item{id}{Optional character string indicating the column used as identifier.}
 
-\item{allow_new_levels}{Passed to predict_outcome}
+\item{allow_new_levels}{Logical. Passed to `predict_outcome()`.}
 
-\item{type}{Prediction scale}
+\item{type}{Character. Scale of prediction:
+`"response"` (default), `"link"`, or `"conditional"`.}
 
-\item{uncertainty}{Logical; if TRUE, propagate uncertainty}
+\item{uncertainty}{Logical. If `TRUE`, uncertainty is propagated using
+sample-based predictions.}
 
-\item{output}{"summary" or "samples"}
+\item{output}{Character. Output type when `uncertainty = TRUE`:
+- `"summary"`: returns median-based summaries (default)
+- `"samples"`: returns all simulated samples}
 
-\item{n_samples}{Number of samples}
+\item{n_samples}{Integer. Number of samples used for uncertainty propagation.}
 
-\item{eps}{Small constant for stability}
+\item{eps}{Small positive constant used for numerical stability.}
 }
 \value{
-data.frame
+A data.frame with pairwise comparisons including:
+  - `scenario1`, `scenario2`
+  - `pred1`, `pred2`
+  - `diff`
+  - `percent_change`
+  - `ratio`
+
+When `uncertainty = TRUE`:
+- `"samples"`: returns sample-level comparisons
+- `"summary"`: returns median-based estimates, standard deviation,
+  and empirical interval limits
 }
 \description{
-Compare predicted outcomes between multiple exposure scenarios
+Compares predicted outcomes across two or more exposure scenarios,
+using `predict_outcome()` as the computational backend.
+}
+\details{
+This function supports both deterministic comparisons and uncertainty
+propagation. When `uncertainty = TRUE`, predictions are computed at the
+sample level and comparisons are derived from these simulated values.
+
+If `output = "summary"`, the central estimate is computed as the median
+of the sample-based distributions, and interval limits are derived from
+empirical quantiles (default: 2.5% and 97.5%).
+
+**Important:** although traditional terminology might suggest "mean",
+all central estimates in summary outputs correspond to the *median*
+when uncertainty is propagated, ensuring robustness under asymmetric
+distributions.
+
+
+When `uncertainty = TRUE`, this function always operates on simulated
+prediction samples obtained from `predict_outcome(output = "samples")`.
+
+Summaries are then computed as:
+- central estimate: median
+- uncertainty intervals: empirical quantiles
+
+This approach ensures coherent uncertainty propagation for both
+frequentist (simulation-based) and Bayesian (posterior-based) models,
+avoiding incorrect analytic variance approximations.
 }

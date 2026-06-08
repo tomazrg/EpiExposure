@@ -1,29 +1,81 @@
-#' Compute ECI decomposition by lag (ECI-by-lag)
+#' Compute lag-specific decomposition of Exposure Cumulative Impact (ECI)
 #'
-#' Returns ECI_raw and ECI_weighted, plus a per-lag decomposition of the
-#' weighted ECI using numerical derivatives on the DLNM linear predictor.
+#' Decomposes the weighted Exposure Cumulative Impact (ECI) into lag-specific
+#' contributions using numerical derivatives of the DLNM linear predictor.
 #'
-#' Idea:
-#'   eta(x) = sum_k beta_k * B_k(x)   (DLNM linear predictor contribution)
-#'   w_l(x) ≈ [eta(x + eps*e_l) - eta(x)] / eps
-#'   contribution_l = x_l * w_l
+#' This function returns:
+#' - `ECI_raw`: the unweighted cumulative exposure
+#' - `ECI_weighted`: the weighted cumulative impact on the model scale
+#' - `by_lag`: lag-specific contribution summaries
 #'
-#' @param profile Numeric vector, length = lag_max + 1, ordered as lag 0..lag_max
-#' @param fit Fitted model returned by fit_epidlnm() (stores epiexposure_spec attrs)
-#' @param eps Small numeric perturbation for finite differences (default 1e-6)
-#' @param center If TRUE, uses central difference; else forward difference
-#' @param absolute If TRUE, report absolute contributions as well
-#' @param uncertainty Logical; if TRUE, quantify uncertainty
-#' @param output "summary" or "samples"
-#' @param n_samples Number of samples used for uncertainty quantification
+#' The lag-specific contribution is computed as:
 #'
-#' @return list with:
-#'   - ECI_raw
-#'   - ECI_weighted
-#'   - by_lag (always summary-style; backward compatible)
-#'   - by_lag_samples (only if uncertainty = TRUE and output = "samples")
+#' \deqn{
+#' \eta(x) = \sum_k \beta_k B_k(x)
+#' }
+#'
+#' \deqn{
+#' w_l(x) \approx \frac{\eta(x + \varepsilon e_l) - \eta(x)}{\varepsilon}
+#' }
+#'
+#' \deqn{
+#' contribution_l = x_l \times w_l
+#' }
+#'
+#' When `center = TRUE`, a central finite difference is used; otherwise a
+#' forward difference is applied.
+#'
+#' This function supports both deterministic estimation and uncertainty
+#' propagation. When `uncertainty = TRUE`, lag-specific contributions are
+#' recomputed across simulated or posterior draws of the model coefficients.
+#'
+#' If `output = "summary"`, the central estimate is computed as the median of
+#' the simulated distributions, and interval limits are derived from empirical
+#' quantiles (default: 2.5% and 97.5%).
+#'
+#' **Important:** when `uncertainty = TRUE`, all central estimates returned in
+#' `ECI_weighted` and `by_lag` are based on the median of the simulated
+#' distribution.
+#'
+#' @param profile Numeric vector, length = `lag_max + 1`, ordered as lag
+#'   `0, 1, ..., lag_max`.
+#' @param fit Fitted model returned by `fit_epidlnm()`. The fitted model must
+#'   contain `epiexposure_spec` metadata.
+#' @param eps Small numeric perturbation used for finite differences
+#'   (default = `1e-6`).
+#' @param center Logical. If `TRUE`, uses central difference; otherwise uses
+#'   forward difference.
+#' @param absolute Logical. If `TRUE`, also reports absolute contributions
+#'   and absolute weights.
+#' @param uncertainty Logical. If `TRUE`, quantify uncertainty.
+#' @param output Character. `"summary"` or `"samples"`.
+#' @param n_samples Integer. Number of samples used for uncertainty propagation.
+#'
+#' @return A list with:
+#' - `ECI_raw`
+#' - `ECI_weighted`
+#' - `by_lag` (always returned as a summary-style table)
+#'
+#' If `uncertainty = TRUE`, the list additionally includes:
+#' - `ECI_weighted_sd`
+#' - `ECI_weighted_lower`
+#' - `ECI_weighted_upper`
+#'
+#' If `uncertainty = TRUE` and `output = "samples"`, the list also contains:
+#' - `by_lag_samples`
+#' - `ECI_weighted_samples`
+#'
+#' @details
+#' Uncertainty is propagated using model-consistent sampling:
+#' - Bayesian models (e.g., `brms`, `INLA`, `bdlnm`) use posterior draws
+#' - Frequentist models use simulation from the asymptotic coefficient distribution
+#'
+#' For summary outputs under uncertainty, the median is used instead of the
+#' mean to provide a more robust central estimate under asymmetric
+#' distributions.
+#'
 #' @export
-compute_eci_by_lag <- function(
+compute_ecilag <- function(
     profile,
     fit,
     eps = 1e-6,
@@ -40,22 +92,22 @@ compute_eci_by_lag <- function(
   # Validations
   # -----------------------
   if (!is.numeric(profile) || any(!is.finite(profile))) {
-    stop("profile must be a finite numeric vector.")
+    stop("`profile` must be a finite numeric vector.")
   }
   if (!is.numeric(eps) || length(eps) != 1 || !is.finite(eps) || eps <= 0) {
-    stop("eps must be a positive numeric scalar.")
+    stop("`eps` must be a positive numeric scalar.")
   }
   if (!is.logical(center) || length(center) != 1) {
-    stop("center must be TRUE/FALSE.")
+    stop("`center` must be TRUE/FALSE.")
   }
   if (!is.logical(absolute) || length(absolute) != 1) {
-    stop("absolute must be TRUE/FALSE.")
+    stop("`absolute` must be TRUE/FALSE.")
   }
   if (!is.logical(uncertainty) || length(uncertainty) != 1) {
-    stop("uncertainty must be TRUE/FALSE.")
+    stop("`uncertainty` must be TRUE/FALSE.")
   }
   if (!is.numeric(n_samples) || length(n_samples) != 1 || !is.finite(n_samples) || n_samples <= 0) {
-    stop("n_samples must be a positive integer.")
+    stop("`n_samples` must be a positive integer.")
   }
   n_samples <- as.integer(n_samples)
 
@@ -70,10 +122,10 @@ compute_eci_by_lag <- function(
   cb_cols_fit <- attr(fit, "epiexposure_cb_cols")
 
   if (is.null(spec) || !is.list(spec)) {
-    stop("fit is missing epiexposure_spec attribute.")
+    stop("`fit` is missing `epiexposure_spec`.")
   }
   if (is.null(vars) || length(vars) != 1) {
-    stop("compute_eci_by_lag currently supports a single exposure variable fit.")
+    stop("`compute_ecilag()` currently supports a single exposure variable fit.")
   }
 
   var <- vars[1]
@@ -84,7 +136,7 @@ compute_eci_by_lag <- function(
 
   lag_max <- as.integer(spec_v$lag_max)
   if (length(profile) != lag_max + 1L) {
-    stop("Profile length must be lag_max + 1.")
+    stop("`profile` length must be equal to lag_max + 1.")
   }
 
   ECI_raw <- sum(profile)
@@ -105,43 +157,60 @@ compute_eci_by_lag <- function(
   cb_row0 <- cb_from_profile(profile)
 
   # -----------------------
+  # Match cb coefficient names robustly
+  # -----------------------
+  get_cb_names <- function(coef_names = NULL, row_names = NULL, p, var, cb_cols_fit = NULL) {
+
+    nm <- character(0)
+
+    if (!is.null(coef_names)) {
+      nm <- grep(paste0("^cb_", var, "_"), coef_names, value = TRUE)
+    }
+
+    if (length(nm) == 0 && !is.null(row_names)) {
+      nm <- intersect(row_names, paste0("cb_", var, "_", seq_len(p)))
+    }
+
+    if (length(nm) == 0 && !is.null(cb_cols_fit)) {
+      nm <- intersect(cb_cols_fit, coef_names %||% row_names %||% character(0))
+    }
+
+    nm
+  }
+
+  # -----------------------
   # Extract cb coefficients (deterministic)
   # -----------------------
   extract_beta_cb <- function(model, var, p, cb_cols_fit = NULL) {
 
-    # glmmTMB
     if (inherits(model, "glmmTMB")) {
       beta <- glmmTMB::fixef(model)$cond
-      nm <- grep(paste0("^cb_", var, "_"), names(beta), value = TRUE)
+      nm <- get_cb_names(coef_names = names(beta), p = p, var = var, cb_cols_fit = cb_cols_fit)
       if (length(nm) != p) stop("Mismatch between glmmTMB coefficients and cb dimension.")
       return(beta[nm])
     }
 
-    # merMod
     if (inherits(model, "merMod")) {
       beta <- lme4::fixef(model)
-      nm <- grep(paste0("^cb_", var, "_"), names(beta), value = TRUE)
+      nm <- get_cb_names(coef_names = names(beta), p = p, var = var, cb_cols_fit = cb_cols_fit)
       if (length(nm) != p) stop("Mismatch between merMod coefficients and cb dimension.")
       return(beta[nm])
     }
 
-    # glm / gam / gls / lme / default
     if (inherits(model, "glm") || inherits(model, "gam") || inherits(model, "gls") || inherits(model, "lme")) {
       beta <- stats::coef(model)
-      nm <- grep(paste0("^cb_", var, "_"), names(beta), value = TRUE)
+      nm <- get_cb_names(coef_names = names(beta), p = p, var = var, cb_cols_fit = cb_cols_fit)
       if (length(nm) != p) stop("Mismatch between coefficients and cb dimension.")
       return(beta[nm])
     }
 
-    # spaMM
     if (inherits(model, "HLfit")) {
-      beta <- stats::coef(model)
-      nm <- grep(paste0("^cb_", var, "_"), names(beta), value = TRUE)
+      beta <- spaMM::fixef(model)
+      nm <- get_cb_names(coef_names = names(beta), p = p, var = var, cb_cols_fit = cb_cols_fit)
       if (length(nm) != p) stop("Mismatch between spaMM coefficients and cb dimension.")
       return(beta[nm])
     }
 
-    # brms
     if (inherits(model, "brmsfit")) {
       fe <- brms::fixef(model)
       beta <- fe[, "Estimate"]
@@ -152,26 +221,24 @@ compute_eci_by_lag <- function(
       return(beta[nm])
     }
 
-    # INLA
     if (inherits(model, "inla")) {
       beta <- model$summary.fixed$mean
-      nm <- grep(paste0("^cb_", var, "_"), names(beta), value = TRUE)
+      nm <- get_cb_names(coef_names = names(beta), p = p, var = var, cb_cols_fit = cb_cols_fit)
       if (length(nm) != p) stop("Mismatch between INLA coefficients and cb dimension.")
       return(beta[nm])
     }
 
-    # bdlnm
     if (inherits(model, "bdlnm")) {
       beta <- model$coefficients.summary[, "mean"]
-      nm <- intersect(names(beta), paste0("cb_", var, "_", seq_len(p)))
+      nm <- get_cb_names(coef_names = names(beta), p = p, var = var, cb_cols_fit = cb_cols_fit)
       if (length(nm) == 0) {
-        nm <- intersect(cb_cols_fit %||% character(0), names(beta))
+        nm <- get_cb_names(row_names = names(beta), p = p, var = var, cb_cols_fit = cb_cols_fit)
       }
       if (length(nm) != p) stop("Mismatch between bdlnm coefficients and cb dimension.")
       return(beta[nm])
     }
 
-    stop("Unsupported model class for ECI-by-lag decomposition.")
+    stop("Unsupported model class for lag-specific ECI decomposition.")
   }
 
   # -----------------------
@@ -180,7 +247,7 @@ compute_eci_by_lag <- function(
   # -----------------------
   extract_beta_cb_draws <- function(model, var, p, n_samples, cb_cols_fit = NULL) {
 
-    # frequentist normal approximation
+    # Frequentist: asymptotic approximation
     if (!inherits(model, c("brmsfit", "inla", "bdlnm"))) {
 
       extract_coef_vcov <- function(model) {
@@ -221,7 +288,7 @@ compute_eci_by_lag <- function(
         }
 
         if (inherits(model, "HLfit")) {
-          b <- stats::coef(model)
+          b <- spaMM::fixef(model)
           V <- tryCatch(as.matrix(stats::vcov(model)), error = function(e) NULL)
           if (is.null(V)) stop("Could not extract vcov from spaMM model.")
           return(list(beta = b, vcov = V))
@@ -241,7 +308,7 @@ compute_eci_by_lag <- function(
       beta_hat <- cv$beta
       V_hat <- cv$vcov
 
-      nm <- grep(paste0("^cb_", var, "_"), names(beta_hat), value = TRUE)
+      nm <- get_cb_names(coef_names = names(beta_hat), p = p, var = var, cb_cols_fit = cb_cols_fit)
       if (length(nm) != p) stop("Mismatch between frequentist coefficients and cb dimension.")
 
       beta_hat <- beta_hat[nm]
@@ -255,12 +322,13 @@ compute_eci_by_lag <- function(
       return(draws)
     }
 
-    # brms posterior draws
+    # brms: REAL posterior draws
     if (inherits(model, "brmsfit")) {
       draws <- as.matrix(brms::as_draws_matrix(model))
       nm <- grep(paste0("^b_cb_", var, "_"), colnames(draws), value = TRUE)
       if (length(nm) == 0) nm <- grep(paste0("^b_.*", var), colnames(draws), value = TRUE)
       if (length(nm) != p) stop("Could not match brms draws to cb dimension.")
+
       if (nrow(draws) > n_samples) {
         set.seed(1)
         keep <- sample(seq_len(nrow(draws)), n_samples)
@@ -271,13 +339,21 @@ compute_eci_by_lag <- function(
       return(draws)
     }
 
-    # INLA posterior draws
+    # INLA: REAL posterior draws
     if (inherits(model, "inla")) {
       if (!requireNamespace("INLA", quietly = TRUE)) {
         stop("Package 'INLA' is required for INLA uncertainty quantification.")
       }
 
-      posterior <- INLA::inla.posterior.sample(n = n_samples, result = model)
+      posterior <- tryCatch(
+        INLA::inla.posterior.sample(n = n_samples, result = model),
+        error = function(e) NULL
+      )
+
+      if (is.null(posterior)) {
+        stop("INLA posterior samples could not be drawn. Ensure the model was fitted with control.compute = list(config = TRUE).")
+      }
+
       cb_names <- paste0("cb_", var, "_", seq_len(p))
 
       draws <- do.call(rbind, lapply(posterior, function(s) {
@@ -289,7 +365,7 @@ compute_eci_by_lag <- function(
       return(draws)
     }
 
-    # bdlnm posterior draws
+    # bdlnm: REAL posterior draws
     if (inherits(model, "bdlnm")) {
       beta_draws <- model$coefficients
 
@@ -297,10 +373,13 @@ compute_eci_by_lag <- function(
         beta_draws <- matrix(beta_draws, ncol = 1)
       }
 
-      nm <- intersect(rownames(beta_draws), paste0("cb_", var, "_", seq_len(p)))
-      if (length(nm) == 0) {
-        nm <- intersect(cb_cols_fit %||% character(0), rownames(beta_draws))
-      }
+      nm <- get_cb_names(
+        row_names = rownames(beta_draws),
+        p = p,
+        var = var,
+        cb_cols_fit = cb_cols_fit
+      )
+
       if (length(nm) != p) stop("Could not match bdlnm draws to cb dimension.")
 
       if (ncol(beta_draws) > n_samples) {
@@ -314,7 +393,7 @@ compute_eci_by_lag <- function(
       return(t(beta_draws))
     }
 
-    stop("Unsupported model class for uncertainty in compute_eci_by_lag().")
+    stop("Unsupported model class for uncertainty in `compute_ecilag()`.")
   }
 
   # -----------------------
@@ -397,7 +476,6 @@ compute_eci_by_lag <- function(
   n_draws <- nrow(beta_draws)
   lags <- 0:lag_max
 
-  # store results
   eta_draws <- numeric(n_draws)
   samples_list <- vector("list", n_draws)
 
@@ -450,31 +528,30 @@ compute_eci_by_lag <- function(
 
   by_lag_samples <- do.call(rbind, samples_list)
 
-  # summary preserving old column names for downstream compatibility
   by_lag_summary <- by_lag_samples |>
     dplyr::group_by(var, lag, exposure) |>
     dplyr::summarise(
-      weight = mean(weight, na.rm = TRUE),
+      weight = stats::median(weight, na.rm = TRUE),
       weight_sd = stats::sd(weight, na.rm = TRUE),
       weight_lower = safe_quantile(weight)[1],
       weight_upper = safe_quantile(weight)[2],
 
-      contribution = mean(contribution, na.rm = TRUE),
+      contribution = stats::median(contribution, na.rm = TRUE),
       contribution_sd = stats::sd(contribution, na.rm = TRUE),
       contribution_lower = safe_quantile(contribution)[1],
       contribution_upper = safe_quantile(contribution)[2],
 
-      percent_contribution = mean(percent_contribution, na.rm = TRUE),
+      percent_contribution = stats::median(percent_contribution, na.rm = TRUE),
       percent_contribution_sd = stats::sd(percent_contribution, na.rm = TRUE),
       percent_contribution_lower = safe_quantile(percent_contribution)[1],
       percent_contribution_upper = safe_quantile(percent_contribution)[2],
 
-      abs_contribution = if ("abs_contribution" %in% names(by_lag_samples)) mean(abs_contribution, na.rm = TRUE) else NA_real_,
+      abs_contribution = if ("abs_contribution" %in% names(by_lag_samples)) stats::median(abs_contribution, na.rm = TRUE) else NA_real_,
       abs_contribution_sd = if ("abs_contribution" %in% names(by_lag_samples)) stats::sd(abs_contribution, na.rm = TRUE) else NA_real_,
       abs_contribution_lower = if ("abs_contribution" %in% names(by_lag_samples)) safe_quantile(abs_contribution)[1] else NA_real_,
       abs_contribution_upper = if ("abs_contribution" %in% names(by_lag_samples)) safe_quantile(abs_contribution)[2] else NA_real_,
 
-      abs_weight = if ("abs_weight" %in% names(by_lag_samples)) mean(abs_weight, na.rm = TRUE) else NA_real_,
+      abs_weight = if ("abs_weight" %in% names(by_lag_samples)) stats::median(abs_weight, na.rm = TRUE) else NA_real_,
       abs_weight_sd = if ("abs_weight" %in% names(by_lag_samples)) stats::sd(abs_weight, na.rm = TRUE) else NA_real_,
       abs_weight_lower = if ("abs_weight" %in% names(by_lag_samples)) safe_quantile(abs_weight)[1] else NA_real_,
       abs_weight_upper = if ("abs_weight" %in% names(by_lag_samples)) safe_quantile(abs_weight)[2] else NA_real_,
@@ -484,7 +561,7 @@ compute_eci_by_lag <- function(
 
   res <- list(
     ECI_raw = ECI_raw,
-    ECI_weighted = mean(eta_draws, na.rm = TRUE),
+    ECI_weighted = stats::median(eta_draws, na.rm = TRUE),
     ECI_weighted_sd = stats::sd(eta_draws, na.rm = TRUE),
     ECI_weighted_lower = safe_quantile(eta_draws)[1],
     ECI_weighted_upper = safe_quantile(eta_draws)[2],

@@ -11,7 +11,7 @@ vignette: >
 
 Descobrir períodos críticos
 
-```{r}
+```{r, eval = FALSE}
 crit <- identify_critical_lags(fit)
 ```
 
@@ -26,7 +26,7 @@ Nem todos os lags são igualmente importantes.
 janelas críticas
 períodos de susceptibilidade
 
-```{r}
+```{r, eval = FALSE}
 barplot(crit$importance,
         names.arg = crit$lag,
         col = "tomato",

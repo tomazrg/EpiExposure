@@ -1,15 +1,13 @@
-#' Define epidemiological lag windows
+#' Define epidemiological lag periods
 #'
-#' Creates lag windows to summarise cumulative DLNM effects.
-#' If no cut points are provided, a single window from
-#' lag 0 to lag_max is returned.
+#' Creates lag periods to summarise cumulative DLNM effects.
 #'
 #' @param lag_max Maximum lag (integer)
-#' @param cuts Optional numeric vector of cut points defining windows
-#' @param prefix Character string used to label windows (default = "W")
+#' @param cuts Optional numeric vector of cut points defining periods
+#' @param prefix Character string used to label periods (default = "W")
 #'
 #' @return data.frame with columns:
-#'   - window_id (character labels: e.g., "W1", "W2", ...)
+#'   - period
 #'   - lag_start
 #'   - lag_end
 #'
@@ -17,66 +15,63 @@
 define_periods <- function(lag_max, cuts = NULL, prefix = "W") {
 
   # -------------------------------
-  # NOVO: check prefix
+  # Input checks
   # -------------------------------
-  stopifnot(is.character(prefix), length(prefix) == 1)
+  if (!is.character(prefix) || length(prefix) != 1) {
+    stop("`prefix` must be a single character string.")
+  }
 
-  # -------------------------------
-  # Basic input checks
-  # -------------------------------
-  stopifnot(is.numeric(lag_max), lag_max > 0)
+  if (!is.numeric(lag_max) || length(lag_max) != 1 || lag_max <= 0) {
+    stop("`lag_max` must be a positive integer.")
+  }
+
+  lag_max <- as.integer(lag_max)
 
   if (!is.null(cuts)) {
-    stopifnot(is.numeric(cuts))
+    if (!is.numeric(cuts)) {
+      stop("`cuts` must be numeric.")
+    }
   }
 
   # -------------------------------
-  # Single cumulative window
+  # Helper
   # -------------------------------
-  if (is.null(cuts) || length(cuts) == 0) {
+  build_df <- function(starts, ends) {
 
-    # MODIFICADO (ANTES ERA window_id = 1)
-    return(
-      data.frame(
-        window_id = paste0(prefix, 1),
-        lag_start = 0,
-        lag_end   = lag_max
-      )
+    ids <- paste0(prefix, seq_along(starts))
+
+    data.frame(
+      period    = ids,
+      lag_start = starts,
+      lag_end   = ends,
+      stringsAsFactors = FALSE
     )
   }
 
   # -------------------------------
-  # Multiple windows
+  # Single period
+  # -------------------------------
+  if (is.null(cuts) || length(cuts) == 0) {
+    return(build_df(0, lag_max))
+  }
+
+  # -------------------------------
+  # Multiple periods
   # -------------------------------
   cuts <- sort(unique(as.integer(cuts)))
   cuts <- cuts[cuts > 0 & cuts < lag_max]
 
-  # If cuts collapse after filtering
   if (length(cuts) == 0) {
 
     message(
-      "No valid cut points found using a single cumulative lag window (0 to lag max)."
+      "No valid cut points found; using a single cumulative period (0 to lag_max)."
     )
 
-    # MODIFICADO AQUI
-    return(
-      data.frame(
-        window_id = paste0(prefix, 1),
-        lag_start = 0,
-        lag_end   = lag_max
-      )
-    )
+    return(build_df(0, lag_max))
   }
 
   starts <- c(0, cuts + 1)
   ends   <- c(cuts, lag_max)
 
-  # -------------------------------
-  # MODIFICADO label em vez de numero
-  # -------------------------------
-  data.frame(
-    window_id = paste0(prefix, seq_along(starts)),
-    lag_start = starts,
-    lag_end   = ends
-  )
+  build_df(starts, ends)
 }

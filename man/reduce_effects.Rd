@@ -8,11 +8,11 @@ reduce_effects(
   fit,
   wx_long,
   var,
-  lag_max,
-  df_var = 4,
-  df_lag = 4,
-  fun_var = "ns",
-  fun_lag = "ns",
+  lag_max = NULL,
+  df_var = NULL,
+  df_lag = NULL,
+  fun_var = NULL,
+  fun_lag = NULL,
   type = c("overall", "lag", "var"),
   value = NULL,
   scale = c("percent", "response", "link"),
@@ -22,37 +22,63 @@ reduce_effects(
 )
 }
 \arguments{
-\item{fit}{Fitted model object}
+\item{fit}{Fitted model object.}
 
-\item{wx_long}{Long-format weather data}
+\item{wx_long}{Long-format weather data.}
 
-\item{var}{Exposure variable (ex: "tmax")}
+\item{var}{Exposure variable (e.g. `"tmax"`).}
 
-\item{lag_max}{Maximum lag}
+\item{lag_max}{Optional maximum lag. Ignored if `fit` contains `epiexposure_spec`.}
 
-\item{df_var}{Degrees of freedom (exposure)}
+\item{df_var}{Optional degrees of freedom (exposure). Ignored if `fit` contains `epiexposure_spec`.}
 
-\item{df_lag}{Degrees of freedom (lag)}
+\item{df_lag}{Optional degrees of freedom (lag). Ignored if `fit` contains `epiexposure_spec`.}
 
-\item{fun_var}{Basis ("ns","bs","poly","lin")}
+\item{fun_var}{Optional basis (`"ns"`, `"bs"`, `"poly"`, `"lin"`). Ignored if `fit` contains `epiexposure_spec`.}
 
-\item{fun_lag}{Basis ("ns","ps","lin")}
+\item{fun_lag}{Optional basis (`"ns"`, `"ps"`, `"lin"`). Ignored if `fit` contains `epiexposure_spec`.}
 
-\item{type}{"overall", "lag", "var"}
+\item{type}{Reduction type: `"overall"`, `"lag"`, or `"var"`.}
 
-\item{value}{Required for type = "lag" or "var"}
+\item{value}{Required for `type = "lag"` or `type = "var"`.}
 
-\item{scale}{"link", "response", "percent"}
+\item{scale}{Output scale: `"link"`, `"response"`, or `"percent"`.}
 
-\item{uncertainty}{Logical}
+\item{uncertainty}{Logical. If `TRUE`, propagate uncertainty using simulated
+or posterior draws of the model coefficients.}
 
-\item{output}{"summary" or "samples"}
+\item{output}{Character. `"summary"` returns aggregated estimates; `"samples"`
+returns all simulated values.}
 
-\item{n_samples}{Number of samples}
+\item{n_samples}{Integer. Number of samples used for uncertainty propagation.}
 }
 \value{
-data.frame
+A data.frame containing reduced effects. When `uncertainty = TRUE`
+and `output = "summary"`, the result includes:
+  - central estimate (median; stored in `eta`)
+  - `eta_sd`: standard deviation of simulated values
+  - `low` / `high`: empirical interval limits (quantiles)
 }
 \description{
-Reduce DLNM effects to one dimension (article-consistent)
+Reduces a DLNM exposure-lag-response surface into a one-dimensional summary
+using `dlnm::crossreduce()`, with optional uncertainty propagation.
+}
+\details{
+When `uncertainty = TRUE`, summaries are computed from simulated/posterior
+samples of the model coefficients. The central estimate is obtained as the
+median of the simulated effects, while uncertainty intervals are derived
+from empirical quantiles (default: 2.5% and 97.5%).
+
+**Important:** although the output element is named `mean` for backward
+compatibility, it represents the *central estimate*, computed as the median
+when uncertainty is propagated.
+
+
+Uncertainty is propagated using model-consistent sampling:
+- Bayesian models (e.g., `brms`, `INLA`, `bdlnm`) use posterior draws
+- Frequentist models use a normal approximation of the coefficient distribution
+
+The use of the median as the central estimate improves robustness under
+non-normal or asymmetric effect distributions, which commonly arise in
+DLNM applications.
 }

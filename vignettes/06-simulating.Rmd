@@ -11,7 +11,7 @@ vignette: >
 
 Interpretar efeitos por janelas biológicas
 
-```{r}
+```{r, eval = FALSE}
 windows <- define_lag_windows(lag_max = 85, cuts = c(7, 21, 40))
 
 sum_eff <- summarise_effects(fit, lag_windows = windows)
@@ -26,7 +26,7 @@ sintoma
 
 👉 você traduz estatística → biologia
 
-```{r}
+```{r, eval = FALSE}
 boxplot(effect ~ window, data = sum_eff,
         col="lightgreen",
         main="Effects by epidemiological windows")

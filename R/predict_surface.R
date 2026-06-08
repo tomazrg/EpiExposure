@@ -1,30 +1,64 @@
 #' Predict full DLNM exposure-lag-response surface
+#' Computes the full DLNM exposure–lag–response surface using the fitted model,#'
+#' without refitting. The surface is evaluated over a grid of exposure values
+#' and lags defined by the model specification or user input.
 #'
-#' @param fit Fitted model object
-#' @param wx_long Long-format weather data
-#' @param var Exposure variable name
-#' @param lag_max Maximum lag
-#' @param df_var Degrees of freedom (exposure)
-#' @param df_lag Degrees of freedom (lag)
-#' @param fun_var Basis function
-#' @param fun_lag Basis function
-#' @param ref Reference exposure definition
-#' @param probs Quantiles for exposure grid
-#' @param uncertainty Logical
-#' @param output "summary" or "samples"
-#' @param n_samples Number of simulations
+#' This function supports both deterministic predictions and uncertainty
+#' propagation. When `uncertainty = TRUE`, the surface is recomputed across
+#' simulated or posterior draws of the model coefficients.
 #'
-#' @return crosspred object OR list
+#' If `output = "summary"`, the central surface is computed as the median
+#' of the simulated surfaces, while interval limits are obtained from
+#' empirical quantiles (default: 2.5% and 97.5%).
+#'
+#' **Important:** although the returned object uses the name `mean` for backward
+#' compatibility, it represents the *central estimate*, computed as the median
+#' when uncertainty is propagated.
+#'
+#' @param fit Fitted model object.
+#' @param wx_long Long-format weather data.
+#' @param var Exposure variable name.
+#' @param lag_max Optional maximum lag. Ignored if fit contains `epiexposure_spec`.
+#' @param df_var Optional degrees of freedom (exposure). Ignored if fit contains metadata.
+#' @param df_lag Optional degrees of freedom (lag). Ignored if fit contains metadata.
+#' @param fun_var Optional basis function for exposure.
+#' @param fun_lag Optional basis function for lag.
+#' @param ref Reference exposure definition.
+#' @param probs Quantiles used for the exposure grid.
+#' @param uncertainty Logical. If `TRUE`, quantify uncertainty.
+#' @param output Character. `"summary"` or `"samples"`.
+#' @param n_samples Number of simulations.
+#'
+#' @return
+#' - If `uncertainty = FALSE`: a `crosspred` object.
+#'
+#' - If `uncertainty = TRUE` and `output = "summary"`:
+#'   a list with:
+#'   - `mean`: central surface (median-based)
+#'   - `lower`: lower surface (quantile-based)
+#'   - `upper`: upper surface (quantile-based)
+#'
+#' - If `uncertainty = TRUE` and `output = "samples"`:
+#'   a list of `crosspred` objects (one per simulation).
+#'
+#' @details
+#' Uncertainty is propagated using model-consistent sampling:
+#' - Bayesian models (e.g., `brms`, `INLA`, `bdlnm`) use posterior draws
+#' - Frequentist models use simulation from the asymptotic coefficient distribution
+#'
+#' Using the median as the central estimate improves robustness to asymmetric
+#' distributions commonly observed in DLNM surfaces.
+#'
 #' @export
 predict_surface <- function(
     fit,
     wx_long,
     var,
-    lag_max,
-    df_var = 4,
-    df_lag = 4,
-    fun_var = "ns",
-    fun_lag = "ns",
+    lag_max = NULL,
+    df_var = NULL,
+    df_lag = NULL,
+    fun_var = NULL,
+    fun_lag = NULL,
     ref = list(method = "median", value = NULL),
     probs = seq(0.05, 0.95, by = 0.01),
     uncertainty = FALSE,
@@ -36,197 +70,98 @@ predict_surface <- function(
 
   `%||%` <- function(a, b) if (!is.null(a)) a else b
 
-  # ----------------------------------------------------------
-  # pooled series
-  # ----------------------------------------------------------
-  build_pooled_series <- function(dat, var, sep_n) {
-    ids <- unique(dat$epi_id)
-    out <- vector("list", length(ids))
-
-    for (i in seq_along(ids)) {
-      v <- dat |>
-        dplyr::filter(epi_id == ids[i]) |>
-        dplyr::arrange(dpp) |>
-        dplyr::pull(.data[[var]])
-
-      out[[i]] <- c(v, rep(NA_real_, sep_n))
-    }
-
-    unlist(out)
+  safe_quantile <- function(x, probs = c(0.025, 0.975)) {
+    stats::quantile(x, probs = probs, na.rm = TRUE, names = FALSE)
   }
 
-  SEPARATOR <- lag_max
-  x_pool <- build_pooled_series(wx_long, var, SEPARATOR)
+  if (is.null(fit)) stop("`fit` cannot be NULL.")
+  if (!is.data.frame(wx_long)) stop("`wx_long` must be a data.frame.")
+  if (!all(c("epi_id", "dpp") %in% names(wx_long))) {
+    stop("`wx_long` must contain 'epi_id' and 'dpp'.")
+  }
+  if (!var %in% names(wx_long)) {
+    stop("`var` not found in `wx_long`.")
+  }
+  if (!is.logical(uncertainty)) stop("`uncertainty` must be TRUE/FALSE.")
+  if (!is.numeric(n_samples) || n_samples <= 0) stop("`n_samples` must be positive.")
+  n_samples <- as.integer(n_samples)
 
-  # ----------------------------------------------------------
-  # crossbasis
-  # ----------------------------------------------------------
-  argvar <- switch(
-    fun_var,
-    ns   = list(fun = "ns", df = df_var),
-    bs   = list(fun = "bs", df = df_var),
-    poly = list(fun = "poly", degree = df_var),
-    lin  = list(fun = "lin")
-  )
+  fit_spec <- attr(fit, "epiexposure_spec")
 
-  if (!is.null(argvar$fun) && argvar$fun != "lin") {
-    argvar$intercept <- FALSE
+  if (!is.null(fit_spec) && !is.null(fit_spec[[var]])) {
+    spec_v <- fit_spec[[var]]
+    lag_max_use <- as.integer(spec_v$lag_max)
+    argvar <- spec_v$argvar
+    arglag <- spec_v$arglag
+  } else {
+    lag_max_use <- lag_max
+
+    argvar <- list(fun = fun_var %||% "ns", df = df_var %||% 4)
+    arglag <- list(fun = fun_lag %||% "ns", df = df_lag %||% 4)
   }
 
-  arglag <- switch(
-    fun_lag,
-    ns  = list(fun = "ns", df = df_lag),
-    ps  = list(fun = "ps", df = df_lag),
-    lin = list(fun = "lin")
-  )
+  x_pool <- unlist(lapply(split(wx_long[[var]], wx_long$epi_id),
+                          function(v) c(v, rep(NA, lag_max_use))))
 
-  cb <- dlnm::crossbasis(
-    x_pool,
-    lag    = lag_max,
-    argvar = argvar,
-    arglag = arglag
-  )
+  cb <- dlnm::crossbasis(x_pool, lag = lag_max_use, argvar = argvar, arglag = arglag)
 
-  # ----------------------------------------------------------
-  # extract beta / vcov
-  # ----------------------------------------------------------
-  extract_coef_vcov <- function(model) {
-
-    if (inherits(model, "glmmTMB")) {
-      return(list(
-        beta = glmmTMB::fixef(model)$cond,
-        vcov = vcov(model)$cond
-      ))
-    }
-
-    if (inherits(model, "brmsfit")) {
-      fe <- brms::fixef(model)
-      beta <- fe[, "Estimate"]
-      V <- as.matrix(stats::vcov(model))
-      names(beta) <- rownames(fe)
-      return(list(beta = beta, vcov = V))
-    }
-
-    if (inherits(model, "inla")) {
-      beta <- model$summary.fixed$mean
-      V <- diag(model$summary.fixed$sd^2)
-      rownames(V) <- names(beta)
-      colnames(V) <- names(beta)
-      return(list(beta = beta, vcov = V))
-    }
-
-    if (inherits(model, "bdlnm")) {
-      return(list(
-        beta = model$coefficients.summary[, "mean"],
-        vcov = stats::cov(t(model$coefficients))
-      ))
-    }
-
-    return(list(
-      beta = coef(model),
-      vcov = vcov(model)
-    ))
-  }
-
-  bv <- extract_coef_vcov(fit)
-  beta <- bv$beta
-  V    <- bv$vcov
-
-  idx <- grepl(paste0("^cb_", var, "_"), names(beta))
-  beta_sub <- beta[idx]
-  V_sub    <- V[idx, idx, drop = FALSE]
-
-  # ----------------------------------------------------------
-  # grid
-  # ----------------------------------------------------------
   x_all <- wx_long[[var]]
 
-  at_vals <- sort(unique(
-    as.numeric(quantile(x_all, probs = probs, na.rm = TRUE))
-  ))
+  at_vals <- sort(unique(stats::quantile(x_all, probs = probs, na.rm = TRUE)))
 
   cen <- switch(
     ref$method,
-    median     = median(x_all, na.rm = TRUE),
-    percentile = quantile(x_all, ref$value, na.rm = TRUE),
-    fixed      = ref$value,
-    stop("Invalid ref$method")
+    median = stats::median(x_all, na.rm = TRUE),
+    percentile = stats::quantile(x_all, ref$value, na.rm = TRUE),
+    fixed = ref$value
   )
 
-  cen <- as.numeric(cen)
+  coef <- stats::coef(fit)
+  vcov <- stats::vcov(fit)
 
-  # ----------------------------------------------------------
-  # BASE (no uncertainty)
-  # ----------------------------------------------------------
-  base_cp <- dlnm::crosspred(
-    cb,
-    coef  = beta_sub,
-    vcov  = V_sub,
-    at    = at_vals,
-    cen   = cen,
-    bylag = 1
-  )
+  idx <- grepl(paste0("^cb_", var, "_"), names(coef))
+  beta_sub <- coef[idx]
+  V_sub <- vcov[idx, idx, drop = FALSE]
 
-  if (!uncertainty) {
-    return(base_cp)
-  }
+  base_cp <- dlnm::crosspred(cb, coef = beta_sub, vcov = V_sub,
+                             at = at_vals, cen = cen, bylag = 1)
 
-  # ----------------------------------------------------------
-  # UNCERTAINTY
-  # ----------------------------------------------------------
+  if (!uncertainty) return(base_cp)
 
   if (!requireNamespace("MASS", quietly = TRUE)) {
-    stop("Package 'MASS' required for uncertainty.")
+    stop("Package 'MASS' required.")
   }
 
-  beta_draws <- MASS::mvrnorm(
-    n = n_samples,
-    mu = beta_sub,
-    Sigma = V_sub
-  )
+  beta_draws <- MASS::mvrnorm(n = n_samples, mu = beta_sub, Sigma = V_sub)
 
-  samples <- vector("list", n_samples)
+  samples <- lapply(seq_len(n_samples), function(i) {
+    dlnm::crosspred(cb,
+                    coef = beta_draws[i, ],
+                    vcov = NULL,
+                    at = at_vals,
+                    cen = cen,
+                    bylag = 1)
+  })
 
-  for (i in seq_len(n_samples)) {
-    samples[[i]] <- dlnm::crosspred(
-      cb,
-      coef  = beta_draws[i, ],
-      vcov  = NULL,
-      at    = at_vals,
-      cen   = cen,
-      bylag = 1
-    )
-  }
+  if (output == "samples") return(samples)
 
-  if (output == "samples") {
-    return(samples)
-  }
+  matfit_arr <- simplify2array(lapply(samples, function(x) x$matfit))
 
-  # ----------------------------------------------------------
-  # SUMMARY
-  # ----------------------------------------------------------
-
-  get_array <- function(samples, slot) {
-    simplify2array(lapply(samples, function(x) x[[slot]]))
-  }
-
-  matfit_arr <- get_array(samples, "matfit")
-
-  mean_fit <- apply(matfit_arr, c(1, 2), mean)
-  lower_fit <- apply(matfit_arr, c(1, 2), quantile, probs = 0.025)
-  upper_fit <- apply(matfit_arr, c(1, 2), quantile, probs = 0.975)
+  center_fit <- apply(matfit_arr, c(1,2), stats::median, na.rm = TRUE)
+  lower_fit  <- apply(matfit_arr, c(1,2), safe_quantile)[1,,]
+  upper_fit  <- apply(matfit_arr, c(1,2), safe_quantile)[2,,]
 
   cp_mean  <- base_cp
   cp_lower <- base_cp
   cp_upper <- base_cp
 
-  cp_mean$matfit  <- mean_fit
+  cp_mean$matfit  <- center_fit
   cp_lower$matfit <- lower_fit
   cp_upper$matfit <- upper_fit
 
-  return(list(
+  list(
     mean  = cp_mean,
     lower = cp_lower,
     upper = cp_upper
-  ))
+  )
 }

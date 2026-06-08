@@ -17,8 +17,8 @@ vignette: >
 DLNM como framework epidemiológico, não só estatístico
 por que epidemias têm memória temporal
 
-```{r}
-plot(cb$tmean)
+```{r, eval=FALSE}
+
 title("DLNM basis for temperature")
 ```
 

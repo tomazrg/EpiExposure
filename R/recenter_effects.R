@@ -1,28 +1,58 @@
 #' Recenter DLNM effects using a new reference value
 #'
-#' Recomputes the DLNM effect surface using a different centering value,
-#' without refitting the model.
+#' Recomputes the DLNM exposure-lag-response surface using a different
+#' centering (reference) value, without refitting the model.
 #'
-#' @param fit Fitted model from fit_epidlnm()
-#' @param wx_long Long-format weather data
-#' @param var Exposure variable (e.g. "tmax")
-#' @param lag_max Maximum lag
-#' @param df_var Degrees of freedom (exposure)
-#' @param df_lag Degrees of freedom (lag)
-#' @param fun_var Basis ("ns","bs","poly","lin")
-#' @param fun_lag Basis ("ns","ps","lin")
-#' @param ref New reference definition
-#' @param probs Quantiles for exposure grid
-#' @param uncertainty Logical; if TRUE, quantify uncertainty
-#' @param output "summary" or "samples"
-#' @param n_samples Number of samples for uncertainty
+#' When `uncertainty = TRUE`, the effect surface is recomputed across
+#' simulated/posterior samples of the model coefficients. The central
+#' estimate is obtained as the median of the simulated effects, while
+#' uncertainty intervals are derived from empirical quantiles
+#' (default: 2.5% and 97.5%).
+#'
+#' **Important:** although the output element is named `mean` for backward
+#' compatibility, it represents the *central estimate*, computed as the
+#' median when uncertainty is propagated.
+#'
+#' @param fit Fitted model from `fit_epidlnm()`.
+#' @param wx_long Long-format weather data.
+#' @param var Exposure variable (e.g. `"tmax"`).
+#' @param lag_max Maximum lag.
+#' @param df_var Degrees of freedom (exposure).
+#' @param df_lag Degrees of freedom (lag).
+#' @param fun_var Basis (`"ns"`, `"bs"`, `"poly"`, `"lin"`).
+#' @param fun_lag Basis (`"ns"`, `"ps"`, `"lin"`).
+#' @param ref New reference definition (centering value).
+#' @param probs Quantiles used to define the exposure grid.
+#' @param uncertainty Logical. If `TRUE`, quantify uncertainty using
+#' simulated or posterior draws of the model coefficients.
+#' @param output Character. `"summary"` returns aggregated surfaces;
+#' `"samples"` returns all simulated surfaces.
+#' @param n_samples Integer. Number of samples used for uncertainty propagation.
 #'
 #' @return
-#' - If uncertainty = FALSE: crosspred object
-#' - If uncertainty = TRUE and output = "summary":
-#'     list(mean = crosspred, lower = crosspred, upper = crosspred)
-#' - If uncertainty = TRUE and output = "samples":
-#'     list(mean = ..., lower = ..., upper = ..., samples = list_of_crosspred)
+#' - If `uncertainty = FALSE`: a `crosspred` object.
+#'
+#' - If `uncertainty = TRUE` and `output = "summary"`:
+#'   a list with:
+#'   - `mean`: central estimate surface (median-based)
+#'   - `lower`: lower interval surface (quantile-based)
+#'   - `upper`: upper interval surface (quantile-based)
+#'
+#' - If `uncertainty = TRUE` and `output = "samples"`:
+#'   a list with:
+#'   - `mean`: central estimate surface (median-based)
+#'   - `lower`: lower interval surface
+#'   - `upper`: upper interval surface
+#'   - `samples`: list of `crosspred` objects for each simulation
+#'
+#' @details
+#' Uncertainty is propagated using model-consistent sampling:
+#' - Bayesian models (e.g., `brms`, `INLA`, `bdlnm`) use posterior draws
+#' - Frequentist models use a normal approximation of the coefficient distribution
+#'
+#' The use of the median as the central estimate improves robustness to
+#' asymmetry and non-normality in DLNM effect distributions, which commonly
+#' arise from nonlinear exposure-lag-response relationships.
 #'
 #' @export
 recenter_effects <- function(
@@ -403,13 +433,13 @@ recenter_effects <- function(
   allfit_arr <- simplify2array(lapply(cp_samples, function(x) x$allfit))
 
   # matfit: [at x lag x sample]
-  matfit_mean  <- apply(matfit_arr, c(1, 2), mean, na.rm = TRUE)
+  matfit_mean  <- apply(matfit_arr, c(1, 2), stats::median, na.rm = TRUE)
   matfit_lower <- apply(matfit_arr, c(1, 2), stats::quantile, probs = 0.025, na.rm = TRUE)
   matfit_upper <- apply(matfit_arr, c(1, 2), stats::quantile, probs = 0.975, na.rm = TRUE)
 
   # allfit usually [at x sample]
   if (length(dim(allfit_arr)) == 2) {
-    allfit_mean  <- apply(allfit_arr, 1, mean, na.rm = TRUE)
+    allfit_mean  <- apply(allfit_arr, 1, stats::median, na.rm = TRUE)
     allfit_lower <- apply(allfit_arr, 1, stats::quantile, probs = 0.025, na.rm = TRUE)
     allfit_upper <- apply(allfit_arr, 1, stats::quantile, probs = 0.975, na.rm = TRUE)
   } else {

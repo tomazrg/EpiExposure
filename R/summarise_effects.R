@@ -1,38 +1,80 @@
-#' Summarise DLNM effects (article-consistent)
+#' Summarise DLNM effects
 #'
-#' @param fit Fitted model
-#' @param wx_long Long-format weather data
+#' Summarises DLNM effects on either the daily or accumulated scale,
+#' using exposure grids derived from the observed data and the DLNM
+#' specification stored in the fitted model.
+#'
+#' This function supports both deterministic summaries and uncertainty
+#' propagation. When `uncertainty = TRUE`, summaries are computed from
+#' simulated or posterior draws of the model coefficients. If
+#' `output = "summary"`, the central estimate is computed as the median
+#' of the simulated effects, while interval limits are obtained from
+#' empirical quantiles (default: 2.5% and 97.5%).
+#'
+#' **Important:** when `uncertainty = TRUE` and `output = "summary"`,
+#' columns such as `eta`, `effect`, `delta`, `delta_pp`, `baseline`,
+#' and `predicted` represent the *central estimate*, computed as the
+#' median of the simulated distribution.
+#'
+#' @param fit Fitted model.
+#' @param wx_long Long-format weather data.
 #' @param var Exposure variable name (character scalar), character vector of variables,
-#'   or NULL. If NULL, all variables stored in fit metadata are used.
-#' @param lag_max Maximum lag
-#' @param df_var Degrees of freedom for exposure
-#' @param df_lag Degrees of freedom for lag
-#' @param fun_var Exposure basis function
-#' @param fun_lag Lag basis function
-#' @param scale "daily" or "accumulated"
-#' @param lag_windows Lag windows (required for accumulated unless incremental = TRUE)
-#' @param probs Quantiles
-#' @param ref Reference definition list
-#' @param effect_measure "percent","ratio","linear"
-#' @param incremental Logical; if TRUE and scale = "accumulated", return cumulative
-#'   effects from lag 0 up to each lag
-#' @param uncertainty Logical; if TRUE, quantify uncertainty
-#' @param output "summary" or "samples"
-#' @param n_samples Number of samples used for uncertainty
+#'   or `NULL`. If `NULL`, all variables stored in fit metadata are used.
+#' @param lag_max Optional maximum lag. Ignored if `fit` contains `epiexposure_spec`.
+#' @param df_var Optional degrees of freedom for exposure. Ignored if `fit`
+#'   contains `epiexposure_spec`.
+#' @param df_lag Optional degrees of freedom for lag. Ignored if `fit`
+#'   contains `epiexposure_spec`.
+#' @param fun_var Optional exposure basis function. Ignored if `fit`
+#'   contains `epiexposure_spec`.
+#' @param fun_lag Optional lag basis function. Ignored if `fit`
+#'   contains `epiexposure_spec`.
+#' @param scale Character. `"daily"` or `"accumulated"`.
+#' @param lag_periods Optional lag-period table used when
+#'   `scale = "accumulated"` and `incremental = FALSE`. The table must
+#'   contain columns `period`, `lag_start`, and `lag_end`.
+#' @param probs Quantiles used to define the exposure grid.
+#' @param ref Reference definition list.
+#' @param effect_measure Character. `"percent"`, `"ratio"`, or `"linear"`.
+#' @param incremental Logical. If `TRUE` and `scale = "accumulated"`,
+#'   returns cumulative effects from lag 0 up to each lag.
+#' @param uncertainty Logical. If `TRUE`, quantify uncertainty using
+#'   simulated or posterior coefficient draws.
+#' @param output Character. `"summary"` or `"samples"`.
+#' @param n_samples Integer. Number of samples used for uncertainty.
 #'
-#' @return data.frame
+#' @return A data.frame.
+#'
+#' If `uncertainty = FALSE`, returns deterministic summaries of DLNM effects.
+#'
+#' If `uncertainty = TRUE` and `output = "summary"`, returns one row per
+#' grid value / lag / period combination (depending on `scale`) with
+#' median-based central estimates and empirical interval limits.
+#'
+#' If `uncertainty = TRUE` and `output = "samples"`, returns one row per
+#' simulated sample.
+#'
+#' @details
+#' Uncertainty is propagated using model-consistent sampling:
+#' - Bayesian models (e.g., `brms`, `INLA`, `bdlnm`) use posterior draws
+#' - Frequentist models use simulation from the asymptotic coefficient distribution
+#'
+#' For summary outputs under uncertainty, the median is used instead of the
+#' mean to provide a more robust central estimate under asymmetric effect
+#' distributions, which are common in nonlinear DLNM settings.
+#'
 #' @export
 summarise_effects <- function(
     fit,
     wx_long,
     var = NULL,
-    lag_max,
-    df_var = 4,
-    df_lag = 4,
-    fun_var = "ns",
-    fun_lag = "ns",
+    lag_max = NULL,
+    df_var = NULL,
+    df_lag = NULL,
+    fun_var = NULL,
+    fun_lag = NULL,
     scale = c("daily", "accumulated"),
-    lag_windows = NULL,
+    lag_periods = NULL,
     probs = seq(0.05, 0.95, by = 0.01),
     ref = list(method = "median", value = NULL),
     effect_measure = c("percent", "ratio", "linear"),
@@ -61,8 +103,8 @@ summarise_effects <- function(
   }
   n_samples <- as.integer(n_samples)
 
-  if (scale == "accumulated" && !incremental && is.null(lag_windows)) {
-    stop("`lag_windows` must be provided when scale = 'accumulated' and incremental = FALSE.")
+  if (scale == "accumulated" && !incremental && is.null(lag_periods)) {
+    stop("`lag_periods` must be provided when scale = 'accumulated' and incremental = FALSE.")
   }
 
   `%||%` <- function(a, b) if (!is.null(a)) a else b
@@ -75,6 +117,7 @@ summarise_effects <- function(
   fit_vars <- attr(fit, "epiexposure_vars")
   family_fit <- attr(fit, "epiexposure_family")
   cb_cols_fit <- attr(fit, "epiexposure_cb_cols")
+  dat_template <- attr(fit, "epiexposure_dat_template")
 
   # ----------------------------------------------------------
   # Resolve variables to summarize
@@ -125,19 +168,33 @@ summarise_effects <- function(
     # 2) Resolve basis spec (prefer fit metadata)
     # ----------------------------------------------------------
     if (!is.null(fit_spec) && !is.null(fit_spec[[var_one]])) {
+
       spec_v <- fit_spec[[var_one]]
       lag_max_use <- as.integer(spec_v$lag_max)
       argvar <- spec_v$argvar
       arglag <- spec_v$arglag
+
     } else {
-      lag_max_use <- lag_max
+
+      if (is.null(lag_max)) {
+        stop("Model does not contain `epiexposure_spec` for variable '", var_one,
+             "'. Please provide `lag_max`.")
+      }
+
+      lag_max_use <- as.integer(lag_max)
+
+      fun_var_use <- fun_var %||% "ns"
+      fun_lag_use <- fun_lag %||% "ns"
+      df_var_use  <- df_var %||% 4
+      df_lag_use  <- df_lag %||% 4
 
       argvar <- switch(
-        fun_var,
-        ns   = list(fun = "ns", df = df_var),
-        bs   = list(fun = "bs", df = df_var),
-        poly = list(fun = "poly", degree = df_var),
-        lin  = list(fun = "lin")
+        fun_var_use,
+        ns   = list(fun = "ns", df = df_var_use),
+        bs   = list(fun = "bs", df = df_var_use),
+        poly = list(fun = "poly", degree = df_var_use),
+        lin  = list(fun = "lin"),
+        stop("Unsupported fun_var: ", fun_var_use)
       )
 
       if (!is.null(argvar$fun) && argvar$fun != "lin") {
@@ -145,10 +202,11 @@ summarise_effects <- function(
       }
 
       arglag <- switch(
-        fun_lag,
-        ns  = list(fun = "ns", df = df_lag),
-        ps  = list(fun = "ps", df = df_lag),
-        lin = list(fun = "lin")
+        fun_lag_use,
+        ns  = list(fun = "ns", df = df_lag_use),
+        ps  = list(fun = "ps", df = df_lag_use),
+        lin = list(fun = "lin"),
+        stop("Unsupported fun_lag: ", fun_lag_use)
       )
     }
 
@@ -160,6 +218,13 @@ summarise_effects <- function(
       argvar = argvar,
       arglag = arglag
     )
+
+    cb_cols_var <- NULL
+    if (!is.null(cb_cols_fit)) {
+      cb_cols_var <- grep(paste0("^cb_", var_one, "_"), cb_cols_fit, value = TRUE)
+    } else if (!is.null(dat_template)) {
+      cb_cols_var <- grep(paste0("^cb_", var_one, "_"), names(dat_template), value = TRUE)
+    }
 
     # ----------------------------------------------------------
     # 3) Extract beta / vcov / draws
@@ -201,6 +266,13 @@ summarise_effects <- function(
         ))
       }
 
+      if (inherits(model, "HLfit")) {
+        return(list(
+          beta = spaMM::fixef(model),
+          vcov = as.matrix(stats::vcov(model))
+        ))
+      }
+
       if (inherits(model, "brmsfit")) {
         fe <- brms::fixef(model)
         beta <- fe[, "Estimate"]
@@ -231,13 +303,29 @@ summarise_effects <- function(
       ))
     }
 
-    extract_beta_draws <- function(model, n_samples, var, cb_ncol, cb_cols_fit) {
+    extract_beta_draws <- function(model, n_samples, var, cb_ncol, cb_cols_var = NULL) {
 
+      # ---------- brms: REAL posterior draws ----------
       if (inherits(model, "brmsfit")) {
         draws <- as.matrix(brms::as_draws_matrix(model))
-        nm <- grep(paste0("^b_cb_", var, "_"), colnames(draws), value = TRUE)
-        if (length(nm) == 0) nm <- grep(paste0("^b_.*", var), colnames(draws), value = TRUE)
-        if (length(nm) != cb_ncol) stop("Could not match brms posterior draws to crossbasis columns.")
+
+        nm <- if (!is.null(cb_cols_var)) {
+          paste0("b_", cb_cols_var)
+        } else {
+          grep(paste0("^b_cb_", var, "_"), colnames(draws), value = TRUE)
+        }
+
+        if (length(nm) == 0) {
+          nm <- grep(paste0("^b_cb_", var, "_"), colnames(draws), value = TRUE)
+        }
+        if (length(nm) == 0) {
+          nm <- grep(paste0("^b_.*", var), colnames(draws), value = TRUE)
+        }
+
+        if (length(nm) != cb_ncol) {
+          stop("Could not match brms posterior draws to crossbasis columns.")
+        }
+
         if (nrow(draws) > n_samples) {
           set.seed(1)
           keep <- sample(seq_len(nrow(draws)), n_samples)
@@ -245,9 +333,11 @@ summarise_effects <- function(
         } else {
           draws <- draws[, nm, drop = FALSE]
         }
+
         return(draws)
       }
 
+      # ---------- INLA: REAL posterior draws ----------
       if (inherits(model, "inla")) {
         if (!requireNamespace("INLA", quietly = TRUE)) {
           stop("Package 'INLA' is required for INLA uncertainty.")
@@ -255,7 +345,7 @@ summarise_effects <- function(
 
         posterior <- INLA::inla.posterior.sample(n = n_samples, result = model)
 
-        cb_names <- paste0("cb_", var, "_", seq_len(cb_ncol))
+        cb_names <- cb_cols_var %||% paste0("cb_", var, "_", seq_len(cb_ncol))
 
         draws <- do.call(rbind, lapply(posterior, function(s) {
           latent <- s$latent
@@ -267,16 +357,21 @@ summarise_effects <- function(
         return(draws)
       }
 
+      # ---------- bdlnm: REAL posterior draws ----------
       if (inherits(model, "bdlnm")) {
         beta_draws <- model$coefficients
         if (is.null(dim(beta_draws))) {
           beta_draws <- matrix(beta_draws, ncol = 1)
         }
 
-        cb_names <- intersect(rownames(beta_draws), paste0("cb_", var, "_", seq_len(cb_ncol)))
+        cb_names <- intersect(rownames(beta_draws), cb_cols_var %||% character(0))
         if (length(cb_names) == 0) {
-          cb_names <- intersect(cb_cols_fit %||% character(0), rownames(beta_draws))
+          cb_names <- intersect(rownames(beta_draws), paste0("cb_", var, "_", seq_len(cb_ncol)))
         }
+        if (length(cb_names) == 0) {
+          cb_names <- grep(paste0("^cb_", var, "_"), rownames(beta_draws), value = TRUE)
+        }
+
         if (length(cb_names) != cb_ncol) {
           stop("Could not match bdlnm posterior draws to crossbasis columns.")
         }
@@ -292,12 +387,17 @@ summarise_effects <- function(
         return(t(beta_draws))
       }
 
-      # frequentist normal approximation
+      # ---------- Frequentist: normal approximation ----------
       cv <- extract_coef_vcov(model)
       beta_hat <- cv$beta
       V_hat <- cv$vcov
 
-      cb_names <- grep(paste0("^cb_", var, "_"), names(beta_hat), value = TRUE)
+      cb_names <- if (!is.null(cb_cols_var)) {
+        intersect(cb_cols_var, names(beta_hat))
+      } else {
+        grep(paste0("^cb_", var, "_"), names(beta_hat), value = TRUE)
+      }
+
       if (length(cb_names) != cb_ncol) {
         stop("Could not match coefficient names to crossbasis structure.")
       }
@@ -500,7 +600,7 @@ summarise_effects <- function(
           ) |>
           dplyr::mutate(
             lag = as.integer(gsub("lag_", "", lag)),
-            window = paste0("0-", lag),
+            period = paste0("0-", lag),
             effect = transform_effect(eta),
             scale = "accumulated",
             var = var_one
@@ -515,18 +615,22 @@ summarise_effects <- function(
         return(out)
       }
 
-      purrr::map_dfr(seq_len(nrow(lag_windows)), function(i) {
+      if (!all(c("period", "lag_start", "lag_end") %in% names(lag_periods))) {
+        stop("`lag_periods` must contain columns: period, lag_start, lag_end.")
+      }
+
+      purrr::map_dfr(seq_len(nrow(lag_periods)), function(i) {
 
         sel <- which(
-          lag_idx >= lag_windows$lag_start[i] &
-            lag_idx <= lag_windows$lag_end[i]
+          lag_idx >= lag_periods$lag_start[i] &
+            lag_idx <= lag_periods$lag_end[i]
         )
 
         eta_sum <- rowSums(eta_mat[, sel, drop = FALSE])
 
         out <- data.frame(
           value  = at_vals,
-          window = lag_windows$window_id[i],
+          period = lag_periods$period[i],
           eta    = eta_sum,
           effect = transform_effect(eta_sum),
           scale  = "accumulated",
@@ -562,7 +666,7 @@ summarise_effects <- function(
       n_samples = n_samples,
       var = var_one,
       cb_ncol = ncol(cb),
-      cb_cols_fit = cb_cols_fit
+      cb_cols_var = cb_cols_var
     )
 
     if (output == "samples") {
@@ -627,33 +731,33 @@ summarise_effects <- function(
     all_draws <- dplyr::bind_rows(draw_list, .id = "sample")
     all_draws$sample <- as.integer(all_draws$sample)
 
-    group_vars <- intersect(c("var", "value", "lag", "window", "scale"), names(all_draws))
+    group_vars <- intersect(c("var", "value", "lag", "period", "scale"), names(all_draws))
 
     summarised <- all_draws |>
       dplyr::group_by(dplyr::across(dplyr::all_of(group_vars))) |>
       dplyr::summarise(
-        eta = mean(.data$eta, na.rm = TRUE),
+        eta = stats::median(.data$eta, na.rm = TRUE),
         eta_sd = stats::sd(.data$eta, na.rm = TRUE),
         eta_lower = safe_quantile(.data$eta)[1],
         eta_upper = safe_quantile(.data$eta)[2],
 
-        effect = mean(.data$effect, na.rm = TRUE),
+        effect = stats::median(.data$effect, na.rm = TRUE),
         effect_sd = stats::sd(.data$effect, na.rm = TRUE),
         effect_lower = safe_quantile(.data$effect)[1],
         effect_upper = safe_quantile(.data$effect)[2],
 
-        delta = mean(.data$delta, na.rm = TRUE),
+        delta = stats::median(.data$delta, na.rm = TRUE),
         delta_sd = stats::sd(.data$delta, na.rm = TRUE),
         delta_lower = safe_quantile(.data$delta)[1],
         delta_upper = safe_quantile(.data$delta)[2],
 
-        delta_pp = mean(.data$delta_pp, na.rm = TRUE),
+        delta_pp = stats::median(.data$delta_pp, na.rm = TRUE),
         delta_pp_sd = stats::sd(.data$delta_pp, na.rm = TRUE),
         delta_pp_lower = safe_quantile(.data$delta_pp)[1],
         delta_pp_upper = safe_quantile(.data$delta_pp)[2],
 
-        baseline = mean(.data$baseline, na.rm = TRUE),
-        predicted = mean(.data$predicted, na.rm = TRUE),
+        baseline = stats::median(.data$baseline, na.rm = TRUE),
+        predicted = stats::median(.data$predicted, na.rm = TRUE),
         predicted_sd = stats::sd(.data$predicted, na.rm = TRUE),
         predicted_lower = safe_quantile(.data$predicted)[1],
         predicted_upper = safe_quantile(.data$predicted)[2],
