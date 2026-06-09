@@ -48,4 +48,4 @@ define_exposure(
 
 ## Value
 
-Named list of crossbasis templates
+Named list of crossbasis templates (with attribute "spec")

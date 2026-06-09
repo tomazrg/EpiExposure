@@ -19,7 +19,14 @@ discrete scenarios and continuous profiles (ranges)."></head><body>
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto"><li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/epiexposure-workflow.html">Introducing the EpiExposure package</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/01-getting_started.html">Getting started with EpiExposure</a></li>
+    <li><a class="dropdown-item" href="../articles/02-epiexposure-workflow.html">An epidemiological workflow for DLNM interpretation</a></li>
+    <li><a class="dropdown-item" href="../articles/03-understanding.html">Understanding exposure-lag-response relationships</a></li>
+    <li><a class="dropdown-item" href="../articles/04-statistical_output.html">From statistical output to epidemiological interpretation</a></li>
+    <li><a class="dropdown-item" href="../articles/05-critical_exposure.html">Identifying critical exposure periods in epidemics</a></li>
+    <li><a class="dropdown-item" href="../articles/06-simulating.html">Simulating environmental exposure scenarios</a></li>
+    <li><a class="dropdown-item" href="../articles/07-comparing_exposure.html">Comparing exposure-disease relationships across epidemics</a></li>
+    <li><a class="dropdown-item" href="../articles/08-advanced_modeling.html">Advanced modeling strategies in EpiExposure</a></li>
   </ul></li>
 <li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">News</a></li>
@@ -54,7 +61,7 @@ discrete scenarios and continuous profiles (ranges).</p>
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">simulate_range</span><span class="op">(</span></span>
-<span>  <span class="va">lag_windows</span>,</span>
+<span>  <span class="va">periods</span>,</span>
 <span>  vary <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  fixed <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  scenario_type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"grid"</span>, <span class="st">"paired"</span><span class="op">)</span>,</span>
@@ -68,8 +75,8 @@ discrete scenarios and continuous profiles (ranges).</p>
     <h2 id="arguments">Arguments<a class="anchor" aria-label="anchor" href="#arguments"></a></h2>
 
 
-<dl><dt id="arg-lag-windows">lag_windows<a class="anchor" aria-label="anchor" href="#arg-lag-windows"></a></dt>
-<dd><p>Output from define_lag_windows()</p></dd>
+<dl><dt id="arg-periods">periods<a class="anchor" aria-label="anchor" href="#arg-periods"></a></dt>
+<dd><p>Output from define_periods()</p></dd>
 
 
 <dt id="arg-vary">vary<a class="anchor" aria-label="anchor" href="#arg-vary"></a></dt>
@@ -98,7 +105,10 @@ discrete scenarios and continuous profiles (ranges).</p>
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>Named list of scenarios</p>
+    <p>A structured list with:
+  - scenarios: named list of scenarios
+  - periods: period table used to define timing
+  - info: data.frame describing scenario values (NULL for profile mode if not needed)</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
@@ -106,7 +116,7 @@ discrete scenarios and continuous profiles (ranges).</p>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Ricardo Gomes Tomaz, Emerson M. Del Ponte, Felipe Dalla Lana.</p>
+  <p>Developed by Ricardo Gomes Tomáz, Emerson M. Del Ponte, Felipe Dalla Lana.</p>
 </div>
 
 <div class="pkgdown-footer-right">

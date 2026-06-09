@@ -17,7 +17,14 @@
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto"><li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/epiexposure-workflow.html">Introducing the EpiExposure package</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/01-getting_started.html">Getting started with EpiExposure</a></li>
+    <li><a class="dropdown-item" href="../articles/02-epiexposure-workflow.html">An epidemiological workflow for DLNM interpretation</a></li>
+    <li><a class="dropdown-item" href="../articles/03-understanding.html">Understanding exposure-lag-response relationships</a></li>
+    <li><a class="dropdown-item" href="../articles/04-statistical_output.html">From statistical output to epidemiological interpretation</a></li>
+    <li><a class="dropdown-item" href="../articles/05-critical_exposure.html">Identifying critical exposure periods in epidemics</a></li>
+    <li><a class="dropdown-item" href="../articles/06-simulating.html">Simulating environmental exposure scenarios</a></li>
+    <li><a class="dropdown-item" href="../articles/07-comparing_exposure.html">Comparing exposure-disease relationships across epidemics</a></li>
+    <li><a class="dropdown-item" href="../articles/08-advanced_modeling.html">Advanced modeling strategies in EpiExposure</a></li>
   </ul></li>
 <li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">News</a></li>
@@ -43,7 +50,7 @@
     </div>
 
     <div class="section level2">
-      <h2 id="core-workflow">Core workflow<a class="anchor" aria-label="anchor" href="#core-workflow"></a></h2>
+      <h2 id="data-exposure-setup">Data &amp; Exposure Setup<a class="anchor" aria-label="anchor" href="#data-exposure-setup"></a></h2>
 
 
 
@@ -54,35 +61,86 @@
 
       <dl><dt>
 
-          <code><a href="summarise_effects.html">summarise_effects()</a></code>
+          <code><a href="define_exposure.html">define_exposure()</a></code>
 
         </dt>
-        <dd>Summarise DLNM effects (article-consistent)</dd>
+        <dd>Define DLNM exposure templates with flexible splines</dd>
 
         <dt>
+
+          <code><a href="check_identifiability.html">check_identifiability()</a></code>
+
+        </dt>
+        <dd>Check DLNM cross-basis identifiability</dd>
+
+        <dt>
+
+          <code><a href="build_design_matrix.html">build_design_matrix()</a></code>
+
+        </dt>
+        <dd>Build epidemic-level DLNM design matrix</dd>
+
+        <dt>
+
+          <code><a href="prepare_response.html">prepare_response()</a></code>
+
+        </dt>
+        <dd>Prepare response variable for modeling</dd>
+      </dl></div><div class="section level2">
+      <h2 id="model-fitting">Model Fitting<a class="anchor" aria-label="anchor" href="#model-fitting"></a></h2>
+
+
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="fit_epidlnm.html">fit_epidlnm()</a></code>
+
+        </dt>
+        <dd>Fit DLNM inferential model</dd>
+      </dl></div><div class="section level2">
+      <h2 id="predictions-simulations">Predictions &amp; Simulations<a class="anchor" aria-label="anchor" href="#predictions-simulations"></a></h2>
+
+
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
 
           <code><a href="predict_surface.html">predict_surface()</a></code>
 
         </dt>
-        <dd>Predict full DLNM exposure-lag-response surface</dd>
+        <dd>Predict full DLNM exposure-lag-response surface Computes the full DLNM exposure–lag–response surface using the fitted model,#' without refitting. The surface is evaluated over a grid of exposure values and lags defined by the model specification or user input.</dd>
 
         <dt>
 
-          <code><a href="reduce_effects.html">reduce_effects()</a></code>
+          <code><a href="predict_outcome.html">predict_outcome()</a></code>
 
         </dt>
-        <dd>Reduce DLNM effects to one dimension (article-consistent)</dd>
-      </dl></div><div class="section level2">
-      <h2 id="simulation">Simulation<a class="anchor" aria-label="anchor" href="#simulation"></a></h2>
+        <dd>Predict outcome under user-defined exposure-lag profile(s)</dd>
 
+        <dt>
 
+          <code><a href="simulate_exposure.html">simulate_exposure()</a></code>
 
-      <dl></dl></div><div class="section level2">
+        </dt>
+        <dd>Simulate exposure history across lags (full or patterned)</dd>
 
+        <dt>
 
+          <code><a href="simulate_range.html">simulate_range()</a></code>
 
+        </dt>
+        <dd>Generate DLNM simulation scenarios (scenario or profile mode)</dd>
 
-      <dl><dt>
+        <dt>
 
           <code><a href="simulate_scenarios.html">simulate_scenarios()</a></code>
 
@@ -91,12 +149,26 @@
 
         <dt>
 
-          <code><a href="simulate_range.html">simulate_range()</a></code>
+          <code><a href="compare_exposures.html">compare_exposures()</a></code>
 
         </dt>
-        <dd>Generate DLNM simulation scenarios (scenario or profile mode)</dd>
+        <dd>Compare exposure-lag profiles (pairwise or multiple)</dd>
+
+        <dt>
+
+          <code><a href="compare_predictions.html">compare_predictions()</a></code>
+
+        </dt>
+        <dd>Compare predicted outcomes between multiple exposure scenarios</dd>
+
+        <dt>
+
+          <code><a href="compare_periods.html">compare_periods()</a></code>
+
+        </dt>
+        <dd>Compare accumulated DLNM effects between periods</dd>
       </dl></div><div class="section level2">
-      <h2 id="interpretation">Interpretation<a class="anchor" aria-label="anchor" href="#interpretation"></a></h2>
+      <h2 id="periods-summaries">Periods &amp; Summaries<a class="anchor" aria-label="anchor" href="#periods-summaries"></a></h2>
 
 
 
@@ -106,6 +178,57 @@
 
 
       <dl><dt>
+
+          <code><a href="define_periods.html">define_periods()</a></code>
+
+        </dt>
+        <dd>Define epidemiological lag periods</dd>
+
+        <dt>
+
+          <code><a href="summarise_effects.html">summarise_effects()</a></code>
+
+        </dt>
+        <dd>Summarise DLNM effects</dd>
+
+        <dt>
+
+          <code><a href="recenter_effects.html">recenter_effects()</a></code>
+
+        </dt>
+        <dd>Recenter DLNM effects using a new reference value</dd>
+
+        <dt>
+
+          <code><a href="reduce_effects.html">reduce_effects()</a></code>
+
+        </dt>
+        <dd>Reduce DLNM effects to one dimension (article-consistent)</dd>
+      </dl></div><div class="section level2">
+      <h2 id="effect-decomposition-analysis">Effect Decomposition &amp; Analysis<a class="anchor" aria-label="anchor" href="#effect-decomposition-analysis"></a></h2>
+
+
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="compute_eci.html">compute_eci()</a></code>
+
+        </dt>
+        <dd>Compute Exposure Cumulative Impact (ECI - the exposure profile with the fitted model coefficients)</dd>
+
+        <dt>
+
+          <code><a href="compute_ecilag.html">compute_ecilag()</a></code>
+
+        </dt>
+        <dd>Compute lag-specific decomposition of Exposure Cumulative Impact (ECI)</dd>
+
+        <dt>
 
           <code><a href="identify_critical_lags.html">identify_critical_lags()</a></code>
 
@@ -118,22 +241,13 @@
 
         </dt>
         <dd>Quantify lag contributions to the cumulative DLNM effect</dd>
-      </dl></div><div class="section level2">
-      <h2 id="utilities">Utilities<a class="anchor" aria-label="anchor" href="#utilities"></a></h2>
 
+        <dt>
 
-
-      <dl></dl></div><div class="section level2">
-
-
-
-
-      <dl><dt>
-
-          <code><a href="define_lag_windows.html">define_lag_windows()</a></code>
+          <code><a href="df_sensitivity.html">df_sensitivity()</a></code>
 
         </dt>
-        <dd>Define epidemiological lag windows</dd>
+        <dd>Compute sensitivity of DLNM effects (analytical or finite derivative)</dd>
       </dl></div><div class="section level2">
       <h2 id="datasets">Datasets<a class="anchor" aria-label="anchor" href="#datasets"></a></h2>
 
@@ -150,78 +264,13 @@
 
         </dt>
         <dd>Example dataset for EpiExposure package</dd>
-      </dl></div><div class="section level2">
-      <h2 id="other">Other<a class="anchor" aria-label="anchor" href="#other"></a></h2>
-
-
-
-      <dl></dl></div><div class="section level2">
-
-
-
-
-      <dl><dt>
-
-          <code><a href="build_design_matrix.html">build_design_matrix()</a></code>
-
-        </dt>
-        <dd>Build epidemic-level DLNM design matrix</dd>
-
-        <dt>
-
-          <code><a href="check_identifiability.html">check_identifiability()</a></code>
-
-        </dt>
-        <dd>Check DLNM cross-basis identifiability</dd>
-
-        <dt>
-
-          <code><a href="compare_lag_windows.html">compare_lag_windows()</a></code>
-
-        </dt>
-        <dd>Compare accumulated DLNM effects between lag windows</dd>
-
-        <dt>
-
-          <code><a href="define_exposure.html">define_exposure()</a></code>
-
-        </dt>
-        <dd>Define DLNM exposure templates with flexible splines</dd>
-
-        <dt>
-
-          <code><a href="df_sensitivity.html">df_sensitivity()</a></code>
-
-        </dt>
-        <dd>Compute sensitivity of DLNM effects (analytical or finite derivative)</dd>
-
-        <dt>
-
-          <code><a href="fit_epidlnm.html">fit_epidlnm()</a></code>
-
-        </dt>
-        <dd>Fit DLNM inferential model</dd>
-
-        <dt>
-
-          <code><a href="prepare_response.html">prepare_response()</a></code>
-
-        </dt>
-        <dd>Prepare response variable for modeling</dd>
-
-        <dt>
-
-          <code><a href="recenter_effects.html">recenter_effects()</a></code>
-
-        </dt>
-        <dd>Recenter DLNM effects using a new reference value</dd>
       </dl></div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Ricardo Gomes Tomaz, Emerson M. Del Ponte, Felipe Dalla Lana.</p>
+  <p>Developed by Ricardo Gomes Tomáz, Emerson M. Del Ponte, Felipe Dalla Lana.</p>
 </div>
 
 <div class="pkgdown-footer-right">

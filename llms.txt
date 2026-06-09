@@ -2,8 +2,9 @@
 
 ![](reference/figures/sticker.png)
 
-`EpiExposure` is an R package designed to advance the epidemiological
-interpretation of environmental drivers of plant disease epidemics.
+`EpiExposure` is an R package for modeling and interpreting
+epidemiological exposure–lag relationships between environmental drivers
+and plant disease outcomes.
 
 ------------------------------------------------------------------------
 
@@ -67,62 +68,93 @@ remotes::install_github("tomazrg/EpiExposure")
 
 # Package index
 
-## Core workflow
+## Data & Exposure Setup
 
-- [`summarise_effects()`](https://tomazrg.github.io/EpiExposure/reference/summarise_effects.md)
-  : Summarise DLNM effects (article-consistent)
+- [`define_exposure()`](https://tomazrg.github.io/EpiExposure/reference/define_exposure.md)
+  : Define DLNM exposure templates with flexible splines
+- [`check_identifiability()`](https://tomazrg.github.io/EpiExposure/reference/check_identifiability.md)
+  : Check DLNM cross-basis identifiability
+- [`build_design_matrix()`](https://tomazrg.github.io/EpiExposure/reference/build_design_matrix.md)
+  : Build epidemic-level DLNM design matrix
+- [`prepare_response()`](https://tomazrg.github.io/EpiExposure/reference/prepare_response.md)
+  : Prepare response variable for modeling
+
+## Model Fitting
+
+- [`fit_epidlnm()`](https://tomazrg.github.io/EpiExposure/reference/fit_epidlnm.md)
+  : Fit DLNM inferential model
+
+## Predictions & Simulations
+
 - [`predict_surface()`](https://tomazrg.github.io/EpiExposure/reference/predict_surface.md)
-  : Predict full DLNM exposure-lag-response surface
+  : Predict full DLNM exposure-lag-response surface Computes the full
+  DLNM exposure–lag–response surface using the fitted model,#' without
+  refitting. The surface is evaluated over a grid of exposure values and
+  lags defined by the model specification or user input.
+- [`predict_outcome()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcome.md)
+  : Predict outcome under user-defined exposure-lag profile(s)
+- [`simulate_exposure()`](https://tomazrg.github.io/EpiExposure/reference/simulate_exposure.md)
+  : Simulate exposure history across lags (full or patterned)
+- [`simulate_range()`](https://tomazrg.github.io/EpiExposure/reference/simulate_range.md)
+  : Generate DLNM simulation scenarios (scenario or profile mode)
+- [`simulate_scenarios()`](https://tomazrg.github.io/EpiExposure/reference/simulate_scenarios.md)
+  : Simulate epidemiological DLNM scenarios
+- [`compare_exposures()`](https://tomazrg.github.io/EpiExposure/reference/compare_exposures.md)
+  : Compare exposure-lag profiles (pairwise or multiple)
+- [`compare_predictions()`](https://tomazrg.github.io/EpiExposure/reference/compare_predictions.md)
+  : Compare predicted outcomes between multiple exposure scenarios
+- [`compare_periods()`](https://tomazrg.github.io/EpiExposure/reference/compare_periods.md)
+  : Compare accumulated DLNM effects between periods
+
+## Periods & Summaries
+
+- [`define_periods()`](https://tomazrg.github.io/EpiExposure/reference/define_periods.md)
+  : Define epidemiological lag periods
+- [`summarise_effects()`](https://tomazrg.github.io/EpiExposure/reference/summarise_effects.md)
+  : Summarise DLNM effects
+- [`recenter_effects()`](https://tomazrg.github.io/EpiExposure/reference/recenter_effects.md)
+  : Recenter DLNM effects using a new reference value
 - [`reduce_effects()`](https://tomazrg.github.io/EpiExposure/reference/reduce_effects.md)
   : Reduce DLNM effects to one dimension (article-consistent)
 
-## Simulation
+## Effect Decomposition & Analysis
 
-- [`simulate_scenarios()`](https://tomazrg.github.io/EpiExposure/reference/simulate_scenarios.md)
-  : Simulate epidemiological DLNM scenarios
-- [`simulate_range()`](https://tomazrg.github.io/EpiExposure/reference/simulate_range.md)
-  : Generate DLNM simulation scenarios (scenario or profile mode)
-
-## Interpretation
-
+- [`compute_eci()`](https://tomazrg.github.io/EpiExposure/reference/compute_eci.md)
+  : Compute Exposure Cumulative Impact (ECI - the exposure profile with
+  the fitted model coefficients)
+- [`compute_ecilag()`](https://tomazrg.github.io/EpiExposure/reference/compute_ecilag.md)
+  : Compute lag-specific decomposition of Exposure Cumulative Impact
+  (ECI)
 - [`identify_critical_lags()`](https://tomazrg.github.io/EpiExposure/reference/identify_critical_lags.md)
   : Identify critical lags based on daily DLNM effects
 - [`lag_contribution()`](https://tomazrg.github.io/EpiExposure/reference/lag_contribution.md)
   : Quantify lag contributions to the cumulative DLNM effect
-
-## Utilities
-
-- [`define_lag_windows()`](https://tomazrg.github.io/EpiExposure/reference/define_lag_windows.md)
-  : Define epidemiological lag windows
+- [`df_sensitivity()`](https://tomazrg.github.io/EpiExposure/reference/df_sensitivity.md)
+  : Compute sensitivity of DLNM effects (analytical or finite
+  derivative)
 
 ## Datasets
 
 - [`TargetSpot`](https://tomazrg.github.io/EpiExposure/reference/TargetSpot.md)
   : Example dataset for EpiExposure package
 
-## Other
-
-- [`build_design_matrix()`](https://tomazrg.github.io/EpiExposure/reference/build_design_matrix.md)
-  : Build epidemic-level DLNM design matrix
-- [`check_identifiability()`](https://tomazrg.github.io/EpiExposure/reference/check_identifiability.md)
-  : Check DLNM cross-basis identifiability
-- [`compare_lag_windows()`](https://tomazrg.github.io/EpiExposure/reference/compare_lag_windows.md)
-  : Compare accumulated DLNM effects between lag windows
-- [`define_exposure()`](https://tomazrg.github.io/EpiExposure/reference/define_exposure.md)
-  : Define DLNM exposure templates with flexible splines
-- [`df_sensitivity()`](https://tomazrg.github.io/EpiExposure/reference/df_sensitivity.md)
-  : Compute sensitivity of DLNM effects (analytical or finite
-  derivative)
-- [`fit_epidlnm()`](https://tomazrg.github.io/EpiExposure/reference/fit_epidlnm.md)
-  : Fit DLNM inferential model
-- [`prepare_response()`](https://tomazrg.github.io/EpiExposure/reference/prepare_response.md)
-  : Prepare response variable for modeling
-- [`recenter_effects()`](https://tomazrg.github.io/EpiExposure/reference/recenter_effects.md)
-  : Recenter DLNM effects using a new reference value
-
 # Articles
 
 ### All vignettes
 
-- [Introducing the EpiExposure
-  package](https://tomazrg.github.io/EpiExposure/articles/epiexposure-workflow.md):
+- [Getting started with
+  EpiExposure](https://tomazrg.github.io/EpiExposure/articles/01-getting_started.md):
+- [An epidemiological workflow for DLNM
+  interpretation](https://tomazrg.github.io/EpiExposure/articles/02-epiexposure-workflow.md):
+- [Understanding exposure-lag-response
+  relationships](https://tomazrg.github.io/EpiExposure/articles/03-understanding.md):
+- [From statistical output to epidemiological
+  interpretation](https://tomazrg.github.io/EpiExposure/articles/04-statistical_output.md):
+- [Identifying critical exposure periods in
+  epidemics](https://tomazrg.github.io/EpiExposure/articles/05-critical_exposure.md):
+- [Simulating environmental exposure
+  scenarios](https://tomazrg.github.io/EpiExposure/articles/06-simulating.md):
+- [Comparing exposure-disease relationships across
+  epidemics](https://tomazrg.github.io/EpiExposure/articles/07-comparing_exposure.md):
+- [Advanced modeling strategies in
+  EpiExposure](https://tomazrg.github.io/EpiExposure/articles/08-advanced_modeling.md):

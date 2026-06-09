@@ -2,8 +2,15 @@ pandoc: 3.6.3
 pkgdown: 2.2.0
 pkgdown_sha: ~
 articles:
-  epiexposure-workflow: epiexposure-workflow.html
-last_built: 2026-05-21T04:08Z
+  01-getting_started: 01-getting_started.html
+  02-epiexposure-workflow: 02-epiexposure-workflow.html
+  03-understanding: 03-understanding.html
+  04-statistical_output: 04-statistical_output.html
+  05-critical_exposure: 05-critical_exposure.html
+  06-simulating: 06-simulating.html
+  07-comparing_exposure: 07-comparing_exposure.html
+  08-advanced_modeling: 08-advanced_modeling.html
+last_built: 2026-06-09T01:07Z
 urls:
   reference: https://tomazrg.github.io/EpiExposure/reference
   article: https://tomazrg.github.io/EpiExposure/articles

@@ -1,7 +1,7 @@
 # Quantify lag contributions to the cumulative DLNM effect
 
-Decomposes the cumulative DLNM effect into relative contributions of
-individual lags based on daily lag-specific effects.
+Supports: 1) Deterministic input 2) Summary input (effect with sd/CI) 3)
+Samples input (with 'sample' column)
 
 ## Usage
 
@@ -13,19 +13,16 @@ lag_contribution(daily_df, lag_window = NULL, absolute = TRUE)
 
 - daily_df:
 
-  Output from summarise_effects(scale = "daily"). Must contain columns:
-  lag, effect.
+  Output from summarise_effects(scale = "daily")
 
 - lag_window:
 
-  Optional vector of length 2 specifying the lag interval c(lag_start,
-  lag_end). If NULL, the full lag range is used.
+  Optional lag interval c(start, end)
 
 - absolute:
 
-  Logical. If TRUE (default), contributions are calculated using
-  absolute effects to avoid sign cancellation.
+  Logical (default TRUE)
 
 ## Value
 
-A data.frame with lag-specific contributions to the cumulative effect.
+data.frame

@@ -17,7 +17,14 @@
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto"><li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/epiexposure-workflow.html">Introducing the EpiExposure package</a></li>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/01-getting_started.html">Getting started with EpiExposure</a></li>
+    <li><a class="dropdown-item" href="../articles/02-epiexposure-workflow.html">An epidemiological workflow for DLNM interpretation</a></li>
+    <li><a class="dropdown-item" href="../articles/03-understanding.html">Understanding exposure-lag-response relationships</a></li>
+    <li><a class="dropdown-item" href="../articles/04-statistical_output.html">From statistical output to epidemiological interpretation</a></li>
+    <li><a class="dropdown-item" href="../articles/05-critical_exposure.html">Identifying critical exposure periods in epidemics</a></li>
+    <li><a class="dropdown-item" href="../articles/06-simulating.html">Simulating environmental exposure scenarios</a></li>
+    <li><a class="dropdown-item" href="../articles/07-comparing_exposure.html">Comparing exposure-disease relationships across epidemics</a></li>
+    <li><a class="dropdown-item" href="../articles/08-advanced_modeling.html">Advanced modeling strategies in EpiExposure</a></li>
   </ul></li>
 <li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">News</a></li>
@@ -50,7 +57,15 @@
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">fit_epidlnm</span><span class="op">(</span><span class="va">dat</span>, <span class="va">model_engine</span>, <span class="va">family</span>, random_effect <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">fit_epidlnm</span><span class="op">(</span></span>
+<span>  <span class="va">dat</span>,</span>
+<span>  <span class="va">model_engine</span>,</span>
+<span>  <span class="va">family</span>,</span>
+<span>  random_effect <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  epiexposure_spec <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  basis_objects <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  <span class="va">...</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -63,15 +78,32 @@
 
 <dt id="arg-model-engine">model_engine<a class="anchor" aria-label="anchor" href="#arg-model-engine"></a></dt>
 <dd><p>Modeling engine
-("glm","glmmTMB","gam","gamm","gls","spamm","brms","inla")</p></dd>
+("glm","glmmTMB","gam","gamm","gls","spamm","brms","inla","bdlnm")</p></dd>
 
 
 <dt id="arg-family">family<a class="anchor" aria-label="anchor" href="#arg-family"></a></dt>
-<dd><p>Distribution</p></dd>
+<dd><p>Distribution (engine-specific; can be character or family object)</p></dd>
 
 
 <dt id="arg-random-effect">random_effect<a class="anchor" aria-label="anchor" href="#arg-random-effect"></a></dt>
 <dd><p>Random effect variable (optional)</p></dd>
+
+
+<dt id="arg-epiexposure-spec">epiexposure_spec<a class="anchor" aria-label="anchor" href="#arg-epiexposure-spec"></a></dt>
+<dd><p>Optional list describing how crossbasis was built.
+Recommended structure (by variable name):
+list(
+  tmean = list(lag_max=85, argvar=list(...), arglag=list(...)),
+  vpd   = list(lag_max=85, argvar=list(...), arglag=list(...))
+)
+If NULL, the model is fit normally but downstream prediction from profiles
+will not be available.</p></dd>
+
+
+<dt id="arg-basis-objects">basis_objects<a class="anchor" aria-label="anchor" href="#arg-basis-objects"></a></dt>
+<dd><p>Optional named list of original crossbasis/onebasis objects.
+Required when model_engine = "bdlnm", because bdlnm::bdlnm() needs the basis
+objects explicitly in the formula environment.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
@@ -80,7 +112,7 @@
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>Fitted model object</p>
+    <p>Fitted model object (same class as before), with extra attributes</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
@@ -88,7 +120,7 @@
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Ricardo Gomes Tomaz, Emerson M. Del Ponte, Felipe Dalla Lana.</p>
+  <p>Developed by Ricardo Gomes Tomáz, Emerson M. Del Ponte, Felipe Dalla Lana.</p>
 </div>
 
 <div class="pkgdown-footer-right">

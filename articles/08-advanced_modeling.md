@@ -1,0 +1,67 @@
+# Advanced modeling strategies in EpiExposure
+
+``` r
+compare_exposures(profile1, profile2)
+```
+
+🧠 Discussão 👉 aqui você explica:
+
+diferença estrutural mudança de timing intensidade acumulada
+
+``` r
+p1 <- predict_outcome(fit, profile1)
+p2 <- predict_outcome(fit, profile2)
+```
+
+🧠 Discussão 👉 aqui vem sua inovação:
+
+Transformar histórico de exposição → valor esperado
+
+``` r
+compare_predictions(fit, profile1, profile2)
+```
+
+🧠 Discussão 👉 essa é a pergunta final:
+
+“Qual cenário gera maior risco?”
+
+``` r
+barplot(c(p1$prediction, p2$prediction),
+        names.arg=c("Scenario 1","Scenario 2"),
+        col=c("blue","red"),
+        main="Predicted outcomes under scenarios")
+```
+
+``` r
+compare_predictions(
+  fit,
+  profile1,
+  profile2,
+  re = "conditional",
+  id = c("E1","E2","E3")
+)
+```
+
+🧠 Discussão 👉 insight poderoso:
+
+diferentes epidemias respondem diferente heterogeneidade epidemiológica
+
+## Advanced modeling strategies in EpiExposure
+
+``` r
+df_sensitivity(dat)
+recenter_effects(fit)
+check_identifiability(cb)
+```
+
+🧠 Discussão 👉 robustez:
+
+influência de df impacto do baseline estabilidade do modelo
+
+``` r
+plot(df_sensitivity(dat))
+```
+
+This framework allows users to move from statistical estimation to
+epidemiological experimentation, enabling hypothesis-driven exploration
+of how exposure histories shape disease outcomes.

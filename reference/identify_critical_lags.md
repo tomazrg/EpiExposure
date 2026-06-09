@@ -1,7 +1,7 @@
 # Identify critical lags based on daily DLNM effects
 
-Identifies lags with the strongest disease association by summarising
-daily DLNM effects across exposure levels.
+Supports three input types: 1) Deterministic (no uncertainty) 2) Summary
+(with sd / CI) 3) Samples (posterior / simulated draws)
 
 ## Usage
 
@@ -13,8 +13,9 @@ identify_critical_lags(daily_df, metric = c("max", "mean", "absmean"))
 
 - daily_df:
 
-  Output from summarise_effects(scale = "daily"). Must contain columns:
-  lag, effect.
+  Output from summarise_effects(scale = "daily"). Must contain at least:
+  lag, effect. Optional columns: sample, var, effect_sd, effect_lower,
+  effect_upper
 
 - metric:
 
@@ -23,5 +24,4 @@ identify_critical_lags(daily_df, metric = c("max", "mean", "absmean"))
 
 ## Value
 
-A data.frame with one row per lag and summary statistics used to
-identify critical lags.
+A data.frame with lag importance ranking

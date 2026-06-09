@@ -7,7 +7,7 @@ discrete scenarios and continuous profiles (ranges).
 
 ``` r
 simulate_range(
-  lag_windows,
+  periods,
   vary = list(),
   fixed = list(),
   scenario_type = c("grid", "paired"),
@@ -19,9 +19,9 @@ simulate_range(
 
 ## Arguments
 
-- lag_windows:
+- periods:
 
-  Output from define_lag_windows()
+  Output from define_periods()
 
 - vary:
 
@@ -49,4 +49,6 @@ simulate_range(
 
 ## Value
 
-Named list of scenarios
+A structured list with: - scenarios: named list of scenarios - periods:
+period table used to define timing - info: data.frame describing
+scenario values (NULL for profile mode if not needed)
