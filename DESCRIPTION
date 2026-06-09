@@ -4,7 +4,7 @@ Title: R package designed to advance the epidemiological interpretation of envir
 Version: 0.1.0
 Authors@R: c(person(
   given = "Ricardo Gomes",
-  family = "Tomaz",
+  family = "Tomáz",
   email = "ricardogomes@gmail.com",
   role = c("aut", "cre"),
   comment = c(ORCID = "0000-0001-7708-4263")),

@@ -13,8 +13,13 @@ vignette: >
 
 
 ```{r, eval = FALSE}
+
+library(EpiExposure)
+
 # carregar dados
 data("TargetSpot")
+
+
 ```
 
 ```{r, eval = FALSE}
