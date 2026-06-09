@@ -5,10 +5,13 @@
 `Introduzir o usuário ao workflow básico: da exposição ao modelo.`
 
 ``` r
+remotes::install_github("tomazrg/EpiExposure")
 library(EpiExposure)
 
 # carregar dados
 data("TargetSpot")
+
+simula
 ```
 
 ``` r

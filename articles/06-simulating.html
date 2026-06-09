@@ -92,7 +92,7 @@
 </h2>
 <p>Interpretar efeitos por janelas biológicas</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">windows</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/EpiExposure/man/define_lag_windows.html" class="external-link">define_lag_windows</a></span><span class="op">(</span>lag_max <span class="op">=</span> <span class="fl">85</span>, cuts <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">7</span>, <span class="fl">21</span>, <span class="fl">40</span><span class="op">)</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">windows</span> <span class="op">&lt;-</span> <span class="fu">define_lag_windows</span><span class="op">(</span>lag_max <span class="op">=</span> <span class="fl">85</span>, cuts <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">7</span>, <span class="fl">21</span>, <span class="fl">40</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">sum_eff</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summarise_effects.html">summarise_effects</a></span><span class="op">(</span><span class="va">fit</span>, lag_windows <span class="op">=</span> <span class="va">windows</span><span class="op">)</span></span></code></pre></div>
 <p>🧠 Discussão 👉 Aqui conecta com biologia:</p>
