@@ -13,13 +13,13 @@ vignette: >
 
 
 ```{r, eval = FALSE}
-
+remotes::install_github("tomazrg/EpiExposure")
 library(EpiExposure)
 
 # carregar dados
 data("TargetSpot")
 
-
+simula
 ```
 
 ```{r, eval = FALSE}
