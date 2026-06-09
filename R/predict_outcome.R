@@ -125,7 +125,7 @@ predict_outcome <- function(
 
   build_cb_row <- function(profile_vec, spec_v) {
 
-    lag_max <- as.integer(spec_v$lag_max)
+    lag_max <- as.integer(max(spec_v$lag_max))
 
     if (length(profile_vec) != lag_max + 1L) {
       stop("Profile length mismatch for variable (expected ", lag_max + 1L, ").")

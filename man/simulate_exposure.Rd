@@ -27,7 +27,7 @@ simulate_exposure(
 
 \item{mode}{Character. "profile" or "pattern"}
 
-\item{pattern}{Character. Pattern type}
+\item{pattern}{Character. Pattern type (used only if mode = "pattern")}
 
 \item{fixed_value}{Numeric. Value for pattern-controlled lags}
 

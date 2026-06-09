@@ -4,17 +4,19 @@
 \alias{build_design_matrix}
 \title{Build epidemic-level DLNM design matrix}
 \usage{
-build_design_matrix(wx_long, cb_templates, lag_max)
+build_design_matrix(wx_long, cb_templates, lag_max, include_response = TRUE)
 }
 \arguments{
-\item{wx_long}{Weather data}
+\item{wx_long}{Weather data (long format, must contain epi_id and exposures)}
 
 \item{cb_templates}{DLNM templates}
 
 \item{lag_max}{Maximum lag}
+
+\item{include_response}{Logical. If TRUE, include response variable (y) if available}
 }
 \value{
-data.frame
+data.frame (design matrix at epidemic level)
 }
 \description{
 Build epidemic-level DLNM design matrix

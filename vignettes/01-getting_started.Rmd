@@ -11,15 +11,217 @@ vignette: >
 
 `Introduzir o usuário ao workflow básico: da exposição ao modelo.`
 
+```{r}
+
+# =========================================================
+# SIMULACAO: 520 epidemias x 86 dias
+# 1 severidade por epidemia (DLNM-style)
+# =========================================================
+
+set.seed(123)
+
+# -----------------------------
+# Dimensoes
+# -----------------------------
+n_epi  <- 520
+n_days <- 86   # 0–85
+
+# -----------------------------
+# Estrutura base (long format)
+# -----------------------------
+sim_data <- expand.grid(
+  epi_id = 1:n_epi,
+  dpp    = 0:(n_days - 1)
+)
+
+sim_data <- sim_data[order(sim_data$epi_id, sim_data$dpp), ]
+
+# -----------------------------
+# Inicializar
+# -----------------------------
+sim_data$tmean <- NA
+sim_data$rain  <- NA
+sim_data$rh    <- NA
+
+# vetor final de severidade (1 por epi)
+y_epi <- numeric(n_epi)
+
+# =========================================================
+# LOOP POR EPIDEMIA
+# =========================================================
+
+for (i in 1:n_epi) {
+
+  idx <- sim_data$epi_id == i
+  t_seq <- 0:(n_days - 1)
+
+  # -----------------------------
+  # Clima
+  # -----------------------------
+  tmean <- 25 + 5*sin(2*pi*t_seq/85) + rnorm(n_days, 0, 1.5)
+  rh    <- 70 + 10*sin(2*pi*t_seq/85 + 1) + rnorm(n_days, 0, 4)
+  rain  <- rpois(n_days, lambda = 3)
+
+  # -----------------------------
+  # ESTRUTURA DE LAG (CHAVE)
+  # -----------------------------
+
+  # efeito temperatura: forte em lags 5–20
+  w_temp <- dnorm(t_seq, mean = 12, sd = 6)
+
+  temp_effect <- sum(
+    dnorm(tmean, mean = 25, sd = 4) * w_temp
+  )
+
+  # efeito chuva: acumulado em lags 10–30
+  w_rain <- dnorm(t_seq, mean = 20, sd = 8)
+
+  rain_effect <- sum(rain * w_rain)
+
+  # efeito umidade: mais difuso
+  w_rh <- dnorm(t_seq, mean = 15, sd = 10)
+
+  rh_effect <- sum((rh - 60)/40 * w_rh)
+
+  # -----------------------------
+  # COMBINACAO FINAL (linear predictor)
+  # -----------------------------
+  eta <- 
+    0.8 * temp_effect +
+    0.05 * rain_effect +
+    0.3 * rh_effect
+
+  # -----------------------------
+  # Converter para proporção (logit)
+  # -----------------------------
+  y_val <- 1 / (1 + exp(-eta/10 + rnorm(1, 0, 0.3)))
+
+  # limitar
+  y_val <- max(min(y_val, 0.95), 0.001)
+
+  # -----------------------------
+  # salvar
+  # -----------------------------
+  sim_data$tmean[idx] <- tmean
+  sim_data$rain[idx]  <- rain
+  sim_data$rh[idx]    <- rh
+
+  y_epi[i] <- y_val
+}
+
+# =========================================================
+# JUNTAR SEVERIDADE (1 por epi)
+# =========================================================
+
+y_df <- data.frame(
+  epi_id = 1:n_epi,
+  y = y_epi
+)
+
+sim_data <- merge(sim_data, y_df, by = "epi_id")
+
+# ordenar novamente
+sim_data <- sim_data[order(sim_data$epi_id, sim_data$dpp), ]
+
+# =========================================================
+# RESULTADO
+# =========================================================
+
+head(sim_data)
+
+# checagem
+table(table(sim_data$epi_id))   # deve dar 86 por epi
+length(unique(sim_data$epi_id)) # 520 epidemias
+```
+
+```{r}
+sim_data
+
+cb <- define_exposure(
+  wx_long = sim_data,
+  vars = c("tmean", "rh","rain"),
+  lag_max = 85
+)
+
+# construir design matrix
+dat <- build_design_matrix(
+  wx_long = sim_data,
+  cb_templates = cb,
+  lag_max = 85
+)
+
+# preparar resposta
+dat <- prepare_response(dat, y_var = "y", family = "beta")
+
+
+# ajustar modelo
+fit <- fit_epidlnm(
+  dat = dat,
+  model_engine = "glmmTMB",
+  family = "beta",
+  random_effect = "epi_id",
+  epiexposure_spec = attr(cb, "spec")
+)
+
+str(attr(fit, "epiexposure_spec"))
+
+summary(fit)
+t = predict_surface(fit = fit, wx_long = sim_data, var = "tmean", lag_max = 85,
+                    uncertainty = TRUE, output = "summary", n_samples = 10)
+
+t
+
+tt = summarise_effects(fit = fit, wx_long = sim_data,
+                  scale = "daily", effect_measure = "ratio")
+
+
+unique(tt$predicted)
+
+tt %>% 
+  filter(var == "tmean")
+```
+
 
 ```{r, eval = FALSE}
-remotes::install_github("tomazrg/EpiExposure")
+
 library(EpiExposure)
 
 # carregar dados
 data("TargetSpot")
 
-simula
+
+TargetSpot
+sim_temp <- simulate_exposure(
+  lag_max = 85,
+  mode = "pattern",
+  pattern = "alternating_lags",
+  alternating_values = c(25, 50),
+  background = list(dist = "fixed", value = 0)
+)
+
+sim_rain <- simulate_exposure(
+  lag_max = 85,
+  mode = "pattern",
+  pattern = "block_lags",
+  block_lags = c(10, 30),
+  fixed_value = 10,
+  background = list(dist = "fixed", value = 0)
+)
+
+sim_humidity <- simulate_exposure(
+  lag_max = 85,
+  mode = "profile",
+  background = list(dist = "normal", mean = 70, sd = 5)
+)
+
+pred <- predict_outcome(
+  fit = fit_obj,
+  profiles = list(
+    temp = sim_temp$profile,
+    rain = sim_rain$profile,
+    humidity = sim_humidity$profile
+  )
+)
 ```
 
 ```{r, eval = FALSE}

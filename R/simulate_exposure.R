@@ -5,7 +5,7 @@
 #' @param lag_max Integer. Maximum lag (profile length = lag_max + 1)
 #' @param n Integer. Number of simulations (default = 1)
 #' @param mode Character. "profile" or "pattern"
-#' @param pattern Character. Pattern type
+#' @param pattern Character. Pattern type (used only if mode = "pattern")
 #' @param fixed_value Numeric. Value for pattern-controlled lags
 #' @param n_lags Integer for "random_lags"
 #' @param lag_range Integer vector of lags
@@ -38,14 +38,30 @@ simulate_exposure <- function(
 
   # ---- helpers ----
   nullcoalesce <- function(a, b) if (!is.null(a)) a else b
-  is_whole_number <- function(x) is.numeric(x) && length(x) == 1 &&
-    is.finite(x) && abs(x - round(x)) < .Machine$double.eps^0.5
+
+  is_whole_number <- function(x) {
+    is.numeric(x) && length(x) == 1 &&
+      is.finite(x) && abs(x - round(x)) < .Machine$double.eps^0.5
+  }
 
   # ---- validate n ----
   if (!is_whole_number(n) || n <= 0) {
     stop("n must be a positive integer.")
   }
   n <- as.integer(round(n))
+
+  # ---- validate mode ----
+  mode_i <- match.arg(mode)
+
+  # ---- validate pattern ONLY if needed ----
+  if (mode_i == "pattern") {
+    pattern_i <- match.arg(pattern)
+  } else {
+    pattern_i <- NA_character_
+    if (!missing(pattern)) {
+      message("Note: 'pattern' is ignored when mode = 'profile'.")
+    }
+  }
 
   # ---- internal function ----
   simulate_one <- function() {
@@ -55,42 +71,51 @@ simulate_exposure <- function(
     }
     lag_max_i <- as.integer(round(lag_max))
 
-    mode_i <- match.arg(mode)
-    pattern_i <- match.arg(pattern)
-
     if (!is.null(seed)) {
-      if (!is_whole_number(seed)) stop("seed must be an integer if provided.")
+      if (!is_whole_number(seed)) {
+        stop("seed must be an integer if provided.")
+      }
       set.seed(as.integer(round(seed)))
     }
 
     N <- lag_max_i + 1L
     lags_all <- 0:lag_max_i
 
+    # ---- bounds ----
     if (!is.null(bounds)) {
       if (!is.numeric(bounds) || length(bounds) != 2L || any(!is.finite(bounds))) {
         stop("bounds must be numeric length-2.")
       }
-      if (bounds[1] > bounds[2]) stop("bounds[1] must be <= bounds[2].")
+      if (bounds[1] > bounds[2]) {
+        stop("bounds[1] must be <= bounds[2].")
+      }
     }
 
-    if (!is.list(background)) stop("background must be a list.")
+    # ---- background ----
+    if (!is.list(background)) {
+      stop("background must be a list.")
+    }
+
     dist <- nullcoalesce(background$dist, "normal")
 
-    # ---- background ----
     gen_background <- function() {
+
       if (dist == "normal") {
+
         mu <- nullcoalesce(background$mean, 0)
         sd <- nullcoalesce(background$sd, 1)
         stats::rnorm(N, mu, sd)
 
       } else if (dist == "empirical") {
+
         vals <- background$values
         vals <- vals[is.finite(vals)]
         sample(vals, size = N, replace = TRUE)
 
       } else if (dist == "ar1") {
-        mu <- nullcoalesce(background$mean, 0)
-        sd <- nullcoalesce(background$sd, 1)
+
+        mu  <- nullcoalesce(background$mean, 0)
+        sd  <- nullcoalesce(background$sd, 1)
         phi <- nullcoalesce(background$phi, 0.7)
 
         x <- numeric(N)
@@ -102,9 +127,11 @@ simulate_exposure <- function(
           x[i] <- mu + phi * (x[i - 1] - mu) +
             stats::rnorm(1, 0, eps_sd)
         }
+
         x
 
       } else if (dist == "fixed") {
+
         rep(background$value, N)
 
       } else {
@@ -120,12 +147,16 @@ simulate_exposure <- function(
 
     fixed_lags <- integer(0)
 
-    # ---- pattern ----
+    # ---- pattern logic ----
     if (mode_i == "pattern") {
 
       lag_range_i <- if (is.null(lag_range)) lags_all else intersect(lag_range, lags_all)
 
       if (pattern_i == "random_lags") {
+
+        if (is.null(n_lags) || is.null(fixed_value)) {
+          stop("For 'random_lags', provide 'n_lags' and 'fixed_value'.")
+        }
 
         n_lags_i <- min(n_lags, length(lag_range_i))
         fixed_lags <- sort(sample(lag_range_i, n_lags_i))
@@ -133,15 +164,24 @@ simulate_exposure <- function(
 
       } else if (pattern_i == "alternating_lags") {
 
+        if (is.null(alternating_values) || length(alternating_values) < 2) {
+          stop("'alternating_values' must contain at least 2 values.")
+        }
+
         fixed_lags <- sort(lag_range_i)
         alt <- rep(alternating_values, length.out = length(fixed_lags))
         x[fixed_lags + 1L] <- alt
 
       } else if (pattern_i == "block_lags") {
 
+        if (is.null(block_lags) || is.null(fixed_value)) {
+          stop("For 'block_lags', provide 'block_lags' and 'fixed_value'.")
+        }
+
         a <- max(0L, min(block_lags))
         b <- min(lag_max_i, max(block_lags))
         fixed_lags <- a:b
+
         x[fixed_lags + 1L] <- fixed_value
       }
     }
@@ -151,7 +191,7 @@ simulate_exposure <- function(
       x <- pmin(pmax(x, bounds[1]), bounds[2])
     }
 
-    # If the variable needs to be cumulative across the lags.
+    # ---- cumulative ----
     if (isTRUE(cumulative)) {
       x <- cumsum(x)
     }
@@ -161,12 +201,12 @@ simulate_exposure <- function(
     list(
       profile = x,
       meta = list(
-        lag_max = lag_max_i,
-        mode = mode_i,
-        pattern = if (mode_i == "pattern") pattern_i else NA_character_,
+        lag_max   = lag_max_i,
+        mode      = mode_i,
+        pattern   = pattern_i,
         background = background,
-        bounds = bounds,
-        seed = seed,
+        bounds     = bounds,
+        seed       = seed,
         fixed_lags = fixed_lags,
         cumulative = cumulative
       )
@@ -176,16 +216,15 @@ simulate_exposure <- function(
   # ---- run simulations ----
   sims <- replicate(n, simulate_one(), simplify = FALSE)
 
-  # ---- backward compatibility ----
   if (n == 1) {
     return(sims[[1]])
   }
 
   profiles <- lapply(sims, function(s) s$profile)
-  meta <- lapply(sims, function(s) s$meta)
+  meta     <- lapply(sims, function(s) s$meta)
 
   return(list(
     profiles = profiles,
-    meta = meta
+    meta     = meta
   ))
 }

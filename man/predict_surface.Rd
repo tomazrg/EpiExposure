@@ -2,10 +2,7 @@
 % Please edit documentation in R/predict_surface.R
 \name{predict_surface}
 \alias{predict_surface}
-\title{Predict full DLNM exposure-lag-response surface
-Computes the full DLNM exposure–lag–response surface using the fitted model,#'
-without refitting. The surface is evaluated over a grid of exposure values
-and lags defined by the model specification or user input.}
+\title{Predict full DLNM exposure-lag-response surface}
 \usage{
 predict_surface(
   fit,
@@ -63,11 +60,15 @@ predict_surface(
   a list of `crosspred` objects (one per simulation).
 }
 \description{
+Computes the full DLNM exposure-lag-response surface using the fitted model,
+without refitting. The surface is evaluated over a grid of exposure values
+and lags defined by the model specification or user input.
+}
+\details{
 This function supports both deterministic predictions and uncertainty
 propagation. When `uncertainty = TRUE`, the surface is recomputed across
 simulated or posterior draws of the model coefficients.
-}
-\details{
+
 If `output = "summary"`, the central surface is computed as the median
 of the simulated surfaces, while interval limits are obtained from
 empirical quantiles (default: 2.5% and 97.5%).

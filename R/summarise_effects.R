@@ -170,7 +170,7 @@ summarise_effects <- function(
     if (!is.null(fit_spec) && !is.null(fit_spec[[var_one]])) {
 
       spec_v <- fit_spec[[var_one]]
-      lag_max_use <- as.integer(spec_v$lag_max)
+      lag_max_use <- as.integer(max(spec_v$lag_max))
       argvar <- spec_v$argvar
       arglag <- spec_v$arglag
 
@@ -507,7 +507,7 @@ summarise_effects <- function(
 
       ref_profiles <- lapply(fit_vars, function(v) {
         spec_v2 <- fit_spec[[v]]
-        lag_v <- if (!is.null(spec_v2$lag_max)) spec_v2$lag_max else lag_max_use
+        lag_v <- if (!is.null(spec_v2$lag_max)) max(spec_v2$lag_max) else lag_max_use
         ref_v <- as.numeric(stats::median(wx_long[[v]], na.rm = TRUE))
         rep(ref_v, lag_v + 1L)
       })
@@ -678,7 +678,7 @@ summarise_effects <- function(
         cp_i <- dlnm::crosspred(
           cb,
           coef  = beta_draws[i, ],
-          vcov  = NULL,
+          vcov  = diag(0, length(beta_draws[i, ])),
           at    = at_vals,
           cen   = cen,
           bylag = 1
