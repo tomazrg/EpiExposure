@@ -14,18 +14,23 @@
 #' @export
 define_periods <- function(lag_max, cuts = NULL, prefix = "W") {
 
-  # -------------------------------
-  # Input checks
-  # -------------------------------
+  # =========================================================
+  # ✅ AJUSTE 1 — DIMENSÃO TEMPORAL (CRÍTICO)
+  # =========================================================
+  # 🔵 garante consistência com todo o pacote (evita c(0, 85))
+  lag_max <- as.integer(max(lag_max))
+
+  # =========================================================
+  # ✅ CHECKS
+  # =========================================================
   if (!is.character(prefix) || length(prefix) != 1) {
     stop("`prefix` must be a single character string.")
   }
 
-  if (!is.numeric(lag_max) || length(lag_max) != 1 || lag_max <= 0) {
+  # 🔵 reforço: inteiro positivo
+  if (!is.numeric(lag_max) || length(lag_max) != 1 || !is.finite(lag_max) || lag_max <= 0) {
     stop("`lag_max` must be a positive integer.")
   }
-
-  lag_max <- as.integer(lag_max)
 
   if (!is.null(cuts)) {
     if (!is.numeric(cuts)) {
@@ -33,10 +38,15 @@ define_periods <- function(lag_max, cuts = NULL, prefix = "W") {
     }
   }
 
-  # -------------------------------
-  # Helper
-  # -------------------------------
+  # =========================================================
+  # ✅ HELPER
+  # =========================================================
   build_df <- function(starts, ends) {
+
+    # 🔵 checagem de consistência interna
+    if (length(starts) != length(ends)) {
+      stop("Internal error: mismatched period boundaries.")
+    }
 
     ids <- paste0(prefix, seq_along(starts))
 
@@ -48,17 +58,19 @@ define_periods <- function(lag_max, cuts = NULL, prefix = "W") {
     )
   }
 
-  # -------------------------------
-  # Single period
-  # -------------------------------
+  # =========================================================
+  # ✅ SINGLE PERIOD
+  # =========================================================
   if (is.null(cuts) || length(cuts) == 0) {
     return(build_df(0, lag_max))
   }
 
-  # -------------------------------
-  # Multiple periods
-  # -------------------------------
+  # =========================================================
+  # ✅ MULTIPLE PERIODS
+  # =========================================================
   cuts <- sort(unique(as.integer(cuts)))
+
+  # 🔵 garantir cortes válidos dentro do intervalo
   cuts <- cuts[cuts > 0 & cuts < lag_max]
 
   if (length(cuts) == 0) {
@@ -70,8 +82,14 @@ define_periods <- function(lag_max, cuts = NULL, prefix = "W") {
     return(build_df(0, lag_max))
   }
 
+  # 🔵 definição consistente (inclusive)
   starts <- c(0, cuts + 1)
   ends   <- c(cuts, lag_max)
+
+  # 🔵 checagem final de consistência
+  if (any(starts > ends)) {
+    stop("Invalid period definition (start > end).")
+  }
 
   build_df(starts, ends)
 }

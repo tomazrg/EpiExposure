@@ -4,18 +4,6 @@
 #' using exposure grids derived from the observed data and the DLNM
 #' specification stored in the fitted model.
 #'
-#' This function supports both deterministic summaries and uncertainty
-#' propagation. When `uncertainty = TRUE`, summaries are computed from
-#' simulated or posterior draws of the model coefficients. If
-#' `output = "summary"`, the central estimate is computed as the median
-#' of the simulated effects, while interval limits are obtained from
-#' empirical quantiles (default: 2.5% and 97.5%).
-#'
-#' **Important:** when `uncertainty = TRUE` and `output = "summary"`,
-#' columns such as `eta`, `effect`, `delta`, `delta_pp`, `baseline`,
-#' and `predicted` represent the *central estimate*, computed as the
-#' median of the simulated distribution.
-#'
 #' @param fit Fitted model.
 #' @param wx_long Long-format weather data.
 #' @param var Exposure variable name (character scalar), character vector of variables,
@@ -44,24 +32,6 @@
 #' @param n_samples Integer. Number of samples used for uncertainty.
 #'
 #' @return A data.frame.
-#'
-#' If `uncertainty = FALSE`, returns deterministic summaries of DLNM effects.
-#'
-#' If `uncertainty = TRUE` and `output = "summary"`, returns one row per
-#' grid value / lag / period combination (depending on `scale`) with
-#' median-based central estimates and empirical interval limits.
-#'
-#' If `uncertainty = TRUE` and `output = "samples"`, returns one row per
-#' simulated sample.
-#'
-#' @details
-#' Uncertainty is propagated using model-consistent sampling:
-#' - Bayesian models (e.g., `brms`, `INLA`, `bdlnm`) use posterior draws
-#' - Frequentist models use simulation from the asymptotic coefficient distribution
-#'
-#' For summary outputs under uncertainty, the median is used instead of the
-#' mean to provide a more robust central estimate under asymmetric effect
-#' distributions, which are common in nonlinear DLNM settings.
 #'
 #' @export
 summarise_effects <- function(
@@ -113,10 +83,36 @@ summarise_effects <- function(
     stats::quantile(x, probs = probs, na.rm = TRUE, names = FALSE)
   }
 
-  fit_spec <- attr(fit, "epiexposure_spec")
-  fit_vars <- attr(fit, "epiexposure_vars")
-  family_fit <- attr(fit, "epiexposure_family")
-  cb_cols_fit <- attr(fit, "epiexposure_cb_cols")
+  safe_sd <- function(x) {
+    x <- x[is.finite(x)]
+    if (length(x) <= 1) return(0)
+    stats::sd(x)
+  }
+
+  # ----------------------------------------------------------
+  # ✅ helper: matching robusto de nomes para draws do brms
+  # ----------------------------------------------------------
+  match_brms_draw_names <- function(cb_names_ref, draw_colnames) {
+
+    bnames <- paste0("b_", cb_names_ref)
+
+    if (all(bnames %in% draw_colnames)) {
+      return(bnames)
+    }
+
+    # fallback defensivo
+    raw_match <- cb_names_ref[cb_names_ref %in% draw_colnames]
+    if (length(raw_match) == length(cb_names_ref)) {
+      return(raw_match)
+    }
+
+    stop("Could not match brms posterior draw names to crossbasis columns.")
+  }
+
+  fit_spec     <- attr(fit, "epiexposure_spec")
+  fit_vars     <- attr(fit, "epiexposure_vars")
+  family_fit   <- attr(fit, "epiexposure_family")
+  cb_cols_fit  <- attr(fit, "epiexposure_cb_cols")
   dat_template <- attr(fit, "epiexposure_dat_template")
 
   # ----------------------------------------------------------
@@ -140,13 +136,23 @@ summarise_effects <- function(
          paste(missing_vars, collapse = ", "))
   }
 
+  # ==========================================================
+  # ✅ AJUSTE 4 — helper para ordenar coeficientes cb_* por índice
+  # ==========================================================
+  sort_cb_names <- function(x) {
+    if (length(x) == 0) return(x)
+    idx <- suppressWarnings(as.integer(sub("^.*_([0-9]+)$", "\\1", x)))
+    idx[is.na(idx)] <- seq_along(x)
+    x[order(idx)]
+  }
+
   # ----------------------------------------------------------
-  # Internal single-variable worker
+  # Worker por variável
   # ----------------------------------------------------------
   .summarise_effect_one_var <- function(var_one) {
 
     # ----------------------------------------------------------
-    # 1) pooled series
+    # pooled series
     # ----------------------------------------------------------
     build_pooled_series <- function(dat, var, sep_n) {
       ids <- unique(dat$epi_id)
@@ -165,11 +171,14 @@ summarise_effects <- function(
     }
 
     # ----------------------------------------------------------
-    # 2) Resolve basis spec (prefer fit metadata)
+    # Resolve basis spec
     # ----------------------------------------------------------
     if (!is.null(fit_spec) && !is.null(fit_spec[[var_one]])) {
 
       spec_v <- fit_spec[[var_one]]
+      # ======================================================
+      # ✅ AJUSTE 1 — DIMENSÃO TEMPORAL
+      # ======================================================
       lag_max_use <- as.integer(max(spec_v$lag_max))
       argvar <- spec_v$argvar
       arglag <- spec_v$arglag
@@ -181,7 +190,10 @@ summarise_effects <- function(
              "'. Please provide `lag_max`.")
       }
 
-      lag_max_use <- as.integer(lag_max)
+      # ======================================================
+      # ✅ AJUSTE 1 — DIMENSÃO TEMPORAL (fallback)
+      # ======================================================
+      lag_max_use <- as.integer(max(lag_max))
 
       fun_var_use <- fun_var %||% "ns"
       fun_lag_use <- fun_lag %||% "ns"
@@ -210,6 +222,31 @@ summarise_effects <- function(
       )
     }
 
+    # ======================================================
+    # ✅ AJUSTE EXTRA — CHECK AUTOMÁTICO DE COBERTURA TEMPORAL
+    # ======================================================
+    .check_lag_coverage <- function(dat, lag_max) {
+      n_required <- lag_max + 1
+
+      bad_ids <- dat |>
+        dplyr::group_by(epi_id) |>
+        dplyr::summarise(n_days = dplyr::n_distinct(dpp), .groups = "drop") |>
+        dplyr::filter(n_days < n_required)
+
+      if (nrow(bad_ids) > 0) {
+        stop(
+          paste0(
+            "Some epidemics do not have enough temporal coverage for lag_max.\n",
+            "Required days per epi_id: ", n_required, "\n",
+            "Example problematic epi_id: ",
+            paste(head(bad_ids$epi_id, 5), collapse = ", ")
+          )
+        )
+      }
+    }
+
+    .check_lag_coverage(wx_long, lag_max_use)
+
     x_pool <- build_pooled_series(wx_long, var_one, lag_max_use)
 
     cb <- dlnm::crossbasis(
@@ -222,12 +259,14 @@ summarise_effects <- function(
     cb_cols_var <- NULL
     if (!is.null(cb_cols_fit)) {
       cb_cols_var <- grep(paste0("^cb_", var_one, "_"), cb_cols_fit, value = TRUE)
+      cb_cols_var <- sort_cb_names(cb_cols_var)
     } else if (!is.null(dat_template)) {
       cb_cols_var <- grep(paste0("^cb_", var_one, "_"), names(dat_template), value = TRUE)
+      cb_cols_var <- sort_cb_names(cb_cols_var)
     }
 
     # ----------------------------------------------------------
-    # 3) Extract beta / vcov / draws
+    # Extract coef / vcov
     # ----------------------------------------------------------
     extract_coef_vcov <- function(model) {
 
@@ -267,9 +306,11 @@ summarise_effects <- function(
       }
 
       if (inherits(model, "HLfit")) {
+        V <- tryCatch(as.matrix(stats::vcov(model)), error = function(e) NULL)
+        if (is.null(V)) stop("Could not extract vcov from spaMM model.")
         return(list(
           beta = spaMM::fixef(model),
-          vcov = as.matrix(stats::vcov(model))
+          vcov = V
         ))
       }
 
@@ -303,41 +344,52 @@ summarise_effects <- function(
       ))
     }
 
-    extract_beta_draws <- function(model, n_samples, var, cb_ncol, cb_cols_var = NULL) {
+    bv <- extract_coef_vcov(fit)
+    cf <- bv$beta
+    vc <- bv$vcov
 
-      # ---------- brms: REAL posterior draws ----------
+    # ==========================================================
+    # ✅ AJUSTE 4 — ORDEM DOS COEFICIENTES: REFERÊNCIA ÚNICA
+    # ==========================================================
+    cb_names_ref <- if (!is.null(cb_cols_var) && length(cb_cols_var) > 0) {
+      cb_cols_var[cb_cols_var %in% names(cf)]
+    } else {
+      sort_cb_names(grep(paste0("^cb_", var_one, "_"), names(cf), value = TRUE))
+    }
+
+    if (length(cb_names_ref) != ncol(cb)) {
+      stop(
+        "Could not match coefficient names to crossbasis columns for variable '", var_one,
+        "'. Expected ", ncol(cb), " and found ", length(cb_names_ref), "."
+      )
+    }
+
+    beta <- cf[cb_names_ref]
+    vc_sub <- vc[cb_names_ref, cb_names_ref, drop = FALSE]
+
+    # ----------------------------------------------------------
+    # draws por engine
+    # ----------------------------------------------------------
+    extract_beta_draws <- function(model, n_samples, cb_names_ref) {
+
+      # ---------- brms ----------
       if (inherits(model, "brmsfit")) {
-        draws <- as.matrix(brms::as_draws_matrix(model))
+        draws <- posterior::as_draws_df(model)
+        bnames <- match_brms_draw_names(cb_names_ref, names(draws))
 
-        nm <- if (!is.null(cb_cols_var)) {
-          paste0("b_", cb_cols_var)
-        } else {
-          grep(paste0("^b_cb_", var, "_"), colnames(draws), value = TRUE)
-        }
-
-        if (length(nm) == 0) {
-          nm <- grep(paste0("^b_cb_", var, "_"), colnames(draws), value = TRUE)
-        }
-        if (length(nm) == 0) {
-          nm <- grep(paste0("^b_.*", var), colnames(draws), value = TRUE)
-        }
-
-        if (length(nm) != cb_ncol) {
-          stop("Could not match brms posterior draws to crossbasis columns.")
-        }
+        draws <- as.matrix(draws[, bnames, drop = FALSE])
 
         if (nrow(draws) > n_samples) {
           set.seed(1)
           keep <- sample(seq_len(nrow(draws)), n_samples)
-          draws <- draws[keep, nm, drop = FALSE]
-        } else {
-          draws <- draws[, nm, drop = FALSE]
+          draws <- draws[keep, , drop = FALSE]
         }
 
+        colnames(draws) <- cb_names_ref
         return(draws)
       }
 
-      # ---------- INLA: REAL posterior draws ----------
+      # ---------- INLA ----------
       if (inherits(model, "inla")) {
         if (!requireNamespace("INLA", quietly = TRUE)) {
           stop("Package 'INLA' is required for INLA uncertainty.")
@@ -345,93 +397,60 @@ summarise_effects <- function(
 
         posterior <- INLA::inla.posterior.sample(n = n_samples, result = model)
 
-        cb_names <- cb_cols_var %||% paste0("cb_", var, "_", seq_len(cb_ncol))
-
         draws <- do.call(rbind, lapply(posterior, function(s) {
           latent <- s$latent
           names(latent) <- gsub(":1$", "", names(latent))
-          as.numeric(latent[cb_names])
+          as.numeric(latent[cb_names_ref])
         }))
 
-        colnames(draws) <- cb_names
+        colnames(draws) <- cb_names_ref
         return(draws)
       }
 
-      # ---------- bdlnm: REAL posterior draws ----------
+      # ---------- bdlnm ----------
       if (inherits(model, "bdlnm")) {
         beta_draws <- model$coefficients
         if (is.null(dim(beta_draws))) {
           beta_draws <- matrix(beta_draws, ncol = 1)
         }
 
-        cb_names <- intersect(rownames(beta_draws), cb_cols_var %||% character(0))
-        if (length(cb_names) == 0) {
-          cb_names <- intersect(rownames(beta_draws), paste0("cb_", var, "_", seq_len(cb_ncol)))
-        }
-        if (length(cb_names) == 0) {
-          cb_names <- grep(paste0("^cb_", var, "_"), rownames(beta_draws), value = TRUE)
-        }
-
-        if (length(cb_names) != cb_ncol) {
+        if (!all(cb_names_ref %in% rownames(beta_draws))) {
           stop("Could not match bdlnm posterior draws to crossbasis columns.")
         }
+
+        beta_draws <- beta_draws[cb_names_ref, , drop = FALSE]
 
         if (ncol(beta_draws) > n_samples) {
           set.seed(1)
           keep <- sample(seq_len(ncol(beta_draws)), n_samples)
-          beta_draws <- beta_draws[cb_names, keep, drop = FALSE]
-        } else {
-          beta_draws <- beta_draws[cb_names, , drop = FALSE]
+          beta_draws <- beta_draws[, keep, drop = FALSE]
         }
 
-        return(t(beta_draws))
+        out <- t(beta_draws)
+        colnames(out) <- cb_names_ref
+        return(out)
       }
 
-      # ---------- Frequentist: normal approximation ----------
-      cv <- extract_coef_vcov(model)
-      beta_hat <- cv$beta
-      V_hat <- cv$vcov
-
-      cb_names <- if (!is.null(cb_cols_var)) {
-        intersect(cb_cols_var, names(beta_hat))
-      } else {
-        grep(paste0("^cb_", var, "_"), names(beta_hat), value = TRUE)
-      }
-
-      if (length(cb_names) != cb_ncol) {
-        stop("Could not match coefficient names to crossbasis structure.")
-      }
-
-      beta_hat <- beta_hat[cb_names]
-      V_hat <- V_hat[cb_names, cb_names, drop = FALSE]
+      # ---------- frequentista ----------
+      beta_hat <- cf[cb_names_ref]
+      V_hat <- vc[cb_names_ref, cb_names_ref, drop = FALSE]
 
       if (!requireNamespace("MASS", quietly = TRUE)) {
         stop("Package 'MASS' is required for frequentist uncertainty approximation.")
       }
 
       draws <- MASS::mvrnorm(n = n_samples, mu = beta_hat, Sigma = V_hat)
+
       if (is.null(dim(draws))) {
         draws <- matrix(draws, nrow = 1)
       }
-      colnames(draws) <- cb_names
+
+      colnames(draws) <- cb_names_ref
       draws
     }
 
-    bv <- extract_coef_vcov(fit)
-    cf <- bv$beta
-    vc <- bv$vcov
-
-    idx <- grepl(paste0("^cb_", var_one, "_"), names(cf))
-    beta <- cf[idx]
-    vc_sub <- vc[idx, idx, drop = FALSE]
-
-    if (length(beta) != ncol(cb)) stop("length(beta) != ncol(cb) for variable: ", var_one)
-    if (!(nrow(vc_sub) == ncol(cb) && ncol(vc_sub) == ncol(cb))) {
-      stop("Variance-covariance matrix does not match crossbasis dimensions for variable: ", var_one)
-    }
-
     # ----------------------------------------------------------
-    # 4) exposure grid
+    # exposure grid
     # ----------------------------------------------------------
     x_all <- wx_long[[var_one]]
 
@@ -449,7 +468,7 @@ summarise_effects <- function(
     cen <- as.numeric(cen)
 
     # ----------------------------------------------------------
-    # 5) deterministic crosspred
+    # deterministic crosspred
     # ----------------------------------------------------------
     cp <- dlnm::crosspred(
       cb,
@@ -470,7 +489,7 @@ summarise_effects <- function(
     mf <- mf[, ord, drop = FALSE]
 
     # ----------------------------------------------------------
-    # 6) Baseline severity for DELTA
+    # baseline
     # ----------------------------------------------------------
     get_linkfun <- function(family_fit) {
       if (is.character(family_fit)) {
@@ -504,10 +523,9 @@ summarise_effects <- function(
     baseline_response <- NA_real_
 
     if (!is.null(fit_vars) && all(fit_vars %in% names(wx_long))) {
-
       ref_profiles <- lapply(fit_vars, function(v) {
         spec_v2 <- fit_spec[[v]]
-        lag_v <- if (!is.null(spec_v2$lag_max)) max(spec_v2$lag_max) else lag_max_use
+        lag_v <- if (!is.null(spec_v2$lag_max)) as.integer(max(spec_v2$lag_max)) else lag_max_use
         ref_v <- as.numeric(stats::median(wx_long[[v]], na.rm = TRUE))
         rep(ref_v, lag_v + 1L)
       })
@@ -523,64 +541,56 @@ summarise_effects <- function(
             uncertainty = FALSE
           )$prediction[1])
         },
-        error = function(e) NA_real_
+        error = function(e) {
+          warning("Baseline prediction failed in summarise_effects(): ", conditionMessage(e))
+          NA_real_
+        }
       )
     }
 
-    transform_effect <- function(eta) {
-      if (effect_measure == "linear") return(eta)
-      if (effect_measure == "ratio")  return(exp(eta))
-      (exp(eta) - 1) * 100
+    transform_effect <- function(eta_mat) {
+      if (effect_measure == "linear") return(eta_mat)
+      if (effect_measure == "ratio")  return(exp(eta_mat))
+      (exp(eta_mat) - 1) * 100
     }
 
-    add_delta <- function(eta_vec) {
+    # ----------------------------------------------------------
+    # deterministic output helper
+    # ----------------------------------------------------------
+    build_daily_df <- function(eta_mat) {
+      grid <- expand.grid(
+        value = at_vals,
+        lag   = lag_idx,
+        KEEP.OUT.ATTRS = FALSE,
+        stringsAsFactors = FALSE
+      )
+
+      df <- data.frame(
+        value = grid$value,
+        lag = grid$lag,
+        eta = as.vector(eta_mat),
+        stringsAsFactors = FALSE
+      )
+
+      df$effect <- as.vector(transform_effect(eta_mat))
+      df$scale <- "daily"
+      df$var <- var_one
+
       if (is.na(baseline_response)) {
-        return(list(
-          delta = rep(NA_real_, length(eta_vec)),
-          delta_pp = rep(NA_real_, length(eta_vec)),
-          baseline = rep(NA_real_, length(eta_vec)),
-          predicted = rep(NA_real_, length(eta_vec))
-        ))
+        df$delta <- NA_real_
+        df$delta_pp <- NA_real_
+        df$baseline <- NA_real_
+        df$predicted <- NA_real_
+      } else {
+        pred_mat <- linkinv(linkfun(baseline_response) + eta_mat)
+        delta_mat <- pred_mat - baseline_response
+        df$delta <- as.vector(delta_mat)
+        df$delta_pp <- as.vector(100 * delta_mat)
+        df$baseline <- baseline_response
+        df$predicted <- as.vector(pred_mat)
       }
 
-      pred_resp <- linkinv(linkfun(baseline_response) + eta_vec)
-      delta <- pred_resp - baseline_response
-      delta_pp <- 100 * delta
-
-      list(
-        delta = delta,
-        delta_pp = delta_pp,
-        baseline = rep(baseline_response, length(eta_vec)),
-        predicted = pred_resp
-      )
-    }
-
-    build_daily_df <- function(eta_mat) {
-
-      df <- as.data.frame(eta_mat)
-      colnames(df) <- paste0("lag_", lag_idx)
-
-      out <- df |>
-        dplyr::mutate(value = at_vals) |>
-        tidyr::pivot_longer(
-          cols = tidyselect::starts_with("lag_"),
-          names_to = "lag",
-          values_to = "eta"
-        ) |>
-        dplyr::mutate(
-          lag = as.integer(gsub("lag_", "", lag)),
-          effect = transform_effect(eta),
-          scale = "daily",
-          var = var_one
-        )
-
-      dd <- add_delta(out$eta)
-      out$delta <- dd$delta
-      out$delta_pp <- dd$delta_pp
-      out$baseline <- dd$baseline
-      out$predicted <- dd$predicted
-
-      out
+      df
     }
 
     build_accumulated_df <- function(eta_mat) {
@@ -588,67 +598,85 @@ summarise_effects <- function(
       if (incremental) {
         eta_cum <- t(apply(eta_mat, 1, cumsum))
 
-        df <- as.data.frame(eta_cum)
-        colnames(df) <- paste0("lag_", lag_idx)
+        grid <- expand.grid(
+          value = at_vals,
+          lag   = lag_idx,
+          KEEP.OUT.ATTRS = FALSE,
+          stringsAsFactors = FALSE
+        )
 
-        out <- df |>
-          dplyr::mutate(value = at_vals) |>
-          tidyr::pivot_longer(
-            cols = tidyselect::starts_with("lag_"),
-            names_to = "lag",
-            values_to = "eta"
-          ) |>
-          dplyr::mutate(
-            lag = as.integer(gsub("lag_", "", lag)),
-            period = paste0("0-", lag),
-            effect = transform_effect(eta),
-            scale = "accumulated",
-            var = var_one
-          )
+        df <- data.frame(
+          value = grid$value,
+          lag = grid$lag,
+          period = paste0("0-", grid$lag),
+          eta = as.vector(eta_cum),
+          stringsAsFactors = FALSE
+        )
 
-        dd <- add_delta(out$eta)
-        out$delta <- dd$delta
-        out$delta_pp <- dd$delta_pp
-        out$baseline <- dd$baseline
-        out$predicted <- dd$predicted
+        df$effect <- as.vector(transform_effect(eta_cum))
+        df$scale <- "accumulated"
+        df$var <- var_one
 
-        return(out)
+        if (is.na(baseline_response)) {
+          df$delta <- NA_real_
+          df$delta_pp <- NA_real_
+          df$baseline <- NA_real_
+          df$predicted <- NA_real_
+        } else {
+          pred_mat <- linkinv(linkfun(baseline_response) + eta_cum)
+          delta_mat <- pred_mat - baseline_response
+          df$delta <- as.vector(delta_mat)
+          df$delta_pp <- as.vector(100 * delta_mat)
+          df$baseline <- baseline_response
+          df$predicted <- as.vector(pred_mat)
+        }
+
+        return(df)
       }
 
       if (!all(c("period", "lag_start", "lag_end") %in% names(lag_periods))) {
         stop("`lag_periods` must contain columns: period, lag_start, lag_end.")
       }
 
-      purrr::map_dfr(seq_len(nrow(lag_periods)), function(i) {
-
-        sel <- which(
-          lag_idx >= lag_periods$lag_start[i] &
-            lag_idx <= lag_periods$lag_end[i]
-        )
+      out <- purrr::map_dfr(seq_len(nrow(lag_periods)), function(i) {
+        sel <- which(lag_idx >= lag_periods$lag_start[i] &
+                       lag_idx <= lag_periods$lag_end[i])
 
         eta_sum <- rowSums(eta_mat[, sel, drop = FALSE])
+        eff_sum <- transform_effect(eta_sum)
 
-        out <- data.frame(
-          value  = at_vals,
+        tmp <- data.frame(
+          value = at_vals,
           period = lag_periods$period[i],
-          eta    = eta_sum,
-          effect = transform_effect(eta_sum),
-          scale  = "accumulated",
-          var    = var_one
+          eta = eta_sum,
+          effect = eff_sum,
+          scale = "accumulated",
+          var = var_one,
+          stringsAsFactors = FALSE
         )
 
-        dd <- add_delta(out$eta)
-        out$delta <- dd$delta
-        out$delta_pp <- dd$delta_pp
-        out$baseline <- dd$baseline
-        out$predicted <- dd$predicted
+        if (is.na(baseline_response)) {
+          tmp$delta <- NA_real_
+          tmp$delta_pp <- NA_real_
+          tmp$baseline <- NA_real_
+          tmp$predicted <- NA_real_
+        } else {
+          pred <- linkinv(linkfun(baseline_response) + eta_sum)
+          delta <- pred - baseline_response
+          tmp$delta <- delta
+          tmp$delta_pp <- 100 * delta
+          tmp$baseline <- baseline_response
+          tmp$predicted <- pred
+        }
 
-        out
+        tmp
       })
+
+      out
     }
 
     # ----------------------------------------------------------
-    # 7) no uncertainty
+    # sem incerteza
     # ----------------------------------------------------------
     if (!uncertainty) {
       if (scale == "daily") {
@@ -659,60 +687,38 @@ summarise_effects <- function(
     }
 
     # ----------------------------------------------------------
-    # 8) uncertainty
+    # com incerteza: estratégia por array
     # ----------------------------------------------------------
     beta_draws <- extract_beta_draws(
       model = fit,
       n_samples = n_samples,
-      var = var_one,
-      cb_ncol = ncol(cb),
-      cb_cols_var = cb_cols_var
+      cb_names_ref = cb_names_ref
     )
 
-    if (output == "samples") {
-
-      out_list <- vector("list", nrow(beta_draws))
-
-      for (i in seq_len(nrow(beta_draws))) {
-
-        cp_i <- dlnm::crosspred(
-          cb,
-          coef  = beta_draws[i, ],
-          vcov  = diag(0, length(beta_draws[i, ])),
-          at    = at_vals,
-          cen   = cen,
-          bylag = 1
-        )
-
-        mf_i <- cp_i$matfit
-        mf_i <- mf_i[, ord, drop = FALSE]
-
-        tmp <- if (scale == "daily") {
-          build_daily_df(mf_i)
-        } else {
-          build_accumulated_df(mf_i)
-        }
-
-        tmp$sample <- i
-        out_list[[i]] <- tmp
-      }
-
-      out <- do.call(rbind, out_list)
-      nm <- names(out)
-      out <- out[, c("sample", nm[nm != "sample"]), drop = FALSE]
-
-      return(out)
+    # ==========================================================
+    # ✅ AJUSTE 3 — DIAGNÓSTICO DE VARIABILIDADE DOS DRAWS
+    # ==========================================================
+    draw_sd <- apply(beta_draws, 2, stats::sd)
+    if (all(!is.finite(draw_sd)) || all(draw_sd < 1e-12, na.rm = TRUE)) {
+      warning(
+        "Near-zero variability detected in coefficient draws for variable '", var_one,
+        "'. Summary intervals may collapse to a single value."
+      )
     }
 
-    # summary
-    draw_list <- vector("list", nrow(beta_draws))
+    # gerar uma matriz de eta por draw
+    eta_list <- vector("list", nrow(beta_draws))
 
     for (i in seq_len(nrow(beta_draws))) {
+      beta_i <- beta_draws[i, ]
 
       cp_i <- dlnm::crosspred(
         cb,
-        coef  = beta_draws[i, ],
-        vcov  = NULL,
+        coef  = beta_i,
+        # ======================================================
+        # ✅ AJUSTE 2 — API do crosspred()
+        # ======================================================
+        vcov  = diag(0, length(beta_i)),
         at    = at_vals,
         cen   = cen,
         bylag = 1
@@ -720,51 +726,315 @@ summarise_effects <- function(
 
       mf_i <- cp_i$matfit
       mf_i <- mf_i[, ord, drop = FALSE]
-
-      draw_list[[i]] <- if (scale == "daily") {
-        build_daily_df(mf_i)
-      } else {
-        build_accumulated_df(mf_i)
-      }
+      eta_list[[i]] <- mf_i
     }
 
-    all_draws <- dplyr::bind_rows(draw_list, .id = "sample")
-    all_draws$sample <- as.integer(all_draws$sample)
+    if (output == "samples") {
+      out_list <- vector("list", length(eta_list))
 
-    group_vars <- intersect(c("var", "value", "lag", "period", "scale"), names(all_draws))
+      for (i in seq_along(eta_list)) {
+        tmp <- if (scale == "daily") {
+          build_daily_df(eta_list[[i]])
+        } else {
+          build_accumulated_df(eta_list[[i]])
+        }
+        tmp$sample <- i
+        out_list[[i]] <- tmp
+      }
 
-    summarised <- all_draws |>
-      dplyr::group_by(dplyr::across(dplyr::all_of(group_vars))) |>
-      dplyr::summarise(
-        eta = stats::median(.data$eta, na.rm = TRUE),
-        eta_sd = stats::sd(.data$eta, na.rm = TRUE),
-        eta_lower = safe_quantile(.data$eta)[1],
-        eta_upper = safe_quantile(.data$eta)[2],
+      out <- do.call(rbind, out_list)
+      nm <- names(out)
+      out <- out[, c("sample", nm[nm != "sample"]), drop = FALSE]
+      return(out)
+    }
 
-        effect = stats::median(.data$effect, na.rm = TRUE),
-        effect_sd = stats::sd(.data$effect, na.rm = TRUE),
-        effect_lower = safe_quantile(.data$effect)[1],
-        effect_upper = safe_quantile(.data$effect)[2],
+    # ----------------------------------------------------------
+    # SUMMARY por array
+    # ----------------------------------------------------------
+    if (scale == "daily") {
 
-        delta = stats::median(.data$delta, na.rm = TRUE),
-        delta_sd = stats::sd(.data$delta, na.rm = TRUE),
-        delta_lower = safe_quantile(.data$delta)[1],
-        delta_upper = safe_quantile(.data$delta)[2],
+      n_at <- length(at_vals)
+      n_lag <- length(lag_idx)
+      n_draw <- length(eta_list)
 
-        delta_pp = stats::median(.data$delta_pp, na.rm = TRUE),
-        delta_pp_sd = stats::sd(.data$delta_pp, na.rm = TRUE),
-        delta_pp_lower = safe_quantile(.data$delta_pp)[1],
-        delta_pp_upper = safe_quantile(.data$delta_pp)[2],
+      eta_arr <- array(NA_real_, dim = c(n_at, n_lag, n_draw))
+      for (i in seq_len(n_draw)) {
+        eta_arr[, , i] <- eta_list[[i]]
+      }
 
-        baseline = stats::median(.data$baseline, na.rm = TRUE),
-        predicted = stats::median(.data$predicted, na.rm = TRUE),
-        predicted_sd = stats::sd(.data$predicted, na.rm = TRUE),
-        predicted_lower = safe_quantile(.data$predicted)[1],
-        predicted_upper = safe_quantile(.data$predicted)[2],
-        .groups = "drop"
+      summarize_arr <- function(arr) {
+        list(
+          est   = apply(arr, c(1, 2), stats::median, na.rm = TRUE),
+          sd    = apply(arr, c(1, 2), safe_sd),
+          lower = apply(arr, c(1, 2), function(z) safe_quantile(z)[1]),
+          upper = apply(arr, c(1, 2), function(z) safe_quantile(z)[2])
+        )
+      }
+
+      eta_sum <- summarize_arr(eta_arr)
+      eff_arr <- transform_effect(eta_arr)
+      eff_sum <- summarize_arr(eff_arr)
+
+      if (is.na(baseline_response)) {
+        delta_sum <- list(
+          est   = matrix(NA_real_, n_at, n_lag),
+          sd    = matrix(NA_real_, n_at, n_lag),
+          lower = matrix(NA_real_, n_at, n_lag),
+          upper = matrix(NA_real_, n_at, n_lag)
+        )
+        delta_pp_sum <- delta_sum
+        pred_sum <- delta_sum
+        baseline_mat <- matrix(NA_real_, n_at, n_lag)
+      } else {
+        pred_arr <- linkinv(linkfun(baseline_response) + eta_arr)
+        delta_arr <- pred_arr - baseline_response
+        delta_pp_arr <- 100 * delta_arr
+
+        pred_sum <- summarize_arr(pred_arr)
+        delta_sum <- summarize_arr(delta_arr)
+        delta_pp_sum <- summarize_arr(delta_pp_arr)
+        baseline_mat <- matrix(baseline_response, nrow = n_at, ncol = n_lag)
+      }
+
+      grid <- expand.grid(
+        value = at_vals,
+        lag   = lag_idx,
+        KEEP.OUT.ATTRS = FALSE,
+        stringsAsFactors = FALSE
       )
 
-    as.data.frame(summarised)
+      out <- data.frame(
+        var = var_one,
+        lag = grid$lag,
+        scale = "daily",
+        value = grid$value,
+
+        eta = as.vector(eta_sum$est),
+        eta_sd = as.vector(eta_sum$sd),
+        eta_lower = as.vector(eta_sum$lower),
+        eta_upper = as.vector(eta_sum$upper),
+
+        effect = as.vector(eff_sum$est),
+        effect_sd = as.vector(eff_sum$sd),
+        effect_lower = as.vector(eff_sum$lower),
+        effect_upper = as.vector(eff_sum$upper),
+
+        delta = as.vector(delta_sum$est),
+        delta_sd = as.vector(delta_sum$sd),
+        delta_lower = as.vector(delta_sum$lower),
+        delta_upper = as.vector(delta_sum$upper),
+
+        delta_pp = as.vector(delta_pp_sum$est),
+        delta_pp_sd = as.vector(delta_pp_sum$sd),
+        delta_pp_lower = as.vector(delta_pp_sum$lower),
+        delta_pp_upper = as.vector(delta_pp_sum$upper),
+
+        baseline = as.vector(baseline_mat),
+        predicted = as.vector(pred_sum$est),
+        predicted_sd = as.vector(pred_sum$sd),
+        predicted_lower = as.vector(pred_sum$lower),
+        predicted_upper = as.vector(pred_sum$upper),
+
+        stringsAsFactors = FALSE
+      )
+
+      return(out)
+    }
+
+    # ----------------------------------------------------------
+    # SUMMARY acumulado incremental
+    # ----------------------------------------------------------
+    if (incremental) {
+
+      n_at <- length(at_vals)
+      n_lag <- length(lag_idx)
+      n_draw <- length(eta_list)
+
+      eta_arr <- array(NA_real_, dim = c(n_at, n_lag, n_draw))
+      for (i in seq_len(n_draw)) {
+        eta_arr[, , i] <- t(apply(eta_list[[i]], 1, cumsum))
+      }
+
+      summarize_arr <- function(arr) {
+        list(
+          est   = apply(arr, c(1, 2), stats::median, na.rm = TRUE),
+          sd    = apply(arr, c(1, 2), safe_sd),
+          lower = apply(arr, c(1, 2), function(z) safe_quantile(z)[1]),
+          upper = apply(arr, c(1, 2), function(z) safe_quantile(z)[2])
+        )
+      }
+
+      eta_sum <- summarize_arr(eta_arr)
+      eff_arr <- transform_effect(eta_arr)
+      eff_sum <- summarize_arr(eff_arr)
+
+      if (is.na(baseline_response)) {
+        delta_sum <- list(
+          est   = matrix(NA_real_, n_at, n_lag),
+          sd    = matrix(NA_real_, n_at, n_lag),
+          lower = matrix(NA_real_, n_at, n_lag),
+          upper = matrix(NA_real_, n_at, n_lag)
+        )
+        delta_pp_sum <- delta_sum
+        pred_sum <- delta_sum
+        baseline_mat <- matrix(NA_real_, n_at, n_lag)
+      } else {
+        pred_arr <- linkinv(linkfun(baseline_response) + eta_arr)
+        delta_arr <- pred_arr - baseline_response
+        delta_pp_arr <- 100 * delta_arr
+
+        pred_sum <- summarize_arr(pred_arr)
+        delta_sum <- summarize_arr(delta_arr)
+        delta_pp_sum <- summarize_arr(delta_pp_arr)
+        baseline_mat <- matrix(baseline_response, nrow = n_at, ncol = n_lag)
+      }
+
+      grid <- expand.grid(
+        value = at_vals,
+        lag   = lag_idx,
+        KEEP.OUT.ATTRS = FALSE,
+        stringsAsFactors = FALSE
+      )
+
+      out <- data.frame(
+        var = var_one,
+        lag = grid$lag,
+        period = paste0("0-", grid$lag),
+        scale = "accumulated",
+        value = grid$value,
+
+        eta = as.vector(eta_sum$est),
+        eta_sd = as.vector(eta_sum$sd),
+        eta_lower = as.vector(eta_sum$lower),
+        eta_upper = as.vector(eta_sum$upper),
+
+        effect = as.vector(eff_sum$est),
+        effect_sd = as.vector(eff_sum$sd),
+        effect_lower = as.vector(eff_sum$lower),
+        effect_upper = as.vector(eff_sum$upper),
+
+        delta = as.vector(delta_sum$est),
+        delta_sd = as.vector(delta_sum$sd),
+        delta_lower = as.vector(delta_sum$lower),
+        delta_upper = as.vector(delta_sum$upper),
+
+        delta_pp = as.vector(delta_pp_sum$est),
+        delta_pp_sd = as.vector(delta_pp_sum$sd),
+        delta_pp_lower = as.vector(delta_pp_sum$lower),
+        delta_pp_upper = as.vector(delta_pp_sum$upper),
+
+        baseline = as.vector(baseline_mat),
+        predicted = as.vector(pred_sum$est),
+        predicted_sd = as.vector(pred_sum$sd),
+        predicted_lower = as.vector(pred_sum$lower),
+        predicted_upper = as.vector(pred_sum$upper),
+
+        stringsAsFactors = FALSE
+      )
+
+      return(out)
+    }
+
+    # ----------------------------------------------------------
+    # SUMMARY acumulado por lag_periods
+    # ----------------------------------------------------------
+    if (!all(c("period", "lag_start", "lag_end") %in% names(lag_periods))) {
+      stop("`lag_periods` must contain columns: period, lag_start, lag_end.")
+    }
+
+    # ==========================================================
+    # ✅ AJUSTE CRÍTICO — BUG FIX
+    # Antes, `n_at` podia não existir aqui
+    # ==========================================================
+    n_at <- length(at_vals)
+
+    period_list <- vector("list", nrow(lag_periods))
+
+    summarize_mat_draws <- function(mat_draws) {
+      list(
+        est   = apply(mat_draws, 1, stats::median, na.rm = TRUE),
+        sd    = apply(mat_draws, 1, safe_sd),
+        lower = apply(mat_draws, 1, function(z) safe_quantile(z)[1]),
+        upper = apply(mat_draws, 1, function(z) safe_quantile(z)[2])
+      )
+    }
+
+    for (pp in seq_len(nrow(lag_periods))) {
+
+      sel <- which(
+        lag_idx >= lag_periods$lag_start[pp] &
+          lag_idx <= lag_periods$lag_end[pp]
+      )
+
+      eta_draws_mat <- sapply(eta_list, function(m) rowSums(m[, sel, drop = FALSE], na.rm = TRUE))
+      if (is.null(dim(eta_draws_mat))) {
+        eta_draws_mat <- matrix(eta_draws_mat, ncol = 1)
+      }
+
+      eta_sum <- summarize_mat_draws(eta_draws_mat)
+
+      eff_draws_mat <- apply(eta_draws_mat, 2, transform_effect)
+      if (is.null(dim(eff_draws_mat))) eff_draws_mat <- matrix(eff_draws_mat, ncol = 1)
+      eff_sum <- summarize_mat_draws(eff_draws_mat)
+
+      if (is.na(baseline_response)) {
+        delta_sum <- list(
+          est   = rep(NA_real_, n_at),
+          sd    = rep(NA_real_, n_at),
+          lower = rep(NA_real_, n_at),
+          upper = rep(NA_real_, n_at)
+        )
+        delta_pp_sum <- delta_sum
+        pred_sum <- delta_sum
+        baseline_vec <- rep(NA_real_, n_at)
+      } else {
+        pred_draws_mat <- linkinv(linkfun(baseline_response) + eta_draws_mat)
+        delta_draws_mat <- pred_draws_mat - baseline_response
+        delta_pp_draws_mat <- 100 * delta_draws_mat
+
+        pred_sum <- summarize_mat_draws(pred_draws_mat)
+        delta_sum <- summarize_mat_draws(delta_draws_mat)
+        delta_pp_sum <- summarize_mat_draws(delta_pp_draws_mat)
+        baseline_vec <- rep(baseline_response, length(at_vals))
+      }
+
+      period_list[[pp]] <- data.frame(
+        var = var_one,
+        period = lag_periods$period[pp],
+        scale = "accumulated",
+        value = at_vals,
+
+        eta = eta_sum$est,
+        eta_sd = eta_sum$sd,
+        eta_lower = eta_sum$lower,
+        eta_upper = eta_sum$upper,
+
+        effect = eff_sum$est,
+        effect_sd = eff_sum$sd,
+        effect_lower = eff_sum$lower,
+        effect_upper = eff_sum$upper,
+
+        delta = delta_sum$est,
+        delta_sd = delta_sum$sd,
+        delta_lower = delta_sum$lower,
+        delta_upper = delta_sum$upper,
+
+        delta_pp = delta_pp_sum$est,
+        delta_pp_sd = delta_pp_sum$sd,
+        delta_pp_lower = delta_pp_sum$lower,
+        delta_pp_upper = delta_pp_sum$upper,
+
+        baseline = baseline_vec,
+        predicted = pred_sum$est,
+        predicted_sd = pred_sum$sd,
+        predicted_lower = pred_sum$lower,
+        predicted_upper = pred_sum$upper,
+
+        stringsAsFactors = FALSE
+      )
+    }
+
+    return(dplyr::bind_rows(period_list))
   }
 
   # ----------------------------------------------------------

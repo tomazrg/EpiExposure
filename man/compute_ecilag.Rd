@@ -10,6 +10,7 @@ compute_ecilag(
   eps = 1e-06,
   center = TRUE,
   absolute = TRUE,
+  reverse = FALSE,
   uncertainty = FALSE,
   output = c("summary", "samples"),
   n_samples = 1000
@@ -30,6 +31,11 @@ forward difference.}
 
 \item{absolute}{Logical. If `TRUE`, also reports absolute contributions
 and absolute weights.}
+
+\item{reverse}{Logical. If `TRUE`, reverses the input profile before analysis.
+Use this when the supplied profile is ordered from oldest to most recent
+(e.g., `dpp` order). If `FALSE`, the function assumes the first value
+corresponds to lag 0 (most recent) and the last value to lag max (oldest).}
 
 \item{uncertainty}{Logical. If `TRUE`, quantify uncertainty.}
 

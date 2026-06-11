@@ -11,6 +11,7 @@ predict_outcome(
   id = NULL,
   allow_new_levels = FALSE,
   type = c("response", "link", "conditional"),
+  reverse = FALSE,
   uncertainty = FALSE,
   output = c("summary", "samples"),
   n_samples = 1000
@@ -32,6 +33,12 @@ vectors. If the fitted model contains multiple exposure variables,
 \item{allow_new_levels}{Logical. Allow unseen grouping levels for mixed models.}
 
 \item{type}{Prediction scale: `"response"`, `"link"`, or `"conditional"`.}
+
+\item{reverse}{Logical. If `TRUE`, reverses each supplied profile before
+analysis. Use this when the supplied profile is ordered from oldest to
+most recent (e.g., `dpp` order). If `FALSE`, the function assumes the
+first value corresponds to lag 0 (most recent) and the last value to
+lag max (oldest).}
 
 \item{uncertainty}{Logical. If `TRUE`, quantify uncertainty using simulated
 or posterior coefficient draws.}

@@ -1,4 +1,4 @@
-#' Reduce DLNM effects to one dimension (article-consistent)
+#' Reduce DLNM effects to one dimension
 #'
 #' Reduces a DLNM exposure-lag-response surface into a one-dimensional summary
 #' using `dlnm::crossreduce()`, with optional uncertainty propagation.
@@ -24,13 +24,13 @@
 #' @param value Required for `type = "lag"` or `type = "var"`.
 #' @param scale Output scale: `"link"`, `"response"`, or `"percent"`.
 #' @param uncertainty Logical. If `TRUE`, propagate uncertainty using simulated
-#' or posterior draws of the model coefficients.
+#'   or posterior draws of the model coefficients.
 #' @param output Character. `"summary"` returns aggregated estimates; `"samples"`
-#' returns all simulated values.
+#'   returns all simulated values.
 #' @param n_samples Integer. Number of samples used for uncertainty propagation.
 #'
 #' @return A data.frame containing reduced effects. When `uncertainty = TRUE`
-#' and `output = "summary"`, the result includes:
+#'   and `output = "summary"`, the result includes:
 #'   - central estimate (median; stored in `eta`)
 #'   - `eta_sd`: standard deviation of simulated values
 #'   - `low` / `high`: empirical interval limits (quantiles)
@@ -72,6 +72,32 @@ reduce_effects <- function(
     stats::quantile(x, probs = probs, na.rm = TRUE, names = FALSE)
   }
 
+  safe_sd <- function(x) {
+    x <- x[is.finite(x)]
+    if (length(x) <= 1) return(0)
+    stats::sd(x)
+  }
+
+  # ----------------------------------------------------------
+  # ✅ helper: matching robusto de nomes para draws do brms
+  # ----------------------------------------------------------
+  match_brms_draw_names <- function(cb_names_ref, draw_colnames) {
+
+    bnames <- paste0("b_", cb_names_ref)
+
+    if (all(bnames %in% draw_colnames)) {
+      return(bnames)
+    }
+
+    # fallback defensivo
+    raw_match <- cb_names_ref[cb_names_ref %in% draw_colnames]
+    if (length(raw_match) == length(cb_names_ref)) {
+      return(raw_match)
+    }
+
+    stop("Could not match brms posterior draw names to crossbasis columns.")
+  }
+
   # ----------------------------------------------------------
   # basic validation
   # ----------------------------------------------------------
@@ -79,6 +105,9 @@ reduce_effects <- function(
   if (!is.data.frame(wx_long)) stop("`wx_long` must be a data.frame.")
   if (!all(c("epi_id", "dpp") %in% names(wx_long))) {
     stop("`wx_long` must contain at least 'epi_id' and 'dpp'.")
+  }
+  if (!is.character(var) || length(var) != 1L) {
+    stop("`var` must be a single character string.")
   }
   if (!var %in% names(wx_long)) {
     stop("`var` not found in `wx_long`.")
@@ -91,8 +120,9 @@ reduce_effects <- function(
   }
   n_samples <- as.integer(n_samples)
 
-  fit_spec <- attr(fit, "epiexposure_spec")
-  cb_cols_fit <- attr(fit, "epiexposure_cb_cols")
+  fit_spec     <- attr(fit, "epiexposure_spec")
+  cb_cols_fit  <- attr(fit, "epiexposure_cb_cols")
+  dat_template <- attr(fit, "epiexposure_dat_template")
 
   # ----------------------------------------------------------
   # 1) Resolve basis spec (PRIORITIZE FIT)
@@ -100,7 +130,15 @@ reduce_effects <- function(
   if (!is.null(fit_spec) && !is.null(fit_spec[[var]])) {
 
     spec_v <- fit_spec[[var]]
-    lag_max_use <- as.integer(spec_v$lag_max)
+
+    if (is.null(spec_v$lag_max)) {
+      stop("Missing `lag_max` inside `epiexposure_spec` for variable: ", var)
+    }
+
+    # =========================================================
+    # ✅ AJUSTE 1 — DIMENSÃO TEMPORAL
+    # =========================================================
+    lag_max_use <- as.integer(max(spec_v$lag_max))
     argvar <- spec_v$argvar
     arglag <- spec_v$arglag
 
@@ -111,7 +149,7 @@ reduce_effects <- function(
            "'. Please provide `lag_max`.")
     }
 
-    lag_max_use <- as.integer(lag_max)
+    lag_max_use <- as.integer(max(lag_max))
 
     fun_var_use <- fun_var %||% "ns"
     fun_lag_use <- fun_lag %||% "ns"
@@ -139,6 +177,31 @@ reduce_effects <- function(
       stop("Unsupported fun_lag: ", fun_lag_use)
     )
   }
+
+  # =========================================================
+  # ✅ CHECK AUTOMÁTICO DE COBERTURA TEMPORAL
+  # =========================================================
+  .check_lag_coverage <- function(dat, lag_max) {
+    n_required <- lag_max + 1
+
+    bad_ids <- dat |>
+      dplyr::group_by(epi_id) |>
+      dplyr::summarise(n_days = dplyr::n_distinct(dpp), .groups = "drop") |>
+      dplyr::filter(n_days < n_required)
+
+    if (nrow(bad_ids) > 0) {
+      stop(
+        paste0(
+          "Some epidemics do not have enough temporal coverage for lag_max.\n",
+          "Required days per epi_id: ", n_required, "\n",
+          "Example problematic epi_id: ",
+          paste(head(bad_ids$epi_id, 5), collapse = ", ")
+        )
+      )
+    }
+  }
+
+  .check_lag_coverage(wx_long, lag_max_use)
 
   # ----------------------------------------------------------
   # 2) pooled series
@@ -176,6 +239,8 @@ reduce_effects <- function(
   cb_cols_var <- NULL
   if (!is.null(cb_cols_fit)) {
     cb_cols_var <- grep(paste0("^cb_", var, "_"), cb_cols_fit, value = TRUE)
+  } else if (!is.null(dat_template)) {
+    cb_cols_var <- grep(paste0("^cb_", var, "_"), names(dat_template), value = TRUE)
   }
 
   # ----------------------------------------------------------
@@ -219,9 +284,11 @@ reduce_effects <- function(
     }
 
     if (inherits(model, "HLfit")) {
+      V <- tryCatch(as.matrix(stats::vcov(model)), error = function(e) NULL)
+      if (is.null(V)) stop("Could not extract vcov from spaMM model.")
       return(list(
         beta = spaMM::fixef(model),
-        vcov = as.matrix(stats::vcov(model))
+        vcov = V
       ))
     }
 
@@ -252,61 +319,47 @@ reduce_effects <- function(
     ))
   }
 
-  get_cb_coef_names <- function(coef_names, var, p, cb_cols_var = NULL) {
+  cv <- extract_coef_vcov(fit)
+  beta_full <- cv$beta
+  V_full    <- cv$vcov
 
-    nm <- if (!is.null(cb_cols_var)) {
-      intersect(cb_cols_var, coef_names)
-    } else {
-      grep(paste0("^cb_", var, "_"), coef_names, value = TRUE)
-    }
-
-    if (length(nm) == 0) {
-      nm <- grep(paste0("^cb_", var, "_"), coef_names, value = TRUE)
-    }
-
-    if (length(nm) != p) {
-      stop("Could not match coefficient names to crossbasis columns.")
-    }
-
-    nm
+  # =========================================================
+  # ✅ AJUSTE 4 — ORDEM DOS COEFICIENTES: REFERÊNCIA ÚNICA
+  # =========================================================
+  cb_names_ref <- if (!is.null(cb_cols_var) && length(cb_cols_var) > 0) {
+    cb_cols_var[cb_cols_var %in% names(beta_full)]
+  } else {
+    grep(paste0("^cb_", var, "_"), names(beta_full), value = TRUE)
   }
+
+  if (length(cb_names_ref) != p) {
+    stop("Could not match coefficient names to crossbasis columns.")
+  }
+
+  beta_sub <- beta_full[cb_names_ref]
+  V_sub    <- V_full[cb_names_ref, cb_names_ref, drop = FALSE]
 
   # ----------------------------------------------------------
   # 5) posterior/simulated draws by engine
   # returns matrix n_draws x p
   # ----------------------------------------------------------
-  extract_beta_draws <- function(model, var, p, n_samples, cb_cols_var = NULL) {
+  extract_beta_draws <- function(model, cb_names_ref, n_samples) {
 
     # ---------- brms: REAL posterior draws ----------
     if (inherits(model, "brmsfit")) {
 
-      draws <- as.matrix(brms::as_draws_matrix(model))
+      draws <- posterior::as_draws_df(model)
+      bnames <- match_brms_draw_names(cb_names_ref, names(draws))
 
-      nm <- if (!is.null(cb_cols_var)) {
-        paste0("b_", cb_cols_var)
-      } else {
-        grep(paste0("^b_cb_", var, "_"), colnames(draws), value = TRUE)
-      }
-
-      if (length(nm) == 0) {
-        nm <- grep(paste0("^b_cb_", var, "_"), colnames(draws), value = TRUE)
-      }
-      if (length(nm) == 0) {
-        nm <- grep(paste0("^b_.*", var), colnames(draws), value = TRUE)
-      }
-
-      if (length(nm) != p) {
-        stop("Could not match brms posterior draws to crossbasis columns.")
-      }
+      draws <- as.matrix(draws[, bnames, drop = FALSE])
 
       if (nrow(draws) > n_samples) {
         set.seed(1)
         keep <- sample(seq_len(nrow(draws)), n_samples)
-        draws <- draws[keep, nm, drop = FALSE]
-      } else {
-        draws <- draws[, nm, drop = FALSE]
+        draws <- draws[keep, , drop = FALSE]
       }
 
+      colnames(draws) <- cb_names_ref
       return(draws)
     }
 
@@ -318,15 +371,13 @@ reduce_effects <- function(
 
       posterior <- INLA::inla.posterior.sample(n = n_samples, result = model)
 
-      cb_names <- cb_cols_var %||% paste0("cb_", var, "_", seq_len(p))
-
       draws <- do.call(rbind, lapply(posterior, function(s) {
         latent <- s$latent
         names(latent) <- gsub(":1$", "", names(latent))
-        as.numeric(latent[cb_names])
+        as.numeric(latent[cb_names_ref])
       }))
 
-      colnames(draws) <- cb_names
+      colnames(draws) <- cb_names_ref
       return(draws)
     }
 
@@ -338,42 +389,27 @@ reduce_effects <- function(
         beta_draws <- matrix(beta_draws, ncol = 1)
       }
 
-      cb_names <- intersect(rownames(beta_draws), cb_cols_var %||% character(0))
-      if (length(cb_names) == 0) {
-        cb_names <- intersect(rownames(beta_draws), paste0("cb_", var, "_", seq_len(p)))
-      }
-      if (length(cb_names) == 0) {
-        cb_names <- grep(paste0("^cb_", var, "_"), rownames(beta_draws), value = TRUE)
-      }
-
-      if (length(cb_names) != p) {
+      if (!all(cb_names_ref %in% rownames(beta_draws))) {
         stop("Could not match bdlnm posterior draws to crossbasis columns.")
       }
+
+      beta_draws <- beta_draws[cb_names_ref, , drop = FALSE]
 
       if (ncol(beta_draws) > n_samples) {
         set.seed(1)
         keep <- sample(seq_len(ncol(beta_draws)), n_samples)
-        beta_draws <- beta_draws[cb_names, keep, drop = FALSE]
-      } else {
-        beta_draws <- beta_draws[cb_names, , drop = FALSE]
+        beta_draws <- beta_draws[, keep, drop = FALSE]
       }
 
-      return(t(beta_draws))
+      out <- t(beta_draws)
+      colnames(out) <- cb_names_ref
+      return(out)
     }
 
     # ---------- Frequentist: normal approximation ----------
     if (!requireNamespace("MASS", quietly = TRUE)) {
       stop("Package 'MASS' required for frequentist uncertainty.")
     }
-
-    cv <- extract_coef_vcov(model)
-    beta <- cv$beta
-    V    <- cv$vcov
-
-    nm <- get_cb_coef_names(names(beta), var, p, cb_cols_var)
-
-    beta_sub <- beta[nm]
-    V_sub    <- V[nm, nm, drop = FALSE]
 
     draws <- MASS::mvrnorm(
       n = n_samples,
@@ -385,18 +421,9 @@ reduce_effects <- function(
       draws <- matrix(draws, nrow = 1)
     }
 
-    colnames(draws) <- nm
+    colnames(draws) <- cb_names_ref
     return(draws)
   }
-
-  cv <- extract_coef_vcov(fit)
-  beta <- cv$beta
-  V    <- cv$vcov
-
-  nm <- get_cb_coef_names(names(beta), var, p, cb_cols_var)
-
-  beta_sub <- beta[nm]
-  V_sub    <- V[nm, nm, drop = FALSE]
 
   # ----------------------------------------------------------
   # 6) NO UNCERTAINTY
@@ -422,46 +449,73 @@ reduce_effects <- function(
 
     beta_draws <- extract_beta_draws(
       model = fit,
-      var = var,
-      p = p,
-      n_samples = n_samples,
-      cb_cols_var = cb_cols_var
+      cb_names_ref = cb_names_ref,
+      n_samples = n_samples
     )
 
+    # =========================================================
+    # ✅ AJUSTE 3 — DIAGNÓSTICO DE VARIABILIDADE DOS DRAWS
+    # =========================================================
+    draw_sd <- apply(beta_draws, 2, stats::sd)
+    if (all(!is.finite(draw_sd)) || all(draw_sd < 1e-12, na.rm = TRUE)) {
+      warning(
+        "Near-zero variability detected in coefficient draws for variable '", var,
+        "'. Reduced-effect intervals may collapse to a single value."
+      )
+    }
+
     n_draws <- nrow(beta_draws)
-    res_list <- vector("list", n_draws)
+
+    # usar o primeiro draw para definir dimensão
+    cr0 <- dlnm::crossreduce(
+      cb,
+      coef  = beta_draws[1, ],
+      # =======================================================
+      # ✅ AJUSTE 2 — API do crossreduce()
+      # =======================================================
+      vcov  = diag(0, length(beta_draws[1, ])),
+      type  = type,
+      value = value
+    )
+
+    x_ref <- cr0$predvar
+    n_x <- length(x_ref)
+
+    # =========================================================
+    # ✅ AJUSTE 5 — RESUMO DIRETO POR MATRIZ
+    # =========================================================
+    eta_mat <- matrix(NA_real_, nrow = n_x, ncol = n_draws)
 
     for (i in seq_len(n_draws)) {
 
       cr_i <- dlnm::crossreduce(
         cb,
         coef  = beta_draws[i, ],
-        vcov  = NULL,
+        vcov  = diag(0, length(beta_draws[i, ])),
         type  = type,
         value = value
       )
 
-      res_list[[i]] <- data.frame(
-        x = cr_i$predvar,
-        eta = cr_i$fit,
-        sample = i
-      )
+      eta_mat[, i] <- cr_i$fit
     }
 
-    all_draws <- do.call(rbind, res_list)
-
     if (output == "samples") {
-      df <- all_draws
+
+      df <- data.frame(
+        x = rep(x_ref, times = n_draws),
+        eta = as.vector(eta_mat),
+        sample = rep(seq_len(n_draws), each = n_x)
+      )
+
     } else {
-      df <- all_draws |>
-        dplyr::group_by(x) |>
-        dplyr::summarise(
-          eta = stats::median(eta, na.rm = TRUE),
-          eta_sd = stats::sd(eta, na.rm = TRUE),
-          low = safe_quantile(eta)[1],
-          high = safe_quantile(eta)[2],
-          .groups = "drop"
-        )
+
+      df <- data.frame(
+        x = x_ref,
+        eta = apply(eta_mat, 1, stats::median, na.rm = TRUE),
+        eta_sd = apply(eta_mat, 1, safe_sd),
+        low = apply(eta_mat, 1, function(z) safe_quantile(z)[1]),
+        high = apply(eta_mat, 1, function(z) safe_quantile(z)[2])
+      )
     }
   }
 

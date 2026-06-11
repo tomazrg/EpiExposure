@@ -17,21 +17,57 @@ define_exposure <- function(wx_long, vars,
                             fun_var = "ns",
                             fun_lag = "ns") {
 
+  # =========================================================
+  # ✅ AJUSTE 1 — DIMENSÃO TEMPORAL (lag_max)
+  # =========================================================
+  # 🔵 Garante que lag_max seja escalar consistente
+  lag_max <- as.integer(max(lag_max))
 
-  # ---- basic input checks ----
+  # =========================================================
+  # ✅ CHECKS BÁSICOS
+  # =========================================================
   stopifnot(
     all(c("epi_id", "dpp") %in% names(wx_long)),
     fun_var %in% c("ns", "bs", "poly", "lin"),
     fun_lag %in% c("ns", "ps", "lin")
   )
 
-  # ---- check exposure variables ----
   for (v in vars) {
     stopifnot(v %in% names(wx_long))
   }
 
-  # ----- pooled series  -----
+  # =========================================================
+  # ✅ AJUSTE 6 — CHECK AUTOMÁTICO DE COBERTURA TEMPORAL
+  # =========================================================
+  # 🔵 Evita crossbasis mal definida (mesmo raciocínio da build_design)
+  .check_lag_coverage <- function(dat, lag_max) {
+
+    n_required <- lag_max + 1
+
+    bad_ids <- dat |>
+      dplyr::group_by(epi_id) |>
+      dplyr::summarise(n_days = dplyr::n_distinct(dpp), .groups = "drop") |>
+      dplyr::filter(n_days < n_required)
+
+    if (nrow(bad_ids) > 0) {
+      stop(
+        paste0(
+          "Some epidemics do not have enough temporal coverage for lag_max.\n",
+          "Required days per epi_id: ", n_required, "\n",
+          "Example problematic epi_id: ",
+          paste(head(bad_ids$epi_id, 5), collapse = ", ")
+        )
+      )
+    }
+  }
+
+  .check_lag_coverage(wx_long, lag_max)
+
+  # =========================================================
+  # ✅ pooled series
+  # =========================================================
   build_pooled <- function(dat, var, sep_n) {
+
     ids <- unique(dat$epi_id)
     out <- vector("list", length(ids))
 
@@ -53,7 +89,9 @@ define_exposure <- function(wx_long, vars,
 
     x_pool <- build_pooled(wx_long, v, lag_max)
 
-    # ----- argvar: exposure -----
+    # =========================================================
+    # ✅ argvar: exposure
+    # =========================================================
     argvar <- switch(
       fun_var,
       ns   = list(fun = "ns",  df = df_var),
@@ -62,12 +100,14 @@ define_exposure <- function(wx_long, vars,
       lin  = list(fun = "lin")
     )
 
-    # evitar intercepto na dimensão da exposição
+    # 🔵 evita intercepto na dimensão de exposição
     if (!is.null(argvar$fun) && argvar$fun != "lin") {
       argvar$intercept <- FALSE
     }
 
-    # ----- arglag: lag -----
+    # =========================================================
+    # ✅ arglag: lag
+    # =========================================================
     arglag <- switch(
       fun_lag,
       ns  = list(fun = "ns", df = df_lag),
@@ -75,28 +115,41 @@ define_exposure <- function(wx_long, vars,
       lin = list(fun = "lin")
     )
 
-    cb_templates[[v]] <- dlnm::crossbasis(
+    cb <- dlnm::crossbasis(
       x_pool,
       lag    = lag_max,
       argvar = argvar,
       arglag = arglag
     )
+
+    # =========================================================
+    # ✅ AJUSTE 4 — ORDEM DOS COEFICIENTES (ESTRUTURAL)
+    # =========================================================
+    # 🔵 garante indexação consistente futura (evita ambiguidades)
+    attr(cb, "cb_colnames") <- colnames(cb)
+
+    cb_templates[[v]] <- cb
   }
 
-  # ----------------------------
-  # ✅ NOVO: criar spec automaticamente
-  # ----------------------------
+  # =========================================================
+  # ✅ criar spec automaticamente
+  # =========================================================
   epiexposure_spec <- lapply(cb_templates, function(cb) {
+
+    # 🔵 usa SEMPRE max() para evitar c(0,85)
+    lag_val <- attr(cb, "lag")
+    lag_val <- if (length(lag_val) > 1) max(lag_val) else lag_val
+
     list(
-      lag_max = attr(cb, "lag"),
+      lag_max = lag_val,
       argvar  = attr(cb, "argvar"),
       arglag  = attr(cb, "arglag")
     )
   })
 
-  # ----------------------------
-  # ✅ NOVO: anexar como atributo (SEM quebrar nada)
-  # ----------------------------
+  # =========================================================
+  # ✅ anexar spec
+  # =========================================================
   attr(cb_templates, "spec") <- epiexposure_spec
 
   return(cb_templates)

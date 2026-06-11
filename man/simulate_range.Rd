@@ -27,13 +27,13 @@ simulate_range(
 
 \item{scenario_names}{Optional custom names}
 
-\item{scenario_var}{Optional variable used to define scenario naming (recommended)}
+\item{scenario_var}{Optional variable used to define scenario naming}
 }
 \value{
 A structured list with:
-  - scenarios: named list of scenarios
-  - periods: period table used to define timing
-  - info: data.frame describing scenario values (NULL for profile mode if not needed)
+  - scenarios
+  - periods
+  - info
 }
 \description{
 Creates structured input for simulate_scenarios(), supporting both

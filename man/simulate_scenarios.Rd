@@ -106,6 +106,10 @@ model-consistent sampling:
 - Bayesian models use posterior draws
 - Frequentist models use simulation from the asymptotic coefficient distribution
 
+Profiles are assembled internally in lag order:
+- first value = lag 0 (most recent)
+- last value = lag max (oldest)
+
 For summary outputs under uncertainty, the median is used instead of the mean
 to provide a more robust central estimate under asymmetric predictive
 distributions.

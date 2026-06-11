@@ -7,14 +7,20 @@
 #'
 #' @return data.frame (design matrix at epidemic level)
 #' @export
-build_design_matrix <- function(wx_long, cb_templates, lag_max,
+build_design <- function(wx_long, cb_templates, lag_max,
                                 include_response = TRUE) {
 
   # =========================================================
-  # ✅ CHECKS
+  # ✅ AJUSTE 1 — DIMENSÃO TEMPORAL (lag_max)
   # =========================================================
+  # 🔵 Garante que lag_max seja escalar (evita c(0, 85))
+  lag_max <- as.integer(max(lag_max))
 
+  # =========================================================
+  # ✅ CHECKS BÁSICOS
+  # =========================================================
   stopifnot("epi_id" %in% names(wx_long))
+  stopifnot("dpp" %in% names(wx_long))  # 🔵 necessário para validação temporal
 
   for (v in names(cb_templates)) {
     if (!v %in% names(wx_long)) {
@@ -25,8 +31,34 @@ build_design_matrix <- function(wx_long, cb_templates, lag_max,
     }
   }
 
-  # helper
   `%||%` <- function(a, b) if (!is.null(a)) a else b
+
+  # =========================================================
+  # ✅ AJUSTE 6 (NOVO) — CHECK AUTOMÁTICO DE COBERTURA TEMPORAL
+  # =========================================================
+  # 🔵 Garante que cada epidemia tenha dias suficientes para o lag_max
+  .check_lag_coverage <- function(dat, lag_max) {
+
+    n_required <- lag_max + 1
+
+    bad_ids <- dat |>
+      dplyr::group_by(epi_id) |>
+      dplyr::summarise(n_days = dplyr::n_distinct(dpp), .groups = "drop") |>
+      dplyr::filter(n_days < n_required)
+
+    if (nrow(bad_ids) > 0) {
+      stop(
+        paste0(
+          "Some epidemics do not have enough temporal coverage for lag_max.\n",
+          "Required days per epi_id: ", n_required, "\n",
+          "Example problematic epi_id: ",
+          paste(head(bad_ids$epi_id, 5), collapse = ", ")
+        )
+      )
+    }
+  }
+
+  .check_lag_coverage(wx_long, lag_max)
 
   # =========================================================
   # ✅ armazenar templates reais usados
@@ -42,12 +74,27 @@ build_design_matrix <- function(wx_long, cb_templates, lag_max,
       arglag = attr(cb_template, "arglag")
     )
 
-    # salvar template real apenas uma vez
+    # ✅ salvar template real apenas uma vez
     if (is.null(cb_templates_used[[var_name]])) {
       cb_templates_used[[var_name]] <<- cb
     }
 
-    as.numeric(cb[length(x), ])
+    # =========================================================
+    # ✅ AJUSTE 4 — ORDEM DOS COEFICIENTES
+    # =========================================================
+    # 🔵 Usa estrutura da crossbasis (ordem segura)
+    cn <- colnames(cb)
+
+    if (is.null(cn)) {
+      cn <- paste0("cb_", var_name, "_", seq_len(ncol(cb)))
+    } else {
+      cn <- paste0("cb_", var_name, "_", seq_len(length(cn)))
+    }
+
+    out <- as.numeric(cb[length(x), ])
+    names(out) <- cn
+
+    out
   }
 
   # =========================================================
@@ -64,11 +111,7 @@ build_design_matrix <- function(wx_long, cb_templates, lag_max,
         .groups = "drop"
       )
 
-    p  <- length(tmp$cb[[1]])
-    nm <- paste0("cb_", v, "_", seq_len(p))
-
     tmp |>
-      dplyr::mutate(cb = lapply(cb, setNames, nm)) |>
       tidyr::unnest_wider(cb)
   })
 

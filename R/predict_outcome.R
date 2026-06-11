@@ -25,6 +25,11 @@
 #' @param id Optional vector of grouping levels (e.g., `epi_id`).
 #' @param allow_new_levels Logical. Allow unseen grouping levels for mixed models.
 #' @param type Prediction scale: `"response"`, `"link"`, or `"conditional"`.
+#' @param reverse Logical. If `TRUE`, reverses each supplied profile before
+#'   analysis. Use this when the supplied profile is ordered from oldest to
+#'   most recent (e.g., `dpp` order). If `FALSE`, the function assumes the
+#'   first value corresponds to lag 0 (most recent) and the last value to
+#'   lag max (oldest).
 #' @param uncertainty Logical. If `TRUE`, quantify uncertainty using simulated
 #'   or posterior coefficient draws.
 #' @param output Character. `"summary"` returns aggregated predictions;
@@ -64,6 +69,7 @@ predict_outcome <- function(
     id = NULL,
     allow_new_levels = FALSE,
     type = c("response", "link", "conditional"),
+    reverse = FALSE,
     uncertainty = FALSE,
     output = c("summary", "samples"),
     n_samples = 1000
@@ -77,6 +83,14 @@ predict_outcome <- function(
   # ✅ VALIDATIONS
   # -----------------------
   if (is.null(fit)) stop("`fit` cannot be NULL.")
+
+  if (!is.logical(reverse) || length(reverse) != 1L) {
+    stop("`reverse` must be TRUE or FALSE.")
+  }
+
+  if (!is.logical(allow_new_levels) || length(allow_new_levels) != 1L) {
+    stop("`allow_new_levels` must be TRUE or FALSE.")
+  }
 
   if (!is.logical(uncertainty) || length(uncertainty) != 1L) {
     stop("`uncertainty` must be TRUE or FALSE.")
@@ -117,6 +131,12 @@ predict_outcome <- function(
 
   safe_quantile <- function(x, probs = c(0.025, 0.975)) {
     stats::quantile(x, probs = probs, na.rm = TRUE, names = FALSE)
+  }
+
+  safe_sd <- function(x) {
+    x <- x[is.finite(x)]
+    if (length(x) <= 1L) return(0)
+    stats::sd(x)
   }
 
   get_cb_cols <- function(dat, v) {
@@ -201,9 +221,38 @@ predict_outcome <- function(
 
   vars <- names(profiles)
 
+  # multi-variable consistency
+  extra_vars <- setdiff(vars, vars_fit)
+  if (length(extra_vars) > 0) {
+    stop("The following profile variables are not present in fit metadata: ",
+         paste(extra_vars, collapse = ", "))
+  }
+
+  missing_fit_vars <- setdiff(vars_fit, vars)
+  if (length(vars_fit) > 1 && length(missing_fit_vars) > 0) {
+    stop("Profiles are missing fitted exposure variable(s): ",
+         paste(missing_fit_vars, collapse = ", "))
+  }
+
   miss <- setdiff(vars, names(spec))
   if (length(miss) > 0) {
     stop("Missing spec for variable(s): ", paste(miss, collapse = ", "))
+  }
+
+  # -----------------------
+  # Orientation handling (message always shown)
+  # -----------------------
+  if (reverse) {
+    profiles <- lapply(profiles, rev)
+    message(
+      "Profiles reversed: interpreting input as oldest \u2192 most recent. ",
+      "After reversal, first value = lag 0 (most recent); last value = lag max (oldest)."
+    )
+  } else {
+    message(
+      "Assuming supplied profiles are lag-ordered: first value = lag 0 (most recent); ",
+      "last value = lag max (oldest)."
+    )
   }
 
   # -----------------------
@@ -260,13 +309,14 @@ predict_outcome <- function(
   point_predict <- function(model, newdata, re, allow_new_levels, type) {
 
     want_population <- identical(re, "population")
+    type_use <- if (type == "conditional") "response" else type
 
     if (inherits(model, "glmmTMB")) {
       re_form <- if (want_population) NA else NULL
       return(as.numeric(predict(
         model,
         newdata = newdata,
-        type = type,
+        type = type_use,
         re.form = re_form,
         allow.new.levels = allow_new_levels
       )))
@@ -277,7 +327,7 @@ predict_outcome <- function(
       return(as.numeric(predict(
         model,
         newdata = newdata,
-        type = if (type == "link") "link" else "response",
+        type = if (type_use == "link") "link" else "response",
         re.form = re_form,
         allow.new.levels = allow_new_levels
       )))
@@ -286,7 +336,7 @@ predict_outcome <- function(
     if (inherits(model, "brmsfit")) {
       re_formula <- if (want_population) NA else NULL
 
-      if (type == "link") {
+      if (type_use == "link") {
         tmp <- brms::posterior_linpred(
           model,
           newdata = newdata,
@@ -310,7 +360,7 @@ predict_outcome <- function(
       return(as.numeric(predict(
         model,
         newdata = newdata,
-        type = if (type == "link") "link" else "response",
+        type = if (type_use == "link") "link" else "response",
         re.form = re_form
       )))
     }
@@ -328,7 +378,7 @@ predict_outcome <- function(
       return(as.numeric(mgcv::predict.gam(
         model,
         newdata = newdata,
-        type = if (type == "link") "link" else "response"
+        type = if (type_use == "link") "link" else "response"
       )))
     }
 
@@ -347,7 +397,7 @@ predict_outcome <- function(
         warning("INLA conditional prediction not implemented; using fixed-effects only.")
       }
 
-      if (type == "link") return(eta)
+      if (type_use == "link") return(eta)
 
       linkinv <- get_linkinv(model, family_fit)
       return(as.numeric(linkinv(eta)))
@@ -374,7 +424,7 @@ predict_outcome <- function(
 
       eta <- as.numeric(as.matrix(X[, common, drop = FALSE]) %*% beta_mean[common])
 
-      if (type == "link") return(eta)
+      if (type_use == "link") return(eta)
 
       linkinv <- get_linkinv(model, family_fit)
       return(as.numeric(linkinv(eta)))
@@ -384,7 +434,7 @@ predict_outcome <- function(
     as.numeric(predict(
       model,
       newdata = newdata,
-      type = if (type == "link") "link" else "response"
+      type = if (type_use == "link") "link" else "response"
     ))
   }
 
@@ -415,8 +465,9 @@ predict_outcome <- function(
 
     want_population <- identical(re, "population")
     re_formula <- if (want_population) NA else NULL
+    type_use <- if (type == "conditional") "response" else type
 
-    if (type == "link") {
+    if (type_use == "link") {
       draws <- brms::posterior_linpred(
         fit,
         newdata = nd,
@@ -457,7 +508,7 @@ predict_outcome <- function(
     }
 
     center_pred <- apply(draws, 2, stats::median, na.rm = TRUE)
-    sd_pred   <- apply(draws, 2, stats::sd, na.rm = TRUE)
+    sd_pred   <- apply(draws, 2, safe_sd)
     q_pred    <- t(apply(draws, 2, safe_quantile))
 
     out <- data.frame(
@@ -517,7 +568,8 @@ predict_outcome <- function(
 
     eta_draws <- t(as.matrix(X[, common, drop = FALSE]) %*% beta_draws)
 
-    if (type != "link") {
+    type_use <- if (type == "conditional") "response" else type
+    if (type_use != "link") {
       linkinv <- get_linkinv(fit, family_fit)
       eta_draws <- apply_linkinv_matrix(eta_draws, linkinv)
     }
@@ -545,7 +597,7 @@ predict_outcome <- function(
     }
 
     center_pred <- apply(eta_draws, 2, stats::median, na.rm = TRUE)
-    sd_pred   <- apply(eta_draws, 2, stats::sd, na.rm = TRUE)
+    sd_pred   <- apply(eta_draws, 2, safe_sd)
     q_pred    <- t(apply(eta_draws, 2, safe_quantile))
 
     out <- data.frame(
@@ -599,7 +651,8 @@ predict_outcome <- function(
 
     eta_draws <- t(as.matrix(X[, common, drop = FALSE]) %*% beta_draws[common, , drop = FALSE])
 
-    if (type != "link") {
+    type_use <- if (type == "conditional") "response" else type
+    if (type_use != "link") {
       linkinv <- get_linkinv(fit, family_fit)
       eta_draws <- apply_linkinv_matrix(eta_draws, linkinv)
     }
@@ -627,7 +680,7 @@ predict_outcome <- function(
     }
 
     center_pred <- apply(eta_draws, 2, stats::median, na.rm = TRUE)
-    sd_pred   <- apply(eta_draws, 2, stats::sd, na.rm = TRUE)
+    sd_pred   <- apply(eta_draws, 2, safe_sd)
     q_pred    <- t(apply(eta_draws, 2, safe_quantile))
 
     out <- data.frame(
@@ -729,7 +782,8 @@ predict_outcome <- function(
     warning("For frequentist mixed models, uncertainty currently reflects fixed-effects approximation only.")
   }
 
-  if (type != "link") {
+  type_use <- if (type == "conditional") "response" else type
+  if (type_use != "link") {
     linkinv <- get_linkinv(fit, family_fit)
     eta_draws <- apply_linkinv_matrix(eta_draws, linkinv)
   }
@@ -757,7 +811,7 @@ predict_outcome <- function(
   }
 
   center_pred <- apply(eta_draws, 2, stats::median, na.rm = TRUE)
-  sd_pred   <- apply(eta_draws, 2, stats::sd, na.rm = TRUE)
+  sd_pred   <- apply(eta_draws, 2, safe_sd)
   q_pred    <- t(apply(eta_draws, 2, safe_quantile))
 
   out <- data.frame(

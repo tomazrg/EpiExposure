@@ -44,7 +44,50 @@ fit_epidlnm <- function(dat,
     choices = c("glm", "glmmTMB", "gam", "gamm", "gls", "spamm", "brms", "inla", "bdlnm")
   )
 
+  # =========================================================
+  # ✅ AJUSTE 1 — DIMENSÃO TEMPORAL (lag_max no spec)
+  # ---------------------------------------------------------
+  # Garante que downstream nunca receba lag_max como c(0, 85)
+  # =========================================================
+  normalize_spec <- function(spec) {
+    if (is.null(spec)) return(NULL)
+
+    if (!is.list(spec)) {
+      stop("`epiexposure_spec` must be a list when provided.")
+    }
+
+    for (nm in names(spec)) {
+      if (!is.null(spec[[nm]]) && !is.null(spec[[nm]]$lag_max)) {
+        spec[[nm]]$lag_max <- as.integer(max(spec[[nm]]$lag_max))
+      }
+    }
+
+    spec
+  }
+
+  epiexposure_spec <- normalize_spec(epiexposure_spec)
+
+  # =========================================================
+  # ✅ AJUSTE 4 — ORDEM DOS COEFICIENTES (cb_* estáveis)
+  # ---------------------------------------------------------
+  # Ordena cb_* por variável e índice, para garantir consistência
+  # entre ajuste e funções downstream
+  # =========================================================
+  sort_cb_cols <- function(cols) {
+    if (length(cols) == 0) return(cols)
+
+    vars <- sub("^cb_", "", cols)
+    vars <- sub("_[0-9]+$", "", vars)
+
+    idx <- suppressWarnings(as.integer(sub("^.*_([0-9]+)$", "\\1", cols)))
+    idx[is.na(idx)] <- seq_along(cols)
+
+    ord <- order(vars, idx)
+    cols[ord]
+  }
+
   cb_cols <- grep("^cb_", names(dat), value = TRUE)
+  cb_cols <- sort_cb_cols(cb_cols)
 
   if (length(cb_cols) == 0 && model_engine != "bdlnm") {
     stop("No cb_* columns found in `dat`.")
@@ -103,7 +146,6 @@ fit_epidlnm <- function(dat,
   # -------------------------------
   # Frequentist models
   # -------------------------------
-
   if (model_engine == "glm") {
 
     fam <- if (inherits(family, "family")) {
@@ -130,12 +172,13 @@ fit_epidlnm <- function(dat,
     } else {
       switch(
         family,
-        beta      = glmmTMB::beta_family(link = "logit"),
-        gaussian  = gaussian(),
-        poisson   = poisson(link = "log"),
-        gamma     = Gamma(link = "log"),
-        binomial  = binomial(link = "logit"),
-        negbin    = glmmTMB::nbinom2(),
+        beta               = glmmTMB::beta_family(link = "logit"),
+        gaussian           = gaussian(),
+        poisson            = poisson(link = "log"),
+        gamma              = Gamma(link = "log"),
+        binomial           = binomial(link = "logit"),
+        negbin             = glmmTMB::nbinom2(),
+        negative_binomial  = glmmTMB::nbinom2(),
         stop("Unsupported family for glmmTMB.")
       )
     }

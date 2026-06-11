@@ -9,12 +9,12 @@
 #' @param scenario_type "grid" (all combinations) or "paired"
 #' @param mode "scenario" (default) or "profile"
 #' @param scenario_names Optional custom names
-#' @param scenario_var Optional variable used to define scenario naming (recommended)
+#' @param scenario_var Optional variable used to define scenario naming
 #'
 #' @return A structured list with:
-#'   - scenarios: named list of scenarios
-#'   - periods: period table used to define timing
-#'   - info: data.frame describing scenario values (NULL for profile mode if not needed)
+#'   - scenarios
+#'   - periods
+#'   - info
 #'
 #' @export
 simulate_range <- function(
@@ -104,6 +104,14 @@ simulate_range <- function(
       stop("Length of `scenario_names` must equal number of scenarios.")
     }
 
+    if (anyNA(scenario_names) || any(scenario_names == "")) {
+      stop("`scenario_names` must not contain NA or empty values.")
+    }
+
+    if (anyDuplicated(scenario_names)) {
+      stop("`scenario_names` must be unique.")
+    }
+
     # ---- build scenarios ----
     scenarios_out <- vector("list", n_scen)
 
@@ -159,6 +167,10 @@ simulate_range <- function(
       scenario_name <- paste0(toupper(scenario_var), "_profile")
     } else {
       scenario_name <- scenario_names[1]
+    }
+
+    if (is.na(scenario_name) || scenario_name == "") {
+      stop("Invalid `scenario_names` for profile mode.")
     }
 
     scen <- list()

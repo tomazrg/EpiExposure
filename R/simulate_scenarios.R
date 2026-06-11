@@ -68,6 +68,10 @@
 #' - Bayesian models use posterior draws
 #' - Frequentist models use simulation from the asymptotic coefficient distribution
 #'
+#' Profiles are assembled internally in lag order:
+#' - first value = lag 0 (most recent)
+#' - last value = lag max (oldest)
+#'
 #' For summary outputs under uncertainty, the median is used instead of the mean
 #' to provide a more robust central estimate under asymmetric predictive
 #' distributions.
@@ -98,17 +102,29 @@ simulate_scenarios <- function(
     stats::quantile(x, probs = probs, na.rm = TRUE, names = FALSE)
   }
 
+  safe_sd <- function(x) {
+    x <- x[is.finite(x)]
+    if (length(x) <= 1L) return(0)
+    stats::sd(x)
+  }
+
   # ------------------------------------------------------------
   # validations
   # ------------------------------------------------------------
-  if (is.null(fit)) stop("`fit` cannot be NULL.")
+  if (is.null(fit)) {
+    stop("`fit` cannot be NULL.")
+  }
+
   if (!is.logical(pop_level) || length(pop_level) != 1L) {
     stop("`pop_level` must be TRUE or FALSE.")
   }
+
   if (!is.logical(uncertainty) || length(uncertainty) != 1L) {
     stop("`uncertainty` must be TRUE or FALSE.")
   }
-  if (!is.numeric(n_samples) || length(n_samples) != 1L || !is.finite(n_samples) || n_samples <= 0) {
+
+  if (!is.numeric(n_samples) || length(n_samples) != 1L ||
+      !is.finite(n_samples) || n_samples <= 0) {
     stop("`n_samples` must be a positive integer.")
   }
   n_samples <- as.integer(n_samples)
@@ -117,7 +133,7 @@ simulate_scenarios <- function(
   fit_vars     <- attr(fit, "epiexposure_vars")
   dat_template <- attr(fit, "epiexposure_dat_template")
 
-  if (is.null(dat_template) || !is.data.frame(dat_template) || nrow(dat_template) < 1) {
+  if (is.null(dat_template) || !is.data.frame(dat_template) || nrow(dat_template) < 1L) {
     stop("The fitted model does not contain `epiexposure_dat_template`. Refit with fit_epidlnm().")
   }
 
@@ -137,7 +153,7 @@ simulate_scenarios <- function(
     scenarios <- scenarios$scenarios
   }
 
-  if (!is.list(scenarios) || is.null(names(scenarios))) {
+  if (!is.list(scenarios) || is.null(names(scenarios)) || any(names(scenarios) == "")) {
     stop("`scenarios` must be a named list or a structured object containing `$scenarios`.")
   }
 
@@ -159,18 +175,22 @@ simulate_scenarios <- function(
     stop("`periods$period` must contain unique labels.")
   }
 
+  if (any(!is.finite(periods$lag_start)) || any(!is.finite(periods$lag_end))) {
+    stop("`lag_start` and `lag_end` in `periods` must be finite numeric values.")
+  }
+
   # ------------------------------------------------------------
   # Resolve variables
   # ------------------------------------------------------------
-  if (!is.null(fit_vars) && length(fit_vars) > 0) {
+  if (!is.null(fit_vars) && length(fit_vars) > 0L) {
     vars <- fit_vars
   } else {
     vars <- unique(unlist(lapply(scenarios, function(scen) {
-      unique(unlist(lapply(scen, names)))
-    })))
+      unique(unlist(lapply(scen, names), use.names = FALSE))
+    }), use.names = FALSE))
   }
 
-  if (length(vars) == 0) {
+  if (length(vars) == 0L) {
     stop("No variables could be detected from fit metadata or scenarios.")
   }
 
@@ -179,10 +199,10 @@ simulate_scenarios <- function(
   # ------------------------------------------------------------
   get_var_lagmax <- function(v) {
     if (!is.null(fit_spec[[v]]) && !is.null(fit_spec[[v]]$lag_max)) {
-      return(as.integer(fit_spec[[v]]$lag_max))
+      return(as.integer(max(fit_spec[[v]]$lag_max)))
     }
     if (!is.null(lag_max)) {
-      return(as.integer(lag_max))
+      return(as.integer(max(lag_max)))
     }
     stop(
       "Could not determine lag_max for variable: ", v,
@@ -191,6 +211,22 @@ simulate_scenarios <- function(
   }
 
   var_lagmax <- setNames(lapply(vars, get_var_lagmax), vars)
+
+  # ------------------------------------------------------------
+  # Validate period coverage against lag_max
+  # ------------------------------------------------------------
+  max_period_lag <- max(periods$lag_end, na.rm = TRUE)
+
+  for (v in vars) {
+    max_allowed <- var_lagmax[[v]]
+    if (max_period_lag > max_allowed) {
+      stop(
+        "Period definitions exceed lag_max for variable '", v, "'. ",
+        "Maximum lag in `periods` = ", max_period_lag,
+        ", but lag_max = ", max_allowed, "."
+      )
+    }
+  }
 
   # ------------------------------------------------------------
   # Resolve reference values
@@ -218,14 +254,31 @@ simulate_scenarios <- function(
         "Provide `ref_vals` explicitly or `wx_long`."
       )
     }
+  } else {
+    if (!is.list(ref_vals) || is.null(names(ref_vals))) {
+      stop("`ref_vals` must be a named list.")
+    }
+
+    miss_ref <- setdiff(vars, names(ref_vals))
+    if (length(miss_ref) > 0L) {
+      stop("Missing reference values for variable(s): ", paste(miss_ref, collapse = ", "))
+    }
+
+    for (v in vars) {
+      if (!is.numeric(ref_vals[[v]]) || length(ref_vals[[v]]) != 1L || !is.finite(ref_vals[[v]])) {
+        stop("Each element of `ref_vals` must be a finite numeric scalar. Problem with variable: ", v)
+      }
+    }
   }
 
   # ------------------------------------------------------------
   # Lag utility
+  # IMPORTANT: profiles are built in lag-order:
+  # lag 0 -> first position; lag max -> last position
   # ------------------------------------------------------------
   lag_to_idx <- function(lags, N) {
-    idx <- N - lags
-    idx[idx >= 1 & idx <= N]
+    idx <- lags + 1L
+    idx[idx >= 1L & idx <= N]
   }
 
   # ------------------------------------------------------------
@@ -246,7 +299,17 @@ simulate_scenarios <- function(
         lags <- seq(periods$lag_start[i], periods$lag_end[i])
         idx <- lag_to_idx(lags, N_var)
 
-        x[idx] <- scen_values[[p_id]][[var]]
+        val <- scen_values[[p_id]][[var]]
+
+        if (!(length(val) %in% c(1L, length(idx)))) {
+          stop(
+            "Scenario '", p_id, "', variable '", var,
+            "' has length ", length(val),
+            " but expected either 1 or ", length(idx), "."
+          )
+        }
+
+        x[idx] <- val
       }
     }
 
@@ -262,13 +325,13 @@ simulate_scenarios <- function(
       sapply(block, length)
     }), use.names = FALSE)
 
-    lens_gt1 <- unique(lens[lens > 1])
+    lens_gt1 <- unique(lens[lens > 1L])
 
-    if (length(lens_gt1) == 0) {
+    if (length(lens_gt1) == 0L) {
       return(list(scen_values))
     }
 
-    if (length(lens_gt1) > 1) {
+    if (length(lens_gt1) > 1L) {
       stop("All varying scenario vectors must have the same length.")
     }
 
@@ -278,7 +341,7 @@ simulate_scenarios <- function(
     for (i in seq_len(n_pts)) {
       pts[[i]] <- lapply(scen_values, function(block) {
         lapply(block, function(val) {
-          if (length(val) > 1) val[i] else val
+          if (length(val) > 1L) val[i] else val
         })
       })
     }
@@ -289,7 +352,7 @@ simulate_scenarios <- function(
   # ------------------------------------------------------------
   # Attach scenario metadata
   # ------------------------------------------------------------
-  attach_scenario_info <- function(name, n_rows) {
+  attach_scenario_info <- function(name, point_index = 1L, n_rows = 1L, total_points = 1L) {
 
     if (is.null(scenario_info)) {
       return(data.frame(
@@ -300,24 +363,27 @@ simulate_scenarios <- function(
 
     df_info <- scenario_info[scenario_info$scenario == name, , drop = FALSE]
 
-    if (nrow(df_info) == 0) {
+    if (nrow(df_info) == 0L) {
       return(data.frame(
         scenario = rep(name, n_rows),
         stringsAsFactors = FALSE
       ))
     }
 
-    if (nrow(df_info) == 1 && n_rows > 1) {
-      df_info <- df_info[rep(1, n_rows), , drop = FALSE]
+    if (nrow(df_info) == 1L) {
+      df_info <- df_info[rep(1L, n_rows), , drop = FALSE]
       rownames(df_info) <- NULL
       return(df_info)
     }
 
-    if (nrow(df_info) != n_rows) {
-      stop("scenario_info rows for scenario '", name, "' do not match the number of simulated points.")
+    if (nrow(df_info) == total_points) {
+      df_info <- df_info[point_index, , drop = FALSE]
+      df_info <- df_info[rep(1L, n_rows), , drop = FALSE]
+      rownames(df_info) <- NULL
+      return(df_info)
     }
 
-    df_info
+    stop("scenario_info rows for scenario '", name, "' do not match the number of simulated points.")
   }
 
   # ------------------------------------------------------------
@@ -345,12 +411,18 @@ simulate_scenarios <- function(
         re = re_mode,
         allow_new_levels = TRUE,
         type = "response",
+        reverse = FALSE,  # profiles are already assembled in lag-order
         uncertainty = uncertainty,
         output = pred_output,
         n_samples = n_samples
       )
 
-      meta_j <- attach_scenario_info(name, 1)
+      meta_j <- attach_scenario_info(
+        name = name,
+        point_index = j,
+        n_rows = 1L,
+        total_points = n_pts
+      )
 
       if (!uncertainty) {
 
@@ -360,14 +432,14 @@ simulate_scenarios <- function(
       } else if (output == "summary") {
 
         meta_j$prediction <- stats::median(pred_j$prediction, na.rm = TRUE)
-        meta_j$sd <- stats::sd(pred_j$prediction, na.rm = TRUE)
+        meta_j$sd <- safe_sd(pred_j$prediction)
         meta_j$lower <- safe_quantile(pred_j$prediction)[1]
         meta_j$upper <- safe_quantile(pred_j$prediction)[2]
         pred_list[[j]] <- meta_j
 
       } else {
 
-        tmp <- meta_j[rep(1, nrow(pred_j)), , drop = FALSE]
+        tmp <- meta_j[rep(1L, nrow(pred_j)), , drop = FALSE]
         tmp$sample <- pred_j$sample
         tmp$prediction <- pred_j$prediction
         pred_list[[j]] <- tmp

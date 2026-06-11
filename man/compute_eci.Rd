@@ -7,6 +7,8 @@
 compute_eci(
   profile,
   fit = NULL,
+  scale = c("link", "response", "percent"),
+  reverse = FALSE,
   uncertainty = FALSE,
   output = c("summary", "samples"),
   n_samples = 1000
@@ -19,6 +21,16 @@ in the fitted model.}
 
 \item{fit}{Fitted model from `fit_epidlnm()`. Required to compute
 `ECI_weighted`. If `NULL`, only `ECI_raw` is returned.}
+
+\item{scale}{Character. Scale for `ECI_weighted`:
+- `"link"`: linear predictor scale (default)
+- `"response"`: inverse-link transformed scale
+- `"percent"`: relative change scale, computed as `(exp(eta) - 1) * 100`}
+
+\item{reverse}{Logical. If `TRUE`, reverses the input profile before analysis.
+Use this when the supplied profile is ordered from oldest to most recent
+(e.g., `dpp` order). If `FALSE`, the function assumes the first value
+corresponds to lag 0 (most recent) and the last value to lag max (oldest).}
 
 \item{uncertainty}{Logical. If `TRUE`, quantify uncertainty.}
 
@@ -39,7 +51,7 @@ A data.frame.
 
 - If `uncertainty = TRUE` and `output = "summary"`, returns:
   - `ECI_raw`
-  - `ECI_weighted` (median-based central estimate)
+  - `ECI_weighted` (median-based central estimate, on requested scale)
   - `sd`
   - `lower`
   - `upper`
@@ -61,7 +73,7 @@ quantiles (default: 2.5% and 97.5%).
 
 **Important:** when `uncertainty = TRUE` and `output = "summary"`,
 `ECI_weighted` represents the *central estimate*, computed as the median
-of the simulated distribution.
+of the simulated distribution on the requested `scale`.
 
 
 Uncertainty is propagated using model-consistent sampling:
@@ -70,4 +82,11 @@ Uncertainty is propagated using model-consistent sampling:
 
 The use of the median as the central estimate improves robustness under
 asymmetric or non-normal simulated ECI distributions.
+
+For `scale = "response"`, the inverse link is obtained from the fitted model
+metadata when available.
+
+For `scale = "percent"`, the transformation is defined as:
+\deqn{(exp(\eta) - 1) * 100}
+which is most directly interpretable for log-linked or relative-effect contexts.
 }

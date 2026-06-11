@@ -76,6 +76,26 @@ predict_surface <- function(
   }
 
   # ----------------------------------------------------------
+  # ✅ helper: matching robusto de nomes para draws do brms
+  # ----------------------------------------------------------
+  match_brms_draw_names <- function(cb_names_ref, draw_colnames) {
+
+    bnames <- paste0("b_", cb_names_ref)
+
+    if (all(bnames %in% draw_colnames)) {
+      return(bnames)
+    }
+
+    # fallback defensivo
+    raw_match <- cb_names_ref[cb_names_ref %in% draw_colnames]
+    if (length(raw_match) == length(cb_names_ref)) {
+      return(raw_match)
+    }
+
+    stop("Could not match brms posterior draw names to crossbasis columns.")
+  }
+
+  # ----------------------------------------------------------
   # VALIDATIONS
   # ----------------------------------------------------------
   if (is.null(fit)) stop("`fit` cannot be NULL.")
@@ -112,6 +132,9 @@ predict_surface <- function(
       stop("Missing `lag_max` inside `epiexposure_spec` for variable: ", var)
     }
 
+    # =========================================================
+    # ✅ AJUSTE 1 — DIMENSÃO TEMPORAL
+    # =========================================================
     lag_max_use <- as.integer(max(spec_v$lag_max))
     argvar <- spec_v$argvar
     arglag <- spec_v$arglag
@@ -122,7 +145,7 @@ predict_surface <- function(
       stop("`lag_max` must be provided when fit does not contain `epiexposure_spec`.")
     }
 
-    lag_max_use <- as.integer(lag_max)
+    lag_max_use <- as.integer(max(lag_max))
 
     fun_var_use <- fun_var %||% "ns"
     fun_lag_use <- fun_lag %||% "ns"
@@ -150,6 +173,32 @@ predict_surface <- function(
       stop("Unsupported fun_lag: ", fun_lag_use)
     )
   }
+
+  # =========================================================
+  # ✅ AJUSTE EXTRA — CHECK AUTOMÁTICO DE COBERTURA TEMPORAL
+  # =========================================================
+  .check_lag_coverage <- function(dat, lag_max) {
+
+    n_required <- lag_max + 1
+
+    bad_ids <- dat |>
+      dplyr::group_by(epi_id) |>
+      dplyr::summarise(n_days = dplyr::n_distinct(dpp), .groups = "drop") |>
+      dplyr::filter(n_days < n_required)
+
+    if (nrow(bad_ids) > 0) {
+      stop(
+        paste0(
+          "Some epidemics do not have enough temporal coverage for lag_max.\n",
+          "Required days per epi_id: ", n_required, "\n",
+          "Example problematic epi_id: ",
+          paste(head(bad_ids$epi_id, 5), collapse = ", ")
+        )
+      )
+    }
+  }
+
+  .check_lag_coverage(wx_long, lag_max_use)
 
   # ----------------------------------------------------------
   # BUILD POOLED SERIES
@@ -206,11 +255,6 @@ predict_surface <- function(
     cb_cols_var <- grep(paste0("^cb_", var, "_"), cb_cols_fit, value = TRUE)
   } else if (!is.null(dat_template)) {
     cb_cols_var <- grep(paste0("^cb_", var, "_"), names(dat_template), value = TRUE)
-  }
-
-  # fallback by expected names
-  if (is.null(cb_cols_var) || length(cb_cols_var) == 0) {
-    cb_cols_var <- paste0("cb_", var, "_", seq_len(ncol(cb)))
   }
 
   # ----------------------------------------------------------
@@ -295,41 +339,76 @@ predict_surface <- function(
     ))
   }
 
+  # =========================================================
+  # ✅ AJUSTE 4 — ORDEM DOS COEFICIENTES: REFERÊNCIA ÚNICA
+  # =========================================================
+  cv <- extract_coef_vcov(fit)
+  beta_full <- cv$beta
+  vcov_full <- cv$vcov
+
+  if (is.null(names(beta_full))) {
+    stop("Could not determine coefficient names from fitted model.")
+  }
+  if (!is.matrix(vcov_full)) {
+    stop("Could not extract a valid covariance matrix from fitted model.")
+  }
+
+  cb_names_ref <- if (!is.null(cb_cols_var) && length(cb_cols_var) > 0) {
+    cb_cols_var[cb_cols_var %in% names(beta_full)]
+  } else {
+    grep(paste0("^cb_", var, "_"), names(beta_full), value = TRUE)
+  }
+
+  if (length(cb_names_ref) != ncol(cb)) {
+    stop(
+      "Could not match coefficient names to the crossbasis structure for variable '", var, "'. ",
+      "Expected ", ncol(cb), " coefficients, found ", length(cb_names_ref), "."
+    )
+  }
+
+  beta_sub <- beta_full[cb_names_ref]
+  V_sub <- vcov_full[cb_names_ref, cb_names_ref, drop = FALSE]
+
+  if (!(nrow(V_sub) == length(beta_sub) && ncol(V_sub) == length(beta_sub))) {
+    stop("Subset covariance matrix does not match coefficient dimension.")
+  }
+
+  # ----------------------------------------------------------
+  # DETERMINISTIC BASE SURFACE
+  # ----------------------------------------------------------
+  base_cp <- dlnm::crosspred(
+    cb,
+    coef  = beta_sub,
+    vcov  = V_sub,
+    at    = at_vals,
+    cen   = cen,
+    bylag = 1
+  )
+
+  if (!uncertainty) {
+    return(base_cp)
+  }
+
   # ----------------------------------------------------------
   # EXTRACT DRAWS BY ENGINE
   # ----------------------------------------------------------
-  extract_beta_draws <- function(model, n_samples, var, cb_ncol, cb_cols_var = NULL) {
+  extract_beta_draws <- function(model, n_samples, cb_names_ref) {
 
     # ---------- brms: REAL posterior draws ----------
     if (inherits(model, "brmsfit")) {
 
-      draws <- as.matrix(brms::as_draws_matrix(model))
+      draws <- posterior::as_draws_df(model)
+      bnames <- match_brms_draw_names(cb_names_ref, names(draws))
 
-      nm <- if (!is.null(cb_cols_var)) {
-        paste0("b_", cb_cols_var)
-      } else {
-        grep(paste0("^b_cb_", var, "_"), colnames(draws), value = TRUE)
-      }
-
-      if (length(nm) == 0) {
-        nm <- grep(paste0("^b_cb_", var, "_"), colnames(draws), value = TRUE)
-      }
-      if (length(nm) == 0) {
-        nm <- grep(paste0("^b_.*", var), colnames(draws), value = TRUE)
-      }
-
-      if (length(nm) != cb_ncol) {
-        stop("Could not match brms posterior draws to crossbasis columns.")
-      }
+      draws <- as.matrix(draws[, bnames, drop = FALSE])
 
       if (nrow(draws) > n_samples) {
         set.seed(1)
         keep <- sample(seq_len(nrow(draws)), n_samples)
-        draws <- draws[keep, nm, drop = FALSE]
-      } else {
-        draws <- draws[, nm, drop = FALSE]
+        draws <- draws[keep, , drop = FALSE]
       }
 
+      colnames(draws) <- cb_names_ref
       return(draws)
     }
 
@@ -349,19 +428,17 @@ predict_surface <- function(
         stop("Could not draw INLA posterior samples. Ensure model was fitted with config = TRUE.")
       }
 
-      cb_names <- cb_cols_var %||% paste0("cb_", var, "_", seq_len(cb_ncol))
-
       draws <- do.call(rbind, lapply(posterior, function(s) {
         latent <- s$latent
         names(latent) <- gsub(":1$", "", names(latent))
-        vals <- latent[cb_names]
+        vals <- latent[cb_names_ref]
         if (any(is.na(vals))) {
           stop("Could not match INLA posterior draw names to crossbasis columns.")
         }
         as.numeric(vals)
       }))
 
-      colnames(draws) <- cb_names
+      colnames(draws) <- cb_names_ref
       return(draws)
     }
 
@@ -374,46 +451,26 @@ predict_surface <- function(
         beta_draws <- matrix(beta_draws, ncol = 1)
       }
 
-      cb_names <- intersect(rownames(beta_draws), cb_cols_var %||% character(0))
-      if (length(cb_names) == 0) {
-        cb_names <- intersect(rownames(beta_draws), paste0("cb_", var, "_", seq_len(cb_ncol)))
-      }
-      if (length(cb_names) == 0) {
-        cb_names <- grep(paste0("^cb_", var, "_"), rownames(beta_draws), value = TRUE)
-      }
-
-      if (length(cb_names) != cb_ncol) {
+      if (!all(cb_names_ref %in% rownames(beta_draws))) {
         stop("Could not match bdlnm posterior draws to crossbasis columns.")
       }
+
+      beta_draws <- beta_draws[cb_names_ref, , drop = FALSE]
 
       if (ncol(beta_draws) > n_samples) {
         set.seed(1)
         keep <- sample(seq_len(ncol(beta_draws)), n_samples)
-        beta_draws <- beta_draws[cb_names, keep, drop = FALSE]
-      } else {
-        beta_draws <- beta_draws[cb_names, , drop = FALSE]
+        beta_draws <- beta_draws[, keep, drop = FALSE]
       }
 
-      return(t(beta_draws))
+      out <- t(beta_draws)
+      colnames(out) <- cb_names_ref
+      return(out)
     }
 
     # ---------- Frequentist: normal approximation ----------
-    cv <- extract_coef_vcov(model)
-    beta_hat <- cv$beta
-    V_hat <- cv$vcov
-
-    cb_names <- if (!is.null(cb_cols_var)) {
-      intersect(cb_cols_var, names(beta_hat))
-    } else {
-      grep(paste0("^cb_", var, "_"), names(beta_hat), value = TRUE)
-    }
-
-    if (length(cb_names) != cb_ncol) {
-      stop("Could not match coefficient names to crossbasis structure.")
-    }
-
-    beta_hat <- beta_hat[cb_names]
-    V_hat <- V_hat[cb_names, cb_names, drop = FALSE]
+    beta_hat <- beta_full[cb_names_ref]
+    V_hat <- vcov_full[cb_names_ref, cb_names_ref, drop = FALSE]
 
     if (!requireNamespace("MASS", quietly = TRUE)) {
       stop("Package 'MASS' is required for frequentist uncertainty approximation.")
@@ -425,82 +482,40 @@ predict_surface <- function(
       draws <- matrix(draws, nrow = 1)
     }
 
-    colnames(draws) <- cb_names
+    colnames(draws) <- cb_names_ref
     draws
   }
 
-  # ----------------------------------------------------------
-  # DETERMINISTIC: EXTRACT BETA / VCOV
-  # ----------------------------------------------------------
-  cv <- extract_coef_vcov(fit)
-  beta_full <- cv$beta
-  vcov_full <- cv$vcov
-
-  if (is.null(names(beta_full))) {
-    stop("Could not determine coefficient names from fitted model.")
-  }
-  if (!is.matrix(vcov_full)) {
-    stop("Could not extract a valid covariance matrix from fitted model.")
-  }
-
-  cb_names <- if (!is.null(cb_cols_var)) {
-    intersect(cb_cols_var, names(beta_full))
-  } else {
-    grep(paste0("^cb_", var, "_"), names(beta_full), value = TRUE)
-  }
-
-  if (length(cb_names) == 0) {
-    cb_names <- grep(paste0("^cb_", var, "_"), names(beta_full), value = TRUE)
-  }
-
-  if (length(cb_names) != ncol(cb)) {
-    stop(
-      "Could not match coefficient names to the crossbasis structure for variable '", var, "'. ",
-      "Expected ", ncol(cb), " coefficients, found ", length(cb_names), "."
-    )
-  }
-
-  beta_sub <- beta_full[cb_names]
-  V_sub <- vcov_full[cb_names, cb_names, drop = FALSE]
-
-  if (!(nrow(V_sub) == length(beta_sub) && ncol(V_sub) == length(beta_sub))) {
-    stop("Subset covariance matrix does not match coefficient dimension.")
-  }
-
-  # ----------------------------------------------------------
-  # BASE CROSSPRED
-  # ----------------------------------------------------------
-  base_cp <- dlnm::crosspred(
-    cb,
-    coef  = beta_sub,
-    vcov  = V_sub,
-    at    = at_vals,
-    cen   = cen,
-    bylag = 1
-  )
-
-  if (!uncertainty) {
-    return(base_cp)
-  }
-
-  # ----------------------------------------------------------
-  # UNCERTAINTY
-  # ----------------------------------------------------------
   beta_draws <- extract_beta_draws(
     model = fit,
     n_samples = n_samples,
-    var = var,
-    cb_ncol = ncol(cb),
-    cb_cols_var = cb_cols_var
+    cb_names_ref = cb_names_ref
   )
 
-  samples <- lapply(seq_len(n_samples), function(i) {
+  # =========================================================
+  # ✅ AJUSTE 3 — DIAGNÓSTICO DE VARIABILIDADE DOS DRAWS
+  # =========================================================
+  draw_sd <- apply(beta_draws, 2, stats::sd)
+  if (all(!is.finite(draw_sd)) || all(draw_sd < 1e-12, na.rm = TRUE)) {
+    warning(
+      "Near-zero variability detected in coefficient draws for variable '", var,
+      "'. Surface intervals may collapse to a single value."
+    )
+  }
+
+  # ----------------------------------------------------------
+  # UNCERTAINTY — samples
+  # ----------------------------------------------------------
+  samples <- lapply(seq_len(nrow(beta_draws)), function(i) {
 
     beta_i <- beta_draws[i, ]
 
     dlnm::crosspred(
       cb,
       coef  = beta_i,
+      # =======================================================
+      # ✅ AJUSTE 2 — API do crosspred()
+      # =======================================================
       vcov  = diag(0, length(beta_i)),
       at    = at_vals,
       cen   = cen,
@@ -514,6 +529,8 @@ predict_surface <- function(
 
   # ----------------------------------------------------------
   # SUMMARY OF SURFACES
+  # =========================================================
+  # ✅ AJUSTE 5 — RESUMO DIRETO POR ARRAY
   # ----------------------------------------------------------
   mats <- lapply(samples, function(x) x$matfit)
 

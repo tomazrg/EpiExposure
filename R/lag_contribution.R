@@ -17,8 +17,15 @@ lag_contribution <- function(
     absolute = TRUE
 ) {
 
+  # ------------------------------------------------------------
+  # Basic input check
+  # ------------------------------------------------------------
   if (!all(c("lag", "effect") %in% names(daily_df))) {
     stop("daily_df must contain columns 'lag' and 'effect'.")
+  }
+
+  if (!is.numeric(daily_df$effect)) {
+    stop("'effect' column must be numeric.")
   }
 
   has_samples <- "sample" %in% names(daily_df)
@@ -28,7 +35,9 @@ lag_contribution <- function(
   # Subset lag window
   # ------------------------------------------------------------
   if (!is.null(lag_window)) {
-    if (length(lag_window) != 2) stop("lag_window must have length 2.")
+    if (length(lag_window) != 2) {
+      stop("lag_window must have length 2.")
+    }
 
     daily_df <- daily_df |>
       dplyr::filter(lag >= min(lag_window), lag <= max(lag_window))
@@ -75,6 +84,7 @@ lag_contribution <- function(
     if (!has_var) {
 
       out <- compute_contribution(daily_df)
+
       if (is.null(out)) {
         warning("Total cumulative effect is zero.")
         return(NULL)
@@ -86,10 +96,16 @@ lag_contribution <- function(
 
       out <- daily_df |>
         dplyr::group_by(var) |>
-        dplyr::group_modify(~ compute_contribution(.x)) |>
+        dplyr::group_modify(~ {
+          tmp <- compute_contribution(.x)
+          if (is.null(tmp)) {
+            return(dplyr::tibble())
+          }
+          tmp
+        }) |>
         dplyr::ungroup()
 
-      if (is.null(out) || nrow(out) == 0) {
+      if (nrow(out) == 0) {
         warning("Total cumulative effect is zero.")
         return(NULL)
       }
@@ -104,24 +120,32 @@ lag_contribution <- function(
 
   if (!has_var) {
 
-    # sample-level contributions
     lag_sample <- daily_df |>
       dplyr::group_by(sample) |>
-      dplyr::group_modify(~ compute_contribution(.x)) |>
+      dplyr::group_modify(~ {
+        tmp <- compute_contribution(.x)
+        if (is.null(tmp)) return(dplyr::tibble())
+        tmp
+      }) |>
       dplyr::ungroup()
+
+    if (nrow(lag_sample) == 0) {
+      warning("Total cumulative effect is zero.")
+      return(NULL)
+    }
 
     lag_summary <- lag_sample |>
       dplyr::group_by(lag) |>
       dplyr::summarise(
         contribution_mean  = mean(contribution, na.rm = TRUE),
         contribution_sd    = stats::sd(contribution, na.rm = TRUE),
-        contribution_lower = stats::quantile(contribution, 0.025, na.rm = TRUE),
-        contribution_upper = stats::quantile(contribution, 0.975, na.rm = TRUE),
+        contribution_lower = stats::quantile(contribution, 0.025, na.rm = TRUE, names = FALSE),
+        contribution_upper = stats::quantile(contribution, 0.975, na.rm = TRUE, names = FALSE),
 
         contribution_percent_mean  = mean(contribution_percent, na.rm = TRUE),
         contribution_percent_sd    = stats::sd(contribution_percent, na.rm = TRUE),
-        contribution_percent_lower = stats::quantile(contribution_percent, 0.025, na.rm = TRUE),
-        contribution_percent_upper = stats::quantile(contribution_percent, 0.975, na.rm = TRUE),
+        contribution_percent_lower = stats::quantile(contribution_percent, 0.025, na.rm = TRUE, names = FALSE),
+        contribution_percent_upper = stats::quantile(contribution_percent, 0.975, na.rm = TRUE, names = FALSE),
 
         .groups = "drop"
       )
@@ -132,21 +156,30 @@ lag_contribution <- function(
 
     lag_sample <- daily_df |>
       dplyr::group_by(sample, var) |>
-      dplyr::group_modify(~ compute_contribution(.x)) |>
+      dplyr::group_modify(~ {
+        tmp <- compute_contribution(.x)
+        if (is.null(tmp)) return(dplyr::tibble())
+        tmp
+      }) |>
       dplyr::ungroup()
+
+    if (nrow(lag_sample) == 0) {
+      warning("Total cumulative effect is zero.")
+      return(NULL)
+    }
 
     lag_summary <- lag_sample |>
       dplyr::group_by(var, lag) |>
       dplyr::summarise(
         contribution_mean  = mean(contribution, na.rm = TRUE),
         contribution_sd    = stats::sd(contribution, na.rm = TRUE),
-        contribution_lower = stats::quantile(contribution, 0.025, na.rm = TRUE),
-        contribution_upper = stats::quantile(contribution, 0.975, na.rm = TRUE),
+        contribution_lower = stats::quantile(contribution, 0.025, na.rm = TRUE, names = FALSE),
+        contribution_upper = stats::quantile(contribution, 0.975, na.rm = TRUE, names = FALSE),
 
         contribution_percent_mean  = mean(contribution_percent, na.rm = TRUE),
         contribution_percent_sd    = stats::sd(contribution_percent, na.rm = TRUE),
-        contribution_percent_lower = stats::quantile(contribution_percent, 0.025, na.rm = TRUE),
-        contribution_percent_upper = stats::quantile(contribution_percent, 0.975, na.rm = TRUE),
+        contribution_percent_lower = stats::quantile(contribution_percent, 0.025, na.rm = TRUE, names = FALSE),
+        contribution_percent_upper = stats::quantile(contribution_percent, 0.975, na.rm = TRUE, names = FALSE),
 
         .groups = "drop"
       )

@@ -12,7 +12,7 @@ vignette: >
 `Introduzir o usuário ao workflow básico: da exposição ao modelo.`
 
 ```{r}
-
+summarise_effects()
 # =========================================================
 # SIMULACAO: 520 epidemias x 86 dias
 # 1 severidade por epidemia (DLNM-style)
@@ -172,13 +172,29 @@ t = predict_surface(fit = fit, wx_long = sim_data, var = "tmean", lag_max = 85,
 t
 
 tt = summarise_effects(fit = fit, wx_long = sim_data,
-                  scale = "daily", effect_measure = "ratio")
+                  scale = "daily", effect_measure = "percent", uncertainty = TRUE, n_samples = 10,
+                  output = "summary")
 
 
-unique(tt$predicted)
+
 
 tt %>% 
-  filter(var == "tmean")
+  #filter(var == "rain") %>% 
+  ggplot(aes(lag,effect))+
+  geom_smooth(se = F)+
+  facet_wrap(~var)
+
+all_draws |>
+  dplyr::count(var, value, lag, scale) |>
+  dplyr::count(n)
+
+tt %>% 
+  filter(var == "rain") %>% 
+  #filter(lag == 85) %>% 
+  ggplot(aes(effect))+
+  geom_histogram(bins = 20, color = "white")
+
+
 ```
 
 

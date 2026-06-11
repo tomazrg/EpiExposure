@@ -44,16 +44,30 @@ simulate_exposure <- function(
       is.finite(x) && abs(x - round(x)) < .Machine$double.eps^0.5
   }
 
+  # ---- validate lag_max ----
+  if (!is_whole_number(lag_max) || lag_max < 0) {
+    stop("lag_max must be a non-negative integer.")
+  }
+  lag_max_i <- as.integer(round(lag_max))
+
   # ---- validate n ----
   if (!is_whole_number(n) || n <= 0) {
     stop("n must be a positive integer.")
   }
   n <- as.integer(round(n))
 
+  # ---- validate seed ----
+  if (!is.null(seed)) {
+    if (!is_whole_number(seed)) {
+      stop("seed must be an integer if provided.")
+    }
+    set.seed(as.integer(round(seed)))
+  }
+
   # ---- validate mode ----
   mode_i <- match.arg(mode)
 
-  # ---- validate pattern ONLY if needed ----
+  # ---- pattern selection ----
   if (mode_i == "pattern") {
     pattern_i <- match.arg(pattern)
   } else {
@@ -63,20 +77,8 @@ simulate_exposure <- function(
     }
   }
 
-  # ---- internal function ----
+  # ---- internal generator ----
   simulate_one <- function() {
-
-    if (!is_whole_number(lag_max) || lag_max < 0) {
-      stop("lag_max must be a non-negative integer.")
-    }
-    lag_max_i <- as.integer(round(lag_max))
-
-    if (!is.null(seed)) {
-      if (!is_whole_number(seed)) {
-        stop("seed must be an integer if provided.")
-      }
-      set.seed(as.integer(round(seed)))
-    }
 
     N <- lag_max_i + 1L
     lags_all <- 0:lag_max_i
@@ -109,7 +111,14 @@ simulate_exposure <- function(
       } else if (dist == "empirical") {
 
         vals <- background$values
+        if (is.null(vals)) {
+          stop("For 'empirical', provide background$values.")
+        }
         vals <- vals[is.finite(vals)]
+        if (length(vals) == 0) {
+          stop("background$values must contain finite values.")
+        }
+
         sample(vals, size = N, replace = TRUE)
 
       } else if (dist == "ar1") {
@@ -117,6 +126,10 @@ simulate_exposure <- function(
         mu  <- nullcoalesce(background$mean, 0)
         sd  <- nullcoalesce(background$sd, 1)
         phi <- nullcoalesce(background$phi, 0.7)
+
+        if (abs(phi) >= 1) {
+          stop("For 'ar1', phi must be in (-1, 1).")
+        }
 
         x <- numeric(N)
         x[1] <- stats::rnorm(1, mu, sd)
@@ -131,6 +144,10 @@ simulate_exposure <- function(
         x
 
       } else if (dist == "fixed") {
+
+        if (is.null(background$value)) {
+          stop("For 'fixed', provide background$value.")
+        }
 
         rep(background$value, N)
 
@@ -158,6 +175,10 @@ simulate_exposure <- function(
           stop("For 'random_lags', provide 'n_lags' and 'fixed_value'.")
         }
 
+        if (!is_whole_number(n_lags) || n_lags <= 0) {
+          stop("n_lags must be a positive integer.")
+        }
+
         n_lags_i <- min(n_lags, length(lag_range_i))
         fixed_lags <- sort(sample(lag_range_i, n_lags_i))
         x[fixed_lags + 1L] <- fixed_value
@@ -176,6 +197,10 @@ simulate_exposure <- function(
 
         if (is.null(block_lags) || is.null(fixed_value)) {
           stop("For 'block_lags', provide 'block_lags' and 'fixed_value'.")
+        }
+
+        if (length(block_lags) != 2) {
+          stop("block_lags must be length-2.")
         }
 
         a <- max(0L, min(block_lags))

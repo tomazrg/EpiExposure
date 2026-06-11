@@ -3,76 +3,6 @@
 #' Compares predicted outcomes across two or more exposure scenarios,
 #' using `predict_outcome()` as the computational backend.
 #'
-#' This function supports both deterministic comparisons and uncertainty
-#' propagation. When `uncertainty = TRUE`, predictions are computed at the
-#' sample level and comparisons are derived from these simulated values.
-#'
-#' If `output = "summary"`, the central estimate is computed as the median
-#' of the sample-based distributions, and interval limits are derived from
-#' empirical quantiles (default: 2.5% and 97.5%).
-#'
-#' **Important:** although traditional terminology might suggest "mean",
-#' all central estimates in summary outputs correspond to the *median*
-#' when uncertainty is propagated, ensuring robustness under asymmetric
-#' distributions.
-#'
-#' @param fit Fitted model (output of `fit_epidlnm()`).
-#'
-#' @param profiles Can be:
-#'   - a named list of profiles (recommended), e.g.:
-#'     `list(scenario1 = ..., scenario2 = ...)`, or
-#'   - `NULL` when using `profiles1` and `profiles2` for backward compatibility.
-#'
-#' @param profiles1 (legacy) First profile (used only if `profiles` is NULL).
-#'
-#' @param profiles2 (legacy) Second profile (used only if `profiles` is NULL).
-#'
-#' @param re Character. Prediction level:
-#'   - `"population"`: excludes random effects (default).
-#'   - `"conditional"`: includes random effects where supported.
-#'
-#' @param id Optional character string indicating the column used as identifier.
-#'
-#' @param allow_new_levels Logical. Passed to `predict_outcome()`.
-#'
-#' @param type Character. Scale of prediction:
-#'   `"response"` (default), `"link"`, or `"conditional"`.
-#'
-#' @param uncertainty Logical. If `TRUE`, uncertainty is propagated using
-#'   sample-based predictions.
-#'
-#' @param output Character. Output type when `uncertainty = TRUE`:
-#'   - `"summary"`: returns median-based summaries (default)
-#'   - `"samples"`: returns all simulated samples
-#'
-#' @param n_samples Integer. Number of samples used for uncertainty propagation.
-#'
-#' @param eps Small positive constant used for numerical stability.
-#'
-#' @return A data.frame with pairwise comparisons including:
-#'   - `scenario1`, `scenario2`
-#'   - `pred1`, `pred2`
-#'   - `diff`
-#'   - `percent_change`
-#'   - `ratio`
-#'
-#' When `uncertainty = TRUE`:
-#' - `"samples"`: returns sample-level comparisons
-#' - `"summary"`: returns median-based estimates, standard deviation,
-#'   and empirical interval limits
-#'
-#' @details
-#' When `uncertainty = TRUE`, this function always operates on simulated
-#' prediction samples obtained from `predict_outcome(output = "samples")`.
-#'
-#' Summaries are then computed as:
-#' - central estimate: median
-#' - uncertainty intervals: empirical quantiles
-#'
-#' This approach ensures coherent uncertainty propagation for both
-#' frequentist (simulation-based) and Bayesian (posterior-based) models,
-#' avoiding incorrect analytic variance approximations.
-#'
 #' @export
 compare_predictions <- function(
     fit,
@@ -83,6 +13,7 @@ compare_predictions <- function(
     id = NULL,
     allow_new_levels = FALSE,
     type = c("response", "link", "conditional"),
+    reverse = FALSE,  # pass-through
     uncertainty = FALSE,
     output = c("summary", "samples"),
     n_samples = 1000,
@@ -93,7 +24,9 @@ compare_predictions <- function(
   type <- match.arg(type)
   output <- match.arg(output)
 
-  if (!is.numeric(eps) || eps <= 0) stop("eps must be positive.")
+  if (!is.numeric(eps) || eps <= 0) {
+    stop("eps must be positive.")
+  }
 
   `%||%` <- function(a, b) if (!is.null(a)) a else b
 
@@ -134,6 +67,7 @@ compare_predictions <- function(
       id = id,
       allow_new_levels = allow_new_levels,
       type = type,
+      reverse = reverse,   # ✅ AQUI está o pass-through correto
       uncertainty = uncertainty,
       output = use_output,
       n_samples = n_samples
@@ -146,13 +80,15 @@ compare_predictions <- function(
   preds <- do.call(rbind, preds_list)
 
   # ============================================================
-  # NO UNCERTAINTY
+  # ✅ NO UNCERTAINTY
   # ============================================================
   if (!uncertainty) {
 
+    idvar_use <- if (!is.null(id)) id else NULL
+
     wide <- reshape(
       preds,
-      idvar = id %||% NULL,
+      idvar = idvar_use,
       timevar = "scenario",
       direction = "wide"
     )
@@ -191,7 +127,7 @@ compare_predictions <- function(
   }
 
   # ============================================================
-  # UNCERTAINTY (SAMPLE-BASED)
+  # ✅ UNCERTAINTY (SAMPLE-BASED)
   # ============================================================
   combs <- combn(names(profiles), 2, simplify = FALSE)
 
@@ -204,7 +140,9 @@ compare_predictions <- function(
     p2 <- preds[preds$scenario == s2, ]
 
     by_cols <- "sample"
-    if (!is.null(id)) by_cols <- c(id, "sample")
+    if (!is.null(id)) {
+      by_cols <- c(id, "sample")
+    }
 
     m <- merge(p1, p2, by = by_cols, suffixes = c("_1", "_2"))
 
@@ -228,7 +166,7 @@ compare_predictions <- function(
   }
 
   # ============================================================
-  # SUMMARY (MEDIAN-BASED)
+  # ✅ SUMMARY (MEDIAN-BASED)
   # ============================================================
   group_vars <- intersect(c(id, "scenario1", "scenario2"), names(samples_df))
 
@@ -240,8 +178,8 @@ compare_predictions <- function(
 
       diff = stats::median(.data$diff, na.rm = TRUE),
       diff_sd = stats::sd(.data$diff, na.rm = TRUE),
-      diff_lower = stats::quantile(.data$diff, 0.025, na.rm = TRUE),
-      diff_upper = stats::quantile(.data$diff, 0.975, na.rm = TRUE),
+      diff_lower = stats::quantile(.data$diff, 0.025, na.rm = TRUE, names = FALSE),
+      diff_upper = stats::quantile(.data$diff, 0.975, na.rm = TRUE, names = FALSE),
 
       percent_change = stats::median(.data$percent_change, na.rm = TRUE),
       ratio = stats::median(.data$ratio, na.rm = TRUE),

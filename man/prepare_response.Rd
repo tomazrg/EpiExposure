@@ -7,16 +7,41 @@
 prepare_response(dat, y_var, family_choice)
 }
 \arguments{
-\item{dat}{Data frame}
+\item{dat}{A data.frame containing the response variable.}
 
-\item{y_var}{Response variable}
+\item{y_var}{Character scalar. Name of the response variable in `dat`.}
 
-\item{family_choice}{Distribution}
+\item{family_choice}{Character scalar. Distribution to be used in modeling.
+Supported options are:
+- `"beta"`: proportions in (0,1)
+- `"binomial"`: binary outcomes (0/1)
+- `"poisson"`: count data (non-negative integers)
+- `"negbin"` or `"negative_binomial"`: overdispersed counts
+- `"gaussian"`: continuous values
+- `"gamma"`: positive continuous values
+- `"ordinal"`: integer categorical severity levels (1, 2, 3, ...)}
 }
 \value{
-data.frame
+A data.frame identical to `dat`, with an added column:
+  - `y_model`: processed response variable ready for modeling
+
+  Additionally, the function attaches an attribute:
+  - `"y_scale_mult"`: scaling factor applied to `y` (e.g., 100 if percentages were converted to proportions)
 }
 \description{
+Prepares and validates a response variable (`y`) according to the selected
+distribution family. When needed, the function applies transformations to
+ensure compatibility with the model assumptions (e.g., scaling proportions
+for Beta regression or enforcing integer counts for Poisson models).
+}
+\details{
 If the response variable is already compatible with the selected distribution,
-the values are preserved without modification.
+values are preserved without modification.
+
+
+- For `"beta"`, values are constrained to the open interval (0,1) using a small epsilon.
+- For `"binomial"`, non-binary values are set to NA.
+- For count families (`"poisson"`, `"negbin"`), values are rounded and negative values are set to NA.
+- For `"gamma"`, non-positive values are set to NA.
+- For `"ordinal"`, values must be integers ≥ 1.
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/reduce_effects.R
 \name{reduce_effects}
 \alias{reduce_effects}
-\title{Reduce DLNM effects to one dimension (article-consistent)}
+\title{Reduce DLNM effects to one dimension}
 \usage{
 reduce_effects(
   fit,
@@ -54,7 +54,7 @@ returns all simulated values.}
 }
 \value{
 A data.frame containing reduced effects. When `uncertainty = TRUE`
-and `output = "summary"`, the result includes:
+  and `output = "summary"`, the result includes:
   - central estimate (median; stored in `eta`)
   - `eta_sd`: standard deviation of simulated values
   - `low` / `high`: empirical interval limits (quantiles)

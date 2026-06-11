@@ -27,6 +27,10 @@ identify_critical_lags <- function(
     stop("daily_df must contain columns 'lag' and 'effect'.")
   }
 
+  if (!is.numeric(daily_df$effect)) {
+    stop("'effect' column must be numeric.")
+  }
+
   has_samples <- "sample" %in% names(daily_df)
   has_var     <- "var" %in% names(daily_df)
 
@@ -60,7 +64,6 @@ identify_critical_lags <- function(
 
     if (!has_var) {
 
-      # single variable
       lag_summary <- summarise_lag(daily_df)
 
       return(
@@ -70,7 +73,6 @@ identify_critical_lags <- function(
 
     } else {
 
-      # multi-variable
       lag_summary <- daily_df |>
         dplyr::group_by(var, lag) |>
         dplyr::group_modify(~ summarise_lag(.x)) |>
@@ -105,8 +107,8 @@ identify_critical_lags <- function(
       dplyr::summarise(
         score_mean  = mean(score, na.rm = TRUE),
         score_sd    = stats::sd(score, na.rm = TRUE),
-        score_lower = stats::quantile(score, 0.025, na.rm = TRUE),
-        score_upper = stats::quantile(score, 0.975, na.rm = TRUE),
+        score_lower = stats::quantile(score, 0.025, na.rm = TRUE, names = FALSE),
+        score_upper = stats::quantile(score, 0.975, na.rm = TRUE, names = FALSE),
         .groups = "drop"
       )
 
@@ -130,8 +132,8 @@ identify_critical_lags <- function(
       dplyr::summarise(
         score_mean  = mean(score, na.rm = TRUE),
         score_sd    = stats::sd(score, na.rm = TRUE),
-        score_lower = stats::quantile(score, 0.025, na.rm = TRUE),
-        score_upper = stats::quantile(score, 0.975, na.rm = TRUE),
+        score_lower = stats::quantile(score, 0.025, na.rm = TRUE, names = FALSE),
+        score_upper = stats::quantile(score, 0.975, na.rm = TRUE, names = FALSE),
         .groups = "drop"
       )
 

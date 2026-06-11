@@ -12,19 +12,26 @@
 #' @return A data.frame with comparisons relative to the reference period.
 #'
 #' @export
-compare_periods <- function(accumulated_df,
-                            period_ref = 1,
-                            eps = 1e-10) {
+compare_periods <- function(
+    accumulated_df,
+    period_ref = 1,
+    eps = 1e-10
+) {
 
   # ------------------------------------------------------------
   # Basic input checks
   # ------------------------------------------------------------
   req_cols <- c("value", "period", "effect")
+
   if (!all(req_cols %in% names(accumulated_df))) {
     stop("accumulated_df must contain columns: value, period, effect.")
   }
 
-  if (!is.numeric(eps) || length(eps) != 1 || eps <= 0) {
+  if (!is.numeric(accumulated_df$effect)) {
+    stop("'effect' column must be numeric.")
+  }
+
+  if (!is.numeric(eps) || length(eps) != 1 || !is.finite(eps) || eps <= 0) {
     stop("eps must be a positive numeric scalar.")
   }
 
@@ -41,7 +48,7 @@ compare_periods <- function(accumulated_df,
   }
 
   # ------------------------------------------------------------
-  # ✅ Robust prefix handling
+  # ✅ Normalize period_ref if numeric
   # ------------------------------------------------------------
   if (is.numeric(period_ref)) {
 
@@ -52,41 +59,41 @@ compare_periods <- function(accumulated_df,
            "Provide period_ref as character instead.")
     }
 
-    prefix <- gsub("[0-9]+$", "", example_period)
+    prefix <- sub("[0-9]+$", "", example_period)
 
     period_ref <- paste0(prefix, period_ref)
   }
 
   # ------------------------------------------------------------
-  # Check reference period
+  # Check reference period exists
   # ------------------------------------------------------------
   if (!period_ref %in% accumulated_df$period) {
     stop("period_ref not found in accumulated_df$period.")
   }
 
   # ------------------------------------------------------------
-  # Extract reference
+  # Extract reference values
   # ------------------------------------------------------------
   ref_df <- accumulated_df |>
     dplyr::filter(period == period_ref) |>
     dplyr::select(value, ref_effect = effect)
 
   # ------------------------------------------------------------
-  # Join reference
+  # Join reference to all periods
   # ------------------------------------------------------------
   out <- accumulated_df |>
     dplyr::left_join(ref_df, by = "value")
 
   # ------------------------------------------------------------
-  # Safety check
+  # Safety check after join
   # ------------------------------------------------------------
-  if (any(is.na(out$ref_effect))) {
+  if (any(!is.finite(out$ref_effect))) {
     stop("Join with reference failed for some values. ",
          "Ensure consistent `value` across periods.")
   }
 
   # ------------------------------------------------------------
-  # Compute metrics
+  # Compute comparison metrics
   # ------------------------------------------------------------
   out <- out |>
     dplyr::mutate(
@@ -102,5 +109,5 @@ compare_periods <- function(accumulated_df,
   out <- out |>
     dplyr::arrange(value, period)
 
-  out
+  return(out)
 }

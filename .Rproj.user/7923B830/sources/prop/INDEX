@@ -9,6 +9,7 @@
 ~%2FGitHub%2FEpiExposure%2FR%2Fcompute_eci.R="B68486AE"
 ~%2FGitHub%2FEpiExposure%2FR%2Fdefine_exposure.R="A112DB3D"
 ~%2FGitHub%2FEpiExposure%2FR%2Fdefine_lag_windows.R="7415B23A"
+~%2FGitHub%2FEpiExposure%2FR%2Fdefine_periods.R="0993E4A9"
 ~%2FGitHub%2FEpiExposure%2FR%2Fdf_sensitivity.R="EE0410C0"
 ~%2FGitHub%2FEpiExposure%2FR%2Ffit_epidlnm.R="58F2A22D"
 ~%2FGitHub%2FEpiExposure%2FR%2FglobalVariables.R="206C6848"
@@ -55,4 +56,5 @@
 ~%2FGitHub%2FEpiExposure%2Fvignettes%2Fsimulating.Rmd="EE11B773"
 ~%2FGitHub%2FEpiExposure%2Fvignettes%2Fstatistical_output.Rmd="BDEBA3E3"
 ~%2FGitHub%2Fpaper_TS_weather%2Fabout.qmd="F17EAC48"
+~%2FGitHub%2Fpaper_TS_weather%2Flixo%2Fdlnm_targetspot_brms_with_band_effects.R="49E08BF9"
 ~%2FGitHub%2Fpaper_TS_weather%2Fstyles.css="135D0FD6"
