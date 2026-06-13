@@ -11,7 +11,7 @@ vignette: >
 
 `Introduzir o usuário ao workflow básico: da exposição ao modelo.`
 
-```{r}
+```{r, eval = FALSE}
 summarise_effects()
 # =========================================================
 # SIMULACAO: 520 epidemias x 86 dias
@@ -134,7 +134,7 @@ table(table(sim_data$epi_id))   # deve dar 86 por epi
 length(unique(sim_data$epi_id)) # 520 epidemias
 ```
 
-```{r}
+```{r, eval = FALSE}
 sim_data
 
 cb <- define_exposure(

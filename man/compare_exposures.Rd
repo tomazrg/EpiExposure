@@ -2,33 +2,103 @@
 % Please edit documentation in R/compare_exposures.R
 \name{compare_exposures}
 \alias{compare_exposures}
-\title{Compare exposure-lag profiles (pairwise or multiple)}
+\title{Compare exposure-lag profiles (global or lagwise, with optional grouping)}
 \usage{
 compare_exposures(
   exposures = NULL,
   exposure1 = NULL,
   exposure2 = NULL,
   lags = NULL,
+  reverse = FALSE,
+  group = NULL,
+  agg_fun = c("median", "mean"),
+  mode = c("global", "lagwise"),
   q = 0.8,
   eps = 1e-12
 )
 }
 \arguments{
-\item{exposures}{Named list of exposure profiles (preferred)}
+\item{exposures}{Named list of numeric vectors, where each element
+represents an exposure-lag profile. Each vector must have the same length.
+Alternatively, a single numeric vector is accepted and converted to a list.}
 
-\item{exposure1}{Legacy single exposure}
+\item{exposure1}{Legacy numeric vector (optional).}
 
-\item{exposure2}{Legacy second exposure}
+\item{exposure2}{Legacy numeric vector (optional).
+Used for backward compatibility if `exposures` is not provided.}
 
-\item{lags}{Optional integer vector (same length as exposures) exp - lags = c(7, 14, 21, 28) is equal to value 1 = lag 7, valor 2 = lag 14...}
+\item{lags}{Optional numeric vector indicating lag positions
+(same length as exposure profiles). Defaults to `0:(n - 1)`.}
 
-\item{q}{Quantile threshold for high-exposure overlap}
+\item{reverse}{Logical. If `TRUE`, each exposure profile is reversed before
+analysis. Use this when the input data are ordered from oldest to most
+recent (e.g., days before present). If `FALSE`, the function assumes the
+first element corresponds to lag 0 (most recent) and the last element to
+lag max (oldest).}
 
-\item{eps}{Small constant for stability}
+\item{group}{Optional vector defining group membership for each exposure.
+Must have the same length as `exposures`. If provided, profiles are first
+aggregated within each group and comparisons are performed between groups
+instead of individual exposures.}
+
+\item{agg_fun}{Aggregation function used when `group` is provided.
+Options are `"median"` (default, recommended) or `"mean"`.}
+
+\item{mode}{Type of comparison:
+\describe{
+  \item{"global"}{Aggregated comparison using distances, correlation,
+  and summary statistics across the full lag profile (default).}
+  \item{"lagwise"}{Lag-by-lag comparison, returning a long-format data
+  frame suitable for visualization and temporal analysis.}
+}}
+
+\item{q}{Quantile threshold (between 0 and 1) used to compute overlap of
+high-exposure regions (default = 0.8).}
+
+\item{eps}{Small constant used to avoid division by zero (default = 1e-12).}
 }
 \value{
-data.frame
+A data.frame.
+
+If `mode = "global"`, returns one row per pairwise comparison with metrics:
+\itemize{
+  \item L1, L2, Linf distances
+  \item Differences in sum, mean, and standard deviation
+  \item Correlation between profiles
+  \item Peak lag timing and shift
+  \item Center of mass and shift
+  \item Overlap of high-exposure regions
+}
+
+If `mode = "lagwise"`, returns one row per lag per pair:
+\itemize{
+  \item lag
+  \item value1, value2
+  \item diff, abs_diff, ratio
+}
 }
 \description{
-Compare exposure-lag profiles (pairwise or multiple)
+Compares exposure-lag profiles between two or more scenarios, epidemics,
+or simulated exposure histories. The function supports both global
+(aggregated) comparisons and lag-wise comparisons, enabling detailed
+temporal analysis of exposure differences.
+}
+\details{
+It also supports grouping of exposures (e.g., multiple epidemics),
+aggregating profiles per lag using a summary function (median or mean),
+which is particularly useful when working with large observational datasets.
+
+
+This function provides two complementary comparison strategies:
+
+\strong{Global comparison} summarizes the overall similarity between
+exposure profiles using distance metrics, correlation, and timing features.
+
+\strong{Lag-wise comparison} retains full temporal resolution, allowing
+identification of when differences between exposure profiles occur,
+which is particularly useful for plotting and interpretation.
+
+When working with observational data (e.g., multiple epidemics), providing
+a `group` argument is strongly recommended to avoid excessive pairwise
+comparisons and to obtain representative exposure profiles via aggregation.
 }

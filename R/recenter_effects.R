@@ -16,17 +16,21 @@
 #' @param fit Fitted model from `fit_epidlnm()`.
 #' @param wx_long Long-format weather data.
 #' @param var Exposure variable (e.g. `"tmax"`).
-#' @param lag_max Maximum lag.
-#' @param df_var Degrees of freedom (exposure).
-#' @param df_lag Degrees of freedom (lag).
-#' @param fun_var Basis (`"ns"`, `"bs"`, `"poly"`, `"lin"`).
-#' @param fun_lag Basis (`"ns"`, `"ps"`, `"lin"`).
+#' @param lag_max Optional maximum lag. Ignored if `fit` contains `epiexposure_spec`.
+#' @param df_var Optional degrees of freedom (exposure). Ignored if `fit`
+#'   contains `epiexposure_spec`.
+#' @param df_lag Optional degrees of freedom (lag). Ignored if `fit`
+#'   contains `epiexposure_spec`.
+#' @param fun_var Optional basis (`"ns"`, `"bs"`, `"poly"`, `"lin"`). Ignored
+#'   if `fit` contains `epiexposure_spec`.
+#' @param fun_lag Optional basis (`"ns"`, `"ps"`, `"lin"`). Ignored
+#'   if `fit` contains `epiexposure_spec`.
 #' @param ref New reference definition (centering value).
 #' @param probs Quantiles used to define the exposure grid.
 #' @param uncertainty Logical. If `TRUE`, quantify uncertainty using
-#' simulated or posterior draws of the model coefficients.
+#'   simulated or posterior draws of the model coefficients.
 #' @param output Character. `"summary"` returns aggregated surfaces;
-#' `"samples"` returns all simulated surfaces.
+#'   `"samples"` returns all simulated surfaces.
 #' @param n_samples Integer. Number of samples used for uncertainty propagation.
 #'
 #' @return
@@ -59,7 +63,7 @@ recenter_effects <- function(
     fit,
     wx_long,
     var,
-    lag_max,
+    lag_max = NULL,
     df_var = 4,
     df_lag = 4,
     fun_var = "ns",
@@ -79,9 +83,22 @@ recenter_effects <- function(
     stats::quantile(x, probs = probs, na.rm = TRUE, names = FALSE)
   }
 
+  safe_sd <- function(x) {
+    x <- x[is.finite(x)]
+    if (length(x) <= 1L) return(0)
+    stats::sd(x)
+  }
+
+  # ------------------------------------------------------------
+  # validations
+  # ------------------------------------------------------------
+  if (is.null(fit)) stop("`fit` cannot be NULL.")
   if (!is.data.frame(wx_long)) stop("`wx_long` must be a data.frame.")
   if (!all(c("epi_id", "dpp") %in% names(wx_long))) {
     stop("`wx_long` must contain at least 'epi_id' and 'dpp'.")
+  }
+  if (!is.character(var) || length(var) != 1L) {
+    stop("`var` must be a single character string.")
   }
   if (!var %in% names(wx_long)) stop("`var` not found in `wx_long`.")
   if (!is.logical(uncertainty) || length(uncertainty) != 1L) {
@@ -92,26 +109,41 @@ recenter_effects <- function(
   }
   n_samples <- as.integer(n_samples)
 
-  fit_spec <- attr(fit, "epiexposure_spec")
-  cb_cols_fit <- attr(fit, "epiexposure_cb_cols")
+  fit_spec     <- attr(fit, "epiexposure_spec")
+  cb_cols_fit  <- attr(fit, "epiexposure_cb_cols")
+  dat_template <- attr(fit, "epiexposure_dat_template")
 
   # ------------------------------------------------------------
   # 1) Resolve basis spec (prefer fit metadata)
   # ------------------------------------------------------------
   if (!is.null(fit_spec) && !is.null(fit_spec[[var]])) {
     spec_v <- fit_spec[[var]]
-    lag_max_use <- as.integer(spec_v$lag_max)
+
+    if (is.null(spec_v$lag_max)) {
+      stop("Missing `lag_max` inside `epiexposure_spec` for variable: ", var)
+    }
+
+    # ✅ dimensão temporal
+    lag_max_use <- as.integer(max(spec_v$lag_max))
     argvar <- spec_v$argvar
     arglag <- spec_v$arglag
+
   } else {
-    lag_max_use <- lag_max
+
+    if (is.null(lag_max)) {
+      stop("Model does not contain `epiexposure_spec` for variable '", var,
+           "'. Please provide `lag_max`.")
+    }
+
+    lag_max_use <- as.integer(max(lag_max))
 
     argvar <- switch(
       fun_var,
       ns   = list(fun = "ns", df = df_var),
       bs   = list(fun = "bs", df = df_var),
       poly = list(fun = "poly", degree = df_var),
-      lin  = list(fun = "lin")
+      lin  = list(fun = "lin"),
+      stop("Unsupported fun_var: ", fun_var)
     )
 
     if (!is.null(argvar$fun) && argvar$fun != "lin") {
@@ -122,9 +154,35 @@ recenter_effects <- function(
       fun_lag,
       ns  = list(fun = "ns", df = df_lag),
       ps  = list(fun = "ps", df = df_lag),
-      lin = list(fun = "lin")
+      lin = list(fun = "lin"),
+      stop("Unsupported fun_lag: ", fun_lag)
     )
   }
+
+  # ------------------------------------------------------------
+  # ✅ Check temporal coverage
+  # ------------------------------------------------------------
+  .check_lag_coverage <- function(dat, lag_max) {
+    n_required <- lag_max + 1L
+
+    bad_ids <- dat |>
+      dplyr::group_by(epi_id) |>
+      dplyr::summarise(n_days = dplyr::n_distinct(dpp), .groups = "drop") |>
+      dplyr::filter(n_days < n_required)
+
+    if (nrow(bad_ids) > 0) {
+      stop(
+        paste0(
+          "Some epidemics do not have enough temporal coverage for lag_max.\n",
+          "Required days per epi_id: ", n_required, "\n",
+          "Example problematic epi_id: ",
+          paste(head(bad_ids$epi_id, 5), collapse = ", ")
+        )
+      )
+    }
+  }
+
+  .check_lag_coverage(wx_long, lag_max_use)
 
   # ------------------------------------------------------------
   # 2) Helper: pooled series
@@ -180,7 +238,32 @@ recenter_effects <- function(
   cen <- as.numeric(cen)
 
   # ------------------------------------------------------------
-  # 5) Deterministic mean coef/vcov extractor
+  # 5) Helpers: coefficient matching
+  # ------------------------------------------------------------
+  sort_cb_names <- function(x) {
+    if (length(x) == 0) return(x)
+    idx <- suppressWarnings(as.integer(sub("^.*_([0-9]+)$", "\\1", x)))
+    idx[is.na(idx)] <- seq_along(x)
+    x[order(idx)]
+  }
+
+  match_brms_draw_names <- function(cb_names_ref, draw_colnames) {
+    bnames <- paste0("b_", cb_names_ref)
+
+    if (all(bnames %in% draw_colnames)) {
+      return(bnames)
+    }
+
+    raw_match <- cb_names_ref[cb_names_ref %in% draw_colnames]
+    if (length(raw_match) == length(cb_names_ref)) {
+      return(raw_match)
+    }
+
+    stop("Could not match brms posterior draw names to crossbasis columns.")
+  }
+
+  # ------------------------------------------------------------
+  # 6) Deterministic mean coef/vcov extractor
   # ------------------------------------------------------------
   extract_coef_vcov <- function(model) {
 
@@ -220,9 +303,11 @@ recenter_effects <- function(
     }
 
     if (inherits(model, "HLfit")) {
+      V <- tryCatch(as.matrix(stats::vcov(model)), error = function(e) NULL)
+      if (is.null(V)) stop("Could not extract vcov from spaMM model.")
       return(list(
         beta = spaMM::fixef(model),
-        vcov = as.matrix(stats::vcov(model))
+        vcov = V
       ))
     }
 
@@ -254,135 +339,36 @@ recenter_effects <- function(
   }
 
   # ------------------------------------------------------------
-  # 6) Posterior/simulated draws extractor
-  # returns matrix n_draws x p
-  # ------------------------------------------------------------
-  extract_beta_draws <- function(model, var, p, n_samples, cb_cols_fit = NULL) {
-
-    # ---------- brms: REAL posterior draws ----------
-    if (inherits(model, "brmsfit")) {
-      draws <- as.matrix(brms::as_draws_matrix(model))
-
-      nm <- grep(paste0("^b_cb_", var, "_"), colnames(draws), value = TRUE)
-      if (length(nm) == 0) {
-        nm <- grep(paste0("^b_.*", var), colnames(draws), value = TRUE)
-      }
-
-      if (length(nm) != p) {
-        stop("Could not match brms posterior draws to crossbasis columns.")
-      }
-
-      if (nrow(draws) > n_samples) {
-        set.seed(1)
-        keep <- sample(seq_len(nrow(draws)), n_samples)
-        draws <- draws[keep, nm, drop = FALSE]
-      } else {
-        draws <- draws[, nm, drop = FALSE]
-      }
-
-      return(draws)
-    }
-
-    # ---------- INLA: REAL posterior draws ----------
-    if (inherits(model, "inla")) {
-      if (!requireNamespace("INLA", quietly = TRUE)) {
-        stop("Package 'INLA' is required for INLA uncertainty quantification.")
-      }
-
-      posterior <- INLA::inla.posterior.sample(n = n_samples, result = model)
-      cb_names <- paste0("cb_", var, "_", seq_len(p))
-
-      draws <- do.call(rbind, lapply(posterior, function(s) {
-        latent <- s$latent
-        names(latent) <- gsub(":1$", "", names(latent))
-        as.numeric(latent[cb_names])
-      }))
-
-      colnames(draws) <- cb_names
-      return(draws)
-    }
-
-    # ---------- bdlnm: REAL posterior draws ----------
-    if (inherits(model, "bdlnm")) {
-      beta_draws <- model$coefficients
-      if (is.null(dim(beta_draws))) {
-        beta_draws <- matrix(beta_draws, ncol = 1)
-      }
-
-      cb_names <- intersect(
-        rownames(beta_draws),
-        paste0("cb_", var, "_", seq_len(p))
-      )
-
-      if (length(cb_names) == 0) {
-        cb_names <- grep(paste0("^cb_", var, "_"), rownames(beta_draws), value = TRUE)
-      }
-      if (length(cb_names) == 0 && !is.null(cb_cols_fit)) {
-        cb_names <- intersect(cb_cols_fit, rownames(beta_draws))
-      }
-
-      if (length(cb_names) != p) {
-        stop("Could not match bdlnm posterior draws to crossbasis columns.")
-      }
-
-      if (ncol(beta_draws) > n_samples) {
-        set.seed(1)
-        keep <- sample(seq_len(ncol(beta_draws)), n_samples)
-        beta_draws <- beta_draws[cb_names, keep, drop = FALSE]
-      } else {
-        beta_draws <- beta_draws[cb_names, , drop = FALSE]
-      }
-
-      return(t(beta_draws))
-    }
-
-    # ---------- Frequentist: normal approximation ----------
-    if (!requireNamespace("MASS", quietly = TRUE)) {
-      stop("Package 'MASS' is required for frequentist uncertainty.")
-    }
-
-    cv <- extract_coef_vcov(model)
-    beta <- cv$beta
-    V    <- cv$vcov
-
-    idx <- grepl(paste0("^cb_", var, "_"), names(beta))
-    beta_sub <- beta[idx]
-    V_sub    <- V[idx, idx, drop = FALSE]
-
-    if (length(beta_sub) != p) {
-      stop("Mismatch between coefficient vector and crossbasis columns.")
-    }
-
-    draws <- MASS::mvrnorm(
-      n = n_samples,
-      mu = beta_sub,
-      Sigma = V_sub
-    )
-
-    if (is.null(dim(draws))) {
-      draws <- matrix(draws, nrow = 1)
-    }
-
-    return(draws)
-  }
-
-  # ------------------------------------------------------------
-  # 7) Deterministic coefficients for the base return
+  # 7) Select coefficient names robustly
   # ------------------------------------------------------------
   cv <- extract_coef_vcov(fit)
   beta <- cv$beta
   V    <- cv$vcov
 
-  idx <- grepl(paste0("^cb_", var, "_"), names(beta))
-  beta_sub <- beta[idx]
-  V_sub    <- V[idx, idx, drop = FALSE]
+  cb_cols_var <- NULL
+  if (!is.null(cb_cols_fit)) {
+    cb_cols_var <- grep(paste0("^cb_", var, "_"), cb_cols_fit, value = TRUE)
+    cb_cols_var <- sort_cb_names(cb_cols_var)
+  } else if (!is.null(dat_template)) {
+    cb_cols_var <- grep(paste0("^cb_", var, "_"), names(dat_template), value = TRUE)
+    cb_cols_var <- sort_cb_names(cb_cols_var)
+  }
 
-  if (length(beta_sub) == 0) {
+  cb_names_ref <- if (!is.null(cb_cols_var) && length(cb_cols_var) > 0) {
+    cb_cols_var[cb_cols_var %in% names(beta)]
+  } else {
+    sort_cb_names(grep(paste0("^cb_", var, "_"), names(beta), value = TRUE))
+  }
+
+  if (length(cb_names_ref) == 0) {
     stop("No DLNM terms found for variable: ", var)
   }
-  if (length(beta_sub) != p) {
+  if (length(cb_names_ref) != p) {
     stop("Mismatch between selected coefficients and crossbasis dimension.")
   }
+
+  beta_sub <- beta[cb_names_ref]
+  V_sub    <- V[cb_names_ref, cb_names_ref, drop = FALSE]
 
   # ------------------------------------------------------------
   # 8) Deterministic crosspred (backward compatible)
@@ -401,77 +387,180 @@ recenter_effects <- function(
   }
 
   # ------------------------------------------------------------
-  # 9) Draw-based uncertainty
+  # 9) Posterior/simulated draws extractor
+  # returns matrix n_draws x p
   # ------------------------------------------------------------
+  extract_beta_draws <- function(model, cb_names_ref, n_samples) {
+
+    # ---------- brms: REAL posterior draws ----------
+    if (inherits(model, "brmsfit")) {
+      draws <- as.matrix(brms::as_draws_matrix(model))
+      draw_names <- match_brms_draw_names(cb_names_ref, colnames(draws))
+
+      draws <- draws[, draw_names, drop = FALSE]
+
+      if (nrow(draws) > n_samples) {
+        set.seed(1)
+        keep <- sample(seq_len(nrow(draws)), n_samples)
+        draws <- draws[keep, , drop = FALSE]
+      }
+
+      colnames(draws) <- cb_names_ref
+      return(draws)
+    }
+
+    # ---------- INLA: REAL posterior draws ----------
+    if (inherits(model, "inla")) {
+      if (!requireNamespace("INLA", quietly = TRUE)) {
+        stop("Package 'INLA' is required for INLA uncertainty quantification.")
+      }
+
+      posterior <- tryCatch(
+        INLA::inla.posterior.sample(n = n_samples, result = model),
+        error = function(e) NULL
+      )
+
+      if (is.null(posterior)) {
+        stop("INLA posterior samples could not be drawn. Ensure the model was fitted with control.compute = list(config = TRUE).")
+      }
+
+      draws <- do.call(rbind, lapply(posterior, function(s) {
+        latent <- s$latent
+        names(latent) <- gsub(":1$", "", names(latent))
+        as.numeric(latent[cb_names_ref])
+      }))
+
+      colnames(draws) <- cb_names_ref
+      return(draws)
+    }
+
+    # ---------- bdlnm: REAL posterior draws ----------
+    if (inherits(model, "bdlnm")) {
+      beta_draws <- model$coefficients
+
+      if (is.null(dim(beta_draws))) {
+        beta_draws <- matrix(beta_draws, ncol = 1)
+      }
+
+      if (!all(cb_names_ref %in% rownames(beta_draws))) {
+        stop("Could not match bdlnm posterior draws to crossbasis columns.")
+      }
+
+      beta_draws <- beta_draws[cb_names_ref, , drop = FALSE]
+
+      if (ncol(beta_draws) > n_samples) {
+        set.seed(1)
+        keep <- sample(seq_len(ncol(beta_draws)), n_samples)
+        beta_draws <- beta_draws[, keep, drop = FALSE]
+      }
+
+      out <- t(beta_draws)
+      colnames(out) <- cb_names_ref
+      return(out)
+    }
+
+    # ---------- Frequentist: normal approximation ----------
+    if (!requireNamespace("MASS", quietly = TRUE)) {
+      stop("Package 'MASS' is required for frequentist uncertainty.")
+    }
+
+    draws <- MASS::mvrnorm(
+      n = n_samples,
+      mu = beta_sub,
+      Sigma = V_sub
+    )
+
+    if (is.null(dim(draws))) {
+      draws <- matrix(draws, nrow = 1)
+    }
+
+    colnames(draws) <- cb_names_ref
+    return(draws)
+  }
+
   beta_draws <- extract_beta_draws(
     model = fit,
-    var = var,
-    p = p,
-    n_samples = n_samples,
-    cb_cols_fit = cb_cols_fit
+    cb_names_ref = cb_names_ref,
+    n_samples = n_samples
   )
 
+  draw_sd <- apply(beta_draws, 2, stats::sd)
+  if (all(!is.finite(draw_sd)) || all(draw_sd < 1e-12, na.rm = TRUE)) {
+    warning(
+      "Near-zero variability detected in coefficient draws for variable '", var,
+      "'. Recentered surface intervals may collapse to a single value."
+    )
+  }
+
+  # ------------------------------------------------------------
+  # 10) Draw-based uncertainty
+  # ------------------------------------------------------------
   n_draws <- nrow(beta_draws)
   cp_samples <- vector("list", n_draws)
 
   for (i in seq_len(n_draws)) {
+    beta_i <- beta_draws[i, ]
+
     cp_samples[[i]] <- dlnm::crosspred(
       cb,
-      coef  = beta_draws[i, ],
-      vcov  = NULL,
+      coef  = beta_i,
+      # ✅ API compatível com draws fixos
+      vcov  = diag(0, length(beta_i)),
       at    = at_vals,
       cen   = cen,
       bylag = 1
     )
   }
 
-  # ------------------------------------------------------------
-  # 10) Build summary surfaces
-  # ------------------------------------------------------------
-  # Extract arrays of matfit and allfit from samples
-  matfit_arr <- simplify2array(lapply(cp_samples, function(x) x$matfit))
-  allfit_arr <- simplify2array(lapply(cp_samples, function(x) x$allfit))
-
-  # matfit: [at x lag x sample]
-  matfit_mean  <- apply(matfit_arr, c(1, 2), stats::median, na.rm = TRUE)
-  matfit_lower <- apply(matfit_arr, c(1, 2), stats::quantile, probs = 0.025, na.rm = TRUE)
-  matfit_upper <- apply(matfit_arr, c(1, 2), stats::quantile, probs = 0.975, na.rm = TRUE)
-
-  # allfit usually [at x sample]
-  if (length(dim(allfit_arr)) == 2) {
-    allfit_mean  <- apply(allfit_arr, 1, stats::median, na.rm = TRUE)
-    allfit_lower <- apply(allfit_arr, 1, stats::quantile, probs = 0.025, na.rm = TRUE)
-    allfit_upper <- apply(allfit_arr, 1, stats::quantile, probs = 0.975, na.rm = TRUE)
-  } else {
-    allfit_mean  <- base_cp$allfit
-    allfit_lower <- base_cp$allfit
-    allfit_upper <- base_cp$allfit
+  if (output == "samples") {
+    # ainda assim retornamos mean/lower/upper para conveniência
   }
+
+  # ------------------------------------------------------------
+  # 11) Build summary surfaces
+  # ------------------------------------------------------------
+  n_at  <- length(at_vals)
+  n_lag <- ncol(cp_samples[[1]]$matfit)
+
+  matfit_arr <- array(NA_real_, dim = c(n_at, n_lag, n_draws))
+  for (i in seq_len(n_draws)) {
+    matfit_arr[, , i] <- cp_samples[[i]]$matfit
+  }
+
+  center_fit <- apply(matfit_arr, c(1, 2), stats::median, na.rm = TRUE)
+  lower_fit  <- apply(matfit_arr, c(1, 2), function(z) safe_quantile(z)[1])
+  upper_fit  <- apply(matfit_arr, c(1, 2), function(z) safe_quantile(z)[2])
 
   cp_mean  <- base_cp
   cp_lower <- base_cp
   cp_upper <- base_cp
 
-  cp_mean$matfit  <- matfit_mean
-  cp_lower$matfit <- matfit_lower
-  cp_upper$matfit <- matfit_upper
+  cp_mean$matfit   <- center_fit
+  cp_lower$matfit  <- lower_fit
+  cp_upper$matfit  <- upper_fit
 
   if (!is.null(base_cp$allfit)) {
-    cp_mean$allfit  <- allfit_mean
-    cp_lower$allfit <- allfit_lower
-    cp_upper$allfit <- allfit_upper
+    allfit_mat <- matrix(NA_real_, nrow = length(base_cp$allfit), ncol = n_draws)
+    for (i in seq_len(n_draws)) {
+      allfit_mat[, i] <- cp_samples[[i]]$allfit
+    }
+
+    cp_mean$allfit  <- apply(allfit_mat, 1, stats::median, na.rm = TRUE)
+    cp_lower$allfit <- apply(allfit_mat, 1, function(z) safe_quantile(z)[1])
+    cp_upper$allfit <- apply(allfit_mat, 1, function(z) safe_quantile(z)[2])
   }
 
-  # try to keep RR fields coherent if present
+  # manter campos RR coerentes, se existirem
   if (!is.null(base_cp$matRRfit)) {
-    cp_mean$matRRfit  <- exp(matfit_mean)
-    cp_lower$matRRfit <- exp(matfit_lower)
-    cp_upper$matRRfit <- exp(matfit_upper)
+    cp_mean$matRRfit  <- exp(cp_mean$matfit)
+    cp_lower$matRRfit <- exp(cp_lower$matfit)
+    cp_upper$matRRfit <- exp(cp_upper$matfit)
   }
-  if (!is.null(base_cp$allRRfit)) {
-    cp_mean$allRRfit  <- exp(allfit_mean)
-    cp_lower$allRRfit <- exp(allfit_lower)
-    cp_upper$allRRfit <- exp(allfit_upper)
+
+  if (!is.null(base_cp$allRRfit) && !is.null(cp_mean$allfit)) {
+    cp_mean$allRRfit  <- exp(cp_mean$allfit)
+    cp_lower$allRRfit <- exp(cp_lower$allfit)
+    cp_upper$allRRfit <- exp(cp_upper$allfit)
   }
 
   if (output == "samples") {

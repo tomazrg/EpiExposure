@@ -35,7 +35,7 @@ reference:
   contents:
     - define_exposure
     - check_identifiability
-    - build_design_matrix
+    - build_design
     - prepare_response
 
 

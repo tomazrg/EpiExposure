@@ -8,7 +8,7 @@ recenter_effects(
   fit,
   wx_long,
   var,
-  lag_max,
+  lag_max = NULL,
   df_var = 4,
   df_lag = 4,
   fun_var = "ns",
@@ -27,15 +27,19 @@ recenter_effects(
 
 \item{var}{Exposure variable (e.g. `"tmax"`).}
 
-\item{lag_max}{Maximum lag.}
+\item{lag_max}{Optional maximum lag. Ignored if `fit` contains `epiexposure_spec`.}
 
-\item{df_var}{Degrees of freedom (exposure).}
+\item{df_var}{Optional degrees of freedom (exposure). Ignored if `fit`
+contains `epiexposure_spec`.}
 
-\item{df_lag}{Degrees of freedom (lag).}
+\item{df_lag}{Optional degrees of freedom (lag). Ignored if `fit`
+contains `epiexposure_spec`.}
 
-\item{fun_var}{Basis (`"ns"`, `"bs"`, `"poly"`, `"lin"`).}
+\item{fun_var}{Optional basis (`"ns"`, `"bs"`, `"poly"`, `"lin"`). Ignored
+if `fit` contains `epiexposure_spec`.}
 
-\item{fun_lag}{Basis (`"ns"`, `"ps"`, `"lin"`).}
+\item{fun_lag}{Optional basis (`"ns"`, `"ps"`, `"lin"`). Ignored
+if `fit` contains `epiexposure_spec`.}
 
 \item{ref}{New reference definition (centering value).}
 

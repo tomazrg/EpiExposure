@@ -1,139 +1,183 @@
-
 /* ========================= */
-/* ✅ NAVBAR */
+/* NAVBAR */
 /* ========================= */
 
 .navbar {
   background-color: #458a3f !important;
+
+  /* ajuste de altura (NOVO) */
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+  min-height: 48px !important;
 }
 
-/* ========================= */
-/* ✅ VERSION (0.1.0) */
-/* ========================= */
+/* reduz espaçamento interno dos links (NOVO) */
+.navbar .nav-link {
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
+}
 
-.navbar .navbar-brand small {
+/* tamanho do título (NOVO) */
+.navbar-brand {
+  font-size: 1rem !important;
+}
+
+/* versão (NOVO refinado) */
+.navbar-brand small {
+  font-size: 0.75rem !important;
+}
+
+/* VERSION */
+.navbar .navbar-brand small,
+.navbar .navbar-brand,
+.navbar .navbar-brand * {
   color: #ffffff !important;
   opacity: 1 !important;
 }
 
-/* ========================= */
-/* ✅ NAVBAR LINKS */
-/* ========================= */
-
-/* todos os links */
+/* LINKS */
 .navbar .navbar-nav .nav-link {
   color: #ffffff !important;
   opacity: 1 !important;
 }
 
-/* dropdown (Articles) */
-.navbar .navbar-nav .dropdown-toggle {
+.navbar .navbar-nav .nav-link.active,
+.navbar .navbar-nav .show > .nav-link {
+  color: #b8ff9a !important;
+}
+
+.navbar .navbar-nav .nav-link:hover {
+  color: #d6ffbf !important;
+}
+
+/* ========================= */
+/* TITLES */
+/* ========================= */
+
+/* Light mode */
+[data-bs-theme="light"] h1,
+[data-bs-theme="light"] h2,
+[data-bs-theme="light"] h3 {
+  color: #000000 !important;
+}
+
+/* Dark mode */
+[data-bs-theme="dark"] h1,
+[data-bs-theme="dark"] h2,
+[data-bs-theme="dark"] h3 {
   color: #ffffff !important;
 }
 
-/* ativo (Reference, etc.) */
-.navbar .navbar-nav .nav-link.active {
-  color: #7ED957 !important;
-}
-
-/* dropdown aberto */
-.navbar .navbar-nav .show > .nav-link {
-  color: #7ED957 !important;
-}
-
-/* hover */
-.navbar .navbar-nav .nav-link:hover {
-  color: #a6ff7a !important;
-}
-
 /* ========================= */
-/* ✅ TITLES */
-/* ========================= */
-
-h1, h2, h3 {
-  color: #7ED957 !important;
-}
-
-/* ========================= */
-/* ✅ LINKS */
+/* LINKS (CONTENT) */
 /* ========================= */
 
 a {
-  color: #7ED957 !important;
+  color: #458a3f !important;
+}
+
+a:hover {
+  color: #2e5f2a !important;
 }
 
 /* ========================= */
-/* ✅ SIDEBAR */
+/* SIDEBAR */
 /* ========================= */
 
 .list-unstyled a {
-  color: #7ED957 !important;
+  color: #458a3f !important;
 }
 
+/* ========================= */
+/*  CODE BLOCKS */
+/* ========================= */
 
-/* ========================= */
-/* ✅ CODE BLOCKS (ESTILO r4pde) */
-/* ========================= */
+/* Light mode */
+[data-bs-theme="light"] pre {
+  background-color: #f6f8fa !important;
+  color: #24292e !important;
+  border: 1px solid #e1e4e8;
+}
+
+/* Dark mode */
+[data-bs-theme="dark"] pre {
+  background-color: #161b22 !important;
+  color: #c9d1d9 !important;
+  border: 1px solid #30363d;
+}
 
 pre {
-  background-color: #2b2f33 !important;   /* cinza escuro suave */
-  color: #e8e8e8 !important;
   border-radius: 10px;
-  padding: 12px;
-  border: 1px solid #3a3f44;
+  padding: 14px;
   overflow-x: auto;
+  font-size: 0.95em;
 }
 
-/* interior */
 pre code {
   background-color: transparent !important;
-  color: #e8e8e8 !important;
 }
 
-/* código inline */
+/* ========================= */
+/*  INLINE CODE */
+/* ========================= */
+
+[data-bs-theme="light"] code {
+  background-color: #eef1f4 !important;
+  color: #e83e8c !important;
+}
+
+[data-bs-theme="dark"] code {
+  background-color: #21262d !important;
+  color: #ff7b72 !important;
+}
+
 code {
-  background-color: #353a40 !important;
-  color: #7ED957 !important;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: 5px;
 }
 
 /* ========================= */
-/* ✅ SYNTAX HIGHLIGHT */
+/*  SYNTAX HIGHLIGHT */
 /* ========================= */
 
-code span.co { color: #6A9955 !important; }
-code span.kw { color: #569CD6 !important; }
-code span.st { color: #CE9178 !important; }
-
-
-/* ========================= */
-/* ✅ VERSION TEXT (FORCE WHITE REAL) */
-/* ========================= */
-
-/* força tudo dentro do brand */
-.navbar .navbar-brand {
-  color: #ffffff !important;
-}
-
-/* força especificamente a versão */
-.navbar .navbar-brand *,
-.navbar .navbar-brand span,
-.navbar .navbar-brand small {
-  color: #ffffff !important;
-  opacity: 1 !important;
-}
-
+code span.co { color: #6a9955 !important; }
+code span.kw { color: #569cd6 !important; }
+code span.st { color: #d69d85 !important; }
 
 /* ========================= */
-/* ✅ PAGE BACKGROUND (IGUAL r4pde) */
+/* ✅ BACKGROUND */
 /* ========================= */
 
 body {
-  background-color: #1f262d !important;
+  background-color: transparent !important;
 }
 
-/* container principal */
+/* dark */
+[data-bs-theme="dark"] body {
+  background-color: #1e1e1e !important;
+  color: #d4d4d4 !important;
+}
+
+/* conteúdo */
+[data-bs-theme="dark"] .container-fluid,
+[data-bs-theme="dark"] .container-lg,
+[data-bs-theme="dark"] .container-xl,
+[data-bs-theme="dark"] .container-xxl {
+  background-color: #252526 !important;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+/* light */
+[data-bs-theme="light"] body {
+  background-color: #ffffff !important;
+  color: #212529 !important;
+}
+
+/* ========================= */
+/*  CONTAINERS */
+/* ========================= */
+
 .container-fluid,
 .container-lg,
 .container-xl,
@@ -141,29 +185,10 @@ body {
   background-color: transparent !important;
 }
 
-
 /* ========================= */
-/* ✅ PACKAGE TITLE (HOME) */
+/*  HEADINGS */
 /* ========================= */
 
 h1 {
   font-weight: 700 !important;
-}
-
-/* ========================= */
-/* ✅ DARK MODE */
-/* ========================= */
-
-[data-bs-theme="dark"] body {
-  background-color: #1f262d !important;
-  color: #d4d4d4 !important;
-}
-
-/* ========================= */
-/* ✅ LIGHT MODE */
-/* ========================= */
-
-[data-bs-theme="light"] body {
-  background-color: #ffffff !important;
-  color: #212529 !important;
 }
