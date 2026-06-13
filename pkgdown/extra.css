@@ -4,30 +4,10 @@
 
 .navbar {
   background-color: #458a3f !important;
-
-  /* ajuste de altura (NOVO) */
-  padding-top: 0.5rem !important;
-  padding-bottom: 0.5rem !important;
-  min-height: 48px !important;
+  padding-top: 0.55rem !important;
+  padding-bottom: 0.55rem !important;
 }
 
-/* reduz espaçamento interno dos links (NOVO) */
-.navbar .nav-link {
-  padding-top: 0.25rem !important;
-  padding-bottom: 0.25rem !important;
-}
-
-/* tamanho do título (NOVO) */
-.navbar-brand {
-  font-size: 1rem !important;
-}
-
-/* versão (NOVO refinado) */
-.navbar-brand small {
-  font-size: 0.75rem !important;
-}
-
-/* VERSION */
 .navbar .navbar-brand small,
 .navbar .navbar-brand,
 .navbar .navbar-brand * {
@@ -35,7 +15,6 @@
   opacity: 1 !important;
 }
 
-/* LINKS */
 .navbar .navbar-nav .nav-link {
   color: #ffffff !important;
   opacity: 1 !important;
@@ -50,26 +29,30 @@
   color: #d6ffbf !important;
 }
 
+
 /* ========================= */
 /* TITLES */
 /* ========================= */
 
-/* Light mode */
 [data-bs-theme="light"] h1,
 [data-bs-theme="light"] h2,
 [data-bs-theme="light"] h3 {
   color: #000000 !important;
 }
 
-/* Dark mode */
 [data-bs-theme="dark"] h1,
 [data-bs-theme="dark"] h2,
 [data-bs-theme="dark"] h3 {
   color: #ffffff !important;
 }
 
+h1 {
+  font-weight: 700 !important;
+}
+
+
 /* ========================= */
-/* LINKS (CONTENT) */
+/* LINKS */
 /* ========================= */
 
 a {
@@ -80,85 +63,149 @@ a:hover {
   color: #2e5f2a !important;
 }
 
-/* ========================= */
-/* SIDEBAR */
-/* ========================= */
-
 .list-unstyled a {
   color: #458a3f !important;
 }
 
-/* ========================= */
-/*  CODE BLOCKS */
-/* ========================= */
 
-/* Light mode */
+/* ===================================== */
+/* CODE BLOCKS - SEM SOMBRA / SEM CAIXAS */
+/* ===================================== */
+
 [data-bs-theme="light"] pre {
-  background-color: #f6f8fa !important;
+  background: #f6f8fa !important;
   color: #24292e !important;
-  border: 1px solid #e1e4e8;
+  border: 1px solid #d0d7de !important;
+  box-shadow: none !important;
 }
 
-/* Dark mode */
 [data-bs-theme="dark"] pre {
-  background-color: #161b22 !important;
+  background: #161b22 !important;
   color: #c9d1d9 !important;
-  border: 1px solid #30363d;
+  border: 1px solid #30363d !important;
+  box-shadow: none !important;
 }
 
 pre {
-  border-radius: 10px;
-  padding: 14px;
+  border-radius: 8px;
+  padding: 16px;
   overflow-x: auto;
   font-size: 0.95em;
 }
 
-pre code {
+/* Remove fundos internos do código */
+
+pre,
+pre *,
+pre code,
+pre code *,
+.sourceCode,
+.sourceCode *,
+.hljs,
+.hljs *,
+div.sourceCode,
+div.sourceCode * {
+  background: transparent !important;
   background-color: transparent !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
 }
+
+pre code span,
+pre code span.line,
+pre code span.line * {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Mantém o fundo apenas no bloco externo */
+
+[data-bs-theme="light"] div.sourceCode {
+  background: #f6f8fa !important;
+  border: 1px solid #d0d7de !important;
+  border-radius: 8px;
+}
+
+[data-bs-theme="dark"] div.sourceCode {
+  background: #161b22 !important;
+  border: 1px solid #30363d !important;
+  border-radius: 8px;
+}
+
 
 /* ========================= */
-/*  INLINE CODE */
+/* INLINE CODE */
 /* ========================= */
 
-[data-bs-theme="light"] code {
-  background-color: #eef1f4 !important;
-  color: #e83e8c !important;
-}
-
-[data-bs-theme="dark"] code {
-  background-color: #21262d !important;
-  color: #ff7b72 !important;
-}
-
-code {
+:not(pre) > code {
   padding: 2px 6px;
   border-radius: 5px;
 }
 
+/* LIGHT THEME - igual ao summarise_effects() */
+
+[data-bs-theme="light"] :not(pre) > code {
+  background-color: #eef1f4 !important;
+  color: #116329 !important;
+}
+
+/* DARK THEME */
+
+[data-bs-theme="dark"] :not(pre) > code {
+  background-color: #21262d !important;
+  color: #7ee787 !important;
+}
+
+
 /* ========================= */
-/*  SYNTAX HIGHLIGHT */
+/* SYNTAX HIGHLIGHT COLORS */
 /* ========================= */
 
-code span.co { color: #6a9955 !important; }
-code span.kw { color: #569cd6 !important; }
-code span.st { color: #d69d85 !important; }
+/* LIGHT THEME */
+[data-bs-theme="light"] code span.co { color: #47721f !important; }
+[data-bs-theme="light"] code span.kw { color: #6639ba !important; }
+[data-bs-theme="light"] code span.st { color: #0a7f42 !important; }
+[data-bs-theme="light"] code span.fu { color: #0550ae !important; }
+[data-bs-theme="light"] code span.va { color: #116329 !important; }
+[data-bs-theme="light"] code span.dv { color: #953800 !important; }
+[data-bs-theme="light"] code span.ot { color: #0550ae !important; }
+[data-bs-theme="light"] code span.op { color: #24292f !important; }
+
+/* DARK THEME */
+[data-bs-theme="dark"] code span.co { color: #6a9955 !important; }
+[data-bs-theme="dark"] code span.kw { color: #569cd6 !important; }
+[data-bs-theme="dark"] code span.st { color: #ce9178 !important; }
+[data-bs-theme="dark"] code span.fu { color: #dcdcaa !important; }
+[data-bs-theme="dark"] code span.va { color: #9cdcfe !important; }
+[data-bs-theme="dark"] code span.dv { color: #b5cea8 !important; }
+[data-bs-theme="dark"] code span.ot { color: #4ec9b0 !important; }
+[data-bs-theme="dark"] code span.op { color: #d4d4d4 !important; }
+
 
 /* ========================= */
-/* ✅ BACKGROUND */
+/* BODY / PAGE */
 /* ========================= */
 
 body {
   background-color: transparent !important;
 }
 
-/* dark */
 [data-bs-theme="dark"] body {
   background-color: #1e1e1e !important;
   color: #d4d4d4 !important;
 }
 
-/* conteúdo */
+[data-bs-theme="light"] body {
+  background-color: #ffffff !important;
+  color: #212529 !important;
+}
+
+
+/* ========================= */
+/* CONTAINERS */
+/* ========================= */
+
 [data-bs-theme="dark"] .container-fluid,
 [data-bs-theme="dark"] .container-lg,
 [data-bs-theme="dark"] .container-xl,
@@ -168,16 +215,6 @@ body {
   padding: 10px;
 }
 
-/* light */
-[data-bs-theme="light"] body {
-  background-color: #ffffff !important;
-  color: #212529 !important;
-}
-
-/* ========================= */
-/*  CONTAINERS */
-/* ========================= */
-
 .container-fluid,
 .container-lg,
 .container-xl,
@@ -186,9 +223,31 @@ body {
 }
 
 /* ========================= */
-/*  HEADINGS */
+/* PACKAGE LOGO - README STYLE */
 /* ========================= */
 
-h1 {
-  font-weight: 700 !important;
+main,
+.page-main,
+.contents {
+  position: relative;
+}
+
+.pkg-page-logo {
+  position: absolute;
+  top: 10px;
+  right: 5px;
+  width: 380px;
+  max-width: 100%;
+  height: auto;
+  z-index: 2;
+}
+
+@media (max-width: 900px) {
+  .pkg-page-logo {
+    position: static;
+    display: block;
+    width: 380px;
+    max-width: 100%;
+    margin: 5px auto;
+  }
 }

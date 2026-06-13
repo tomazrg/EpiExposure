@@ -7,6 +7,10 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+<img src="../reference/figures/sticker.png"
+     class="pkg-page-logo"
+     alt="EpiExposure logo">
+
 # What EpiExposure does?
 
 `Introduzir o usuário ao workflow básico: da exposição ao modelo.`
