@@ -4,6 +4,8 @@ template:
   bootstrap: 5
   bootswatch: flatly
   light-switch: true
+  includes:
+    before_body: pkgdown/logo.html
 
 home:
   title: EpiExposure

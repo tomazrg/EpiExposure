@@ -234,12 +234,17 @@ main,
 
 .pkg-page-logo {
   position: absolute;
-  top: 10px;
-  right: 5px;
+  top: 0px;
+  right: -80px;
   width: 380px;
   max-width: 100%;
   height: auto;
   z-index: 2;
+}
+
+
+.pkgdown-header {
+  position: relative;
 }
 
 @media (max-width: 900px) {
@@ -251,3 +256,5 @@ main,
     margin: 5px auto;
   }
 }
+
+
