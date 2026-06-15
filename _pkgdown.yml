@@ -5,18 +5,22 @@ template:
   bootswatch: flatly
   light-switch: true
   includes:
-    before_body: pkgdown/logo.html
+    after_body: pkgdown/logo.html
 
 home:
   title: EpiExposure
-  description:  R package designed to advance the epidemiological interpretation
+  description: R package designed to advance the epidemiological interpretation
 
 navbar:
   structure:
-    left:  [home, articles, reference, examples, newslink]
+    left: [home, getstarted, articles, reference, newslink]
     right: [search, github, linkedin, lightswitch]
 
   components:
+
+    getstarted:
+      text: Get started
+      href: articles/pkgdown.html
 
     github:
       icon: fab fa-github
@@ -30,48 +34,56 @@ navbar:
       text: News
       href: news/index.html
 
+
+articles:
+  - title: Examples
+    navbar: Articles
+    contents:
+      - pkgdown
+      - fungi
+      - nematode
+      - virus
+      - bacteria
+
 reference:
 
+  - title: "Data & Exposure Setup"
+    contents:
+      - define_exposure
+      - check_identifiability
+      - build_design
+      - prepare_response
 
-- title: "Data & Exposure Setup"
-  contents:
-    - define_exposure
-    - check_identifiability
-    - build_design
-    - prepare_response
+  - title: "Model Fitting"
+    contents:
+      - fit_epidlnm
 
+  - title: "Predictions & Simulations"
+    contents:
+      - predict_surface
+      - predict_outcome
+      - simulate_exposure
+      - simulate_range
+      - simulate_scenarios
+      - compare_exposures
+      - compare_predictions
+      - compare_periods
 
-- title: "Model Fitting"
-  contents:
-    - fit_epidlnm
+  - title: "Periods & Summaries"
+    contents:
+      - define_periods
+      - summarise_effects
+      - recenter_effects
+      - reduce_effects
 
+  - title: "Effect Decomposition & Analysis"
+    contents:
+      - compute_eci
+      - compute_ecilag
+      - identify_critical_lags
+      - lag_contribution
+      - df_sensitivity
 
-- title: "Predictions & Simulations"
-  contents:
-    - predict_surface
-    - predict_outcome
-    - simulate_exposure
-    - simulate_range
-    - simulate_scenarios
-    - compare_exposures
-    - compare_predictions
-    - compare_periods
-
-- title: "Periods & Summaries"
-  contents:
-    - define_periods
-    - summarise_effects
-    - recenter_effects
-    - reduce_effects
-
-- title: "Effect Decomposition & Analysis"
-  contents:
-    - compute_eci
-    - compute_ecilag
-    - identify_critical_lags
-    - lag_contribution
-    - df_sensitivity
-
-- title: "Datasets"
-  contents:
-    - TargetSpot
+  - title: "Datasets"
+    contents:
+      - TargetSpot

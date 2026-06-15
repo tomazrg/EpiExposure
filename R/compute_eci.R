@@ -1,8 +1,8 @@
-#' Compute Exposure Cumulative Impact (ECI - the exposure profile with the fitted model coefficients)
+#' Compute Exposure Cumulative Impact (ECI - the exposure profile with the fitted model coefficients)#' Compute Exposure Cumulative Impact (ECI_weighted`) for one or more exposure variables.
 #'
-#' This function supports both deterministic estimation and uncertainty
-#' propagation. When `uncertainty = TRUE`, the weighted ECI is recomputed
-#' across simulated or posterior draws of the model coefficients.
+#' It supports both deterministic estimation and uncertainty propagation.
+#' When `uncertainty = TRUE`, `ECI_weighted` is recomputed across simulated or
+#' posterior draws of the model coefficients.
 #'
 #' If `output = "summary"`, the central estimate is computed as the median of
 #' the simulated ECI values, while interval limits are obtained from empirical
@@ -12,21 +12,55 @@
 #' `ECI_weighted` represents the *central estimate*, computed as the median
 #' of the simulated distribution on the requested `scale`.
 #'
-#' @param profile Numeric vector of exposure values representing a lag profile.
-#'   Its length must be equal to `lag_max + 1` for the exposure variable stored
-#'   in the fitted model.
+#' @param profile Numeric vector or list of numeric vectors representing one or
+#'   more lag profiles. If `fit = NULL`, `profile` must be a single numeric
+#'   vector. If `fit` is provided and `var` contains multiple variables,
+#'   `profile` can be a named list of profiles (one per variable), or a list
+#'   that will be matched to `var` by position.
+#'
+#' @param epi_data Optional data frame containing observed exposure histories.
+#'   Used only when `fit` is provided and the user wants the function to extract
+#'   the profile(s) from a grouped dataset instead of supplying `profile`
+#'   directly.
+#'
+#'   **IMPORTANT:** data in `epi_data` must already be ordered in the correct
+#'   chronological sequence within each group (oldest → most recent), with no
+#'   misplaced days or misordered observations. This function does **not**
+#'   reorder the observed data internally.
+#'
+#' @param group Optional column name used to identify groups in `epi_data`
+#'   (e.g., `"epi_id"`).
+#'
+#' @param group_level Optional value or vector of values inside `group` used to
+#'   select the profile(s) from `epi_data`. This represents the sub-level(s) of
+#'   the grouping variable (e.g., one or more epidemic IDs). It can be numeric,
+#'   character, or factor.
+#'
+#'   If `group_level = NULL`, the function computes ECI estimates for **all**
+#'   observed levels of `group`.
+#'
 #' @param fit Fitted model from `fit_epidlnm()`. Required to compute
 #'   `ECI_weighted`. If `NULL`, only `ECI_raw` is returned.
+#'
+#' @param var Optional character scalar or vector indicating which fitted
+#'   exposure variable(s) should be used. Required when `fit` contains more
+#'   than one exposure variable. Names in `var` must exactly match the variable
+#'   names stored in the fitted model.
+#'
 #' @param scale Character. Scale for `ECI_weighted`:
 #'   - `"link"`: linear predictor scale (default)
 #'   - `"response"`: inverse-link transformed scale
 #'   - `"percent"`: relative change scale, computed as `(exp(eta) - 1) * 100`
-#' @param reverse Logical. If `TRUE`, reverses the input profile before analysis.
-#'   Use this when the supplied profile is ordered from oldest to most recent
-#'   (e.g., `dpp` order). If `FALSE`, the function assumes the first value
+#'
+#' @param reverse Logical. If `TRUE`, reverses the input profile(s) before analysis.
+#'   Use this when the supplied profile(s) are ordered from oldest to most recent
+#'   (chronological order). If `FALSE`, the function assumes the first value
 #'   corresponds to lag 0 (most recent) and the last value to lag max (oldest).
+#'
 #' @param uncertainty Logical. If `TRUE`, quantify uncertainty.
+#'
 #' @param output Character. `"summary"` or `"samples"`.
+#'
 #' @param n_samples Integer. Number of samples used for uncertainty quantification.
 #'
 #' @return A data.frame.
@@ -38,18 +72,24 @@
 #' - If `uncertainty = FALSE`, returns:
 #'   - `ECI_raw`
 #'   - `ECI_weighted`
+#'   - and, when multiple variables are requested, a `var` column
+#'   - and, when `epi_data` is used, a grouping column named as `group`
 #'
 #' - If `uncertainty = TRUE` and `output = "summary"`, returns:
 #'   - `ECI_raw`
-#'   - `ECI_weighted` (median-based central estimate, on requested scale)
+#'   - `ECI_weighted`
 #'   - `sd`
 #'   - `lower`
 #'   - `upper`
+#'   - and, when multiple variables are requested, a `var` column
+#'   - and, when `epi_data` is used, a grouping column named as `group`
 #'
 #' - If `uncertainty = TRUE` and `output = "samples"`, returns:
 #'   - `sample`
 #'   - `ECI_raw`
 #'   - `ECI_weighted`
+#'   - and, when multiple variables are requested, a `var` column
+#'   - and, when `epi_data` is used, a grouping column named as `group`
 #'
 #' @details
 #' Uncertainty is propagated using model-consistent sampling:
@@ -68,8 +108,12 @@
 #'
 #' @export
 compute_eci <- function(
-    profile,
+    profile = NULL,
+    epi_data = NULL,
+    group = NULL,
+    group_level = NULL,
     fit = NULL,
+    var = NULL,
     scale = c("link", "response", "percent"),
     reverse = FALSE,
     uncertainty = FALSE,
@@ -83,14 +127,6 @@ compute_eci <- function(
   # -----------------------
   # Validation
   # -----------------------
-  if (!is.numeric(profile)) {
-    stop("`profile` must be a numeric vector.")
-  }
-
-  if (any(!is.finite(profile))) {
-    stop("`profile` must contain only finite values.")
-  }
-
   if (!is.logical(reverse) || length(reverse) != 1L) {
     stop("`reverse` must be TRUE or FALSE.")
   }
@@ -118,7 +154,7 @@ compute_eci <- function(
   }
 
   # ----------------------------------------------------------
-  # ✅ helper: matching robusto de nomes para draws do brms
+  # helper: robust matching of brms draw names
   # ----------------------------------------------------------
   match_brms_draw_names <- function(cb_names_ref, draw_colnames) {
 
@@ -128,7 +164,6 @@ compute_eci <- function(
       return(bnames)
     }
 
-    # fallback defensivo
     raw_match <- cb_names_ref[cb_names_ref %in% draw_colnames]
     if (length(raw_match) == length(cb_names_ref)) {
       return(raw_match)
@@ -136,82 +171,6 @@ compute_eci <- function(
 
     stop("Could not match brms posterior draw names to crossbasis columns.")
   }
-
-  # ----------------------------------------------------------
-  # Orientation handling (message always shown)
-  # ----------------------------------------------------------
-  if (reverse) {
-    profile <- rev(profile)
-    message(
-      "Profile reversed: interpreting input as oldest \u2192 most recent. ",
-      "After reversal, first value = lag 0 (most recent); last value = lag max (oldest)."
-    )
-  } else {
-    message(
-      "Assuming profile is lag-ordered: first value = lag 0 (most recent); ",
-      "last value = lag max (oldest)."
-    )
-  }
-
-  # ----------------------------------------------------------
-  # 1) ECI RAW
-  # ----------------------------------------------------------
-  eci_raw <- sum(profile)
-
-  # ----------------------------------------------------------
-  # No model -> return RAW only
-  # ----------------------------------------------------------
-  if (is.null(fit)) {
-    return(data.frame(
-      ECI_raw = eci_raw,
-      ECI_weighted = NA_real_,
-      scale = scale
-    ))
-  }
-
-  # ----------------------------------------------------------
-  # Extract model metadata
-  # ----------------------------------------------------------
-  spec <- attr(fit, "epiexposure_spec")
-  vars <- attr(fit, "epiexposure_vars")
-  cb_cols_fit <- attr(fit, "epiexposure_cb_cols")
-  family_fit <- attr(fit, "epiexposure_family")
-
-  if (is.null(spec)) {
-    stop("`fit` does not contain `epiexposure_spec`.")
-  }
-
-  if (length(vars) != 1) {
-    stop("`compute_eci()` currently supports a single exposure variable.")
-  }
-
-  var <- vars[1]
-  spec_v <- spec[[var]]
-
-  if (is.null(spec_v)) {
-    stop("Missing spec for variable: ", var)
-  }
-
-  # ----------------------------------------------------------
-  # Resolve lag dimension
-  # ----------------------------------------------------------
-  lag_max_use <- as.integer(max(spec_v$lag_max))
-
-  if (length(profile) != lag_max_use + 1L) {
-    stop("`profile` length must be equal to lag_max + 1.")
-  }
-
-  # ----------------------------------------------------------
-  # Rebuild crossbasis and extract final row
-  # ----------------------------------------------------------
-  cb <- dlnm::crossbasis(
-    profile,
-    lag = lag_max_use,
-    argvar = spec_v$argvar,
-    arglag = spec_v$arglag
-  )
-
-  cb_row <- as.numeric(cb[lag_max_use + 1L, ])
 
   # ----------------------------------------------------------
   # Helper: order coefficient names robustly
@@ -323,21 +282,29 @@ compute_eci <- function(
       return(list(beta = beta, vcov = V))
     }
 
+    beta <- stats::coef(model)
+    if (!is.numeric(beta)) {
+      stop("Could not extract numeric coefficients from fitted model.")
+    }
+
     return(list(
-      beta = stats::coef(model),
+      beta = beta,
       vcov = as.matrix(stats::vcov(model))
     ))
   }
 
   # ----------------------------------------------------------
-  # Helper: coefficient names for cb terms
+  # Helper: get cb names
   # ----------------------------------------------------------
-  get_cb_names <- function(coef_names, cb_cols_fit = NULL) {
+  get_cb_names <- function(coef_names, var_sel, cb_cols_fit = NULL) {
 
-    cb_names <- grep(paste0("^cb_", var, "_"), coef_names, value = TRUE)
+    cb_names <- grep(paste0("^cb_", var_sel, "_"), coef_names, value = TRUE)
 
     if (length(cb_names) == 0 && !is.null(cb_cols_fit)) {
-      cb_names <- intersect(cb_cols_fit, coef_names)
+      cb_names <- intersect(
+        grep(paste0("^cb_", var_sel, "_"), cb_cols_fit, value = TRUE),
+        coef_names
+      )
     }
 
     cb_names <- sort_cb_names(cb_names)
@@ -346,47 +313,10 @@ compute_eci <- function(
   }
 
   # ----------------------------------------------------------
-  # Build stable coefficient reference
-  # ----------------------------------------------------------
-  cv <- extract_coef_vcov(fit)
-  beta_full <- cv$beta
-
-  cb_names_ref <- get_cb_names(names(beta_full), cb_cols_fit)
-
-  if (length(cb_names_ref) != length(cb_row)) {
-    stop("Mismatch between coefficient vector and crossbasis structure.")
-  }
-
-  linkinv <- get_linkinv(family_fit)
-
-  # ----------------------------------------------------------
-  # Deterministic (no uncertainty)
-  # ----------------------------------------------------------
-  if (!uncertainty) {
-
-    beta_cb <- beta_full[cb_names_ref]
-    eta_weighted <- sum(cb_row * beta_cb)
-
-    eci_weighted <- transform_scale(
-      x = eta_weighted,
-      scale = scale,
-      linkinv = linkinv
-    )
-
-    return(data.frame(
-      ECI_raw = eci_raw,
-      ECI_weighted = eci_weighted,
-      scale = scale
-    ))
-  }
-
-  # ----------------------------------------------------------
   # Helper: posterior / simulated draws by engine
-  # returns matrix n_draws x p
   # ----------------------------------------------------------
-  extract_beta_draws <- function(model, cb_names_ref, n_samples) {
+  extract_beta_draws <- function(model, cb_names_ref, n_samples, cv) {
 
-    # ---------- brms: REAL posterior draws ----------
     if (inherits(model, "brmsfit")) {
 
       draws <- as.matrix(brms::as_draws_matrix(model))
@@ -404,7 +334,6 @@ compute_eci <- function(
       return(draws)
     }
 
-    # ---------- INLA: REAL posterior draws ----------
     if (inherits(model, "inla")) {
 
       if (!requireNamespace("INLA", quietly = TRUE)) {
@@ -431,7 +360,6 @@ compute_eci <- function(
       return(beta_draws)
     }
 
-    # ---------- bdlnm: REAL posterior draws ----------
     if (inherits(model, "bdlnm")) {
 
       beta_draws <- model$coefficients
@@ -457,7 +385,6 @@ compute_eci <- function(
       return(out)
     }
 
-    # ---------- Frequentist: normal approximation ----------
     beta_hat <- cv$beta[cb_names_ref]
     V_hat <- cv$vcov[cb_names_ref, cb_names_ref, drop = FALSE]
 
@@ -480,50 +407,386 @@ compute_eci <- function(
   }
 
   # ----------------------------------------------------------
-  # Uncertainty
+  # No model -> raw only
   # ----------------------------------------------------------
-  beta_draws <- extract_beta_draws(
-    model = fit,
-    cb_names_ref = cb_names_ref,
-    n_samples = n_samples
-  )
+  if (is.null(fit)) {
 
-  draw_sd <- apply(beta_draws, 2, stats::sd)
-  if (all(!is.finite(draw_sd)) || all(draw_sd < 1e-12, na.rm = TRUE)) {
-    warning(
-      "Near-zero variability detected in coefficient draws for variable '", var,
-      "'. ECI intervals may collapse to a single value."
-    )
-  }
+    if (is.null(profile)) {
+      stop("When `fit = NULL`, `profile` must be provided.")
+    }
 
-  # eta draws
-  eta_draws <- as.numeric(beta_draws %*% cb_row)
+    if (!is.numeric(profile)) {
+      stop("When `fit = NULL`, `profile` must be a numeric vector.")
+    }
 
-  # transformação na escala solicitada draw-by-draw
-  eci_draws <- transform_scale(
-    x = eta_draws,
-    scale = scale,
-    linkinv = linkinv
-  )
+    if (any(!is.finite(profile))) {
+      stop("`profile` must contain only finite values.")
+    }
 
-  # ----------------------------------------------------------
-  # OUTPUT
-  # ----------------------------------------------------------
-  if (output == "samples") {
+    if (!is.null(epi_data)) {
+      warning("`epi_data`, `group`, and `group_level` are ignored when `fit = NULL`.")
+    }
+
+    if (!is.null(var)) {
+      warning("`var` is ignored when `fit = NULL`.")
+    }
+
+    if (reverse) {
+      profile <- rev(profile)
+      message(
+        "Profile reversed: interpreting input as oldest \u2192 most recent. ",
+        "After reversal, first value = lag 0 (most recent); last value = lag max (oldest)."
+      )
+    } else {
+      message(
+        "Assuming profile is lag-ordered: first value = lag 0 (most recent); ",
+        "last value = lag max (oldest)."
+      )
+    }
+
     return(data.frame(
-      sample = seq_along(eci_draws),
-      ECI_raw = eci_raw,
-      ECI_weighted = eci_draws,
+      ECI_raw = sum(profile),
+      ECI_weighted = NA_real_,
       scale = scale
     ))
   }
 
-  return(data.frame(
-    ECI_raw = eci_raw,
-    ECI_weighted = stats::median(eci_draws, na.rm = TRUE),
-    sd = safe_sd(eci_draws),
-    lower = safe_quantile(eci_draws)[1],
-    upper = safe_quantile(eci_draws)[2],
-    scale = scale
-  ))
+  # ----------------------------------------------------------
+  # Extract model metadata
+  # ----------------------------------------------------------
+  spec <- attr(fit, "epiexposure_spec")
+  vars_fit <- attr(fit, "epiexposure_vars")
+  cb_cols_fit <- attr(fit, "epiexposure_cb_cols")
+  family_fit <- attr(fit, "epiexposure_family")
+
+  if (is.null(spec)) stop("`fit` does not contain `epiexposure_spec`.")
+  if (is.null(vars_fit) || length(vars_fit) == 0) stop("`fit` does not contain `epiexposure_vars`.")
+
+  # ----------------------------------------------------------
+  # Resolve `var`
+  # ----------------------------------------------------------
+  if (is.null(var)) {
+    if (length(vars_fit) == 1) {
+      var <- vars_fit[1]
+    } else {
+      stop(
+        "This fitted model contains multiple exposure variables (",
+        paste(vars_fit, collapse = ", "),
+        "). Please provide `var` using exactly the same variable name(s) stored in the model."
+      )
+    }
+  }
+
+  if (!is.character(var) || length(var) < 1) {
+    stop("`var` must be a character scalar or vector when `fit` is provided.")
+  }
+
+  bad_var <- setdiff(var, vars_fit)
+  if (length(bad_var) > 0) {
+    stop(
+      "`var` contains name(s) not found in the fitted model: ",
+      paste(bad_var, collapse = ", "),
+      ". Use exactly the same variable name(s) stored in the model: ",
+      paste(vars_fit, collapse = ", "),
+      "."
+    )
+  }
+
+  # ----------------------------------------------------------
+  # Decide input strategy
+  # ----------------------------------------------------------
+  using_profile <- !is.null(profile)
+  using_data <- !is.null(epi_data)
+
+  if (using_profile && using_data) {
+    stop("Provide either `profile` OR `epi_data`, not both.")
+  }
+
+  if (!using_profile && !using_data) {
+    stop("When `fit` is provided, you must supply either `profile` OR `epi_data` + `group`.")
+  }
+
+  # ----------------------------------------------------------
+  # Normalize profile(s) from direct input
+  # ----------------------------------------------------------
+  if (using_profile) {
+
+    if (is.numeric(profile)) {
+
+      if (length(var) != 1) {
+        stop(
+          "When `profile` is a numeric vector and `fit` is provided, `var` must have length 1. ",
+          "If you want to compute ECI for multiple variables, provide `profile` as a list and `var = c(...)`."
+        )
+      }
+
+      if (any(!is.finite(profile))) {
+        stop("`profile` must contain only finite values.")
+      }
+
+      profiles <- setNames(list(profile), var)
+
+    } else if (is.list(profile)) {
+
+      if (length(profile) != length(var) && is.null(names(profile))) {
+        stop(
+          "When `profile` is an unnamed list, its length must match the length of `var`."
+        )
+      }
+
+      for (i in seq_along(profile)) {
+        if (!is.numeric(profile[[i]]) || any(!is.finite(profile[[i]]))) {
+          stop("All elements in `profile` must be finite numeric vectors.")
+        }
+      }
+
+      if (is.null(names(profile))) {
+        profiles <- profile
+        names(profiles) <- var
+      } else {
+        missing_profiles <- setdiff(var, names(profile))
+        if (length(missing_profiles) > 0) {
+          stop(
+            "The following variable(s) in `var` are missing from the named `profile` list: ",
+            paste(missing_profiles, collapse = ", "),
+            "."
+          )
+        }
+        profiles <- profile[var]
+      }
+
+    } else {
+      stop("`profile` must be a numeric vector or a list of numeric vectors.")
+    }
+
+    if (reverse) {
+      profiles <- lapply(profiles, rev)
+      message(
+        "Profile(s) reversed: interpreting input as oldest \u2192 most recent. ",
+        "After reversal, first value = lag 0 (most recent); last value = lag max (oldest)."
+      )
+    } else {
+      message(
+        "Assuming supplied profile(s) are lag-ordered: first value = lag 0 (most recent); ",
+        "last value = lag max (oldest)."
+      )
+    }
+  }
+
+  # ----------------------------------------------------------
+  # Build group levels to use from epi_data
+  # ----------------------------------------------------------
+  if (using_data) {
+
+    if (!is.data.frame(epi_data)) {
+      stop("`epi_data` must be a data.frame.")
+    }
+
+    if (is.null(group) || !is.character(group) || length(group) != 1L) {
+      stop("When using `epi_data`, `group` must be a single column name.")
+    }
+
+    if (!group %in% names(epi_data)) {
+      stop("`group` ('", group, "') was not found in `epi_data`.")
+    }
+
+    missing_data_vars <- setdiff(var, names(epi_data))
+    if (length(missing_data_vars) > 0) {
+      stop(
+        "The following variable(s) requested in `var` are not present in `epi_data`: ",
+        paste(missing_data_vars, collapse = ", "),
+        "."
+      )
+    }
+
+    if (is.null(group_level)) {
+      levels_to_use <- unique(epi_data[[group]])
+    } else {
+      missing_levels <- setdiff(group_level, unique(epi_data[[group]]))
+      if (length(missing_levels) > 0) {
+        stop(
+          "The following `group_level` value(s) were not found inside `epi_data[['", group, "']]`: ",
+          paste(missing_levels, collapse = ", "),
+          "."
+        )
+      }
+      levels_to_use <- group_level
+    }
+
+    if (length(levels_to_use) == 0) {
+      stop("No valid group levels were found to compute ECI.")
+    }
+  }
+
+  # ----------------------------------------------------------
+  # Extract deterministic coefficients once
+  # ----------------------------------------------------------
+  cv <- extract_coef_vcov(fit)
+  beta_full <- cv$beta
+  linkinv <- get_linkinv(family_fit)
+
+  # ----------------------------------------------------------
+  # Worker by variable
+  # ----------------------------------------------------------
+  compute_one_var <- function(var_sel, profile_sel) {
+
+    spec_v <- spec[[var_sel]]
+
+    if (is.null(spec_v)) {
+      stop("Missing spec for variable: ", var_sel)
+    }
+
+    lag_max_use <- as.integer(max(spec_v$lag_max))
+
+    if (length(profile_sel) != lag_max_use + 1L) {
+      stop(
+        "`profile` length for variable '", var_sel,
+        "' must be equal to lag_max + 1 (expected ", lag_max_use + 1L, ")."
+      )
+    }
+
+    eci_raw <- sum(profile_sel)
+
+    cb <- dlnm::crossbasis(
+      profile_sel,
+      lag = lag_max_use,
+      argvar = spec_v$argvar,
+      arglag = spec_v$arglag
+    )
+
+    cb_row <- as.numeric(cb[lag_max_use + 1L, ])
+
+    cb_names_ref <- get_cb_names(names(beta_full), var_sel, cb_cols_fit)
+
+    if (length(cb_names_ref) != length(cb_row)) {
+      stop(
+        "Mismatch between coefficient vector and crossbasis structure for variable '",
+        var_sel, "'."
+      )
+    }
+
+    # -----------------------
+    # Deterministic
+    # -----------------------
+    if (!uncertainty) {
+
+      beta_cb <- as.numeric(beta_full[cb_names_ref])
+
+      eta_weighted <- sum(cb_row * beta_cb)
+
+      eci_weighted <- transform_scale(
+        x = eta_weighted,
+        scale = scale,
+        linkinv = linkinv
+      )
+
+      out <- data.frame(
+        var = var_sel,
+        ECI_raw = eci_raw,
+        ECI_weighted = eci_weighted,
+        scale = scale,
+        stringsAsFactors = FALSE
+      )
+
+      return(out)
+    }
+
+    # -----------------------
+    # Uncertainty
+    # -----------------------
+    beta_draws <- extract_beta_draws(
+      model = fit,
+      cb_names_ref = cb_names_ref,
+      n_samples = n_samples,
+      cv = cv
+    )
+
+    draw_sd <- apply(beta_draws, 2, stats::sd)
+    if (all(!is.finite(draw_sd)) || all(draw_sd < 1e-12, na.rm = TRUE)) {
+      warning(
+        "Near-zero variability detected in coefficient draws for variable '", var_sel,
+        "'. ECI intervals may collapse to a single value."
+      )
+    }
+
+    eta_draws <- as.numeric(beta_draws %*% cb_row)
+
+    eci_draws <- transform_scale(
+      x = eta_draws,
+      scale = scale,
+      linkinv = linkinv
+    )
+
+    if (output == "samples") {
+      return(data.frame(
+        var = var_sel,
+        sample = seq_along(eci_draws),
+        ECI_raw = eci_raw,
+        ECI_weighted = eci_draws,
+        scale = scale,
+        stringsAsFactors = FALSE
+      ))
+    }
+
+    data.frame(
+      var = var_sel,
+      ECI_raw = eci_raw,
+      ECI_weighted = stats::median(eci_draws, na.rm = TRUE),
+      sd = safe_sd(eci_draws),
+      lower = safe_quantile(eci_draws)[1],
+      upper = safe_quantile(eci_draws)[2],
+      scale = scale,
+      stringsAsFactors = FALSE
+    )
+  }
+
+  # ----------------------------------------------------------
+  # Execute by input mode
+  # ----------------------------------------------------------
+  if (using_profile) {
+
+    out_list <- lapply(var, function(v) compute_one_var(v, profiles[[v]]))
+    out <- do.call(rbind, out_list)
+    rownames(out) <- NULL
+
+    if (length(var) == 1 && is.numeric(profile)) {
+      out$var <- NULL
+    }
+
+    return(out)
+  }
+
+  # ----------------------------------------------------------
+  # Execute over all requested group levels
+  # ----------------------------------------------------------
+  out_by_group <- lapply(levels_to_use, function(gl) {
+
+    data_sub <- epi_data[epi_data[[group]] == gl, , drop = FALSE]
+
+    profiles <- lapply(var, function(v) data_sub[[v]])
+    names(profiles) <- var
+
+    if (reverse) {
+      profiles <- lapply(profiles, rev)
+    }
+
+    tmp_list <- lapply(var, function(v) compute_one_var(v, profiles[[v]]))
+    tmp <- do.call(rbind, tmp_list)
+    rownames(tmp) <- NULL
+
+    tmp[[group]] <- gl
+
+    # put grouping column first
+    tmp <- tmp[, c(group, setdiff(names(tmp), group)), drop = FALSE]
+
+    tmp
+  })
+
+  out <- do.call(rbind, out_by_group)
+  rownames(out) <- NULL
+
+  return(out)
 }
+#'
+#' This function computes both the raw Exposure Cumulative Impact (`ECI_raw`)
+#' and, when a fitted model is provided, the model-weighted Exposure Cumulative

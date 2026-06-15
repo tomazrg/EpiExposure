@@ -1,12 +1,17 @@
 ---
-title: "Identifying critical exposure periods in epidemics"
+title: "Nematode"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Identifying critical exposure periods in epidemics}
+  %\VignetteIndexEntry{Nematode}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
+<img src="../reference/figures/sticker.png"
+     class="pkg-page-logo"
+     alt="EpiExposure logo">
+     
+     
 # Objective
 
 Descobrir períodos críticos

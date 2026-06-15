@@ -2,11 +2,15 @@
 % Please edit documentation in R/compute_eci.R
 \name{compute_eci}
 \alias{compute_eci}
-\title{Compute Exposure Cumulative Impact (ECI - the exposure profile with the fitted model coefficients)}
+\title{Compute Exposure Cumulative Impact (ECI - the exposure profile with the fitted model coefficients)#' Compute Exposure Cumulative Impact (ECI_weighted`) for one or more exposure variables.}
 \usage{
 compute_eci(
-  profile,
+  profile = NULL,
+  epi_data = NULL,
+  group = NULL,
+  group_level = NULL,
   fit = NULL,
+  var = NULL,
   scale = c("link", "response", "percent"),
   reverse = FALSE,
   uncertainty = FALSE,
@@ -15,21 +19,49 @@ compute_eci(
 )
 }
 \arguments{
-\item{profile}{Numeric vector of exposure values representing a lag profile.
-Its length must be equal to `lag_max + 1` for the exposure variable stored
-in the fitted model.}
+\item{profile}{Numeric vector or list of numeric vectors representing one or
+more lag profiles. If `fit = NULL`, `profile` must be a single numeric
+vector. If `fit` is provided and `var` contains multiple variables,
+`profile` can be a named list of profiles (one per variable), or a list
+that will be matched to `var` by position.}
+
+\item{epi_data}{Optional data frame containing observed exposure histories.
+  Used only when `fit` is provided and the user wants the function to extract
+  the profile(s) from a grouped dataset instead of supplying `profile`
+  directly.
+
+  **IMPORTANT:** data in `epi_data` must already be ordered in the correct
+  chronological sequence within each group (oldest → most recent), with no
+  misplaced days or misordered observations. This function does **not**
+  reorder the observed data internally.}
+
+\item{group}{Optional column name used to identify groups in `epi_data`
+(e.g., `"epi_id"`).}
+
+\item{group_level}{Optional value or vector of values inside `group` used to
+  select the profile(s) from `epi_data`. This represents the sub-level(s) of
+  the grouping variable (e.g., one or more epidemic IDs). It can be numeric,
+  character, or factor.
+
+  If `group_level = NULL`, the function computes ECI estimates for **all**
+  observed levels of `group`.}
 
 \item{fit}{Fitted model from `fit_epidlnm()`. Required to compute
 `ECI_weighted`. If `NULL`, only `ECI_raw` is returned.}
+
+\item{var}{Optional character scalar or vector indicating which fitted
+exposure variable(s) should be used. Required when `fit` contains more
+than one exposure variable. Names in `var` must exactly match the variable
+names stored in the fitted model.}
 
 \item{scale}{Character. Scale for `ECI_weighted`:
 - `"link"`: linear predictor scale (default)
 - `"response"`: inverse-link transformed scale
 - `"percent"`: relative change scale, computed as `(exp(eta) - 1) * 100`}
 
-\item{reverse}{Logical. If `TRUE`, reverses the input profile before analysis.
-Use this when the supplied profile is ordered from oldest to most recent
-(e.g., `dpp` order). If `FALSE`, the function assumes the first value
+\item{reverse}{Logical. If `TRUE`, reverses the input profile(s) before analysis.
+Use this when the supplied profile(s) are ordered from oldest to most recent
+(chronological order). If `FALSE`, the function assumes the first value
 corresponds to lag 0 (most recent) and the last value to lag max (oldest).}
 
 \item{uncertainty}{Logical. If `TRUE`, quantify uncertainty.}
@@ -48,23 +80,29 @@ A data.frame.
 - If `uncertainty = FALSE`, returns:
   - `ECI_raw`
   - `ECI_weighted`
+  - and, when multiple variables are requested, a `var` column
+  - and, when `epi_data` is used, a grouping column named as `group`
 
 - If `uncertainty = TRUE` and `output = "summary"`, returns:
   - `ECI_raw`
-  - `ECI_weighted` (median-based central estimate, on requested scale)
+  - `ECI_weighted`
   - `sd`
   - `lower`
   - `upper`
+  - and, when multiple variables are requested, a `var` column
+  - and, when `epi_data` is used, a grouping column named as `group`
 
 - If `uncertainty = TRUE` and `output = "samples"`, returns:
   - `sample`
   - `ECI_raw`
   - `ECI_weighted`
+  - and, when multiple variables are requested, a `var` column
+  - and, when `epi_data` is used, a grouping column named as `group`
 }
 \description{
-This function supports both deterministic estimation and uncertainty
-propagation. When `uncertainty = TRUE`, the weighted ECI is recomputed
-across simulated or posterior draws of the model coefficients.
+It supports both deterministic estimation and uncertainty propagation.
+When `uncertainty = TRUE`, `ECI_weighted` is recomputed across simulated or
+posterior draws of the model coefficients.
 }
 \details{
 If `output = "summary"`, the central estimate is computed as the median of

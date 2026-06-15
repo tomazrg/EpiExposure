@@ -51,21 +51,22 @@ Create exposure scenarios across lag windows for epidemiological inference.
 
 `EpiExposure` enables you to:
 
-- Define biologically meaningful exposure windows  
 - Quantify daily, cumulative, and phase-specific environmental effects  
-- Identify critical time periods driving epidemics  
-- Separate statistical modelling from epidemiological interpretation  
-- Compare exposure–disease relationships across epidemics  
+- Define biologically meaningful exposure periods 
+- Identify critical time periods driving diseases  
+- Separate statistical modeling from epidemiological interpretation  
+- Compare exposure–disease relationships across epidemiological scenarios  
 
 ---
 
 ## Learning path
 
-1. Start with `summarise_effects()`
-2. Explore `predict_surface()`
-3. Use `simulate_scenarios()` for scenario analysis
+1. Start with `summarise_effects()` to interpret the exposure-lag-effects.
+2. Explore `predict_surface()` to visualize the extent of the effects of 3D exposure delay.
+3. Use `simulate_scenarios()` to simulate and analyze epidemiological issues.
+4. Use `predict_outcome()` to predict outcomes.
 
-## Installation
+## How to install the `EpiExposure`?
 
 ```r
 # development version

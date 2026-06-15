@@ -1,11 +1,15 @@
 ---
-title: "Comparing exposure-disease relationships across epidemics"
+title: "Virus"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Comparing exposure-disease relationships across epidemics}
+  %\VignetteIndexEntry{Virus}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
+
+<img src="../reference/figures/sticker.png"
+     class="pkg-page-logo"
+     alt="EpiExposure logo">
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)

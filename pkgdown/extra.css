@@ -258,3 +258,17 @@ main,
 }
 
 
+.pkgdown-article-index .list-unstyled li a[href*="pkgdown.html"] {
+  display: none !important;
+}
+
+
+.navbar .dropdown-menu a[href*="pkgdown.html"] {
+  display: none !important;
+}
+
+.pkgdown-reference-index,
+.page-reference,
+.page-index {
+  position: relative;
+}

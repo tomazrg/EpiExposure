@@ -1,12 +1,16 @@
 ---
-title: "Advanced modeling strategies in EpiExposure"
+title: "Bacteria"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Advanced modeling strategies in EpiExposure}
+  %\VignetteIndexEntry{Bacteria}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
+<img src="../reference/figures/sticker.png"
+     class="pkg-page-logo"
+     alt="EpiExposure logo">
+     
 ```{r, eval = FALSE}
 compare_exposures(profile1, profile2)
 ```

@@ -1,8 +1,9 @@
 ---
-title: "Getting started with EpiExposure"
+title: "Get started"
+description: "Quick introduction to EpiExposure"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Getting started with EpiExposure}
+  %\VignetteIndexEntry{Get started}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -10,13 +11,12 @@ vignette: >
 <img src="../reference/figures/sticker.png"
      class="pkg-page-logo"
      alt="EpiExposure logo">
-
+     
 # What EpiExposure does?
 
 `Introduzir o usuário ao workflow básico: da exposição ao modelo.`
 
 ```{r, eval = FALSE}
-summarise_effects()
 # =========================================================
 # SIMULACAO: 520 epidemias x 86 dias
 # 1 severidade por epidemia (DLNM-style)
@@ -139,6 +139,8 @@ length(unique(sim_data$epi_id)) # 520 epidemias
 ```
 
 ```{r, eval = FALSE}
+
+library(EpiExposure)
 sim_data
 
 cb <- define_exposure(
@@ -148,7 +150,7 @@ cb <- define_exposure(
 )
 
 # construir design matrix
-dat <- build_design_matrix(
+dat <- build_design(
   wx_long = sim_data,
   cb_templates = cb,
   lag_max = 85
@@ -156,6 +158,7 @@ dat <- build_design_matrix(
 
 # preparar resposta
 dat <- prepare_response(dat, y_var = "y", family = "beta")
+
 
 
 # ajustar modelo
@@ -180,13 +183,43 @@ tt = summarise_effects(fit = fit, wx_long = sim_data,
                   output = "summary")
 
 
+compute_eci(profile = epi1$tmean,  reverse = TRUE)
 
+ct = compute_eci(
+  epi_data = sim_data,
+  group = "epi_id",
+  group_level = NULL,
+  fit = fit,
+  var = c("tmean", "rain", "rh"),
+  reverse = TRUE,
+  scale = "percent",
+  uncertainty = TRUE, n_samples = 10,
+                  output = "summary"
+)
+
+compute_ecilag(
+  epi_data = sim_data,
+  group = "epi_id",
+  fit = fit,
+  group_level = 1,
+  var = c("tmean", "rain"),
+  reverse = TRUE,
+  uncertainty = TRUE,
+  n_samples = 10,
+output = "samples"
+)
+
+
+ct_tmean = ct %>% 
+  filter(var == "rain")
+
+ct_tmean$sev = dat$y
 
 tt %>% 
-  #filter(var == "rain") %>% 
-  ggplot(aes(lag,effect))+
-  geom_smooth(se = F)+
-  facet_wrap(~var)
+  filter(var == "tmean") %>% 
+  ggplot(aes(value,effect))+
+  geom_smooth(se = F)
+  #facet_wrap(~var)
 
 all_draws |>
   dplyr::count(var, value, lag, scale) |>
@@ -199,6 +232,16 @@ tt %>%
   geom_histogram(bins = 20, color = "white")
 
 
+
+ct_tmean %>% 
+  ggplot(aes(ECI_weighted,sev))+
+  geom_smooth(se = F)
+
+
+ct_tmean %>% 
+  #filter(lag == 85) %>% 
+  ggplot(aes(ECI_weighted))+
+  geom_histogram(bins = 20, color = "white")
 ```
 
 

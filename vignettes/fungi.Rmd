@@ -1,0 +1,13 @@
+---
+title: "Fungi"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Fungi}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+<img src="../reference/figures/sticker.png"
+     class="pkg-page-logo"
+     alt="EpiExposure logo">
+

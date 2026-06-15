@@ -5,8 +5,12 @@
 \title{Compute lag-specific decomposition of Exposure Cumulative Impact (ECI)}
 \usage{
 compute_ecilag(
-  profile,
+  profile = NULL,
+  epi_data = NULL,
+  group = NULL,
+  group_level = NULL,
   fit,
+  var = NULL,
   eps = 1e-06,
   center = TRUE,
   absolute = TRUE,
@@ -17,11 +21,33 @@ compute_ecilag(
 )
 }
 \arguments{
-\item{profile}{Numeric vector, length = `lag_max + 1`, ordered as lag
-`0, 1, ..., lag_max`.}
+\item{epi_data}{Optional data frame containing observed exposure histories.
+  Used when the user wants the function to extract the profile(s) from a
+  grouped dataset instead of supplying `profile` directly.
+
+  **IMPORTANT:** data in `epi_data` must already be ordered in the correct
+  chronological sequence within each group (oldest → most recent), with no
+  misplaced days or misordered observations. This function does **not**
+  reorder the observed data internally.}
+
+\item{group}{Optional column name used to identify groups in `epi_data`
+(e.g., `"epi_id"`).}
+
+\item{group_level}{Optional value or vector of values inside `group` used to
+  select the profile(s) from `epi_data`. This represents the sub-level(s) of
+  the grouping variable (e.g., one or more epidemic IDs). It can be numeric,
+  character, or factor.
+
+  If `group_level = NULL`, the function computes lag-specific ECI
+  decompositions for **all** observed levels of `group`.}
 
 \item{fit}{Fitted model returned by `fit_epidlnm()`. The fitted model must
 contain `epiexposure_spec` metadata.}
+
+\item{var}{Optional character scalar or vector indicating which fitted
+exposure variable(s) should be used. Required when `fit` contains more
+than one exposure variable. Names in `var` must exactly match the variable
+names stored in the fitted model.}
 
 \item{eps}{Small numeric perturbation used for finite differences
 (default = `1e-6`).}
@@ -32,9 +58,9 @@ forward difference.}
 \item{absolute}{Logical. If `TRUE`, also reports absolute contributions
 and absolute weights.}
 
-\item{reverse}{Logical. If `TRUE`, reverses the input profile before analysis.
-Use this when the supplied profile is ordered from oldest to most recent
-(e.g., `dpp` order). If `FALSE`, the function assumes the first value
+\item{reverse}{Logical. If `TRUE`, reverses the input profile(s) before analysis.
+Use this when the supplied profile(s) are ordered from oldest to most recent
+(chronological order). If `FALSE`, the function assumes the first value
 corresponds to lag 0 (most recent) and the last value to lag max (oldest).}
 
 \item{uncertainty}{Logical. If `TRUE`, quantify uncertainty.}
@@ -44,10 +70,11 @@ corresponds to lag 0 (most recent) and the last value to lag max (oldest).}
 \item{n_samples}{Integer. Number of samples used for uncertainty propagation.}
 }
 \value{
-A list with:
+If a **single** profile / variable / group combination is supplied, returns
+a list with:
 - `ECI_raw`
 - `ECI_weighted`
-- `by_lag` (always returned as a summary-style table)
+- `by_lag`
 
 If `uncertainty = TRUE`, the list additionally includes:
 - `ECI_weighted_sd`
@@ -57,47 +84,19 @@ If `uncertainty = TRUE`, the list additionally includes:
 If `uncertainty = TRUE` and `output = "samples"`, the list also contains:
 - `by_lag_samples`
 - `ECI_weighted_samples`
+
+If **multiple** variables and/or group levels are requested, returns a list with:
+- `eci_summary`
+- `by_lag`
+
+and, if `uncertainty = TRUE`:
+- `by_lag_samples` (only when `output = "samples"`)
+- `ECI_weighted_samples` (only when `output = "samples"`)
 }
 \description{
-Decomposes the weighted Exposure Cumulative Impact (ECI) into lag-specific
-contributions using numerical derivatives of the DLNM linear predictor.
+Decomposes the position.#' Decomposes the weighted Exposure Cumulative Impact (ECI) into lag-specific
 }
 \details{
-This function returns:
-- `ECI_raw`: the unweighted cumulative exposure
-- `ECI_weighted`: the weighted cumulative impact on the model scale
-- `by_lag`: lag-specific contribution summaries
-
-The lag-specific contribution is computed as:
-
-\deqn{
-\eta(x) = \sum_k \beta_k B_k(x)
-}
-
-\deqn{
-w_l(x) \approx \frac{\eta(x + \varepsilon e_l) - \eta(x)}{\varepsilon}
-}
-
-\deqn{
-contribution_l = x_l \times w_l
-}
-
-When `center = TRUE`, a central finite difference is used; otherwise a
-forward difference is applied.
-
-This function supports both deterministic estimation and uncertainty
-propagation. When `uncertainty = TRUE`, lag-specific contributions are
-recomputed across simulated or posterior draws of the model coefficients.
-
-If `output = "summary"`, the central estimate is computed as the median of
-the simulated distributions, and interval limits are derived from empirical
-quantiles (default: 2.5% and 97.5%).
-
-**Important:** when `uncertainty = TRUE`, all central estimates returned in
-`ECI_weighted` and `by_lag` are based on the median of the simulated
-distribution.
-
-
 Uncertainty is propagated using model-consistent sampling:
 - Bayesian models (e.g., `brms`, `INLA`, `bdlnm`) use posterior draws
 - Frequentist models use simulation from the asymptotic coefficient distribution
