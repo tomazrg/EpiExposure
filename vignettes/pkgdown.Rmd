@@ -91,9 +91,9 @@ for (i in 1:n_epi) {
   # COMBINACAO FINAL (linear predictor)
   # -----------------------------
   eta <- 
-    0.8 * temp_effect +
-    0.05 * rain_effect +
-    0.3 * rh_effect
+    0.6 * temp_effect +
+    0.2 * rain_effect +
+    0.2 * rh_effect
 
   # -----------------------------
   # Converter para proporção (logit)
@@ -137,17 +137,44 @@ head(sim_data)
 table(table(sim_data$epi_id))   # deve dar 86 por epi
 length(unique(sim_data$epi_id)) # 520 epidemias
 ```
+```{r}
+library(EpiExposure)
+```
+
+```{r}
+sim_data
+```
+
+
+```{r}
+
+sim_data = sim_data %>%
+  group_by(epi_id) %>% 
+  mutate(
+    cum = cumsum(rain)
+  )
+
+sim_data%>% 
+  ggplot(aes(dpp,cum, group = epi_id))+
+  geom_smooth(se = F)+
+  theme_bw()
+```
 
 ```{r, eval = FALSE}
 
-library(EpiExposure)
-sim_data
 
 cb <- define_exposure(
   wx_long = sim_data,
-  vars = c("tmean", "rh","rain"),
-  lag_max = 85
+  vars = c("cum"),
+  lag_max = 85,
+  df_var = 2,
+  df_lag = 5
 )
+
+```
+
+
+```{r}
 
 # construir design matrix
 dat <- build_design(
@@ -156,8 +183,18 @@ dat <- build_design(
   lag_max = 85
 )
 
+```
+
+
+```{r}
+
 # preparar resposta
 dat <- prepare_response(dat, y_var = "y", family = "beta")
+
+```
+
+
+```{r}
 
 
 
@@ -170,20 +207,131 @@ fit <- fit_epidlnm(
   epiexposure_spec = attr(cb, "spec")
 )
 
+
+t = predict(fit, newdata = dat, type = "response")
+
+
+dat2 = dat
+dat2$t = t
+
+
+dat2 %>% 
+  ggplot(aes(y,t))+
+  geom_point()
+
+
+
+sim_dataa = sim_data %>% 
+  filter(epi_id <= 80)
+
+best <- find_bestfit(
+  epi_data = sim_dataa,
+  response = "y",
+  group = "epi_id",
+  time = "dpp",
+  vars = c("tmean", "rh"),
+  lag_max = 85,
+  df_var_grid = c(2),
+  df_lag_grid = c(2),
+  max_vars = 2,
+  model_engine = "glmmTMB",
+  family = "beta",
+  verbose = TRUE
+)
+
+sim_data
+
+ens_unweighted <- ensemble_bestfit(
+  bestfit = best,
+  method = "unweighted",
+  top_n = 10
+)
+
+
+ens_weighted <- ensemble_bestfit(
+  bestfit = best,
+  method = "weighted",
+  top_n = 10,
+  weight_metric = "CCC",
+  weight_transform = "softmax"
+)
+
+
+ens_best <- ensemble_bestfit(
+  bestfit = best,
+  method = "hard_voting",
+  top_n = 10
+)
+
+
+ens_stacked <- ensemble_bestfit(
+  bestfit = best,
+  method = "stacked",
+  top_n = 10,
+  stacking_model = "ridge",
+  lambda = 1e-4
+)
+```
+
+```{r}
 str(attr(fit, "epiexposure_spec"))
 
+```
+
+```{r}
+
 summary(fit)
+```
+
+```{r}
 t = predict_surface(fit = fit, wx_long = sim_data, var = "tmean", lag_max = 85,
                     uncertainty = TRUE, output = "summary", n_samples = 10)
 
 t
+```
+
+```{r}
+
 
 tt = summarise_effects(fit = fit, wx_long = sim_data,
-                  scale = "daily", effect_measure = "percent", uncertainty = TRUE, n_samples = 10,
-                  output = "summary")
+                  scale = "daily", effect_measure = "percent", uncertainty = TRUE, n_samples = 100,
+                  output = "samples")
+tt %>% 
+  filter(var == "cum") %>% 
+  filter(lag <=40) %>% 
+  ggplot(aes(value,effect, group = sample))+
+   geom_smooth(method = "loess",
+              se = FALSE,
+              linewidth = 2, na.rm = T)+
+  theme_bw()
 
+tt %>% 
+  filter(var == "cum") %>% 
+ggplot(aes(x = lag, y = value, fill = effect)) +
+  geom_raster() +
+  scale_fill_viridis_c(name = "Δ (pp)") +
+  labs(
+    x = "Lag (days)",
+    y = " Temperature (°C)") +
+  theme_bw(base_size = 12) +
+  theme(plot.title = element_text(face = "bold"),
+        axis.title = element_text(face = "bold"))+
+  scale_x_continuous(
+    trans = "reverse",
+    breaks = c(0,10,20,30,40,50,60,70,80),
+    limits = c(0,85),
+    expand = c(0, 0)
+  ) +
+  scale_y_continuous(
+    limits = c(19, 34),
+    breaks = seq(19, 35, by = 3),
+    expand = c(0, 0))
 
-compute_eci(profile = epi1$tmean,  reverse = TRUE)
+median(sim_data$cum)
+```
+
+```{r}
+
 
 ct = compute_eci(
   epi_data = sim_data,
@@ -194,10 +342,17 @@ ct = compute_eci(
   reverse = TRUE,
   scale = "percent",
   uncertainty = TRUE, n_samples = 10,
-                  output = "summary"
+                  output = "samples"
 )
 
-compute_ecilag(
+
+ct
+
+```
+
+```{r}
+
+ct2  = compute_ecilag(
   epi_data = sim_data,
   group = "epi_id",
   fit = fit,
@@ -209,6 +364,49 @@ compute_ecilag(
 output = "samples"
 )
 
+ct2
+
+```
+
+```{r}
+sim_temp <- simulate_exposure(
+  lag_max = 85,
+  mode = "pattern",
+  pattern = "alternating_lags",
+  alternating_values = c(25, 30),
+  background = list(dist = "fixed", value = 0)
+)
+
+sim_rain <- simulate_exposure(
+  lag_max = 85,
+  mode = "pattern",
+  pattern = "block_lags",
+  block_lags = c(10, 30),
+  fixed_value = 10,
+  background = list(dist = "fixed", value = 0)
+)
+
+sim_humidity <- simulate_exposure(
+  lag_max = 85,
+  mode = "profile",
+  background = list(dist = "normal", mean = 90, sd = 5)
+)
+
+```
+
+```{r}
+pred <- predict_outcome(
+  fit = fit,
+  profiles = list(
+    tmean = sim_temp$profile,
+    rain = sim_rain$profile,
+    rh = sim_humidity$profile
+  )
+)
+
+```
+
+```{r}
 
 ct_tmean = ct %>% 
   filter(var == "rain")
@@ -242,93 +440,5 @@ ct_tmean %>%
   #filter(lag == 85) %>% 
   ggplot(aes(ECI_weighted))+
   geom_histogram(bins = 20, color = "white")
-```
-
-
-```{r, eval = FALSE}
-
-library(EpiExposure)
-
-# carregar dados
-data("TargetSpot")
-
-
-TargetSpot
-sim_temp <- simulate_exposure(
-  lag_max = 85,
-  mode = "pattern",
-  pattern = "alternating_lags",
-  alternating_values = c(25, 50),
-  background = list(dist = "fixed", value = 0)
-)
-
-sim_rain <- simulate_exposure(
-  lag_max = 85,
-  mode = "pattern",
-  pattern = "block_lags",
-  block_lags = c(10, 30),
-  fixed_value = 10,
-  background = list(dist = "fixed", value = 0)
-)
-
-sim_humidity <- simulate_exposure(
-  lag_max = 85,
-  mode = "profile",
-  background = list(dist = "normal", mean = 70, sd = 5)
-)
-
-pred <- predict_outcome(
-  fit = fit_obj,
-  profiles = list(
-    temp = sim_temp$profile,
-    rain = sim_rain$profile,
-    humidity = sim_humidity$profile
-  )
-)
-```
-
-```{r, eval = FALSE}
-# definir exposição (DLNM structure)
-cb <- define_exposure(
-  wx_long = TargetSpot,
-  vars = c("tmean", "vpd"),
-  lag_max = 85
-)
-```
-
-```{r, eval = FALSE}
-
-# construir design matrix
-dat <- build_design_matrix(
-  wx_long = TargetSpot,
-  cb_templates = cb,
-  lag_max = 85
-)
-
-```
-
-```{r, eval = FALSE}
-
-# preparar resposta
-dat <- prepare_response(dat, y_var = "severity", family = "beta")
-```
-
-```{r, eval = FALSE}
-# ajustar modelo
-fit <- fit_epidlnm(
-  dat = dat,
-  model_engine = "glmmTMB",
-  family = "beta",
-  random_effect = "epi_id",
-  epiexposure_spec = attr(cb, "spec")
-)
-```
-
-` DLNM não é só modelo — é estrutura epidemiológica`
-`define_exposure() define como a exposição atua no tempo`
-`fit_epidlnm() estimula a relação exposição–doença`
-
-```{r, eval = FALSE}
-hist(dat$y_model, main="Distribution of disease response", col="steelblue")
 ```
 
