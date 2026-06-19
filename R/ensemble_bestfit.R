@@ -1,26 +1,82 @@
-#' Create ensembles from best-fit DLNM candidate models
+#' Create prediction and lag-contribution ensembles from best-fit DLNM candidate models
 #'
 #' Builds ensemble predictions from the out-of-fold predictions produced by
-#' `find_bestfit()`. The function supports several ensemble strategies:
+#' `find_bestfit()` and, optionally, builds an ensemble of lag-specific
+#' contributions using lag-decomposition outputs computed for the selected
+#' candidate models.
+#'
+#' The function supports three ensemble scopes:
 #'
 #' \itemize{
-#'   \item `"best"`: uses the single best-ranked model.
-#'   \item `"hard_voting"`: alias for `"best"` for continuous responses.
-#'   \item `"unweighted"`: averages predictions from selected models with equal weights.
-#'   \item `"weighted"`: averages predictions using model-performance weights.
-#'   \item `"stacked"`: learns ensemble weights from out-of-fold predictions using
-#'   a linear or ridge meta-model.
+#'   \item `"model"`: ensemble of model predictions only.
+#'   \item `"lag"`: ensemble of lag-specific contributions only.
+#'   \item `"both"`: both prediction ensemble and lag-contribution ensemble.
 #' }
 #'
+#' For prediction ensembles, the function uses the out-of-fold predictions
+#' stored in `attr(bestfit, "predictions")` or supplied through `predictions`.
+#'
+#' For lag ensembles, the function can use either:
+#'
+#' \itemize{
+#'   \item a user-supplied `lag_data` data frame; or
+#'   \item fitted models stored in `attr(bestfit, "fits")`, created by
+#'   `find_bestfit(..., keep_fits = TRUE)`, together with `epi_data`.
+#' }
+#'
+#' When `lag_data = NULL` and `ensemble_scope` is `"lag"` or `"both"`, the
+#' function automatically computes lag-specific decompositions by calling
+#' `compute_ecilag()` for each selected fitted model.
+#'
 #' @param bestfit A data.frame returned by `find_bestfit()`. It must contain
-#'   model-level performance metrics and should have an attribute named
-#'   `"predictions"` containing fold-level predictions.
+#'   model-level performance metrics and should have attributes named
+#'   `"predictions"` and, for automatic lag ensembles, `"fits"`.
 #'
 #' @param predictions Optional data.frame of fold-level predictions. If `NULL`,
 #'   the function uses `attr(bestfit, "predictions")`.
 #'
-#' @param method Character. Ensemble strategy. Options are `"best"`,
-#'   `"hard_voting"`, `"unweighted"`, `"weighted"`, and `"stacked"`.
+#' @param lag_data Optional data.frame containing lag-specific contributions by
+#'   model. If supplied, it is used directly for lag ensembles. If `NULL` and
+#'   `ensemble_scope` is `"lag"` or `"both"`, the function attempts to compute
+#'   it automatically using fitted models stored in `attr(bestfit, "fits")`.
+#'
+#' @param fit_list Optional named list of fitted models. If `NULL`, the function
+#'   uses `attr(bestfit, "fits")`. Names must correspond to model IDs.
+#'
+#' @param epi_data Optional long-format data frame used to compute lag-specific
+#'   decompositions automatically through `compute_ecilag()`. Required when
+#'   `lag_data = NULL` and `ensemble_scope` is `"lag"` or `"both"`.
+#'
+#' @param group Character. Column in `epi_data` identifying groups, such as
+#'   `"epi_id"`. Used only when automatic lag decomposition is requested.
+#'
+#' @param group_level Optional value or vector of values inside `group` used by
+#'   `compute_ecilag()`. If `NULL`, `compute_ecilag()` is allowed to compute
+#'   lag decomposition for all levels of `group`.
+#'
+#' @param var Optional character vector indicating which exposure variables
+#'   should be used for lag decomposition. If `NULL`, variables are resolved
+#'   from each fitted model according to `lg_strategy`.
+#'
+#' @param reverse Logical. Passed to `compute_ecilag()` when automatic lag
+#'   decomposition is requested. Use `TRUE` when the profiles in `epi_data` are
+#'   ordered from oldest to most recent and need to be reversed so that the first
+#'   value corresponds to lag 0.
+#'
+#' @param compute_ecilag_args Optional named list of additional arguments passed
+#'   to `compute_ecilag()`, such as `uncertainty`, `output`, `n_samples`, `eps`,
+#'   `center`, or `absolute`.
+#'
+#' @param ensemble_scope Character. Which ensemble to compute. Options are
+#'   `"model"`, `"lag"`, and `"both"`. Default is `"model"`.
+#'
+#' @param method Character. Ensemble strategy for model predictions.
+#'   Options are `"best"`, `"hard_voting"`, `"unweighted"`, `"weighted"`,
+#'   and `"stacked"`.
+#'
+#' @param lag_method Character. Ensemble strategy for lag contributions.
+#'   Options are `"best"`, `"hard_voting"`, `"unweighted"`, `"weighted"`,
+#'   and `"stacked"`. If `NULL`, it defaults to the value of `method`.
 #'
 #' @param top_n Integer. Number of top-ranked models to include in the ensemble.
 #'   Ignored when `model_ids` is supplied. Default is `10`.
@@ -29,10 +85,10 @@
 #'   supplied, `top_n` is ignored.
 #'
 #' @param weight_metric Character. Column in `bestfit` used to compute weights
-#'   for `method = "weighted"`. Default is `"CCC"`.
+#'   for `"weighted"` ensembles. Default is `"CCC"`.
 #'
 #' @param weight_transform Character. Weighting rule used when
-#'   `method = "weighted"`. Options are:
+#'   `method = "weighted"` or `lag_method = "weighted"`. Options are:
 #'   \describe{
 #'     \item{"softmax"}{Uses a softmax transformation of `weight_metric`.}
 #'     \item{"positive"}{Uses positive metric values normalized to sum to one.}
@@ -40,11 +96,22 @@
 #'     \item{"uniform"}{Uses equal weights.}
 #'   }
 #'
-#' @param stacking_model Character. Meta-model used when `method = "stacked"`.
-#'   Options are `"ridge"` and `"lm"`.
+#' @param stacking_model Character. Meta-model used when `method = "stacked"` or
+#'   `lag_method = "stacked"`. Options are `"ridge"` and `"lm"`.
 #'
-#' @param lambda Numeric. Ridge penalty used when `stacking_model = "ridge"`.
-#'   Default is `1e-6`.
+#' @param stack_objective Character. Objective used to translate stacking into
+#'   model weights. Options are:
+#'   \describe{
+#'     \item{"regularized"}{Default. Uses ridge-stacking weights. This is stable
+#'     when candidate models are correlated.}
+#'     \item{"min_error"}{Uses least-squares stacking weights that minimize
+#'     prediction error on out-of-fold predictions.}
+#'     \item{"constrained"}{Projects stacking weights to the non-negative simplex,
+#'     forcing weights to be non-negative and sum to one.}
+#'   }
+#'
+#' @param lambda Numeric. Ridge penalty used when `stacking_model = "ridge"` or
+#'   when `stack_objective = "regularized"`. Default is `1e-6`.
 #'
 #' @param stack_intercept Logical. If `TRUE`, includes an intercept in the
 #'   stacking model. Default is `TRUE`.
@@ -55,63 +122,164 @@
 #' @param prediction_col Character. Name of the predicted-response column in
 #'   `predictions`. Default is `"predicted"`.
 #'
-#' @param model_col Character. Name of the model ID column in both `bestfit`
-#'   and `predictions`. Default is `"model_id"`.
+#' @param model_col Character. Name of the model ID column in `bestfit`,
+#'   `predictions`, and `lag_data`. Default is `"model_id"`.
 #'
 #' @param id_cols Character vector identifying each out-of-fold prediction row.
 #'   By default, the function uses `c("group", "fold")`, which matches the
 #'   output structure suggested for `find_bestfit()`.
+#'
+#' @param lag_col Character. Column in `lag_data` identifying lag. Default is
+#'   `"lag"`.
+#'
+#' @param lag_contribution_col Character. Column in `lag_data` containing
+#'   lag-specific contributions. Default is `"contribution"`.
+#'
+#' @param lag_weight_col Optional character. Column in `lag_data` containing
+#'   lag-specific local weights from `compute_ecilag()`. Default is `"weight"`.
+#'
+#' @param lag_group_cols Character vector of columns used to align lag
+#'   contributions before averaging. Default is `c("var", "lag")`.
+#'   If `lag_data` contains a grouping column such as `"epi_id"` or `"group"`,
+#'   include it here to compute lag ensembles separately by group.
+#'
+#' @param lg_strategy Character. Strategy used to decide which variables are
+#'   decomposed for each selected model when `lag_data` is generated
+#'   automatically. Options are:
+#'   \describe{
+#'     \item{"requested_available"}{Default. Uses the intersection between
+#'     `var` and the variables actually present in each fitted model. Models
+#'     with none of the requested variables are skipped for lag decomposition.}
+#'     \item{"model"}{Ignores `var` and uses all exposure variables stored in
+#'     each fitted model.}
+#'     \item{"strict"}{Requires all variables in `var` to be present in every
+#'     selected fitted model; otherwise an error is raised.}
+#'   }
+#'
+#' @param rl_weights Logical. If `TRUE`, model weights are renormalized within
+#'   each lag-ensemble grouping unit defined by `lag_group_cols`. This is useful
+#'   when not all selected models contain the same variables, because the weights
+#'   are rescaled over the models that actually contribute to each variable/lag
+#'   combination. Default is `TRUE`.
 #'
 #' @param higher_is_better Logical. If `TRUE`, larger values of `weight_metric`
 #'   indicate better models. Default is `TRUE`.
 #'
 #' @param verbose Logical. If `TRUE`, prints informative messages.
 #'
-#' @return A list with:
+#' @return A list containing:
 #' \itemize{
-#'   \item `ensemble_summary`: performance metrics for the ensemble.
-#'   \item `ensemble_predictions`: out-of-fold observed and ensemble-predicted values.
-#'   \item `model_weights`: weights assigned to selected models.
+#'   \item `ensemble_summary`: performance metrics for model-level ensemble
+#'   predictions, when requested.
+#'   \item `ensemble_predictions`: observed and ensemble-predicted values,
+#'   when model-level ensemble is requested.
+#'   \item `ensemble_by_lag`: lag-level ensemble contributions, when requested.
+#'   \item `lag_data`: lag-specific contribution table used to build the lag
+#'   ensemble.
+#'   \item `model_weights`: model-level and lag-level weights assigned to
+#'   selected models.
 #'   \item `selected_models`: subset of `bestfit` used in the ensemble.
-#'   \item `method`: ensemble method used.
+#'   \item `method`: prediction ensemble method.
+#'   \item `lag_method`: lag ensemble method.
+#'   \item `ensemble_scope`: requested ensemble scope.
 #' }
 #'
 #' @details
-#' The function uses out-of-fold predictions from `find_bestfit()`. This is
-#' important because ensemble performance should be evaluated using predictions
-#' for observations that were not used to fit the corresponding base model.
+#' `compute_ecilag()` estimates lag-specific contributions within a single
+#' model. Those contributions are already expressed on the lag scale and are
+#' therefore comparable across models. In contrast, raw DLNM coefficients are
+#' not directly comparable across models because different models may use
+#' different basis dimensions or smoothing structures.
 #'
-#' For `method = "stacked"`, the function fits a meta-model using the matrix of
-#' out-of-fold predictions. To reduce optimistic bias, the reported stacked
-#' predictions are generated using leave-one-out fitting at the meta-model level.
+#' The lag ensemble therefore combines lag-specific contributions, not raw
+#' coefficients:
+#'
+#' \deqn{
+#' C_{\mathrm{ens},l} = \sum_m \alpha_m C_{m,l}
+#' }
+#'
+#' where \eqn{C_{m,l}} is the lag-specific contribution from model \eqn{m} at
+#' lag \eqn{l}, and \eqn{\alpha_m} is the model weight.
+#'
+#' If `rl_weights = TRUE`, the weights are renormalized within each grouping
+#' unit used for the lag ensemble:
+#'
+#' \deqn{
+#' \tilde{\alpha}_m =
+#' \frac{\alpha_m}{\sum_{j \in \mathcal{M}_{v,l}} \alpha_j}
+#' }
+#'
+#' where \eqn{\mathcal{M}_{v,l}} is the set of selected models contributing to
+#' a given variable/lag combination.
+#'
+#' The relative lag contribution is computed as:
+#'
+#' \deqn{
+#' RI_{\mathrm{ens},l} =
+#' 100 \times
+#' \frac{|C_{\mathrm{ens},l}|}
+#' {\sum_l |C_{\mathrm{ens},l}|}
+#' }
+#'
+#' This quantity sums to approximately 100 percent across lags within each
+#' variable/group combination.
 #'
 #' For continuous responses, classical hard voting is not directly applicable.
-#' Therefore, `method = "hard_voting"` is implemented as hard model selection,
-#' equivalent to using the single best-ranked model.
+#' Therefore, `"hard_voting"` is implemented as hard model selection, equivalent
+#' to using the single best-ranked model.
 #'
 #' @export
 ensemble_bestfit <- function(
     bestfit,
     predictions = NULL,
+    lag_data = NULL,
+    fit_list = NULL,
+    epi_data = NULL,
+    group = "epi_id",
+    group_level = NULL,
+    var = NULL,
+    reverse = FALSE,
+    compute_ecilag_args = list(),
+    ensemble_scope = c("model", "lag", "both"),
     method = c("unweighted", "weighted", "hard_voting", "best", "stacked"),
+    lag_method = NULL,
     top_n = 10,
     model_ids = NULL,
     weight_metric = "CCC",
     weight_transform = c("softmax", "positive", "rank_inverse", "uniform"),
     stacking_model = c("ridge", "lm"),
+    stack_objective = c("regularized", "min_error", "constrained"),
     lambda = 1e-6,
     stack_intercept = TRUE,
     response_col = "observed",
     prediction_col = "predicted",
     model_col = "model_id",
     id_cols = c("group", "fold"),
+    lag_col = "lag",
+    lag_contribution_col = "contribution",
+    lag_weight_col = "weight",
+    lag_group_cols = c("var", "lag"),
+    lg_strategy = c("requested_available", "model", "strict"),
+    rl_weights = TRUE,
     higher_is_better = TRUE,
     verbose = TRUE
 ) {
   
+  ensemble_scope <- match.arg(ensemble_scope)
   method <- match.arg(method)
   weight_transform <- match.arg(weight_transform)
   stacking_model <- match.arg(stacking_model)
+  stack_objective <- match.arg(stack_objective)
+  lg_strategy <- match.arg(lg_strategy)
+  
+  if (is.null(lag_method)) {
+    lag_method <- method
+  }
+  
+  lag_method <- match.arg(
+    lag_method,
+    choices = c("unweighted", "weighted", "hard_voting", "best", "stacked")
+  )
   
   # ------------------------------------------------------------
   # Validations
@@ -120,36 +288,12 @@ ensemble_bestfit <- function(
     stop("`bestfit` must be a data.frame returned by `find_bestfit()`.")
   }
   
-  if (is.null(predictions)) {
-    predictions <- attr(bestfit, "predictions")
+  if (!model_col %in% names(bestfit)) {
+    stop("`model_col` ('", model_col, "') was not found in `bestfit`.")
   }
   
-  if (is.null(predictions) || !is.data.frame(predictions)) {
-    stop(
-      "`predictions` must be supplied or available as attr(bestfit, 'predictions')."
-    )
-  }
-  
-  required_bestfit <- c(model_col, weight_metric)
-  
-  missing_bestfit <- setdiff(required_bestfit, names(bestfit))
-  if (length(missing_bestfit) > 0) {
-    stop(
-      "The following required column(s) are missing from `bestfit`: ",
-      paste(missing_bestfit, collapse = ", "),
-      "."
-    )
-  }
-  
-  required_pred <- c(model_col, id_cols, response_col, prediction_col)
-  
-  missing_pred <- setdiff(required_pred, names(predictions))
-  if (length(missing_pred) > 0) {
-    stop(
-      "The following required column(s) are missing from `predictions`: ",
-      paste(missing_pred, collapse = ", "),
-      "."
-    )
+  if (!weight_metric %in% names(bestfit)) {
+    stop("`weight_metric` ('", weight_metric, "') was not found in `bestfit`.")
   }
   
   if (!is.numeric(top_n) || length(top_n) != 1L || !is.finite(top_n) || top_n < 1) {
@@ -158,23 +302,24 @@ ensemble_bestfit <- function(
   
   top_n <- as.integer(top_n)
   
-  if (!is.null(model_ids)) {
-    missing_models <- setdiff(model_ids, bestfit[[model_col]])
-    if (length(missing_models) > 0) {
-      stop(
-        "The following `model_ids` were not found in `bestfit`: ",
-        paste(missing_models, collapse = ", "),
-        "."
-      )
-    }
-  }
-  
   if (!is.numeric(lambda) || length(lambda) != 1L || !is.finite(lambda) || lambda < 0) {
     stop("`lambda` must be a non-negative numeric scalar.")
   }
   
   if (!is.logical(stack_intercept) || length(stack_intercept) != 1L) {
     stop("`stack_intercept` must be TRUE or FALSE.")
+  }
+  
+  if (!is.logical(reverse) || length(reverse) != 1L) {
+    stop("`reverse` must be TRUE or FALSE.")
+  }
+  
+  if (!is.list(compute_ecilag_args)) {
+    stop("`compute_ecilag_args` must be a named list.")
+  }
+  
+  if (!is.logical(rl_weights) || length(rl_weights) != 1L) {
+    stop("`rl_weights` must be TRUE or FALSE.")
   }
   
   if (!is.logical(higher_is_better) || length(higher_is_better) != 1L) {
@@ -234,11 +379,53 @@ ensemble_bestfit <- function(
   }
   
   # ------------------------------------------------------------
+  # Helper: project vector onto non-negative simplex
+  # ------------------------------------------------------------
+  project_simplex <- function(v) {
+    
+    v <- as.numeric(v)
+    
+    if (all(!is.finite(v))) {
+      return(rep(1 / length(v), length(v)))
+    }
+    
+    v[!is.finite(v)] <- 0
+    
+    n <- length(v)
+    u <- sort(v, decreasing = TRUE)
+    cssv <- cumsum(u)
+    
+    rho <- max(which(u + (1 - cssv) / seq_along(u) > 0))
+    
+    theta <- (cssv[rho] - 1) / rho
+    
+    w <- pmax(v - theta, 0)
+    
+    if (sum(w) <= 0) {
+      w <- rep(1 / n, n)
+    } else {
+      w <- w / sum(w)
+    }
+    
+    w
+  }
+  
+  # ------------------------------------------------------------
   # Select models
   # ------------------------------------------------------------
   bestfit_use <- bestfit
   
   if (!is.null(model_ids)) {
+    
+    missing_models <- setdiff(model_ids, bestfit_use[[model_col]])
+    
+    if (length(missing_models) > 0) {
+      stop(
+        "The following `model_ids` were not found in `bestfit`: ",
+        paste(missing_models, collapse = ", "),
+        "."
+      )
+    }
     
     selected_models <- bestfit_use[bestfit_use[[model_col]] %in% model_ids, , drop = FALSE]
     
@@ -257,6 +444,7 @@ ensemble_bestfit <- function(
   }
   
   selected_ids <- selected_models[[model_col]]
+  selected_ids_chr <- as.character(selected_ids)
   
   if (length(selected_ids) == 0) {
     stop("No models were selected for the ensemble.")
@@ -269,78 +457,23 @@ ensemble_bestfit <- function(
     )
   }
   
-  pred_use <- predictions[predictions[[model_col]] %in% selected_ids, , drop = FALSE]
-  
-  if (nrow(pred_use) == 0) {
-    stop("No predictions were found for the selected models.")
-  }
-  
   # ------------------------------------------------------------
-  # Build observation key
+  # Helper: compute model weights for non-stacked methods
   # ------------------------------------------------------------
-  make_key <- function(dat, cols) {
-    apply(dat[, cols, drop = FALSE], 1, paste, collapse = "||")
-  }
-  
-  pred_use$.obs_key <- make_key(pred_use, id_cols)
-  
-  obs_df <- pred_use[, c(".obs_key", id_cols, response_col), drop = FALSE]
-  obs_df <- obs_df[!duplicated(obs_df$.obs_key), , drop = FALSE]
-  
-  # ------------------------------------------------------------
-  # Build prediction matrix manually
-  # ------------------------------------------------------------
-  obs_keys <- obs_df$.obs_key
-  model_names <- paste0("model_", selected_ids)
-  
-  pred_mat <- matrix(
-    NA_real_,
-    nrow = length(obs_keys),
-    ncol = length(selected_ids),
-    dimnames = list(obs_keys, model_names)
-  )
-  
-  for (j in seq_along(selected_ids)) {
+  compute_model_weights <- function(selected_models, selected_ids, ensemble_method) {
     
-    mid <- selected_ids[j]
+    selected_ids_chr <- as.character(selected_ids)
     
-    tmp <- pred_use[pred_use[[model_col]] == mid, , drop = FALSE]
-    
-    key_j <- tmp$.obs_key
-    val_j <- tmp[[prediction_col]]
-    
-    idx <- match(key_j, obs_keys)
-    
-    pred_mat[idx, j] <- val_j
-  }
-  
-  complete_rows <- stats::complete.cases(pred_mat)
-  
-  if (sum(complete_rows) < 2L) {
-    stop(
-      "Fewer than two complete out-of-fold observations are available across selected models."
-    )
-  }
-  
-  pred_mat <- pred_mat[complete_rows, , drop = FALSE]
-  obs_df <- obs_df[complete_rows, , drop = FALSE]
-  obs <- obs_df[[response_col]]
-  
-  # ------------------------------------------------------------
-  # Compute base model weights
-  # ------------------------------------------------------------
-  compute_model_weights <- function(selected_models, selected_ids) {
-    
-    if (method %in% c("unweighted")) {
+    if (ensemble_method == "unweighted") {
       w <- rep(1 / length(selected_ids), length(selected_ids))
-      names(w) <- selected_ids
+      names(w) <- selected_ids_chr
       return(w)
     }
     
-    if (method %in% c("best", "hard_voting")) {
+    if (ensemble_method %in% c("best", "hard_voting")) {
       w <- rep(0, length(selected_ids))
       w[1] <- 1
-      names(w) <- selected_ids
+      names(w) <- selected_ids_chr
       return(w)
     }
     
@@ -379,30 +512,77 @@ ensemble_bestfit <- function(
       stop("Unsupported `weight_transform`.")
     }
     
-    names(w) <- selected_ids
+    names(w) <- selected_ids_chr
     w
   }
   
   # ------------------------------------------------------------
-  # Ensemble prediction
+  # Helper: build prediction matrix
   # ------------------------------------------------------------
-  model_weights <- NULL
-  ensemble_pred <- NULL
-  stack_weights <- NULL
-  stack_intercepts <- NULL
-  
-  if (method %in% c("unweighted", "weighted", "best", "hard_voting")) {
+  build_prediction_matrix <- function(predictions, selected_ids) {
     
-    if (method == "weighted") {
-      model_weights <- compute_model_weights(selected_models, selected_ids)
-    } else {
-      model_weights <- compute_model_weights(selected_models, selected_ids)
+    pred_use <- predictions[predictions[[model_col]] %in% selected_ids, , drop = FALSE]
+    
+    if (nrow(pred_use) == 0) {
+      stop("No predictions were found for the selected models.")
     }
     
-    w <- as.numeric(model_weights)
-    ensemble_pred <- as.numeric(pred_mat %*% w)
+    make_key <- function(dat, cols) {
+      apply(dat[, cols, drop = FALSE], 1, paste, collapse = "||")
+    }
     
-  } else if (method == "stacked") {
+    pred_use$.obs_key <- make_key(pred_use, id_cols)
+    
+    obs_df <- pred_use[, c(".obs_key", id_cols, response_col), drop = FALSE]
+    obs_df <- obs_df[!duplicated(obs_df$.obs_key), , drop = FALSE]
+    
+    obs_keys <- obs_df$.obs_key
+    model_names <- paste0("model_", selected_ids)
+    
+    pred_mat <- matrix(
+      NA_real_,
+      nrow = length(obs_keys),
+      ncol = length(selected_ids),
+      dimnames = list(obs_keys, model_names)
+    )
+    
+    for (j in seq_along(selected_ids)) {
+      
+      mid <- selected_ids[j]
+      
+      tmp <- pred_use[pred_use[[model_col]] == mid, , drop = FALSE]
+      
+      key_j <- tmp$.obs_key
+      val_j <- tmp[[prediction_col]]
+      
+      idx <- match(key_j, obs_keys)
+      
+      pred_mat[idx, j] <- val_j
+    }
+    
+    complete_rows <- stats::complete.cases(pred_mat)
+    
+    if (sum(complete_rows) < 2L) {
+      stop(
+        "Fewer than two complete out-of-fold observations are available across selected models."
+      )
+    }
+    
+    pred_mat <- pred_mat[complete_rows, , drop = FALSE]
+    obs_df <- obs_df[complete_rows, , drop = FALSE]
+    obs <- obs_df[[response_col]]
+    
+    list(
+      pred_mat = pred_mat,
+      obs_df = obs_df,
+      obs = obs
+    )
+  }
+  
+  # ------------------------------------------------------------
+  # Helper: stacking weights
+  # ------------------------------------------------------------
+  compute_stacking <- function(pred_mat, obs) {
     
     X <- pred_mat
     y <- obs
@@ -415,7 +595,7 @@ ensemble_bestfit <- function(
         X_design <- X_train
       }
       
-      if (stacking_model == "lm") {
+      if (stacking_model == "lm" || stack_objective == "min_error") {
         
         fit <- stats::lm.fit(x = X_design, y = y_train)
         coef <- fit$coefficients
@@ -423,7 +603,7 @@ ensemble_bestfit <- function(
         return(coef)
       }
       
-      if (stacking_model == "ridge") {
+      if (stacking_model == "ridge" || stack_objective == "regularized") {
         
         p <- ncol(X_design)
         penalty <- diag(lambda, p)
@@ -443,12 +623,10 @@ ensemble_bestfit <- function(
         return(coef)
       }
       
-      stop("Unsupported `stacking_model`.")
+      stop("Unsupported stacking configuration.")
     }
     
-    # LOOCV meta-predictions
     ensemble_pred <- numeric(nrow(X))
-    coef_list <- vector("list", nrow(X))
     
     for (i in seq_len(nrow(X))) {
       
@@ -466,68 +644,448 @@ ensemble_bestfit <- function(
       }
       
       ensemble_pred[i] <- sum(x_i * coef_i)
-      coef_list[[i]] <- coef_i
     }
     
-    # final stack weights from all OOF rows
     coef_final <- fit_stack(X_train = X, y_train = y)
     
     if (stack_intercept) {
-      stack_intercepts <- coef_final[1]
+      stack_intercept_value <- coef_final[1]
       stack_weights <- coef_final[-1]
     } else {
-      stack_intercepts <- 0
+      stack_intercept_value <- 0
       stack_weights <- coef_final
     }
     
-    names(stack_weights) <- selected_ids
+    if (stack_objective == "constrained") {
+      stack_weights <- project_simplex(stack_weights)
+      stack_intercept_value <- 0
+      ensemble_pred <- as.numeric(X %*% stack_weights)
+    }
     
-    model_weights <- stack_weights
+    names(stack_weights) <- selected_ids_chr
+    
+    list(
+      ensemble_pred = ensemble_pred,
+      weights = stack_weights,
+      intercept = stack_intercept_value
+    )
   }
   
   # ------------------------------------------------------------
-  # Output predictions
+  # Load predictions when needed
   # ------------------------------------------------------------
-  ensemble_predictions <- obs_df[, id_cols, drop = FALSE]
-  ensemble_predictions$observed <- obs
-  ensemble_predictions$predicted_ensemble <- ensemble_pred
+  predictions_needed <- ensemble_scope %in% c("model", "both") || lag_method == "stacked"
   
-  # Also keep base model predictions
-  pred_base_df <- as.data.frame(pred_mat, stringsAsFactors = FALSE)
-  ensemble_predictions <- cbind(ensemble_predictions, pred_base_df)
+  if (predictions_needed) {
+    
+    if (is.null(predictions)) {
+      predictions <- attr(bestfit, "predictions")
+    }
+    
+    if (is.null(predictions) || !is.data.frame(predictions)) {
+      stop(
+        "`predictions` must be supplied or available as attr(bestfit, 'predictions') ",
+        "when model-level ensemble or stacked lag ensemble is requested."
+      )
+    }
+    
+    required_pred <- c(model_col, id_cols, response_col, prediction_col)
+    missing_pred <- setdiff(required_pred, names(predictions))
+    
+    if (length(missing_pred) > 0) {
+      stop(
+        "The following required column(s) are missing from `predictions`: ",
+        paste(missing_pred, collapse = ", "),
+        "."
+      )
+    }
+  }
   
   # ------------------------------------------------------------
-  # Metrics
+  # Model-level ensemble
   # ------------------------------------------------------------
-  ensemble_metrics <- ccc_lins(
-    obs = ensemble_predictions$observed,
-    pred = ensemble_predictions$predicted_ensemble
-  )
+  ensemble_summary <- NULL
+  ensemble_predictions <- NULL
+  prediction_weights <- NULL
+  lag_weights <- NULL
+  stack_intercepts <- NULL
   
-  ensemble_summary <- data.frame(
-    method = method,
-    top_n = length(selected_ids),
-    stacking_model = if (method == "stacked") stacking_model else NA_character_,
-    weight_metric = if (method == "weighted") weight_metric else NA_character_,
-    weight_transform = if (method == "weighted") weight_transform else NA_character_,
-    ensemble_metrics,
-    stringsAsFactors = FALSE
-  )
+  if (ensemble_scope %in% c("model", "both")) {
+    
+    pm <- build_prediction_matrix(predictions, selected_ids)
+    
+    pred_mat <- pm$pred_mat
+    obs_df <- pm$obs_df
+    obs <- pm$obs
+    
+    if (method == "stacked") {
+      
+      stack <- compute_stacking(pred_mat, obs)
+      
+      ensemble_pred <- stack$ensemble_pred
+      prediction_weights <- stack$weights
+      stack_intercepts <- stack$intercept
+      
+    } else {
+      
+      prediction_weights <- compute_model_weights(
+        selected_models = selected_models,
+        selected_ids = selected_ids,
+        ensemble_method = method
+      )
+      
+      ensemble_pred <- as.numeric(pred_mat %*% as.numeric(prediction_weights))
+    }
+    
+    ensemble_predictions <- obs_df[, id_cols, drop = FALSE]
+    ensemble_predictions$observed <- obs
+    ensemble_predictions$predicted_ensemble <- ensemble_pred
+    
+    pred_base_df <- as.data.frame(pred_mat, stringsAsFactors = FALSE)
+    ensemble_predictions <- cbind(ensemble_predictions, pred_base_df)
+    
+    ensemble_metrics <- ccc_lins(
+      obs = ensemble_predictions$observed,
+      pred = ensemble_predictions$predicted_ensemble
+    )
+    
+    ensemble_summary <- data.frame(
+      method = method,
+      top_n = length(selected_ids),
+      stacking_model = if (method == "stacked") stacking_model else NA_character_,
+      stack_objective = if (method == "stacked") stack_objective else NA_character_,
+      weight_metric = if (method == "weighted") weight_metric else NA_character_,
+      weight_transform = if (method == "weighted") weight_transform else NA_character_,
+      ensemble_metrics,
+      stringsAsFactors = FALSE
+    )
+  }
+  
+  # ------------------------------------------------------------
+  # Lag weights
+  # ------------------------------------------------------------
+  if (ensemble_scope %in% c("lag", "both")) {
+    
+    if (lag_method == "stacked") {
+      
+      pm <- build_prediction_matrix(predictions, selected_ids)
+      stack <- compute_stacking(pm$pred_mat, pm$obs)
+      
+      lag_weights <- stack$weights
+      
+      if (is.null(stack_intercepts)) {
+        stack_intercepts <- stack$intercept
+      }
+      
+    } else {
+      
+      lag_weights <- compute_model_weights(
+        selected_models = selected_models,
+        selected_ids = selected_ids,
+        ensemble_method = lag_method
+      )
+    }
+  }
+  
+  # ------------------------------------------------------------
+  # Automatic lag_data generation
+  # ------------------------------------------------------------
+  if (ensemble_scope %in% c("lag", "both") && is.null(lag_data)) {
+    
+    if (is.null(fit_list)) {
+      fit_list <- attr(bestfit, "fits")
+    }
+    
+    if (is.null(fit_list) || !is.list(fit_list) || length(fit_list) == 0) {
+      stop(
+        "`lag_data` was not supplied and no fitted models were found. ",
+        "Use `find_bestfit(..., keep_fits = TRUE)` or provide `fit_list`."
+      )
+    }
+    
+    if (is.null(epi_data) || !is.data.frame(epi_data)) {
+      stop(
+        "`epi_data` must be supplied as a data.frame when `lag_data = NULL` ",
+        "and `ensemble_scope` is 'lag' or 'both'."
+      )
+    }
+    
+    if (is.null(group) || !is.character(group) || length(group) != 1L) {
+      stop("`group` must be a single character string when computing lag_data automatically.")
+    }
+    
+    if (!group %in% names(epi_data)) {
+      stop("`group` ('", group, "') was not found in `epi_data`.")
+    }
+    
+    lag_list <- list()
+    lag_id <- 1L
+    
+    for (mid in selected_ids_chr) {
+      
+      fit_i <- fit_list[[mid]]
+      
+      if (is.null(fit_i)) {
+        stop(
+          "Could not find fitted model for model_id = ", mid,
+          ". Check `attr(bestfit, 'fits')` or provide `fit_list`."
+        )
+      }
+      
+      vars_fit_i <- attr(fit_i, "epiexposure_vars")
+      
+      if (is.null(vars_fit_i) || length(vars_fit_i) == 0) {
+        stop(
+          "Fitted model for model_id = ", mid,
+          " does not contain `epiexposure_vars` metadata."
+        )
+      }
+      
+      if (lg_strategy == "model") {
+        
+        var_i <- vars_fit_i
+        
+      } else if (lg_strategy == "requested_available") {
+        
+        if (is.null(var)) {
+          var_i <- vars_fit_i
+        } else {
+          var_i <- intersect(var, vars_fit_i)
+        }
+        
+        if (length(var_i) == 0) {
+          if (verbose) {
+            message(
+              "Skipping model_id = ", mid,
+              " because none of the requested variables are present in this model. ",
+              "Model variables: ", paste(vars_fit_i, collapse = ", ")
+            )
+          }
+          next
+        }
+        
+      } else if (lg_strategy == "strict") {
+        
+        if (is.null(var)) {
+          var_i <- vars_fit_i
+        } else {
+          missing_vars_i <- setdiff(var, vars_fit_i)
+          
+          if (length(missing_vars_i) > 0) {
+            stop(
+              "For model_id = ", mid,
+              ", `var` contains name(s) not found in the fitted model: ",
+              paste(missing_vars_i, collapse = ", "),
+              ". Use exactly the same variable name(s) stored in the model: ",
+              paste(vars_fit_i, collapse = ", "),
+              "."
+            )
+          }
+          
+          var_i <- var
+        }
+      }
+      
+      args_i <- c(
+        list(
+          epi_data = epi_data,
+          group = group,
+          group_level = group_level,
+          fit = fit_i,
+          var = var_i,
+          reverse = reverse
+        ),
+        compute_ecilag_args
+      )
+      
+      lag_res <- tryCatch(
+        do.call(compute_ecilag, args_i),
+        error = function(e) {
+          stop(
+            "Automatic lag decomposition failed for model_id = ", mid, ": ",
+            conditionMessage(e)
+          )
+        }
+      )
+      
+      if (!is.list(lag_res) || is.null(lag_res$by_lag) || !is.data.frame(lag_res$by_lag)) {
+        stop(
+          "`compute_ecilag()` did not return a valid `by_lag` data.frame ",
+          "for model_id = ", mid, "."
+        )
+      }
+      
+      tmp <- lag_res$by_lag
+      tmp[[model_col]] <- suppressWarnings(type.convert(mid, as.is = TRUE))
+      
+      lag_list[[lag_id]] <- tmp
+      lag_id <- lag_id + 1L
+    }
+    
+    if (length(lag_list) == 0) {
+      stop(
+        "No lag decompositions were generated. This may happen if none of the ",
+        "selected models contain the requested variable(s)."
+      )
+    }
+    
+    lag_data <- do.call(rbind, lag_list)
+    
+    if (verbose) {
+      message("Lag data were generated automatically using stored fitted models.")
+    }
+  }
+  
+  # ------------------------------------------------------------
+  # Validate lag_data after auto-generation or user supply
+  # ------------------------------------------------------------
+  if (ensemble_scope %in% c("lag", "both")) {
+    
+    if (is.null(lag_data) || !is.data.frame(lag_data)) {
+      stop("`lag_data` must be a data.frame.")
+    }
+    
+    required_lag <- c(model_col, lag_col, lag_contribution_col)
+    missing_lag <- setdiff(required_lag, names(lag_data))
+    
+    if (length(missing_lag) > 0) {
+      stop(
+        "The following required column(s) are missing from `lag_data`: ",
+        paste(missing_lag, collapse = ", "),
+        "."
+      )
+    }
+    
+    missing_lag_group_cols <- setdiff(lag_group_cols, names(lag_data))
+    
+    if (length(missing_lag_group_cols) > 0) {
+      stop(
+        "The following `lag_group_cols` are missing from `lag_data`: ",
+        paste(missing_lag_group_cols, collapse = ", "),
+        "."
+      )
+    }
+  }
+  
+  # ------------------------------------------------------------
+  # Lag-level ensemble
+  # ------------------------------------------------------------
+  ensemble_by_lag <- NULL
+  
+  if (ensemble_scope %in% c("lag", "both")) {
+    
+    lag_use <- lag_data[as.character(lag_data[[model_col]]) %in% selected_ids_chr, , drop = FALSE]
+    
+    if (nrow(lag_use) == 0) {
+      stop("No lag contributions were found for the selected models.")
+    }
+    
+    lag_use$.model_weight <- as.numeric(
+      lag_weights[match(as.character(lag_use[[model_col]]), names(lag_weights))]
+    )
+    
+    if (any(!is.finite(lag_use$.model_weight))) {
+      stop("Could not match model weights to `lag_data`.")
+    }
+    
+    split_key <- apply(lag_use[, lag_group_cols, drop = FALSE], 1, paste, collapse = "||")
+    split_ids <- unique(split_key)
+    
+    lag_out <- lapply(split_ids, function(key_i) {
+      
+      tmp <- lag_use[split_key == key_i, , drop = FALSE]
+      
+      base <- tmp[1, lag_group_cols, drop = FALSE]
+      
+      w_tmp <- tmp$.model_weight
+      
+      if (isTRUE(rl_weights)) {
+        if (sum(w_tmp, na.rm = TRUE) > 0) {
+          w_tmp <- w_tmp / sum(w_tmp, na.rm = TRUE)
+        }
+      }
+      
+      contribution_ens <- sum(
+        tmp[[lag_contribution_col]] * w_tmp,
+        na.rm = TRUE
+      )
+      
+      out <- base
+      out$ensemble_contribution <- contribution_ens
+      
+      if (!is.null(lag_weight_col) && lag_weight_col %in% names(tmp)) {
+        out$ensemble_weight <- sum(
+          tmp[[lag_weight_col]] * w_tmp,
+          na.rm = TRUE
+        )
+      }
+      
+      out$n_models <- length(unique(tmp[[model_col]]))
+      out$models_used <- paste(sort(unique(tmp[[model_col]])), collapse = ", ")
+      
+      out
+    })
+    
+    ensemble_by_lag <- do.call(rbind, lag_out)
+    
+    group_for_percent <- setdiff(lag_group_cols, lag_col)
+    
+    if (length(group_for_percent) == 0) {
+      
+      denom <- sum(abs(ensemble_by_lag$ensemble_contribution), na.rm = TRUE)
+      
+      ensemble_by_lag$ensemble_percent_contribution <- if (denom > 0) {
+        100 * abs(ensemble_by_lag$ensemble_contribution) / denom
+      } else {
+        NA_real_
+      }
+      
+    } else {
+      
+      group_key <- apply(
+        ensemble_by_lag[, group_for_percent, drop = FALSE],
+        1,
+        paste,
+        collapse = "||"
+      )
+      
+      group_ids <- unique(group_key)
+      ensemble_by_lag$ensemble_percent_contribution <- NA_real_
+      
+      for (g in group_ids) {
+        idx <- which(group_key == g)
+        denom <- sum(abs(ensemble_by_lag$ensemble_contribution[idx]), na.rm = TRUE)
+        
+        ensemble_by_lag$ensemble_percent_contribution[idx] <- if (denom > 0) {
+          100 * abs(ensemble_by_lag$ensemble_contribution[idx]) / denom
+        } else {
+          NA_real_
+        }
+      }
+    }
+  }
   
   # ------------------------------------------------------------
   # Model weights table
   # ------------------------------------------------------------
   model_weights_df <- data.frame(
     model_id = selected_ids,
-    weight = as.numeric(model_weights),
+    prediction_weight = if (!is.null(prediction_weights)) {
+      as.numeric(prediction_weights[match(selected_ids_chr, names(prediction_weights))])
+    } else {
+      NA_real_
+    },
+    lag_weight = if (!is.null(lag_weights)) {
+      as.numeric(lag_weights[match(selected_ids_chr, names(lag_weights))])
+    } else {
+      NA_real_
+    },
     stringsAsFactors = FALSE
   )
   
-  if (method == "stacked") {
+  if (!is.null(stack_intercepts)) {
     attr(model_weights_df, "stack_intercept") <- stack_intercepts
   }
-  
-  selected_models_out <- selected_models
   
   # ------------------------------------------------------------
   # Return
@@ -535,9 +1093,15 @@ ensemble_bestfit <- function(
   out <- list(
     ensemble_summary = ensemble_summary,
     ensemble_predictions = ensemble_predictions,
+    ensemble_by_lag = ensemble_by_lag,
+    lag_data = lag_data,
     model_weights = model_weights_df,
-    selected_models = selected_models_out,
-    method = method
+    selected_models = selected_models,
+    method = method,
+    lag_method = lag_method,
+    ensemble_scope = ensemble_scope,
+    lg_strategy = lg_strategy,
+    rl_weights = rl_weights
   )
   
   out

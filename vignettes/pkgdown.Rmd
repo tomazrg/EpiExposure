@@ -442,3 +442,190 @@ ct_tmean %>%
   geom_histogram(bins = 20, color = "white")
 ```
 
+
+
+test 
+
+
+
+```{r}
+best <- find_bestfit(
+  epi_data = sim_dataa,
+  response = "y",
+  group = "epi_id",
+  time = "dpp",
+  vars = c("tmean", "rain"),
+  lag_max = 85,
+  df_var_grid = c(3, 4),
+  df_lag_grid = c(3, 4),
+  max_vars = 2,
+  model_engine = "glmmTMB",
+  id_cols = c("model_id"),
+  family = "beta",
+  verbose = TRUE,
+  keep_fits = TRUE
+)
+
+attr(best, "predictions")
+```
+```{r}
+ens <- ensemble_bestfit(
+  bestfit = best,
+  ensemble_scope = "lag",
+  epi_data = sim_dataa,
+  group = "epi_id",
+  var = c("tmean", "rain"),
+  reverse = TRUE
+)
+
+ens$ensemble_by_lag
+```
+
+```{r}
+ens$lag_data
+ens$ensemble_by_lag
+ens$selected_models
+```
+```{r}
+best_model_id <- best$model_id[1]
+best_model_id
+
+best_lag <- ens$lag_data |>
+  dplyr::filter(model_id == best_model_id)
+```
+
+```{r}
+ensemble_lag <- ens$ensemble_by_lag
+```
+
+```{r}
+best_model_id <- best$model_id[1]
+
+best_lag <- ens$lag_data |>
+  dplyr::filter(model_id == best_model_id) |>
+  dplyr::select(
+    var,
+    lag,
+    best_model_contribution = contribution
+  )
+
+ensemble_lag <- ens$ensemble_by_lag |>
+  dplyr::select(
+    var,
+    lag,
+    ensemble_contribution,
+    ensemble_percent_contribution
+  )
+
+lag_compare <- dplyr::left_join(
+  best_lag,
+  ensemble_lag,
+  by = c("var", "lag")
+)
+
+lag_compare
+```
+
+```{r}
+lag_compare <- lag_compare |>
+  dplyr::group_by(var) |>
+  dplyr::mutate(
+    best_model_percent_contribution =
+      100 * abs(best_model_contribution) /
+      sum(abs(best_model_contribution), na.rm = TRUE)
+  ) |>
+  dplyr::ungroup()
+```
+
+```{r}
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+plot_df <- lag_compare |>
+  tidyr::pivot_longer(
+    cols = c(best_model_contribution, ensemble_contribution),
+    names_to = "source",
+    values_to = "contribution"
+  ) |>
+  dplyr::mutate(
+    source = dplyr::recode(
+      source,
+      best_model_contribution = "Best model",
+      ensemble_contribution = "Lag ensemble"
+    )
+  )
+
+ggplot(plot_df, aes(x = lag, y = contribution, color = source)) +
+  geom_line(linewidth = 1) +
+  facet_wrap(~ var, scales = "free_y") +
+  labs(
+    x = "Lag",
+    y = "Lag-specific contribution",
+    color = NULL,
+    title = "Lag-specific contribution: best model vs lag ensemble"
+  ) +
+  theme_bw()
+```
+
+```{r}
+plot_pct <- lag_compare |>
+  tidyr::pivot_longer(
+    cols = c(best_model_percent_contribution, ensemble_percent_contribution),
+    names_to = "source",
+    values_to = "percent_contribution"
+  ) |>
+  dplyr::mutate(
+    source = dplyr::recode(
+      source,
+      best_model_percent_contribution = "Best model",
+      ensemble_percent_contribution = "Lag ensemble"
+    )
+  )
+
+ggplot(plot_pct, aes(x = lag, y = percent_contribution, color = source)) +
+  geom_line(linewidth = 1) +
+  facet_wrap(~ var, scales = "free_y") +
+  labs(
+    x = "Lag",
+    y = "Relative contribution (%)",
+    color = NULL,
+    title = "Relative lag importance: best model vs lag ensemble"
+  ) +
+  theme_bw()
+```
+
+```{r}
+lag_distance <- lag_compare |>
+  dplyr::group_by(var) |>
+  dplyr::summarise(
+    rmse_contribution = sqrt(mean(
+      (best_model_contribution - ensemble_contribution)^2,
+      na.rm = TRUE
+    )),
+    correlation = stats::cor(
+      best_model_contribution,
+      ensemble_contribution,
+      use = "complete.obs"
+    ),
+    .groups = "drop"
+  )
+
+lag_distance
+```
+```{r}
+lag_compare |>
+  dplyr::filter(var == "rain") |>
+  dplyr::summarise(
+    min_best = min(best_model_contribution, na.rm = TRUE),
+    max_best = max(best_model_contribution, na.rm = TRUE),
+    min_ensemble = min(ensemble_contribution, na.rm = TRUE),
+    max_ensemble = max(ensemble_contribution, na.rm = TRUE),
+    mean_abs_best = mean(abs(best_model_contribution), na.rm = TRUE),
+    mean_abs_ensemble = mean(abs(ensemble_contribution), na.rm = TRUE),
+    rmse_relative_to_best =
+      sqrt(mean((best_model_contribution - ensemble_contribution)^2, na.rm = TRUE)) /
+      mean(abs(best_model_contribution), na.rm = TRUE)
+  )
+```
+

@@ -23,6 +23,7 @@ find_bestfit(
   random_effect = NULL,
   min_success = 2,
   top_n = Inf,
+  keep_fits = FALSE,
   verbose = TRUE,
   ...
 )
@@ -84,6 +85,12 @@ for a candidate model to be ranked. Default is `2`.}
 \item{top_n}{Integer or `Inf`. Number of top-ranked models to return.
 Default is `Inf`, returning all successful candidates.}
 
+\item{keep_fits}{Logical. If `TRUE`, the function refits each successful
+candidate model using all available data and stores the final fitted models
+in `attr(result, "fits")`. This is useful for downstream procedures such
+as `ensemble_bestfit()` with lag-level ensemble decomposition. Default is
+`FALSE` to avoid storing potentially large model objects.}
+
 \item{verbose}{Logical. If `TRUE`, prints progress messages.}
 
 \item{...}{Additional arguments passed to `fit_epidlnm()`.}
@@ -107,10 +114,12 @@ A data.frame ranked by decreasing CCC. Columns include:
   \item `n_failed`
 }
 
-The returned object includes two attributes:
+The returned object includes attributes:
 \itemize{
   \item `"predictions"`: fold-level observed and predicted values.
   \item `"failures"`: candidate/fold-level failure information, if any.
+  \item `"fits"`: final candidate models refitted on the full dataset, only
+  when `keep_fits = TRUE`.
 }
 }
 \description{
@@ -149,6 +158,11 @@ each `group` during basis construction. Each group must contain at least
 **Cross-validation.** LOOCV is performed by leaving out one `group` level at
 a time. DLNM basis templates are built on the training data only and then
 applied to the held-out group.
+
+**Stored fits.** When `keep_fits = TRUE`, the stored models are not fold-level
+models. They are final models refitted using the entire dataset for each
+successful candidate specification. This is the appropriate object to use
+for downstream interpretation and ensemble lag decomposition.
 
 **Prediction across engines.** The function first attempts engine-specific
 prediction on the response scale. If direct prediction is unavailable for an

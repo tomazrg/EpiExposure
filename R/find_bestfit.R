@@ -76,6 +76,12 @@
 #' @param top_n Integer or `Inf`. Number of top-ranked models to return.
 #'   Default is `Inf`, returning all successful candidates.
 #'
+#' @param keep_fits Logical. If `TRUE`, the function refits each successful
+#'   candidate model using all available data and stores the final fitted models
+#'   in `attr(result, "fits")`. This is useful for downstream procedures such
+#'   as `ensemble_bestfit()` with lag-level ensemble decomposition. Default is
+#'   `FALSE` to avoid storing potentially large model objects.
+#'
 #' @param verbose Logical. If `TRUE`, prints progress messages.
 #'
 #' @param ... Additional arguments passed to `fit_epidlnm()`.
@@ -98,10 +104,12 @@
 #'   \item `n_failed`
 #' }
 #'
-#' The returned object includes two attributes:
+#' The returned object includes attributes:
 #' \itemize{
 #'   \item `"predictions"`: fold-level observed and predicted values.
 #'   \item `"failures"`: candidate/fold-level failure information, if any.
+#'   \item `"fits"`: final candidate models refitted on the full dataset, only
+#'   when `keep_fits = TRUE`.
 #' }
 #'
 #' @details
@@ -118,6 +126,11 @@
 #' **Cross-validation.** LOOCV is performed by leaving out one `group` level at
 #' a time. DLNM basis templates are built on the training data only and then
 #' applied to the held-out group.
+#'
+#' **Stored fits.** When `keep_fits = TRUE`, the stored models are not fold-level
+#' models. They are final models refitted using the entire dataset for each
+#' successful candidate specification. This is the appropriate object to use
+#' for downstream interpretation and ensemble lag decomposition.
 #'
 #' **Prediction across engines.** The function first attempts engine-specific
 #' prediction on the response scale. If direct prediction is unavailable for an
@@ -157,6 +170,7 @@ find_bestfit <- function(
     random_effect = NULL,
     min_success = 2,
     top_n = Inf,
+    keep_fits = FALSE,
     verbose = TRUE,
     ...
 ) {
@@ -253,6 +267,10 @@ find_bestfit <- function(
   }
   
   min_success <- as.integer(min_success)
+  
+  if (!is.logical(keep_fits) || length(keep_fits) != 1L) {
+    stop("`keep_fits` must be TRUE or FALSE.")
+  }
   
   if (!is.logical(verbose) || length(verbose) != 1L) {
     stop("`verbose` must be TRUE or FALSE.")
@@ -409,7 +427,6 @@ find_bestfit <- function(
   
   predict_response_engine <- function(fit, newdata, family, model_engine) {
     
-    # First try engine-specific prediction
     pred_try <- tryCatch({
       
       if (inherits(fit, "glmmTMB")) {
@@ -419,12 +436,14 @@ find_bestfit <- function(
         if (!requireNamespace("brms", quietly = TRUE)) {
           stop("Package 'brms' is required for brms prediction.")
         }
+        
         ep <- brms::posterior_epred(
           fit,
           newdata = newdata,
           re_formula = NA,
           allow_new_levels = TRUE
         )
+        
         colMeans(ep)
         
       } else if (inherits(fit, "gamm")) {
@@ -519,6 +538,47 @@ find_bestfit <- function(
     invisible(TRUE)
   }
   
+  fit_candidate_full_data <- function(dat_long_all, vars_use, df_var, df_lag) {
+    
+    cb_templates <- define_exposure(
+      wx_long = dat_long_all,
+      vars = vars_use,
+      lag_max = lag_max,
+      df_var = df_var,
+      df_lag = df_lag,
+      fun_var = fun_var,
+      fun_lag = fun_lag
+    )
+    
+    X_all <- build_design(
+      wx_long = dat_long_all,
+      cb_templates = cb_templates,
+      lag_max = lag_max,
+      include_response = TRUE
+    )
+    
+    if (!is.null(random_effect)) {
+      meta_all <- unique(dat_long_all[, c("epi_id", random_effect), drop = FALSE])
+      X_all <- merge(X_all, meta_all, by = "epi_id", all.x = TRUE)
+    }
+    
+    dat_all <- prepare_response(
+      dat = X_all,
+      y_var = "y",
+      family_choice = if (is.character(family)) family else "gaussian"
+    )
+    
+    fit_epidlnm(
+      dat = dat_all,
+      model_engine = model_engine,
+      family = family,
+      random_effect = random_effect,
+      epiexposure_spec = attr(cb_templates, "spec"),
+      basis_objects = cb_templates,
+      ...
+    )
+  }
+  
   # ------------------------------------------------------------
   # Candidate variable sets
   # ------------------------------------------------------------
@@ -567,6 +627,7 @@ find_bestfit <- function(
   results <- list()
   predictions <- list()
   failures <- list()
+  fits_list <- list()
   
   model_id <- 1L
   pred_id <- 1L
@@ -628,7 +689,6 @@ find_bestfit <- function(
               include_response = TRUE
             )
             
-            # Add metadata columns required by the model, such as random effects
             if (!is.null(random_effect)) {
               
               meta_train <- unique(dat_train_long[, c("epi_id", random_effect), drop = FALSE])
@@ -737,6 +797,36 @@ find_bestfit <- function(
             n_failed = n_failed,
             stringsAsFactors = FALSE
           )
+          
+          if (isTRUE(keep_fits)) {
+            
+            full_fit <- tryCatch(
+              fit_candidate_full_data(
+                dat_long_all = dat_long,
+                vars_use = vars_use,
+                df_var = df_var,
+                df_lag = df_lag
+              ),
+              error = function(e) {
+                failures[[fail_id]] <<- data.frame(
+                  model_id = model_id,
+                  fold = NA_integer_,
+                  group = NA_character_,
+                  df_var = df_var,
+                  df_lag = df_lag,
+                  vars = paste(vars_use, collapse = " + "),
+                  error = paste0("Full-data refit failed: ", conditionMessage(e)),
+                  stringsAsFactors = FALSE
+                )
+                fail_id <<- fail_id + 1L
+                NULL
+              }
+            )
+            
+            if (!is.null(full_fit)) {
+              fits_list[[as.character(model_id)]] <- full_fit
+            }
+          }
         }
         
         model_id <- model_id + 1L
@@ -779,6 +869,12 @@ find_bestfit <- function(
   
   attr(results_df, "predictions") <- pred_df
   attr(results_df, "failures") <- fail_df
+  
+  if (isTRUE(keep_fits)) {
+    keep_ids <- as.character(results_df$model_id)
+    fits_list <- fits_list[names(fits_list) %in% keep_ids]
+    attr(results_df, "fits") <- fits_list
+  }
   
   results_df
 }
