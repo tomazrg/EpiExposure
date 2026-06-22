@@ -11,14 +11,12 @@ ensemble_bestfit(
   fit_list = NULL,
   epi_data = NULL,
   group = "epi_id",
-  group_level = NULL,
   var = NULL,
   reverse = FALSE,
   compute_ecilag_args = list(),
   ensemble_scope = c("model", "lag", "both"),
   method = c("unweighted", "weighted", "hard_voting", "best", "stacked"),
-  lag_method = NULL,
-  top_n = 10,
+  top_n = 3,
   model_ids = NULL,
   weight_metric = "CCC",
   weight_transform = c("softmax", "positive", "rank_inverse", "uniform"),
@@ -26,17 +24,12 @@ ensemble_bestfit(
   stack_objective = c("regularized", "min_error", "constrained"),
   lambda = 1e-06,
   stack_intercept = TRUE,
-  response_col = "observed",
-  prediction_col = "predicted",
   model_col = "model_id",
   id_cols = c("group", "fold"),
-  lag_col = "lag",
-  lag_contribution_col = "contribution",
-  lag_weight_col = "weight",
   lag_group_cols = c("var", "lag"),
   lg_strategy = c("requested_available", "model", "strict"),
   rl_weights = TRUE,
-  higher_is_better = TRUE,
+  hb = TRUE,
   verbose = TRUE
 )
 }
@@ -46,12 +39,15 @@ model-level performance metrics and should have attributes named
 `"predictions"` and, for automatic lag ensembles, `"fits"`.}
 
 \item{predictions}{Optional data.frame of fold-level predictions. If `NULL`,
-the function uses `attr(bestfit, "predictions")`.}
+the function uses `attr(bestfit, "predictions")`. The expected standard
+columns are `model_id`, `group`, `fold`, `observed`, and `predicted`.}
 
 \item{lag_data}{Optional data.frame containing lag-specific contributions by
 model. If supplied, it is used directly for lag ensembles. If `NULL` and
 `ensemble_scope` is `"lag"` or `"both"`, the function attempts to compute
-it automatically using fitted models stored in `attr(bestfit, "fits")`.}
+it automatically using fitted models stored in `attr(bestfit, "fits")`.
+The expected standard columns are `model_id`, `var`, `lag`,
+`contribution`, and optionally `weight`.}
 
 \item{fit_list}{Optional named list of fitted models. If `NULL`, the function
 uses `attr(bestfit, "fits")`. Names must correspond to model IDs.}
@@ -62,10 +58,6 @@ decompositions automatically through `compute_ecilag()`. Required when
 
 \item{group}{Character. Column in `epi_data` identifying groups, such as
 `"epi_id"`. Used only when automatic lag decomposition is requested.}
-
-\item{group_level}{Optional value or vector of values inside `group` used by
-`compute_ecilag()`. If `NULL`, `compute_ecilag()` is allowed to compute
-lag decomposition for all levels of `group`.}
 
 \item{var}{Optional character vector indicating which exposure variables
 should be used for lag decomposition. If `NULL`, variables are resolved
@@ -83,16 +75,16 @@ to `compute_ecilag()`, such as `uncertainty`, `output`, `n_samples`, `eps`,
 \item{ensemble_scope}{Character. Which ensemble to compute. Options are
 `"model"`, `"lag"`, and `"both"`. Default is `"model"`.}
 
-\item{method}{Character. Ensemble strategy for model predictions.
-Options are `"best"`, `"hard_voting"`, `"unweighted"`, `"weighted"`,
-and `"stacked"`.}
+\item{method}{Character. Ensemble strategy. Options are `"best"`,
+  `"hard_voting"`, `"unweighted"`, `"weighted"`, and `"stacked"`.
 
-\item{lag_method}{Character. Ensemble strategy for lag contributions.
-Options are `"best"`, `"hard_voting"`, `"unweighted"`, `"weighted"`,
-and `"stacked"`. If `NULL`, it defaults to the value of `method`.}
+  The same method is used for model prediction ensembles and lag-contribution
+  ensembles. However, `"stacked"` is only supported when
+  `ensemble_scope = "model"`, because lag-specific contributions do not have
+  an observed response target for stacking.}
 
 \item{top_n}{Integer. Number of top-ranked models to include in the ensemble.
-Ignored when `model_ids` is supplied. Default is `10`.}
+Ignored when `model_ids` is supplied. Default is `3`.}
 
 \item{model_ids}{Optional vector of model IDs to use in the ensemble. If
 supplied, `top_n` is ignored.}
@@ -101,7 +93,7 @@ supplied, `top_n` is ignored.}
 for `"weighted"` ensembles. Default is `"CCC"`.}
 
 \item{weight_transform}{Character. Weighting rule used when
-`method = "weighted"` or `lag_method = "weighted"`. Options are:
+`method = "weighted"`. Options are:
 \describe{
   \item{"softmax"}{Uses a softmax transformation of `weight_metric`.}
   \item{"positive"}{Uses positive metric values normalized to sum to one.}
@@ -109,8 +101,8 @@ for `"weighted"` ensembles. Default is `"CCC"`.}
   \item{"uniform"}{Uses equal weights.}
 }}
 
-\item{stacking_model}{Character. Meta-model used when `method = "stacked"` or
-`lag_method = "stacked"`. Options are `"ridge"` and `"lm"`.}
+\item{stacking_model}{Character. Meta-model used when `method = "stacked"`.
+Options are `"ridge"` and `"lm"`.}
 
 \item{stack_objective}{Character. Objective used to translate stacking into
 model weights. Options are:
@@ -129,27 +121,12 @@ when `stack_objective = "regularized"`. Default is `1e-6`.}
 \item{stack_intercept}{Logical. If `TRUE`, includes an intercept in the
 stacking model. Default is `TRUE`.}
 
-\item{response_col}{Character. Name of the observed-response column in
-`predictions`. Default is `"observed"`.}
-
-\item{prediction_col}{Character. Name of the predicted-response column in
-`predictions`. Default is `"predicted"`.}
-
 \item{model_col}{Character. Name of the model ID column in `bestfit`,
 `predictions`, and `lag_data`. Default is `"model_id"`.}
 
 \item{id_cols}{Character vector identifying each out-of-fold prediction row.
-By default, the function uses `c("group", "fold")`, which matches the
-output structure suggested for `find_bestfit()`.}
-
-\item{lag_col}{Character. Column in `lag_data` identifying lag. Default is
-`"lag"`.}
-
-\item{lag_contribution_col}{Character. Column in `lag_data` containing
-lag-specific contributions. Default is `"contribution"`.}
-
-\item{lag_weight_col}{Optional character. Column in `lag_data` containing
-lag-specific local weights from `compute_ecilag()`. Default is `"weight"`.}
+Default is `c("group", "fold")`, matching the standard output of
+`find_bestfit()`.}
 
 \item{lag_group_cols}{Character vector of columns used to align lag
 contributions before averaging. Default is `c("var", "lag")`.
@@ -175,8 +152,8 @@ when not all selected models contain the same variables, because the weights
 are rescaled over the models that actually contribute to each variable/lag
 combination. Default is `TRUE`.}
 
-\item{higher_is_better}{Logical. If `TRUE`, larger values of `weight_metric`
-indicate better models. Default is `TRUE`.}
+\item{hb}{Logical. Higher is better. If `TRUE`, larger values of
+`weight_metric` indicate better models. Default is `TRUE`.}
 
 \item{verbose}{Logical. If `TRUE`, prints informative messages.}
 }
@@ -193,9 +170,10 @@ A list containing:
   \item `model_weights`: model-level and lag-level weights assigned to
   selected models.
   \item `selected_models`: subset of `bestfit` used in the ensemble.
-  \item `method`: prediction ensemble method.
-  \item `lag_method`: lag ensemble method.
+  \item `method`: ensemble method used.
   \item `ensemble_scope`: requested ensemble scope.
+  \item `lg_strategy`: variable-resolution strategy used for lag ensemble.
+  \item `rl_weights`: whether lag weights were renormalized.
 }
 }
 \description{
@@ -215,6 +193,8 @@ The function supports three ensemble scopes:
 
 For prediction ensembles, the function uses the out-of-fold predictions
 stored in `attr(bestfit, "predictions")` or supplied through `predictions`.
+These predictions are expected to contain the standard columns:
+`model_id`, `group`, `fold`, `observed`, and `predicted`.
 
 For lag ensembles, the function can use either:
 
@@ -235,8 +215,7 @@ therefore comparable across models. In contrast, raw DLNM coefficients are
 not directly comparable across models because different models may use
 different basis dimensions or smoothing structures.
 
-The lag ensemble therefore combines lag-specific contributions, not raw
-coefficients:
+The lag ensemble combines lag-specific contributions, not raw coefficients:
 
 \deqn{
 C_{\mathrm{ens},l} = \sum_m \alpha_m C_{m,l}
@@ -271,4 +250,8 @@ variable/group combination.
 For continuous responses, classical hard voting is not directly applicable.
 Therefore, `"hard_voting"` is implemented as hard model selection, equivalent
 to using the single best-ranked model.
+
+Stacking is only supported for model-level prediction ensembles. It is not
+supported for lag ensembles because lag-specific contributions do not have an
+observed response target that can be used to train a stacking model.
 }

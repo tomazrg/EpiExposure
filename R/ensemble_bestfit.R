@@ -15,6 +15,8 @@
 #'
 #' For prediction ensembles, the function uses the out-of-fold predictions
 #' stored in `attr(bestfit, "predictions")` or supplied through `predictions`.
+#' These predictions are expected to contain the standard columns:
+#' `model_id`, `group`, `fold`, `observed`, and `predicted`.
 #'
 #' For lag ensembles, the function can use either:
 #'
@@ -33,12 +35,15 @@
 #'   `"predictions"` and, for automatic lag ensembles, `"fits"`.
 #'
 #' @param predictions Optional data.frame of fold-level predictions. If `NULL`,
-#'   the function uses `attr(bestfit, "predictions")`.
+#'   the function uses `attr(bestfit, "predictions")`. The expected standard
+#'   columns are `model_id`, `group`, `fold`, `observed`, and `predicted`.
 #'
 #' @param lag_data Optional data.frame containing lag-specific contributions by
 #'   model. If supplied, it is used directly for lag ensembles. If `NULL` and
 #'   `ensemble_scope` is `"lag"` or `"both"`, the function attempts to compute
 #'   it automatically using fitted models stored in `attr(bestfit, "fits")`.
+#'   The expected standard columns are `model_id`, `var`, `lag`,
+#'   `contribution`, and optionally `weight`.
 #'
 #' @param fit_list Optional named list of fitted models. If `NULL`, the function
 #'   uses `attr(bestfit, "fits")`. Names must correspond to model IDs.
@@ -49,10 +54,6 @@
 #'
 #' @param group Character. Column in `epi_data` identifying groups, such as
 #'   `"epi_id"`. Used only when automatic lag decomposition is requested.
-#'
-#' @param group_level Optional value or vector of values inside `group` used by
-#'   `compute_ecilag()`. If `NULL`, `compute_ecilag()` is allowed to compute
-#'   lag decomposition for all levels of `group`.
 #'
 #' @param var Optional character vector indicating which exposure variables
 #'   should be used for lag decomposition. If `NULL`, variables are resolved
@@ -70,16 +71,16 @@
 #' @param ensemble_scope Character. Which ensemble to compute. Options are
 #'   `"model"`, `"lag"`, and `"both"`. Default is `"model"`.
 #'
-#' @param method Character. Ensemble strategy for model predictions.
-#'   Options are `"best"`, `"hard_voting"`, `"unweighted"`, `"weighted"`,
-#'   and `"stacked"`.
+#' @param method Character. Ensemble strategy. Options are `"best"`,
+#'   `"hard_voting"`, `"unweighted"`, `"weighted"`, and `"stacked"`.
 #'
-#' @param lag_method Character. Ensemble strategy for lag contributions.
-#'   Options are `"best"`, `"hard_voting"`, `"unweighted"`, `"weighted"`,
-#'   and `"stacked"`. If `NULL`, it defaults to the value of `method`.
+#'   The same method is used for model prediction ensembles and lag-contribution
+#'   ensembles. However, `"stacked"` is only supported when
+#'   `ensemble_scope = "model"`, because lag-specific contributions do not have
+#'   an observed response target for stacking.
 #'
 #' @param top_n Integer. Number of top-ranked models to include in the ensemble.
-#'   Ignored when `model_ids` is supplied. Default is `10`.
+#'   Ignored when `model_ids` is supplied. Default is `3`.
 #'
 #' @param model_ids Optional vector of model IDs to use in the ensemble. If
 #'   supplied, `top_n` is ignored.
@@ -88,7 +89,7 @@
 #'   for `"weighted"` ensembles. Default is `"CCC"`.
 #'
 #' @param weight_transform Character. Weighting rule used when
-#'   `method = "weighted"` or `lag_method = "weighted"`. Options are:
+#'   `method = "weighted"`. Options are:
 #'   \describe{
 #'     \item{"softmax"}{Uses a softmax transformation of `weight_metric`.}
 #'     \item{"positive"}{Uses positive metric values normalized to sum to one.}
@@ -96,8 +97,8 @@
 #'     \item{"uniform"}{Uses equal weights.}
 #'   }
 #'
-#' @param stacking_model Character. Meta-model used when `method = "stacked"` or
-#'   `lag_method = "stacked"`. Options are `"ridge"` and `"lm"`.
+#' @param stacking_model Character. Meta-model used when `method = "stacked"`.
+#'   Options are `"ridge"` and `"lm"`.
 #'
 #' @param stack_objective Character. Objective used to translate stacking into
 #'   model weights. Options are:
@@ -116,27 +117,12 @@
 #' @param stack_intercept Logical. If `TRUE`, includes an intercept in the
 #'   stacking model. Default is `TRUE`.
 #'
-#' @param response_col Character. Name of the observed-response column in
-#'   `predictions`. Default is `"observed"`.
-#'
-#' @param prediction_col Character. Name of the predicted-response column in
-#'   `predictions`. Default is `"predicted"`.
-#'
 #' @param model_col Character. Name of the model ID column in `bestfit`,
 #'   `predictions`, and `lag_data`. Default is `"model_id"`.
 #'
 #' @param id_cols Character vector identifying each out-of-fold prediction row.
-#'   By default, the function uses `c("group", "fold")`, which matches the
-#'   output structure suggested for `find_bestfit()`.
-#'
-#' @param lag_col Character. Column in `lag_data` identifying lag. Default is
-#'   `"lag"`.
-#'
-#' @param lag_contribution_col Character. Column in `lag_data` containing
-#'   lag-specific contributions. Default is `"contribution"`.
-#'
-#' @param lag_weight_col Optional character. Column in `lag_data` containing
-#'   lag-specific local weights from `compute_ecilag()`. Default is `"weight"`.
+#'   Default is `c("group", "fold")`, matching the standard output of
+#'   `find_bestfit()`.
 #'
 #' @param lag_group_cols Character vector of columns used to align lag
 #'   contributions before averaging. Default is `c("var", "lag")`.
@@ -162,8 +148,8 @@
 #'   are rescaled over the models that actually contribute to each variable/lag
 #'   combination. Default is `TRUE`.
 #'
-#' @param higher_is_better Logical. If `TRUE`, larger values of `weight_metric`
-#'   indicate better models. Default is `TRUE`.
+#' @param hb Logical. Higher is better. If `TRUE`, larger values of
+#'   `weight_metric` indicate better models. Default is `TRUE`.
 #'
 #' @param verbose Logical. If `TRUE`, prints informative messages.
 #'
@@ -179,9 +165,10 @@
 #'   \item `model_weights`: model-level and lag-level weights assigned to
 #'   selected models.
 #'   \item `selected_models`: subset of `bestfit` used in the ensemble.
-#'   \item `method`: prediction ensemble method.
-#'   \item `lag_method`: lag ensemble method.
+#'   \item `method`: ensemble method used.
 #'   \item `ensemble_scope`: requested ensemble scope.
+#'   \item `lg_strategy`: variable-resolution strategy used for lag ensemble.
+#'   \item `rl_weights`: whether lag weights were renormalized.
 #' }
 #'
 #' @details
@@ -191,8 +178,7 @@
 #' not directly comparable across models because different models may use
 #' different basis dimensions or smoothing structures.
 #'
-#' The lag ensemble therefore combines lag-specific contributions, not raw
-#' coefficients:
+#' The lag ensemble combines lag-specific contributions, not raw coefficients:
 #'
 #' \deqn{
 #' C_{\mathrm{ens},l} = \sum_m \alpha_m C_{m,l}
@@ -228,6 +214,10 @@
 #' Therefore, `"hard_voting"` is implemented as hard model selection, equivalent
 #' to using the single best-ranked model.
 #'
+#' Stacking is only supported for model-level prediction ensembles. It is not
+#' supported for lag ensembles because lag-specific contributions do not have an
+#' observed response target that can be used to train a stacking model.
+#'
 #' @export
 ensemble_bestfit <- function(
     bestfit,
@@ -236,14 +226,12 @@ ensemble_bestfit <- function(
     fit_list = NULL,
     epi_data = NULL,
     group = "epi_id",
-    group_level = NULL,
     var = NULL,
     reverse = FALSE,
     compute_ecilag_args = list(),
     ensemble_scope = c("model", "lag", "both"),
     method = c("unweighted", "weighted", "hard_voting", "best", "stacked"),
-    lag_method = NULL,
-    top_n = 10,
+    top_n = 3,
     model_ids = NULL,
     weight_metric = "CCC",
     weight_transform = c("softmax", "positive", "rank_inverse", "uniform"),
@@ -251,19 +239,23 @@ ensemble_bestfit <- function(
     stack_objective = c("regularized", "min_error", "constrained"),
     lambda = 1e-6,
     stack_intercept = TRUE,
-    response_col = "observed",
-    prediction_col = "predicted",
     model_col = "model_id",
     id_cols = c("group", "fold"),
-    lag_col = "lag",
-    lag_contribution_col = "contribution",
-    lag_weight_col = "weight",
     lag_group_cols = c("var", "lag"),
     lg_strategy = c("requested_available", "model", "strict"),
     rl_weights = TRUE,
-    higher_is_better = TRUE,
+    hb = TRUE,
     verbose = TRUE
 ) {
+  
+  # ------------------------------------------------------------
+  # Internal standard column names
+  # ------------------------------------------------------------
+  response_col <- "observed"
+  prediction_col <- "predicted"
+  lag_col <- "lag"
+  lag_contribution_col <- "contribution"
+  lag_weight_col <- "weight"
   
   ensemble_scope <- match.arg(ensemble_scope)
   method <- match.arg(method)
@@ -272,14 +264,18 @@ ensemble_bestfit <- function(
   stack_objective <- match.arg(stack_objective)
   lg_strategy <- match.arg(lg_strategy)
   
-  if (is.null(lag_method)) {
-    lag_method <- method
+  # ------------------------------------------------------------
+  # Block conceptually invalid combinations
+  # ------------------------------------------------------------
+  if (ensemble_scope %in% c("lag", "both") && method == "stacked") {
+    stop(
+      "`method = 'stacked'` is only supported when `ensemble_scope = 'model'`. ",
+      "Stacking requires observed responses for training the meta-model, and ",
+      "lag-specific contributions do not have an observed response target. ",
+      "Use `method = 'weighted'`, `method = 'unweighted'`, or `method = 'best'` ",
+      "for lag-based ensembles."
+    )
   }
-  
-  lag_method <- match.arg(
-    lag_method,
-    choices = c("unweighted", "weighted", "hard_voting", "best", "stacked")
-  )
   
   # ------------------------------------------------------------
   # Validations
@@ -322,8 +318,8 @@ ensemble_bestfit <- function(
     stop("`rl_weights` must be TRUE or FALSE.")
   }
   
-  if (!is.logical(higher_is_better) || length(higher_is_better) != 1L) {
-    stop("`higher_is_better` must be TRUE or FALSE.")
+  if (!is.logical(hb) || length(hb) != 1L) {
+    stop("`hb` must be TRUE or FALSE.")
   }
   
   if (!is.logical(verbose) || length(verbose) != 1L) {
@@ -433,7 +429,7 @@ ensemble_bestfit <- function(
     
     ord_metric <- bestfit_use[[weight_metric]]
     
-    if (!higher_is_better) {
+    if (!hb) {
       ord_metric <- -ord_metric
     }
     
@@ -479,7 +475,7 @@ ensemble_bestfit <- function(
     
     metric <- selected_models[[weight_metric]]
     
-    if (!higher_is_better) {
+    if (!hb) {
       metric <- -metric
     }
     
@@ -674,7 +670,7 @@ ensemble_bestfit <- function(
   # ------------------------------------------------------------
   # Load predictions when needed
   # ------------------------------------------------------------
-  predictions_needed <- ensemble_scope %in% c("model", "both") || lag_method == "stacked"
+  predictions_needed <- ensemble_scope %in% c("model", "both")
   
   if (predictions_needed) {
     
@@ -685,7 +681,7 @@ ensemble_bestfit <- function(
     if (is.null(predictions) || !is.data.frame(predictions)) {
       stop(
         "`predictions` must be supplied or available as attr(bestfit, 'predictions') ",
-        "when model-level ensemble or stacked lag ensemble is requested."
+        "when model-level ensemble is requested."
       )
     }
     
@@ -765,26 +761,11 @@ ensemble_bestfit <- function(
   # Lag weights
   # ------------------------------------------------------------
   if (ensemble_scope %in% c("lag", "both")) {
-    
-    if (lag_method == "stacked") {
-      
-      pm <- build_prediction_matrix(predictions, selected_ids)
-      stack <- compute_stacking(pm$pred_mat, pm$obs)
-      
-      lag_weights <- stack$weights
-      
-      if (is.null(stack_intercepts)) {
-        stack_intercepts <- stack$intercept
-      }
-      
-    } else {
-      
-      lag_weights <- compute_model_weights(
-        selected_models = selected_models,
-        selected_ids = selected_ids,
-        ensemble_method = lag_method
-      )
-    }
+    lag_weights <- compute_model_weights(
+      selected_models = selected_models,
+      selected_ids = selected_ids,
+      ensemble_method = method
+    )
   }
   
   # ------------------------------------------------------------
@@ -805,8 +786,9 @@ ensemble_bestfit <- function(
     
     if (is.null(epi_data) || !is.data.frame(epi_data)) {
       stop(
-        "`epi_data` must be supplied as a data.frame when `lag_data = NULL` ",
-        "and `ensemble_scope` is 'lag' or 'both'."
+        "`epi_data` is required to compute lag-based ensembles automatically. ",
+        "Lag contributions depend on observed exposure profiles. ",
+        "Provide `epi_data` or supply precomputed `lag_data`."
       )
     }
     
@@ -855,10 +837,11 @@ ensemble_bestfit <- function(
         
         if (length(var_i) == 0) {
           if (verbose) {
-            message(
+            warning(
               "Skipping model_id = ", mid,
               " because none of the requested variables are present in this model. ",
-              "Model variables: ", paste(vars_fit_i, collapse = ", ")
+              "Model variables: ", paste(vars_fit_i, collapse = ", "),
+              call. = FALSE
             )
           }
           next
@@ -890,7 +873,6 @@ ensemble_bestfit <- function(
         list(
           epi_data = epi_data,
           group = group,
-          group_level = group_level,
           fit = fit_i,
           var = var_i,
           reverse = reverse
@@ -1098,7 +1080,6 @@ ensemble_bestfit <- function(
     model_weights = model_weights_df,
     selected_models = selected_models,
     method = method,
-    lag_method = lag_method,
     ensemble_scope = ensemble_scope,
     lg_strategy = lg_strategy,
     rl_weights = rl_weights
