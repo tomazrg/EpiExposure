@@ -13,7 +13,7 @@
 #'
 #' @return A data.frame with lag importance ranking
 #' @export
-identify_critical_lags <- function(
+identify_clags <- function(
     daily_df,
     metric = c("max", "mean", "absmean")
 ) {

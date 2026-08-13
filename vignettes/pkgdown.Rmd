@@ -154,10 +154,13 @@ sim_data = sim_data %>%
     cum = cumsum(rain)
   )
 
-sim_data%>% 
-  ggplot(aes(dpp,cum, group = epi_id))+
-  geom_smooth(se = F)+
-  theme_bw()
+rh_plot = sim_data%>% 
+  ggplot(aes(dpp,tmean, group = epi_id))+
+  geom_smooth(se = F, color = "darkgreen",linewidth = 0.3)+
+  theme_bw()+
+  labs(x = "Days before the assessement",
+       y = "")+
+  scale_x_continuous(limits = c(0,85))
 ```
 
 ```{r, eval = FALSE}
