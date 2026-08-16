@@ -137,6 +137,700 @@ head(sim_data)
 table(table(sim_data$epi_id))   # deve dar 86 por epi
 length(unique(sim_data$epi_id)) # 520 epidemias
 ```
+# ARTIGO
+```{r}
+# =============================================================
+# SIMULACAO DLNM COM TRES VARIAVEIS
+#
+# 520 epidemias x 86 dias
+# Uma severidade final por epidemia
+#
+# Variaveis:
+#   1. Temperatura media
+#   2. Molhamento foliar
+#   3. Chuva
+#
+# Desfecho:
+#   Severidade final, como proporcao entre 0 e 1
+# =============================================================
+
+set.seed(123)
+
+# -------------------------------------------------------------
+# Pacotes
+# -------------------------------------------------------------
+
+library(dlnm)
+library(splines)
+
+# -------------------------------------------------------------
+# Dimensoes
+# -------------------------------------------------------------
+
+n_epi  <- 520
+n_days <- 86
+
+dpp_values <- 0:(n_days - 1)
+lag_values <- 0:(n_days - 1)
+
+# -------------------------------------------------------------
+# Matrizes de exposicao
+#
+# Linhas:
+#   epidemias
+#
+# Colunas:
+#   DPP 0 a 85
+# -------------------------------------------------------------
+
+tmean_dpp <- matrix(
+  NA_real_,
+  nrow = n_epi,
+  ncol = n_days
+)
+
+wetness_dpp <- matrix(
+  NA_real_,
+  nrow = n_epi,
+  ncol = n_days
+)
+
+rain_dpp <- matrix(
+  NA_real_,
+  nrow = n_epi,
+  ncol = n_days
+)
+
+colnames(tmean_dpp) <- paste0("dpp_", dpp_values)
+colnames(wetness_dpp) <- paste0("dpp_", dpp_values)
+colnames(rain_dpp) <- paste0("dpp_", dpp_values)
+
+# =============================================================
+# 1. SIMULAR OS HISTORICOS CLIMATICOS
+# =============================================================
+
+for (i in seq_len(n_epi)) {
+
+  # -----------------------------------------------------------
+  # Variacao entre epidemias
+  #
+  # Cada epidemia recebe condicoes climaticas medias diferentes.
+  # Essa variacao entre epidemias e essencial, pois o desfecho
+  # possui somente uma observacao por epidemia.
+  # -----------------------------------------------------------
+
+  temp_shift <- rnorm(
+    1,
+    mean = 0,
+    sd = 2.2
+  )
+
+  wetness_shift <- rnorm(
+    1,
+    mean = 0,
+    sd = 3.0
+  )
+
+  rain_shift <- rnorm(
+    1,
+    mean = 0,
+    sd = 0.45
+  )
+
+  # -----------------------------------------------------------
+  # Componentes temporalmente autocorrelacionados
+  # -----------------------------------------------------------
+
+  ar_temp <- as.numeric(
+    arima.sim(
+      model = list(ar = 0.70),
+      n = n_days,
+      sd = 1.1
+    )
+  )
+
+  ar_wetness <- as.numeric(
+    arima.sim(
+      model = list(ar = 0.75),
+      n = n_days,
+      sd = 1.7
+    )
+  )
+
+  ar_rain <- as.numeric(
+    arima.sim(
+      model = list(ar = 0.55),
+      n = n_days,
+      sd = 0.55
+    )
+  )
+
+  # -----------------------------------------------------------
+  # 1. TEMPERATURA MEDIA
+  # -----------------------------------------------------------
+
+  tmean <- (
+    25 +
+    temp_shift +
+    3.5 * sin(
+      2 * pi * dpp_values / 85 +
+      runif(1, -0.35, 0.35)
+    ) +
+    ar_temp
+  )
+
+  # Restringir aos limites utilizados na simulacao
+  tmean <- pmin(
+    pmax(tmean, 15),
+    36
+  )
+
+  # -----------------------------------------------------------
+  # 2. MOLHAMENTO FOLIAR
+  # -----------------------------------------------------------
+
+  wetness <- (
+    10 +
+    wetness_shift +
+    2.2 * sin(
+      2 * pi * dpp_values / 48 +
+      runif(1, -0.50, 0.50)
+    ) +
+    ar_wetness
+  )
+
+  # Horas por dia: intervalo fisico de 0 a 24
+  wetness <- pmin(
+    pmax(wetness, 0),
+    24
+  )
+
+  # -----------------------------------------------------------
+  # 3. CHUVA
+  #
+  # Primeiro e simulada uma probabilidade diaria de chuva.
+  # Quando ocorre chuva, a quantidade e simulada por uma
+  # distribuicao Gamma.
+  # -----------------------------------------------------------
+
+  rain_probability <- plogis(
+    -0.75 +
+    rain_shift +
+    0.45 * sin(
+      2 * pi * dpp_values / 37 +
+      runif(1, -0.50, 0.50)
+    ) +
+    ar_rain
+  )
+
+  rainy_day <- rbinom(
+    n = n_days,
+    size = 1,
+    prob = rain_probability
+  )
+
+  rain_amount <- rgamma(
+    n = n_days,
+    shape = 1.8,
+    scale = 5
+  )
+
+  rain <- rainy_day * rain_amount
+
+  # Limitar eventos extremos para estabilizar o exemplo
+  rain <- pmin(
+    rain,
+    40
+  )
+
+  # -----------------------------------------------------------
+  # Salvar as series
+  # -----------------------------------------------------------
+
+  tmean_dpp[i, ] <- tmean
+  wetness_dpp[i, ] <- wetness
+  rain_dpp[i, ] <- rain
+}
+
+# =============================================================
+# 2. CONVERTER DPP EM LAG
+# =============================================================
+#
+# A severidade final e observada aos 85 DPP.
+#
+# Portanto:
+#
+# DPP 85 = lag 0
+# DPP 84 = lag 1
+# DPP 83 = lag 2
+# ...
+# DPP  0 = lag 85
+#
+# O crossbasis espera:
+#
+# coluna 1 = lag 0
+# coluna 2 = lag 1
+# ...
+# coluna 86 = lag 85
+#
+# Por isso, as colunas das matrizes sao invertidas.
+# =============================================================
+
+tmean_lag <- tmean_dpp[, n_days:1, drop = FALSE]
+wetness_lag <- wetness_dpp[, n_days:1, drop = FALSE]
+rain_lag <- rain_dpp[, n_days:1, drop = FALSE]
+
+colnames(tmean_lag) <- paste0("lag_", lag_values)
+colnames(wetness_lag) <- paste0("lag_", lag_values)
+colnames(rain_lag) <- paste0("lag_", lag_values)
+
+# =============================================================
+# 3. RELACAO EXPOSICAO-RESPOSTA VERDADEIRA
+# =============================================================
+
+# -------------------------------------------------------------
+# 3.1 Temperatura
+#
+# Resposta unimodal:
+#   maior favorabilidade proxima de 26 graus C
+# -------------------------------------------------------------
+
+temp_response <- exp(
+  -0.5 * ((tmean_lag - 26) / 3.0)^2
+)
+
+# -------------------------------------------------------------
+# 3.2 Molhamento foliar
+#
+# Resposta sigmoide:
+#   aumento acentuado acima de aproximadamente 11 horas
+# -------------------------------------------------------------
+
+wetness_response <- plogis(
+  (wetness_lag - 11) / 1.7
+)
+
+# -------------------------------------------------------------
+# 3.3 Chuva
+#
+# Resposta crescente com saturacao.
+#
+# sqrt() reduz a influencia de eventos extremos e permite que
+# chuvas moderadas ja produzam aumento de favorabilidade.
+# -------------------------------------------------------------
+
+rain_response <- plogis(
+  (sqrt(rain_lag) - 2.2) / 0.75
+)
+
+# =============================================================
+# 4. FUNCOES VERDADEIRAS DE LAG
+# =============================================================
+
+# -------------------------------------------------------------
+# Temperatura:
+#   janela mais tardia
+#   maior contribuicao proxima ao lag 18
+# -------------------------------------------------------------
+
+temp_lag_weights <- dnorm(
+  lag_values,
+  mean = 18,
+  sd = 9
+)
+
+temp_lag_weights <- (
+  temp_lag_weights /
+  sum(temp_lag_weights)
+)
+
+# -------------------------------------------------------------
+# Molhamento foliar:
+#   janela intermediaria
+#   maior contribuicao proxima ao lag 27
+# -------------------------------------------------------------
+
+wetness_lag_weights <- dnorm(
+  lag_values,
+  mean = 27,
+  sd = 11
+)
+
+wetness_lag_weights <- (
+  wetness_lag_weights /
+  sum(wetness_lag_weights)
+)
+
+# -------------------------------------------------------------
+# Chuva:
+#   efeito mais recente
+#   maior contribuicao proxima ao lag 10
+# -------------------------------------------------------------
+
+rain_lag_weights <- dnorm(
+  lag_values,
+  mean = 10,
+  sd = 7
+)
+
+rain_lag_weights <- (
+  rain_lag_weights /
+  sum(rain_lag_weights)
+)
+
+# =============================================================
+# 5. EFEITOS CUMULATIVOS VERDADEIROS
+# =============================================================
+
+true_temp_effect <- as.numeric(
+  temp_response %*% temp_lag_weights
+)
+
+true_wetness_effect <- as.numeric(
+  wetness_response %*% wetness_lag_weights
+)
+
+true_rain_effect <- as.numeric(
+  rain_response %*% rain_lag_weights
+)
+
+# =============================================================
+# 6. PADRONIZAR OS EFEITOS
+# =============================================================
+#
+# A padronizacao permite controlar diretamente a magnitude
+# relativa de cada exposicao no preditor linear.
+# =============================================================
+
+temp_effect_z <- as.numeric(
+  scale(true_temp_effect)
+)
+
+wetness_effect_z <- as.numeric(
+  scale(true_wetness_effect)
+)
+
+rain_effect_z <- as.numeric(
+  scale(true_rain_effect)
+)
+
+# =============================================================
+# 7. GERAR A SEVERIDADE FINAL
+# =============================================================
+#
+# As tres variaveis possuem contribuicao para a severidade.
+#
+# Molhamento:
+#   efeito mais forte
+#
+# Temperatura:
+#   efeito intermediario
+#
+# Chuva:
+#   efeito ligeiramente menor, mas ainda suficientemente forte
+#   para ser detectado no teste global.
+# =============================================================
+
+eta_true <- (
+  -1.10 +
+  0.95 * temp_effect_z +
+  1.10 * wetness_effect_z +
+  0.75 * rain_effect_z
+)
+
+# -------------------------------------------------------------
+# Erro residual
+#
+# Quanto menor o sigma_error, maior sera o desempenho preditivo.
+#
+# Sugestao para exemplo do pacote:
+#   0.10 a 0.15 = desempenho elevado
+#   0.20 a 0.30 = exemplo mais desafiador
+# -------------------------------------------------------------
+
+sigma_error <- 0.12
+
+eta_observed <- (
+  eta_true +
+  rnorm(
+    n_epi,
+    mean = 0,
+    sd = sigma_error
+  )
+)
+
+y_epi <- plogis(eta_observed)
+
+# =============================================================
+# 8. CRIAR CONJUNTO DE DADOS LONG
+# =============================================================
+
+sim_data <- data.frame(
+  epi_id = rep(
+    seq_len(n_epi),
+    each = n_days
+  ),
+
+  dpp = rep(
+    dpp_values,
+    times = n_epi
+  ),
+
+  lag = rep(
+    rev(lag_values),
+    times = n_epi
+  ),
+
+  tmean = as.vector(
+    t(tmean_dpp)
+  ),
+
+  wetness = as.vector(
+    t(wetness_dpp)
+  ),
+
+  rain = as.vector(
+    t(rain_dpp)
+  ),
+
+  y = rep(
+    y_epi,
+    each = n_days
+  )
+)
+
+sim_data <- sim_data[
+  order(
+    sim_data$epi_id,
+    sim_data$dpp
+  ),
+]
+
+rownames(sim_data) <- NULL
+
+# =============================================================
+# 9. CHECAGENS DA SIMULACAO
+# =============================================================
+
+head(sim_data)
+tail(sim_data)
+
+# Deve retornar:
+# 86 520
+table(
+  table(sim_data$epi_id)
+)
+
+# Deve retornar 520
+length(
+  unique(sim_data$epi_id)
+)
+
+# Cada epidemia deve possuir apenas uma severidade
+severity_per_epidemic <- tapply(
+  sim_data$y,
+  sim_data$epi_id,
+  function(x) length(unique(x))
+)
+
+if (!all(severity_per_epidemic == 1)) {
+  stop(
+    paste0(
+      "Erro na simulacao: pelo menos uma epidemia possui ",
+      "mais de um valor de severidade."
+    )
+  )
+}
+
+# Verificar valores ausentes
+if (anyNA(sim_data)) {
+  stop(
+    "A simulacao produziu valores ausentes."
+  )
+}
+
+# Verificar limites da severidade
+if (any(sim_data$y <= 0 | sim_data$y >= 1)) {
+  stop(
+    paste0(
+      "A severidade deve estar estritamente entre 0 e 1 ",
+      "para a transformacao logit."
+    )
+  )
+}
+
+# Resumos
+summary(sim_data$tmean)
+summary(sim_data$wetness)
+summary(sim_data$rain)
+summary(y_epi)
+
+# Correlacao entre os efeitos cumulativos verdadeiros
+effect_correlation <- cor(
+  cbind(
+    temperature = temp_effect_z,
+    wetness = wetness_effect_z,
+    rain = rain_effect_z
+  )
+)
+
+print(
+  round(effect_correlation, 3)
+)
+
+# Distribuicao da severidade
+hist(
+  y_epi,
+  breaks = 25,
+  main = "Distribuicao da severidade simulada",
+  xlab = "Severidade",
+  col = "gray80",
+  border = "white"
+)
+
+```
+
+```{r}
+wetness_plot = sim_data%>% 
+  ggplot(aes(dpp,wetness, group = epi_id))+
+  geom_smooth(se = F, color = "#55A868",linewidth = 0.3)+
+  theme_bw()+
+  labs(x = "Days before the assessement",
+       y = "Leaf wetness (%)")+
+  scale_x_continuous(limits = c(0,85), expand = c(0,0),
+                     breaks = pretty(sim_data$dpp, n = 8))+
+  theme(text = element_text(size = 10))
+
+rain_plot = sim_data%>% 
+  ggplot(aes(dpp,rain, group = epi_id))+
+  geom_smooth(se = F, color = "#4C72B0",linewidth = 0.3)+
+  theme_bw()+
+  labs(x = "",
+       y = "Daily precipitation (mm)")+
+  scale_x_continuous(limits = c(0,85), expand = c(0,0),
+                     breaks = pretty(sim_data$dpp, n = 8))+
+  theme(axis.text.x = element_blank(),
+        text = element_text(size = 10))
+
+tmean_plot = sim_data%>% 
+  ggplot(aes(dpp,tmean, group = epi_id))+
+  geom_smooth(se = F, color = "#C44E52",linewidth = 0.3)+
+  theme_bw()+
+  labs(x = "",
+       y = "Mean temperature (°C)")+
+  scale_x_continuous(limits = c(0,85), expand = c(0,0),
+                     breaks = pretty(sim_data$dpp, n = 8))+
+  theme(axis.text.x = element_blank(),
+        text = element_text(size = 10))
+
+#tmean_plot/rain_plot/wetness_plot
+
+plot_grid(tmean_plot,rain_plot,wetness_plot, ncol = 1)
+
+#ggsave("fig4.png", dpi = 600, bg = "white", height = 4, width = 8)
+
+
+ggsave("fig4.png", dpi = 600, bg = "white", height = 6, width = 8)
+```
+
+```{r}
+
+sim_data2 = sim_data |> 
+  filter(epi_id <= 480)
+
+sim_data3 = sim_data |> 
+  filter(!epi_id <= 480)
+
+
+### train
+
+cb <- define_exposure(
+  wx_long = sim_data2,
+  vars = c("wetness","tmean","rain"),
+  lag_max = 85,
+  df_var = 3,
+  df_lag = 2
+)
+
+dat <- build_design(
+  wx_long = sim_data2,
+  cb_templates = cb,
+  lag_max = 85
+)
+
+dat <- prepare_response(dat = dat, y_var = "y", family = "beta")
+
+fit <- fit_epidlnm(
+  dat = dat,
+  model_engine = "glmmTMB",
+  family = "beta",
+  random_effect = "epi_id",
+  epiexposure_spec = attr(cb, "spec")
+)
+
+###  test
+
+cb2 <- define_exposure(
+  wx_long = sim_data3,
+  vars = c("wetness","tmean","rain"),
+  lag_max = 85,
+  df_var = 3,
+  df_lag = 2
+)
+
+dat2 <- build_design(
+  wx_long = sim_data3,
+  cb_templates = cb,
+  lag_max = 85
+)
+
+dat2 <- prepare_response(dat = dat2, y_var = "y", family = "beta")
+
+
+summary(fit)
+t = predict(fit, newdata = dat2, type = "response",allow.new.levels=TRUE)
+
+
+dat3 = dat2
+dat3$t = t
+
+
+dat3 %>% 
+  ggplot(aes(y,t))+
+  geom_point(color = "#C44E52", size = 2)+
+  geom_smooth(method = "lm", se = F, color = "#55A868", linewidth = 1.4)+
+  theme_bw()+
+  labs(x = "Observed (proportion)",
+       y = "Predicted(proportion)")+
+  scale_x_continuous(limits = c(0,0.80), expand = c(0.01,0.01))+
+  scale_y_continuous(limits = c(0,0.80), expand = c(0.01,0.01))
+
+
+```
+
+```{r}
+check_identifiability(wx_long = sim_data, var = "tmean",
+                      df_var = 2, df_lag = 2, lag_max = 85)
+```
+
+```{r}
+surface = predict_surface(fit = fit, wx_long = sim_data, var = "tmean", lag_max = 85,
+                    uncertainty = TRUE, output = "summary", n_samples = 10)
+
+tt = summarise_effects(fit = fit, wx_long = sim_data,
+                  scale = "daily", effect_measure = "percent", uncertainty = TRUE, n_samples = 10,
+                  output = "summary")
+
+
+tt |> 
+  filter(var == "rain") |> 
+  filter(lag == 80) |> 
+  ggplot(aes(value,effect))+
+  geom_smooth()
+```
+
+#FIM
+
 ```{r}
 library(EpiExposure)
 ```
@@ -155,12 +849,35 @@ sim_data = sim_data %>%
   )
 
 rh_plot = sim_data%>% 
-  ggplot(aes(dpp,tmean, group = epi_id))+
+  ggplot(aes(dpp,rh, group = epi_id))+
   geom_smooth(se = F, color = "darkgreen",linewidth = 0.3)+
   theme_bw()+
   labs(x = "Days before the assessement",
        y = "")+
-  scale_x_continuous(limits = c(0,85))
+  scale_x_continuous(limits = c(0,85), expand = c(0,0),
+                     breaks = pretty(sim_data$dpp, n = 8))
+
+cum_plot = sim_data%>% 
+  ggplot(aes(dpp,cum, group = epi_id))+
+  geom_smooth(se = F, color = "steelblue",linewidth = 0.3)+
+  theme_bw()+
+  labs(x = "Days before the assessement",
+       y = "")+
+  scale_x_continuous(limits = c(0,85), expand = c(0,0),
+                     breaks = pretty(sim_data$dpp, n = 8))
+
+tmean_plot = sim_data%>% 
+  ggplot(aes(dpp,tmean, group = epi_id))+
+  geom_smooth(se = F, color = "darkred",linewidth = 0.3)+
+  theme_bw()+
+  labs(x = "Days before the assessement",
+       y = "Value")+
+  scale_x_continuous(limits = c(0,85), expand = c(0,0),
+                     breaks = pretty(sim_data$dpp, n = 8))
+
+tmean_plot+cum_plot+rh_plot
+
+ggsave("fig2.png", dpi = 600, bg = "white", height = 4, width = 8)
 ```
 
 ```{r, eval = FALSE}
@@ -168,10 +885,10 @@ rh_plot = sim_data%>%
 
 cb <- define_exposure(
   wx_long = sim_data,
-  vars = c("cum"),
+  vars = c("cum", "rh", "tmean"),
   lag_max = 85,
-  df_var = 2,
-  df_lag = 5
+  df_var = 4,
+  df_lag = 2
 )
 
 ```
@@ -187,12 +904,16 @@ dat <- build_design(
 )
 
 ```
+```{r}
+check_identifiability(wx_long = sim_data, var = "cum",
+                      df_var = 2, df_lag = 2, lag_max = 85)
+```
 
 
 ```{r}
 
 # preparar resposta
-dat <- prepare_response(dat, y_var = "y", family = "beta")
+dat <- prepare_response(dat = dat, y_var = "y", family = "beta")
 
 ```
 
@@ -210,7 +931,7 @@ fit <- fit_epidlnm(
   epiexposure_spec = attr(cb, "spec")
 )
 
-
+summary(fit)
 t = predict(fit, newdata = dat, type = "response")
 
 
