@@ -7,18 +7,48 @@
 define_periods(lag_max, cuts = NULL, prefix = "W")
 }
 \arguments{
-\item{lag_max}{Maximum lag (integer)}
+\item{lag_max}{Maximum lag. Must be a positive integer.}
 
-\item{cuts}{Optional numeric vector of cut points defining periods}
+\item{cuts}{Optional numeric vector of cut points defining lag periods.}
 
-\item{prefix}{Character string used to label periods (default = "W")}
+\item{prefix}{Character string used to label periods.
+Default: `"W"`.}
 }
 \value{
-data.frame with columns:
-  - period
-  - lag_start
-  - lag_end
+A data.frame with columns:
+\itemize{
+  \item `period`
+  \item `lag_start`
+  \item `lag_end`
+}
 }
 \description{
-Creates lag periods to summarise cumulative DLNM effects.
+Creates lag periods used to summarise cumulative DLNM effects.
+}
+\details{
+Lag periods are defined on the retrospective lag scale, where
+lag 0 represents the most recent observation and `lag_max`
+represents the oldest observation included in the exposure history.
+
+
+If `cuts = NULL`, a single cumulative lag period is returned:
+
+\preformatted{
+lag_start = 0
+lag_end   = lag_max
+}
+
+If cut points are supplied, periods are created as contiguous,
+non-overlapping lag intervals:
+
+\preformatted{
+cuts = c(7, 14)
+
+W1 = 0 - 7
+W2 = 8 - 14
+W3 = 15 - lag_max
+}
+
+Invalid cut points outside the interval
+`[1, lag_max - 1]` are ignored.
 }

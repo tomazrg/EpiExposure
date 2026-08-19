@@ -689,10 +689,15 @@ hist(
 )
 
 ```
+```{r}
+colnames(sim_data) = c("epi_id", "time","lag", "tmean","wetness","rain","y")
+
+writexl::write_xlsx(sim_data, "sim_data.xlsx")
+```
 
 ```{r}
 wetness_plot = sim_data%>% 
-  ggplot(aes(dpp,wetness, group = epi_id))+
+  ggplot(aes(time,wetness, group = epi_id))+
   geom_smooth(se = F, color = "#55A868",linewidth = 0.3)+
   theme_bw()+
   labs(x = "Days before the assessement",
@@ -702,7 +707,7 @@ wetness_plot = sim_data%>%
   theme(text = element_text(size = 10))
 
 rain_plot = sim_data%>% 
-  ggplot(aes(dpp,rain, group = epi_id))+
+  ggplot(aes(time,rain, group = epi_id))+
   geom_smooth(se = F, color = "#4C72B0",linewidth = 0.3)+
   theme_bw()+
   labs(x = "",
@@ -713,7 +718,7 @@ rain_plot = sim_data%>%
         text = element_text(size = 10))
 
 tmean_plot = sim_data%>% 
-  ggplot(aes(dpp,tmean, group = epi_id))+
+  ggplot(aes(time,tmean, group = epi_id))+
   geom_smooth(se = F, color = "#C44E52",linewidth = 0.3)+
   theme_bw()+
   labs(x = "",
@@ -733,6 +738,7 @@ plot_grid(tmean_plot,rain_plot,wetness_plot, ncol = 1)
 ggsave("fig4.png", dpi = 600, bg = "white", height = 6, width = 8)
 ```
 
+
 ```{r}
 
 sim_data2 = sim_data |> 
@@ -741,11 +747,13 @@ sim_data2 = sim_data |>
 sim_data3 = sim_data |> 
   filter(!epi_id <= 480)
 
+sim_data2$epi_id = as.factor(sim_data2$epi_id)
+sim_data3$epi_id = as.factor(sim_data3$epi_id)
 
 ### train
 
 cb <- define_exposure(
-  wx_long = sim_data2,
+  data = sim_data2,
   vars = c("wetness","tmean","rain"),
   lag_max = 85,
   df_var = 3,
@@ -753,25 +761,34 @@ cb <- define_exposure(
 )
 
 dat <- build_design(
-  wx_long = sim_data2,
+  data = sim_data2,
   cb_templates = cb,
   lag_max = 85
 )
 
-dat <- prepare_response(dat = dat, y_var = "y", family = "beta")
+dat <- prepare_response(data = dat, y_var = "y", family = "beta")
 
 fit <- fit_epidlnm(
-  dat = dat,
+  data = dat,
   model_engine = "glmmTMB",
   family = "beta",
-  random_effect = "epi_id",
+  random_effect = NULL,
   epiexposure_spec = attr(cb, "spec")
 )
+
+fit$sdr$pdHess
+range(dat$y_model)
+sum(dat$y_model <= 0)
+
+sum(dat$y_model >= 1)
+
+any(is.na(vcov(fit)$cond))
+
 
 ###  test
 
 cb2 <- define_exposure(
-  wx_long = sim_data3,
+  data = sim_data3,
   vars = c("wetness","tmean","rain"),
   lag_max = 85,
   df_var = 3,
@@ -779,15 +796,16 @@ cb2 <- define_exposure(
 )
 
 dat2 <- build_design(
-  wx_long = sim_data3,
+  data = sim_data3,
   cb_templates = cb,
   lag_max = 85
 )
 
-dat2 <- prepare_response(dat = dat2, y_var = "y", family = "beta")
+dat2 <- prepare_response(data = dat2, y_var = "y", family = "beta")
 
 
 summary(fit)
+
 t = predict(fit, newdata = dat2, type = "response",allow.new.levels=TRUE)
 
 
@@ -801,33 +819,56 @@ dat3 %>%
   geom_smooth(method = "lm", se = F, color = "#55A868", linewidth = 1.4)+
   theme_bw()+
   labs(x = "Observed (proportion)",
-       y = "Predicted(proportion)")+
+       y = "Predicted (proportion)")+
   scale_x_continuous(limits = c(0,0.80), expand = c(0.01,0.01))+
   scale_y_continuous(limits = c(0,0.80), expand = c(0.01,0.01))
 
+CCC(dat3$y, dat3$t, ci = "z-transform", conf.level = 0.95, na.rm = FALSE)
+```
+
+```{r}
+check_identifiability(data = sim_data, var = "tmean",
+                      df_var = 4, df_lag = 2, lag_max = 85)
 
 ```
 
 ```{r}
-check_identifiability(wx_long = sim_data, var = "tmean",
-                      df_var = 2, df_lag = 2, lag_max = 85)
-```
+#surface = predict_surface(fit = fit, wx_long = sim_data, var = "tmean", lag_max = 85,
+ #                   uncertainty = TRUE, output = "summary", n_samples = 10)
 
-```{r}
-surface = predict_surface(fit = fit, wx_long = sim_data, var = "tmean", lag_max = 85,
-                    uncertainty = TRUE, output = "summary", n_samples = 10)
-
-tt = summarise_effects(fit = fit, wx_long = sim_data,
-                  scale = "daily", effect_measure = "percent", uncertainty = TRUE, n_samples = 10,
+epi_l = summarise_effects(fit = fit, data = sim_data,
+                  scale = "daily", effect_measure = "percent",
+                  uncertainty = TRUE, n_samples = 20,
                   output = "summary")
 
 
-tt |> 
-  filter(var == "rain") |> 
+epi_l |> 
+  filter(var == "wetness") |> 
   filter(lag == 80) |> 
   ggplot(aes(value,effect))+
   geom_smooth()
+
 ```
+
+```{r}
+
+period  = define_periods(lag_max = 85, cuts = c(41,85), prefix = "Period")
+
+epi_l = summarise_effects(fit = fit, data = sim_data,
+                  scale = "accumulated", effect_measure = "percent",
+                  lag_periods = period,
+                  uncertainty = TRUE, n_samples = 20,
+                  output = "samples")
+
+
+epi_l |> 
+  filter(var == "rain") |> 
+  filter(period == "Period1") |> 
+  ggplot(aes(value,effect))+
+  geom_smooth()+
+  theme_bw()
+```
+
 
 #FIM
 

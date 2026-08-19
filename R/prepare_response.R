@@ -8,9 +8,9 @@
 #' If the response variable is already compatible with the selected distribution,
 #' values are preserved without modification.
 #'
-#' @param dat A data.frame containing the response variable.
-#' @param y_var Character scalar. Name of the response variable in `dat`.
-#' @param family_choice Character scalar. Distribution to be used in modeling.
+#' @param data A data.frame containing the response variable.
+#' @param y_var Character scalar. Name of the response variable in `data`.
+#' @param family Character scalar. Distribution to be used in modeling.
 #'   Supported options are:
 #'   - `"beta"`: proportions in (0,1)
 #'   - `"binomial"`: binary outcomes (0/1)
@@ -20,7 +20,7 @@
 #'   - `"gamma"`: positive continuous values
 #'   - `"ordinal"`: integer categorical severity levels (1, 2, 3, ...)
 #'
-#' @return A data.frame identical to `dat`, with an added column:
+#' @return A data.frame identical to `data`, with an added column:
 #'   - `y_model`: processed response variable ready for modeling
 #'
 #'   Additionally, the function attaches an attribute:
@@ -34,24 +34,24 @@
 #' - For `"ordinal"`, values must be integers ≥ 1.
 #'
 #' @export
-prepare_response <- function(dat, y_var, family_choice) {
+prepare_response <- function(data, y_var, family) {
 
   # =========================================================
   # ✅ CHECKS BÁSICOS (AJUSTE DE ROBUSTEZ)
   # =========================================================
   stopifnot(
-    y_var %in% names(dat),
-    is.character(family_choice),
-    length(family_choice) == 1
+    y_var %in% names(data),
+    is.character(family),
+    length(family) == 1
   )
 
-  y <- dat[[y_var]]
+  y <- data[[y_var]]
   y_scale <- 1
 
   # -------------------------------
   # Beta (severity, prevalence)
   # -------------------------------
-  if (family_choice == "beta") {
+  if (family == "beta") {
 
     # ✅ AJUSTE: garantir tipo numérico
     y <- as.numeric(y)
@@ -68,7 +68,7 @@ prepare_response <- function(dat, y_var, family_choice) {
   # -------------------------------
   # Binomial (incidence / prevalence)
   # -------------------------------
-  if (family_choice == "binomial") {
+  if (family == "binomial") {
 
     y <- as.numeric(y)
     y <- as.integer(y)
@@ -79,7 +79,7 @@ prepare_response <- function(dat, y_var, family_choice) {
   # -------------------------------
   # Poisson (counts)
   # -------------------------------
-  if (family_choice == "poisson") {
+  if (family == "poisson") {
 
     y <- as.numeric(y)
     y <- round(y)
@@ -90,7 +90,7 @@ prepare_response <- function(dat, y_var, family_choice) {
   # -------------------------------
   # Negative binomial (overdispersed counts)
   # -------------------------------
-  if (family_choice %in% c("negbin", "negative_binomial")) {
+  if (family %in% c("negbin", "negative_binomial")) {
 
     y <- as.numeric(y)
     y <- round(y)
@@ -101,7 +101,7 @@ prepare_response <- function(dat, y_var, family_choice) {
   # -------------------------------
   # Gaussian (continuous responses)
   # -------------------------------
-  if (family_choice == "gaussian") {
+  if (family == "gaussian") {
 
     y <- as.numeric(y)
   }
@@ -109,7 +109,7 @@ prepare_response <- function(dat, y_var, family_choice) {
   # -------------------------------
   # Gamma (rate / intensity > 0)
   # -------------------------------
-  if (family_choice == "gamma") {
+  if (family == "gamma") {
 
     y <- as.numeric(y)
 
@@ -119,7 +119,7 @@ prepare_response <- function(dat, y_var, family_choice) {
   # -------------------------------
   # Ordinal severity (cumulative logit)
   # -------------------------------
-  if (family_choice == "ordinal") {
+  if (family == "ordinal") {
 
     y <- as.numeric(y)
     y <- as.integer(y)
@@ -130,8 +130,8 @@ prepare_response <- function(dat, y_var, family_choice) {
   # =========================================================
   # ✅ OUTPUT
   # =========================================================
-  dat$y_model <- y
-  attr(dat, "y_scale_mult") <- y_scale
+  data$y_model <- y
+  attr(data, "y_scale_mult") <- y_scale
 
-  dat
+  data
 }

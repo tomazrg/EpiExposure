@@ -87,9 +87,11 @@ compare_periods <- function(
   # ------------------------------------------------------------
   # Safety check after join
   # ------------------------------------------------------------
-  if (any(!is.finite(out$ref_effect))) {
-    stop("Join with reference failed for some values. ",
-         "Ensure consistent `value` across periods.")
+  if (any(is.na(out$ref_effect))) {
+    stop(
+      "Join with reference failed for some values. ",
+      "Ensure consistent `value` across periods."
+    )
   }
 
   # ------------------------------------------------------------
@@ -99,7 +101,13 @@ compare_periods <- function(
     dplyr::mutate(
       reference = period_ref,
       diff = effect - ref_effect,
-      ratio = effect / (ref_effect + eps),
+
+      ratio = dplyr::if_else(
+        abs(ref_effect) < eps,
+        NA_real_,
+        effect / ref_effect
+      ),
+
       ratio_percent = (ratio - 1) * 100
     )
 

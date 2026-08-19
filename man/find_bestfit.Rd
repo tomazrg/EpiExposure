@@ -5,10 +5,10 @@
 \title{Find the best DLNM model structure using LOOCV and Lin's CCC}
 \usage{
 find_bestfit(
-  epi_data,
+  data,
   response = "y",
   group = "epi_id",
-  time = "dpp",
+  time = "time",
   vars,
   lag_max,
   df_var_grid = c(3, 4, 5),
@@ -29,156 +29,83 @@ find_bestfit(
 )
 }
 \arguments{
-\item{epi_data}{Long-format data frame containing the response, time index,
-epidemic/group identifier, and daily exposure variables.}
+\item{data}{Long-format data frame containing the response, grouping column,
+chronological time column, and candidate exposure variables.}
 
-\item{response}{Character. Name of the response variable in `epi_data`.
-The response may be repeated across rows within each epidemic/group.}
+\item{response}{Character scalar naming the response column in `data`. The
+response may be repeated across rows but must be constant within each group.}
 
-\item{group}{Character. Name of the grouping variable used for LOOCV.
-Default is `"epi_id"`.}
+\item{group}{Character scalar naming the grouping column used for LOOCV.}
 
-\item{time}{Character. Name of the temporal ordering variable.
-Default is `"dpp"`.}
+\item{time}{Character scalar naming the chronological time column.}
 
-\item{vars}{Character vector of candidate exposure variables to test.}
+\item{vars}{Unique character vector of candidate exposure variables.}
 
-\item{lag_max}{Integer. Maximum lag used to build the DLNM crossbasis.}
+\item{lag_max}{Maximum lag. A numeric vector such as `c(0, 85)` is normalized
+to its finite maximum.}
 
-\item{df_var_grid}{Numeric vector. Candidate degrees of freedom for the
-exposure-response basis.}
+\item{df_var_grid}{Positive finite candidate dimensions for the exposure basis.}
 
-\item{df_lag_grid}{Numeric vector. Candidate degrees of freedom for the
-lag-response basis.}
+\item{df_lag_grid}{Positive finite candidate dimensions for the lag basis.}
 
-\item{min_vars}{Integer. Minimum number of exposure variables per candidate
-model. Default is `1`.}
+\item{min_vars}{Positive integer minimum number of exposure variables.}
 
-\item{max_vars}{Integer or `NULL`. Maximum number of exposure variables per
-candidate model. If `NULL`, all sizes up to `length(vars)` are tested.}
+\item{max_vars}{Positive integer maximum number of exposure variables, or
+`NULL` to use `length(vars)`.}
 
-\item{var_sets}{Optional list of character vectors. If supplied, these exact
-variable combinations are tested and `min_vars`/`max_vars` are ignored.}
+\item{var_sets}{Optional list of exact variable combinations. When supplied,
+`min_vars` and `max_vars` are ignored.}
 
-\item{fun_var}{Character. Exposure-response basis function passed to
-`define_exposure()`. Default is `"ns"`.}
+\item{fun_var}{Character exposure-basis function passed to `define_exposure()`.}
 
-\item{fun_lag}{Character. Lag-response basis function passed to
-`define_exposure()`. Default is `"ns"`.}
+\item{fun_lag}{Character lag-basis function passed to `define_exposure()`.}
 
-\item{model_engine}{Character. Model engine passed to `fit_epidlnm()`.
-Supported values are those supported by `fit_epidlnm()`: `"glm"`,
-`"glmmTMB"`, `"gam"`, `"gamm"`, `"gls"`, `"spamm"`, `"brms"`, `"inla"`,
-and `"bdlnm"`.}
+\item{model_engine}{Character model engine supported by `fit_epidlnm()`:
+`"glm"`, `"glmmTMB"`, `"gam"`, `"gamm"`, `"gls"`, `"spamm"`,
+`"brms"`, `"inla"`, or `"bdlnm"`.}
 
-\item{family}{Character or family object. Model family passed to
-`prepare_response()` and `fit_epidlnm()`. For example: `"beta"`,
-`"gaussian"`, `"poisson"`, `"gamma"`, `"binomial"`, `"negbin"`,
-`"negative_binomial"`, or a supported family object when appropriate.}
+\item{family}{Character or family object passed to `prepare_response()` and
+`fit_epidlnm()`.}
 
-\item{random_effect}{Optional character. Name of the random-intercept
-grouping variable used by `fit_epidlnm()`; for example `"siteyear"`.}
+\item{random_effect}{Optional character scalar naming a random-effect column.}
 
-\item{min_success}{Integer. Minimum number of successful LOOCV folds required
-for a candidate model to be ranked. Default is `2`.}
+\item{min_success}{Minimum number of successful LOOCV folds required.}
 
-\item{top_n}{Integer or `Inf`. Number of top-ranked models to return.
-Default is `Inf`, returning all successful candidates.}
+\item{top_n}{Positive integer or `Inf`; number of ranked candidates returned.}
 
-\item{keep_fits}{Logical. If `TRUE`, the function refits each successful
-candidate model using all available data and stores the final fitted models
-in `attr(result, "fits")`. This is useful for downstream procedures such
-as `ensemble_bestfit()` with lag-level ensemble decomposition. Default is
-`FALSE` to avoid storing potentially large model objects.}
+\item{keep_fits}{Logical. Refit successful retained candidates on all data and
+store them in `attr(result, "fits")`.}
 
-\item{verbose}{Logical. If `TRUE`, prints progress messages.}
+\item{verbose}{Logical. Print progress messages.}
 
 \item{...}{Additional arguments passed to `fit_epidlnm()`.}
 }
 \value{
-A data.frame ranked by decreasing CCC. Columns include:
-\itemize{
-  \item `rank`
-  \item `model_id`
-  \item `df_var`
-  \item `df_lag`
-  \item `vars`
-  \item `n_vars`
-  \item `CCC`
-  \item `Cb`
-  \item `rho`
-  \item `RMSE`
-  \item `MAE`
-  \item `n_folds`
-  \item `n_success`
-  \item `n_failed`
-}
-
-The returned object includes attributes:
-\itemize{
-  \item `"predictions"`: fold-level observed and predicted values.
-  \item `"failures"`: candidate/fold-level failure information, if any.
-  \item `"fits"`: final candidate models refitted on the full dataset, only
-  when `keep_fits = TRUE`.
-}
+A data frame ranked by decreasing CCC, with attributes
+  `"predictions"`, `"failures"`, and optionally `"fits"`.
 }
 \description{
-Tests multiple combinations of exposure variables, exposure-basis degrees of
-freedom, and lag-basis degrees of freedom using leave-one-out cross-validation
-(LOOCV). Candidate models are ranked using Lin's concordance correlation
-coefficient (CCC), alongside the bias correction factor (`Cb`), Pearson
-correlation (`rho`), RMSE, and MAE.
+Tests combinations of exposure variables and basis dimensions using
+leave-one-group-out cross-validation. Candidate models are ranked by Lin's
+concordance correlation coefficient (CCC), with Cb, Pearson correlation,
+RMSE, and MAE also reported.
 }
 \details{
-This function is designed to work directly with the same long-format dataset
-used by the EpiExposure workflow:
-
-\enumerate{
-  \item `define_exposure()`
-  \item `build_design()`
-  \item `prepare_response()`
-  \item `fit_epidlnm()`
-}
-
-The input data should contain one row per time point within each epidemic,
-with exposure variables measured over time and the response repeated for each
-row within the same epidemic.
+Input observations must be chronological within each group, from the earliest
+to the most recent observation. The function orders rows internally by
+`group` and `time`. The DLNM lag representation is constructed internally by
+`define_exposure()` and `build_design()`.
 
 
-**Input structure.** This function expects a single long-format dataset,
-similar to the object passed through `define_exposure()`, `build_design()`,
-`prepare_response()`, and `fit_epidlnm()`. The response can be repeated
-across daily rows within each epidemic/group, but it must be unique within
-each group after removing duplicates.
+For each fold, basis templates are estimated from the training groups only
+and then applied to the held-out group. This prevents the held-out exposure
+history from determining the training basis specification.
 
-**Temporal dimension.** The data are ordered internally by `time` within
-each `group` during basis construction. Each group must contain at least
-`lag_max + 1` observations for each tested exposure variable.
+Direct engine-specific prediction is attempted first. If unavailable, a
+fixed-effect fallback uses the official cross-basis column order stored in
+`epiexposure_cb_cols`, or `epiexposure_data_template` as a fallback. Missing
+model or design columns produce an explicit error rather than being omitted.
 
-**Cross-validation.** LOOCV is performed by leaving out one `group` level at
-a time. DLNM basis templates are built on the training data only and then
-applied to the held-out group.
-
-**Stored fits.** When `keep_fits = TRUE`, the stored models are not fold-level
-models. They are final models refitted using the entire dataset for each
-successful candidate specification. This is the appropriate object to use
-for downstream interpretation and ensemble lag decomposition.
-
-**Prediction across engines.** The function first attempts engine-specific
-prediction on the response scale. If direct prediction is unavailable for an
-engine, it falls back to a fixed-effect linear predictor using the model
-coefficients and applies an inverse-link transformation based on `family`.
-
-**Checklist notes.**
-\itemize{
-  \item Temporal dimension is controlled through `lag_max` and checked per group.
-  \item The DLNM API is delegated to `define_exposure()` and `build_design()`.
-  \item Coefficient extraction is used only as a prediction fallback.
-  \item Coefficient ordering follows the stable `cb_<var>_<index>` convention
-    created by `build_design()`.
-  \item `b_cb_` standardization is only relevant for posterior-draw functions;
-    this LOOCV ranking function does not summarize posterior surfaces.
-  \item Surface summarization is not performed; models are ranked by predictive
-    agreement via Lin's CCC.
-}
+The function ranks point predictions and does not propagate coefficient or
+posterior-draw uncertainty.
 }

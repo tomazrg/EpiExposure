@@ -5,7 +5,7 @@
 \title{Check DLNM cross-basis identifiability}
 \usage{
 check_identifiability(
-  wx_long,
+  data,
   var,
   lag_max,
   df_var = 4,
@@ -15,7 +15,14 @@ check_identifiability(
 )
 }
 \arguments{
-\item{wx_long}{Long-format weather data}
+\item{data}{Long-format exposure data.
+
+Must contain:
+- epi_id
+- time
+
+Observations must be supplied in chronological order
+(earliest observation → most recent observation).}
 
 \item{var}{Exposure variable (e.g. "tmax")}
 

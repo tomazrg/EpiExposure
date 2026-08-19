@@ -2,7 +2,14 @@
 #'
 #' Evaluates whether a DLNM cross-basis matrix is full rank.
 #'
-#' @param wx_long Long-format weather data
+#' @param data Long-format exposure data.
+#'
+#' Must contain:
+#' - epi_id
+#' - time
+#'
+#' Observations must be supplied in chronological order
+#' (earliest observation → most recent observation).
 #' @param var Exposure variable (e.g. "tmax")
 #' @param lag_max Maximum lag
 #' @param df_var Degrees of freedom (exposure)
@@ -13,7 +20,7 @@
 #' @return TRUE/FALSE
 #' @export
 check_identifiability <- function(
-    wx_long,
+    data,
     var,
     lag_max,
     df_var = 4,
@@ -32,9 +39,9 @@ check_identifiability <- function(
   # ✅ CHECKS BÁSICOS
   # =========================================================
   stopifnot(
-    "epi_id" %in% names(wx_long),
-    "dpp" %in% names(wx_long),
-    var %in% names(wx_long),
+    "epi_id" %in% names(data),
+    "time" %in% names(data),
+    var %in% names(data),
     fun_var %in% c("ns", "bs", "poly", "lin"),
     fun_lag %in% c("ns", "ps", "lin")
   )
@@ -44,26 +51,76 @@ check_identifiability <- function(
   # =========================================================
   .check_lag_coverage <- function(dat, lag_max) {
 
-    n_required <- lag_max + 1
+    n_required <- lag_max + 1L
 
-    bad_ids <- dat |>
+    temporal_summary <- dat |>
       dplyr::group_by(epi_id) |>
-      dplyr::summarise(n_days = dplyr::n_distinct(dpp), .groups = "drop") |>
-      dplyr::filter(n_days < n_required)
+      dplyr::summarise(
+        n_rows = dplyr::n(),
+        n_time = dplyr::n_distinct(time),
+        has_missing_time = any(is.na(time)),
+        .groups = "drop"
+      )
 
-    if (nrow(bad_ids) > 0) {
+    missing_time_ids <- temporal_summary |>
+      dplyr::filter(has_missing_time)
+
+    if (nrow(missing_time_ids) > 0) {
+
       stop(
         paste0(
-          "Some epidemics do not have enough temporal coverage for lag_max.\n",
-          "Required days per epi_id: ", n_required, "\n",
+          "Missing values were detected in `time`.\n",
           "Example problematic epi_id: ",
-          paste(head(bad_ids$epi_id, 5), collapse = ", ")
+          paste(
+            utils::head(missing_time_ids$epi_id, 5),
+            collapse = ", "
+          )
         )
       )
     }
+
+    duplicated_time_ids <- temporal_summary |>
+      dplyr::filter(n_rows != n_time)
+
+    if (nrow(duplicated_time_ids) > 0) {
+
+      stop(
+        paste0(
+          "Duplicated `time` values were detected within some epidemics.\n",
+          "Each epidemic must contain one observation per time value.\n",
+          "Example problematic epi_id: ",
+          paste(
+            utils::head(duplicated_time_ids$epi_id, 5),
+            collapse = ", "
+          )
+        )
+      )
+    }
+
+    bad_ids <- temporal_summary |>
+      dplyr::filter(n_time < n_required)
+
+    if (nrow(bad_ids) > 0) {
+
+      stop(
+        paste0(
+          "Some epidemics do not have enough temporal coverage for lag_max.\n",
+          "Required observations per epi_id: ",
+          n_required,
+          "\n",
+          "Example problematic epi_id: ",
+          paste(
+            utils::head(bad_ids$epi_id, 5),
+            collapse = ", "
+          )
+        )
+      )
+    }
+
+    invisible(TRUE)
   }
 
-  .check_lag_coverage(wx_long, lag_max)
+  .check_lag_coverage(data, lag_max)
 
   # ----------------------------------------------------------
   # pooled series
@@ -75,7 +132,7 @@ check_identifiability <- function(
     for (i in seq_along(ids)) {
       v <- dat |>
         dplyr::filter(epi_id == ids[i]) |>
-        dplyr::arrange(dpp) |>
+        dplyr::arrange(time) |>
         dplyr::pull(.data[[var]])
 
       out[[i]] <- c(v, rep(NA_real_, sep_n))
@@ -85,7 +142,7 @@ check_identifiability <- function(
   }
 
   SEPARATOR <- lag_max
-  x_pool <- build_pooled_series(wx_long, var, SEPARATOR)
+  x_pool <- build_pooled_series(data, var, SEPARATOR)
 
   # ----------------------------------------------------------
   # reconstruir crossbasis

@@ -2,7 +2,7 @@
 % Please edit documentation in R/compare_predictions.R
 \name{compare_predictions}
 \alias{compare_predictions}
-\title{Compare predicted outcomes between multiple exposure scenarios}
+\title{Compare predicted outcomes between exposure scenarios}
 \usage{
 compare_predictions(
   fit,
@@ -13,14 +13,87 @@ compare_predictions(
   id = NULL,
   allow_new_levels = FALSE,
   type = c("response", "link", "conditional"),
-  reverse = FALSE,
   uncertainty = FALSE,
   output = c("summary", "samples"),
   n_samples = 1000,
   eps = 1e-12
 )
 }
+\arguments{
+\item{fit}{Fitted model returned by `fit_epidlnm()`.}
+
+\item{profiles}{Named list of exposure scenarios. Each top-level element
+represents one scenario and must contain the profile structure expected by
+`predict_outcome()`. Profiles must be supplied in chronological order.}
+
+\item{profiles1}{Legacy profile for the first scenario. Used together with
+`profiles2` only when `profiles = NULL`.}
+
+\item{profiles2}{Legacy profile for the second scenario. Used together with
+`profiles1` only when `profiles = NULL`.}
+
+\item{re}{Character. Random-effect prediction level: `"population"` or
+`"conditional"`.}
+
+\item{id}{Optional character scalar identifying the grouping column returned
+by `predict_outcome()`. When supplied, predictions and coefficient draws
+are matched by this column.}
+
+\item{allow_new_levels}{Logical. Passed to `predict_outcome()`.}
+
+\item{type}{Character. Prediction scale passed to `predict_outcome()`:
+`"response"`, `"link"`, or `"conditional"`.}
+
+\item{uncertainty}{Logical. If `TRUE`, comparisons are calculated for every
+coefficient draw returned by `predict_outcome()`.}
+
+\item{output}{Character. When `uncertainty = TRUE`, `"summary"` returns
+median-based summaries and uncertainty intervals, while `"samples"`
+returns the draw-level comparisons. When `uncertainty = FALSE`, a
+deterministic comparison is returned regardless of `output`.}
+
+\item{n_samples}{Positive integer number of coefficient draws requested from
+`predict_outcome()` when `uncertainty = TRUE`.}
+
+\item{eps}{Positive finite numeric constant used to stabilize percentage and
+ratio calculations when the first prediction is close to zero.}
+}
+\value{
+A data.frame.
+
+Without uncertainty, the output contains `scenario1`, `scenario2`, `pred1`,
+`pred2`, `diff`, `percent_change`, and `ratio`, plus the column named by `id`
+when applicable.
+
+With `uncertainty = TRUE` and `output = "samples"`, the output contains one
+row per matched draw and scenario pair.
+
+With `uncertainty = TRUE` and `output = "summary"`, the output contains
+medians, standard deviations, and 95% empirical intervals for `pred1`,
+`pred2`, `diff`, `percent_change`, and `ratio`.
+}
 \description{
-Compares predicted outcomes across two or more exposure scenarios,
-using `predict_outcome()` as the computational backend.
+Compares predicted outcomes across two or more exposure scenarios using
+`predict_outcome()` as the computational backend. Comparisons are performed
+pairwise for all scenarios supplied in `profiles`.
+}
+\details{
+Exposure profiles must be supplied in chronological order, from the earliest
+observation to the most recent observation. Validation of profile lengths,
+reconstruction of the DLNM cross-basis, coefficient alignment, conversion
+to the internal lag representation, model-engine handling, and uncertainty
+propagation are delegated to `predict_outcome()`.
+
+
+For a comparison between scenario 1 and scenario 2, the function calculates:
+
+\deqn{diff = pred_2 - pred_1}
+
+\deqn{percent\_change = 100(pred_2-pred_1)/(|pred_1|+\epsilon)}
+
+\deqn{ratio = pred_2/(pred_1+\epsilon)}
+
+Scenario order follows the order of names in `profiles`. Therefore, the sign
+of `diff` and `percent_change`, and the direction of `ratio`, depend on that
+ordering.
 }

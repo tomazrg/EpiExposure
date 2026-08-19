@@ -5,7 +5,7 @@
 \title{Define DLNM exposure templates with flexible splines}
 \usage{
 define_exposure(
-  wx_long,
+  data,
   vars,
   lag_max,
   df_var = 4,
@@ -15,23 +15,35 @@ define_exposure(
 )
 }
 \arguments{
-\item{wx_long}{Long-format weather data (epi_id, dpp, variables)}
+\item{data}{Long-format exposure dataset.}
 
-\item{vars}{Character vector of exposure variables}
+\item{vars}{Character vector of exposure variables.}
 
-\item{lag_max}{Maximum lag}
+\item{lag_max}{Maximum lag.}
 
-\item{df_var}{Degrees of freedom for exposure dimension}
+\item{df_var}{Degrees of freedom for the exposure dimension.}
 
-\item{df_lag}{Degrees of freedom for lag dimension}
+\item{df_lag}{Degrees of freedom for the lag dimension.}
 
-\item{fun_var}{Basis function for exposure ("ns","bs","poly","lin")}
+\item{fun_var}{Basis function for exposure ("ns", "bs", "poly", "lin").}
 
-\item{fun_lag}{Basis function for lag ("ns","ps","lin")}
+\item{fun_lag}{Basis function for lag ("ns", "ps", "lin").}
 }
 \value{
-Named list of crossbasis templates (with attribute "spec")
+A named list of crossbasis templates with attribute `"spec"`.
 }
 \description{
-Define DLNM exposure templates with flexible splines
+Creates DLNM exposure templates from long-format exposure histories.
+}
+\details{
+The input dataset must contain:
+- `epi_id`: epidemic identifier
+- `time`: time index
+
+Exposure histories must be supplied in chronological order,
+from the earliest observation to the most recent observation
+prior to disease assessment.
+
+Internal conversion to the lag structure required by DLNMs is
+handled automatically through the cross-basis representation.
 }

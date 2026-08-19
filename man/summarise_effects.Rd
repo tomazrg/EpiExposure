@@ -6,7 +6,7 @@
 \usage{
 summarise_effects(
   fit,
-  wx_long,
+  data,
   var = NULL,
   lag_max = NULL,
   df_var = NULL,
@@ -17,7 +17,7 @@ summarise_effects(
   lag_periods = NULL,
   probs = seq(0.05, 0.95, by = 0.01),
   ref = list(method = "median", value = NULL),
-  effect_measure = c("percent", "ratio", "linear"),
+  effect_measure = c("linear", "exponentiated", "percent"),
   incremental = FALSE,
   uncertainty = FALSE,
   output = c("summary", "samples"),
@@ -25,54 +25,60 @@ summarise_effects(
 )
 }
 \arguments{
-\item{fit}{Fitted model.}
+\item{fit}{Fitted model returned by `fit_epidlnm()`.}
 
-\item{wx_long}{Long-format weather data.}
+\item{data}{Long-format exposure data. Must contain `epi_id`, `time`, and
+the exposure variables used in the fitted model. Within each epidemic,
+observations must be supplied chronologically, from earliest to most recent.}
 
-\item{var}{Exposure variable name (character scalar), character vector of variables,
-or `NULL`. If `NULL`, all variables stored in fit metadata are used.}
+\item{var}{Exposure-variable name, character vector of names, or `NULL`.
+If `NULL`, all variables stored in the fitted-model metadata are used.}
 
-\item{lag_max}{Optional maximum lag. Ignored if `fit` contains `epiexposure_spec`.}
+\item{lag_max}{Optional maximum lag. Ignored when available in model metadata.}
 
-\item{df_var}{Optional degrees of freedom for exposure. Ignored if `fit`
-contains `epiexposure_spec`.}
+\item{df_var}{Optional exposure-basis degrees of freedom used as fallback.}
 
-\item{df_lag}{Optional degrees of freedom for lag. Ignored if `fit`
-contains `epiexposure_spec`.}
+\item{df_lag}{Optional lag-basis degrees of freedom used as fallback.}
 
-\item{fun_var}{Optional exposure basis function. Ignored if `fit`
-contains `epiexposure_spec`.}
+\item{fun_var}{Optional exposure-basis function used as fallback.}
 
-\item{fun_lag}{Optional lag basis function. Ignored if `fit`
-contains `epiexposure_spec`.}
+\item{fun_lag}{Optional lag-basis function used as fallback.}
 
 \item{scale}{Character. `"daily"` or `"accumulated"`.}
 
-\item{lag_periods}{Optional lag-period table used when
-`scale = "accumulated"` and `incremental = FALSE`. The table must
-contain columns `period`, `lag_start`, and `lag_end`.}
+\item{lag_periods}{Optional table containing `period`, `lag_start`, and
+`lag_end`; required for non-incremental accumulated summaries.}
 
 \item{probs}{Quantiles used to define the exposure grid.}
 
-\item{ref}{Reference definition list.}
+\item{ref}{Reference definition list with `method` and optional `value`.}
 
-\item{effect_measure}{Character. `"percent"`, `"ratio"`, or `"linear"`.}
+\item{effect_measure}{Character. `"linear"`, `"exponentiated"`, or
+`"percent"`.}
 
-\item{incremental}{Logical. If `TRUE` and `scale = "accumulated"`,
-returns cumulative effects from lag 0 up to each lag.}
+\item{incremental}{Logical. If `TRUE` with accumulated effects, returns
+cumulative effects from lag 0 through each lag.}
 
-\item{uncertainty}{Logical. If `TRUE`, quantify uncertainty using
-simulated or posterior coefficient draws.}
+\item{uncertainty}{Logical. If `TRUE`, propagates coefficient uncertainty.}
 
 \item{output}{Character. `"summary"` or `"samples"`.}
 
-\item{n_samples}{Integer. Number of samples used for uncertainty.}
+\item{n_samples}{Positive integer number of coefficient draws.}
 }
 \value{
 A data.frame.
 }
 \description{
-Summarises DLNM effects on either the daily or accumulated scale,
-using exposure grids derived from the observed data and the DLNM
-specification stored in the fitted model.
+Summarises DLNM effects on either the daily or accumulated scale using
+exposure grids derived from observed data and the DLNM specification stored
+in the fitted model.
+}
+\details{
+`time` is chronological, not lag. Observations are ordered internally by
+`time` before reconstructing the cross-basis. The DLNM representation maps
+the most recent observation to lag 0. Returned effects remain indexed by lag.
+
+Coefficient names are aligned with cross-basis columns using the ordered
+`epiexposure_cb_cols` metadata stored by `fit_epidlnm()`. The function checks
+both the coefficient vector and covariance-matrix names before prediction.
 }

@@ -1,7 +1,67 @@
-#' Compare predicted outcomes between multiple exposure scenarios
+#' Compare predicted outcomes between exposure scenarios
 #'
-#' Compares predicted outcomes across two or more exposure scenarios,
-#' using `predict_outcome()` as the computational backend.
+#' Compares predicted outcomes across two or more exposure scenarios using
+#' `predict_outcome()` as the computational backend. Comparisons are performed
+#' pairwise for all scenarios supplied in `profiles`.
+#'
+#' Exposure profiles must be supplied in chronological order, from the earliest
+#' observation to the most recent observation. Validation of profile lengths,
+#' reconstruction of the DLNM cross-basis, coefficient alignment, conversion
+#' to the internal lag representation, model-engine handling, and uncertainty
+#' propagation are delegated to `predict_outcome()`.
+#'
+#' @param fit Fitted model returned by `fit_epidlnm()`.
+#' @param profiles Named list of exposure scenarios. Each top-level element
+#'   represents one scenario and must contain the profile structure expected by
+#'   `predict_outcome()`. Profiles must be supplied in chronological order.
+#' @param profiles1 Legacy profile for the first scenario. Used together with
+#'   `profiles2` only when `profiles = NULL`.
+#' @param profiles2 Legacy profile for the second scenario. Used together with
+#'   `profiles1` only when `profiles = NULL`.
+#' @param re Character. Random-effect prediction level: `"population"` or
+#'   `"conditional"`.
+#' @param id Optional character scalar identifying the grouping column returned
+#'   by `predict_outcome()`. When supplied, predictions and coefficient draws
+#'   are matched by this column.
+#' @param allow_new_levels Logical. Passed to `predict_outcome()`.
+#' @param type Character. Prediction scale passed to `predict_outcome()`:
+#'   `"response"`, `"link"`, or `"conditional"`.
+#' @param uncertainty Logical. If `TRUE`, comparisons are calculated for every
+#'   coefficient draw returned by `predict_outcome()`.
+#' @param output Character. When `uncertainty = TRUE`, `"summary"` returns
+#'   median-based summaries and uncertainty intervals, while `"samples"`
+#'   returns the draw-level comparisons. When `uncertainty = FALSE`, a
+#'   deterministic comparison is returned regardless of `output`.
+#' @param n_samples Positive integer number of coefficient draws requested from
+#'   `predict_outcome()` when `uncertainty = TRUE`.
+#' @param eps Positive finite numeric constant used to stabilize percentage and
+#'   ratio calculations when the first prediction is close to zero.
+#'
+#' @return A data.frame.
+#'
+#' Without uncertainty, the output contains `scenario1`, `scenario2`, `pred1`,
+#' `pred2`, `diff`, `percent_change`, and `ratio`, plus the column named by `id`
+#' when applicable.
+#'
+#' With `uncertainty = TRUE` and `output = "samples"`, the output contains one
+#' row per matched draw and scenario pair.
+#'
+#' With `uncertainty = TRUE` and `output = "summary"`, the output contains
+#' medians, standard deviations, and 95% empirical intervals for `pred1`,
+#' `pred2`, `diff`, `percent_change`, and `ratio`.
+#'
+#' @details
+#' For a comparison between scenario 1 and scenario 2, the function calculates:
+#'
+#' \deqn{diff = pred_2 - pred_1}
+#'
+#' \deqn{percent\_change = 100(pred_2-pred_1)/(|pred_1|+\epsilon)}
+#'
+#' \deqn{ratio = pred_2/(pred_1+\epsilon)}
+#'
+#' Scenario order follows the order of names in `profiles`. Therefore, the sign
+#' of `diff` and `percent_change`, and the direction of `ratio`, depend on that
+#' ordering.
 #'
 #' @export
 compare_predictions <- function(
@@ -13,30 +73,55 @@ compare_predictions <- function(
     id = NULL,
     allow_new_levels = FALSE,
     type = c("response", "link", "conditional"),
-    reverse = FALSE,  # pass-through
     uncertainty = FALSE,
     output = c("summary", "samples"),
     n_samples = 1000,
     eps = 1e-12
 ) {
-
   re <- match.arg(re)
   type <- match.arg(type)
   output <- match.arg(output)
 
-  if (!is.numeric(eps) || eps <= 0) {
-    stop("eps must be positive.")
+  if (!is.logical(allow_new_levels) ||
+      length(allow_new_levels) != 1L ||
+      is.na(allow_new_levels)) {
+    stop("`allow_new_levels` must be TRUE or FALSE.")
   }
 
-  `%||%` <- function(a, b) if (!is.null(a)) a else b
+  if (!is.logical(uncertainty) ||
+      length(uncertainty) != 1L ||
+      is.na(uncertainty)) {
+    stop("`uncertainty` must be TRUE or FALSE.")
+  }
 
-  # -----------------------
-  # BACKWARD COMPAT
-  # -----------------------
+  if (!is.numeric(n_samples) ||
+      length(n_samples) != 1L ||
+      !is.finite(n_samples) ||
+      n_samples <= 0) {
+    stop("`n_samples` must be a positive integer.")
+  }
+
+  n_samples <- as.integer(n_samples)
+
+  if (!is.numeric(eps) ||
+      length(eps) != 1L ||
+      !is.finite(eps) ||
+      eps <= 0) {
+    stop("`eps` must be a single positive finite numeric value.")
+  }
+
+  if (!is.null(id) &&
+      (!is.character(id) || length(id) != 1L || is.na(id) || id == "")) {
+    stop("`id` must be NULL or a single non-empty column name.")
+  }
+
+  # ------------------------------------------------------------
+  # Backward compatibility
+  # ------------------------------------------------------------
+
   if (is.null(profiles)) {
-
     if (is.null(profiles1) || is.null(profiles2)) {
-      stop("Provide either `profiles` OR both `profiles1` and `profiles2`.")
+      stop("Provide either `profiles` or both `profiles1` and `profiles2`.")
     }
 
     profiles <- list(
@@ -45,147 +130,347 @@ compare_predictions <- function(
     )
   }
 
-  if (!is.list(profiles) || is.null(names(profiles))) {
-    stop("`profiles` must be a named list.")
+  # ------------------------------------------------------------
+  # Validate scenarios
+  # ------------------------------------------------------------
+
+  if (!is.list(profiles) || length(profiles) < 2L) {
+    stop("`profiles` must be a named list containing at least two scenarios.")
   }
 
-  if (length(profiles) < 2) {
-    stop("At least two profiles are required.")
+  if (is.null(names(profiles)) ||
+      anyNA(names(profiles)) ||
+      any(names(profiles) == "")) {
+    stop("Every scenario in `profiles` must have a non-empty name.")
   }
 
+  if (anyDuplicated(names(profiles))) {
+    stop("Scenario names in `profiles` must be unique.")
+  }
+
+  scenario_names <- names(profiles)
+  combinations <- utils::combn(
+    scenario_names,
+    2,
+    simplify = FALSE
+  )
+
   # ------------------------------------------------------------
-  # ALWAYS USE SAMPLES IF UNCERTAINTY
+  # Prediction backend
   # ------------------------------------------------------------
-  use_output <- if (uncertainty) "samples" else "summary"
 
-  preds_list <- lapply(names(profiles), function(nm) {
+  backend_output <- if (uncertainty) "samples" else "summary"
 
-    p <- predict_outcome(
-      fit = fit,
-      profiles = profiles[[nm]],
-      re = re,
-      id = id,
-      allow_new_levels = allow_new_levels,
-      type = type,
-      reverse = reverse,   # ✅ AQUI está o pass-through correto
-      uncertainty = uncertainty,
-      output = use_output,
-      n_samples = n_samples
-    )
-
-    p$scenario <- nm
-    p
-  })
-
-  preds <- do.call(rbind, preds_list)
-
-  # ============================================================
-  # ✅ NO UNCERTAINTY
-  # ============================================================
-  if (!uncertainty) {
-
-    idvar_use <- if (!is.null(id)) id else NULL
-
-    wide <- reshape(
-      preds,
-      idvar = idvar_use,
-      timevar = "scenario",
-      direction = "wide"
-    )
-
-    combs <- combn(names(profiles), 2, simplify = FALSE)
-
-    out_list <- lapply(combs, function(cb) {
-
-      s1 <- cb[1]
-      s2 <- cb[2]
-
-      p1 <- wide[[paste0("prediction.", s1)]]
-      p2 <- wide[[paste0("prediction.", s2)]]
-
-      df <- data.frame(
-        scenario1 = s1,
-        scenario2 = s2,
-        pred1 = p1,
-        pred2 = p2
+  predictions_list <- lapply(
+    scenario_names,
+    function(scenario_name) {
+      prediction <- predict_outcome(
+        fit = fit,
+        profiles = profiles[[scenario_name]],
+        re = re,
+        id = id,
+        allow_new_levels = allow_new_levels,
+        type = type,
+        uncertainty = uncertainty,
+        output = backend_output,
+        n_samples = n_samples
       )
 
-      df$diff <- df$pred2 - df$pred1
-      df$percent_change <- df$diff / (abs(df$pred1) + eps) * 100
-      df$ratio <- df$pred2 / (df$pred1 + eps)
-
-      if (!is.null(id)) {
-        df[[id]] <- wide[[id]]
-        df <- df[, c(id, "scenario1", "scenario2", "pred1", "pred2",
-                     "diff", "percent_change", "ratio")]
+      if (!is.data.frame(prediction)) {
+        prediction <- as.data.frame(prediction)
       }
 
-      df
-    })
+      if (!"prediction" %in% names(prediction)) {
+        stop(
+          "`predict_outcome()` did not return a `prediction` column for scenario '",
+          scenario_name,
+          "'."
+        )
+      }
 
-    return(do.call(rbind, out_list))
+      if (!is.numeric(prediction$prediction) ||
+          any(!is.finite(prediction$prediction))) {
+        stop(
+          "Predictions for scenario '",
+          scenario_name,
+          "' must be finite numeric values."
+        )
+      }
+
+      if (!is.null(id) && !id %in% names(prediction)) {
+        stop(
+          "`predict_outcome()` did not return the requested id column '",
+          id,
+          "' for scenario '",
+          scenario_name,
+          "'."
+        )
+      }
+
+      if (uncertainty && !"sample" %in% names(prediction)) {
+        stop(
+          "`predict_outcome()` did not return a `sample` column for scenario '",
+          scenario_name,
+          "'."
+        )
+      }
+
+      prediction$scenario <- scenario_name
+      prediction
+    }
+  )
+
+  names(predictions_list) <- scenario_names
+
+  # ------------------------------------------------------------
+  # Helpers
+  # ------------------------------------------------------------
+
+  safe_sd <- function(x) {
+    x <- x[is.finite(x)]
+    if (length(x) <= 1L) return(0)
+    stats::sd(x)
   }
 
-  # ============================================================
-  # ✅ UNCERTAINTY (SAMPLE-BASED)
-  # ============================================================
-  combs <- combn(names(profiles), 2, simplify = FALSE)
+  safe_quantile <- function(x, probability) {
+    x <- x[is.finite(x)]
+    if (!length(x)) return(NA_real_)
+    stats::quantile(
+      x,
+      probs = probability,
+      na.rm = TRUE,
+      names = FALSE
+    )
+  }
 
-  out_samples <- lapply(combs, function(cb) {
+  add_comparison_metrics <- function(data_frame) {
+    data_frame$diff <- data_frame$pred2 - data_frame$pred1
+    data_frame$percent_change <-
+      data_frame$diff / (abs(data_frame$pred1) + eps) * 100
+    data_frame$ratio <- data_frame$pred2 / (data_frame$pred1 + eps)
+    data_frame
+  }
 
-    s1 <- cb[1]
-    s2 <- cb[2]
+  # ------------------------------------------------------------
+  # Deterministic comparisons
+  # ------------------------------------------------------------
 
-    p1 <- preds[preds$scenario == s1, ]
-    p2 <- preds[preds$scenario == s2, ]
+  if (!uncertainty) {
+    output_list <- lapply(
+      combinations,
+      function(comparison) {
+        scenario1 <- comparison[1]
+        scenario2 <- comparison[2]
 
-    by_cols <- "sample"
-    if (!is.null(id)) {
-      by_cols <- c(id, "sample")
+        prediction1 <- predictions_list[[scenario1]]
+        prediction2 <- predictions_list[[scenario2]]
+
+        if (is.null(id)) {
+          if (nrow(prediction1) != nrow(prediction2)) {
+            stop(
+              "Scenarios '", scenario1, "' and '", scenario2,
+              "' returned different numbers of prediction rows. Supply `id` ",
+              "to match predictions explicitly."
+            )
+          }
+
+          comparison_data <- data.frame(
+            scenario1 = scenario1,
+            scenario2 = scenario2,
+            pred1 = prediction1$prediction,
+            pred2 = prediction2$prediction,
+            stringsAsFactors = FALSE
+          )
+        } else {
+          if (anyDuplicated(prediction1[[id]]) ||
+              anyDuplicated(prediction2[[id]])) {
+            stop(
+              "The id column must uniquely identify deterministic predictions ",
+              "within each scenario."
+            )
+          }
+
+          first <- prediction1[, c(id, "prediction"), drop = FALSE]
+          second <- prediction2[, c(id, "prediction"), drop = FALSE]
+          names(first)[names(first) == "prediction"] <- "pred1"
+          names(second)[names(second) == "prediction"] <- "pred2"
+
+          comparison_data <- merge(
+            first,
+            second,
+            by = id,
+            all = FALSE,
+            sort = FALSE
+          )
+
+          if (nrow(comparison_data) != nrow(first) ||
+              nrow(comparison_data) != nrow(second)) {
+            stop(
+              "Predictions could not be matched one-to-one by id for scenarios '",
+              scenario1,
+              "' and '",
+              scenario2,
+              "'."
+            )
+          }
+
+          comparison_data$scenario1 <- scenario1
+          comparison_data$scenario2 <- scenario2
+          comparison_data <- comparison_data[
+            ,
+            c(id, "scenario1", "scenario2", "pred1", "pred2"),
+            drop = FALSE
+          ]
+        }
+
+        add_comparison_metrics(comparison_data)
+      }
+    )
+
+    output_data <- do.call(rbind, output_list)
+    rownames(output_data) <- NULL
+    return(output_data)
+  }
+
+  # ------------------------------------------------------------
+  # Draw-level uncertainty comparisons
+  # ------------------------------------------------------------
+
+  sample_outputs <- lapply(
+    combinations,
+    function(comparison) {
+      scenario1 <- comparison[1]
+      scenario2 <- comparison[2]
+
+      prediction1 <- predictions_list[[scenario1]]
+      prediction2 <- predictions_list[[scenario2]]
+
+      matching_columns <- "sample"
+      if (!is.null(id)) {
+        matching_columns <- c(id, "sample")
+      }
+
+      if (anyDuplicated(prediction1[matching_columns]) ||
+          anyDuplicated(prediction2[matching_columns])) {
+        stop(
+          "The matching columns do not uniquely identify prediction draws ",
+          "within each scenario."
+        )
+      }
+
+      first <- prediction1[
+        ,
+        c(matching_columns, "prediction"),
+        drop = FALSE
+      ]
+      second <- prediction2[
+        ,
+        c(matching_columns, "prediction"),
+        drop = FALSE
+      ]
+
+      names(first)[names(first) == "prediction"] <- "pred1"
+      names(second)[names(second) == "prediction"] <- "pred2"
+
+      comparison_data <- merge(
+        first,
+        second,
+        by = matching_columns,
+        all = FALSE,
+        sort = FALSE
+      )
+
+      if (nrow(comparison_data) != nrow(first) ||
+          nrow(comparison_data) != nrow(second)) {
+        stop(
+          "Prediction draws could not be matched one-to-one for scenarios '",
+          scenario1,
+          "' and '",
+          scenario2,
+          "'."
+        )
+      }
+
+      comparison_data$scenario1 <- scenario1
+      comparison_data$scenario2 <- scenario2
+      comparison_data <- add_comparison_metrics(comparison_data)
+
+      output_columns <- c(
+        if (!is.null(id)) id,
+        "sample",
+        "scenario1",
+        "scenario2",
+        "pred1",
+        "pred2",
+        "diff",
+        "percent_change",
+        "ratio"
+      )
+
+      comparison_data[, output_columns, drop = FALSE]
     }
+  )
 
-    m <- merge(p1, p2, by = by_cols, suffixes = c("_1", "_2"))
-
-    names(m)[names(m) == "prediction_1"] <- "pred1"
-    names(m)[names(m) == "prediction_2"] <- "pred2"
-
-    m$diff <- m$pred2 - m$pred1
-    m$percent_change <- m$diff / (abs(m$pred1) + eps) * 100
-    m$ratio <- m$pred2 / (m$pred1 + eps)
-
-    m$scenario1 <- s1
-    m$scenario2 <- s2
-
-    m
-  })
-
-  samples_df <- do.call(rbind, out_samples)
+  samples_data <- do.call(rbind, sample_outputs)
+  rownames(samples_data) <- NULL
 
   if (output == "samples") {
-    return(samples_df)
+    return(samples_data)
   }
 
-  # ============================================================
-  # ✅ SUMMARY (MEDIAN-BASED)
-  # ============================================================
-  group_vars <- intersect(c(id, "scenario1", "scenario2"), names(samples_df))
+  # ------------------------------------------------------------
+  # Median-based uncertainty summaries
+  # ------------------------------------------------------------
 
-  summary_df <- samples_df |>
-    dplyr::group_by(dplyr::across(dplyr::all_of(group_vars))) |>
+  grouping_variables <- c(
+    if (!is.null(id)) id,
+    "scenario1",
+    "scenario2"
+  )
+
+  summary_data <- samples_data |>
+    dplyr::group_by(
+      dplyr::across(
+        dplyr::all_of(grouping_variables)
+      )
+    ) |>
     dplyr::summarise(
       pred1 = stats::median(.data$pred1, na.rm = TRUE),
+      pred1_sd = safe_sd(.data$pred1),
+      pred1_lower = safe_quantile(.data$pred1, 0.025),
+      pred1_upper = safe_quantile(.data$pred1, 0.975),
+
       pred2 = stats::median(.data$pred2, na.rm = TRUE),
+      pred2_sd = safe_sd(.data$pred2),
+      pred2_lower = safe_quantile(.data$pred2, 0.025),
+      pred2_upper = safe_quantile(.data$pred2, 0.975),
 
       diff = stats::median(.data$diff, na.rm = TRUE),
-      diff_sd = stats::sd(.data$diff, na.rm = TRUE),
-      diff_lower = stats::quantile(.data$diff, 0.025, na.rm = TRUE, names = FALSE),
-      diff_upper = stats::quantile(.data$diff, 0.975, na.rm = TRUE, names = FALSE),
+      diff_sd = safe_sd(.data$diff),
+      diff_lower = safe_quantile(.data$diff, 0.025),
+      diff_upper = safe_quantile(.data$diff, 0.975),
 
-      percent_change = stats::median(.data$percent_change, na.rm = TRUE),
+      percent_change = stats::median(
+        .data$percent_change,
+        na.rm = TRUE
+      ),
+      percent_change_sd = safe_sd(.data$percent_change),
+      percent_change_lower = safe_quantile(
+        .data$percent_change,
+        0.025
+      ),
+      percent_change_upper = safe_quantile(
+        .data$percent_change,
+        0.975
+      ),
+
       ratio = stats::median(.data$ratio, na.rm = TRUE),
+      ratio_sd = safe_sd(.data$ratio),
+      ratio_lower = safe_quantile(.data$ratio, 0.025),
+      ratio_upper = safe_quantile(.data$ratio, 0.975),
 
       .groups = "drop"
     )
 
-  as.data.frame(summary_df)
+  as.data.frame(summary_data)
 }

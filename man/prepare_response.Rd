@@ -4,14 +4,14 @@
 \alias{prepare_response}
 \title{Prepare response variable for modeling}
 \usage{
-prepare_response(dat, y_var, family_choice)
+prepare_response(data, y_var, family)
 }
 \arguments{
-\item{dat}{A data.frame containing the response variable.}
+\item{data}{A data.frame containing the response variable.}
 
-\item{y_var}{Character scalar. Name of the response variable in `dat`.}
+\item{y_var}{Character scalar. Name of the response variable in `data`.}
 
-\item{family_choice}{Character scalar. Distribution to be used in modeling.
+\item{family}{Character scalar. Distribution to be used in modeling.
 Supported options are:
 - `"beta"`: proportions in (0,1)
 - `"binomial"`: binary outcomes (0/1)
@@ -22,7 +22,7 @@ Supported options are:
 - `"ordinal"`: integer categorical severity levels (1, 2, 3, ...)}
 }
 \value{
-A data.frame identical to `dat`, with an added column:
+A data.frame identical to `data`, with an added column:
   - `y_model`: processed response variable ready for modeling
 
   Additionally, the function attaches an attribute:

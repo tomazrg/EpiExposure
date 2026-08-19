@@ -2,17 +2,16 @@
 % Please edit documentation in R/compute_eci.R
 \name{compute_eci}
 \alias{compute_eci}
-\title{Compute Exposure Cumulative Impact (ECI - the exposure profile with the fitted model coefficients)#' Compute Exposure Cumulative Impact (ECI_weighted`) for one or more exposure variables.}
+\title{Compute Exposure Cumulative Impact}
 \usage{
 compute_eci(
   profile = NULL,
-  epi_data = NULL,
+  data = NULL,
   group = NULL,
   group_level = NULL,
   fit = NULL,
   var = NULL,
   scale = c("link", "response", "percent"),
-  reverse = FALSE,
   uncertainty = FALSE,
   output = c("summary", "samples"),
   n_samples = 1000
@@ -20,111 +19,69 @@ compute_eci(
 }
 \arguments{
 \item{profile}{Numeric vector or list of numeric vectors representing one or
-more lag profiles. If `fit = NULL`, `profile` must be a single numeric
-vector. If `fit` is provided and `var` contains multiple variables,
-`profile` can be a named list of profiles (one per variable), or a list
-that will be matched to `var` by position.}
+more chronological exposure profiles. If `fit = NULL`, `profile` must be a
+single numeric vector. For multiple fitted variables, use a named list or
+an unnamed list whose order matches `var`.}
 
-\item{epi_data}{Optional data frame containing observed exposure histories.
-  Used only when `fit` is provided and the user wants the function to extract
-  the profile(s) from a grouped dataset instead of supplying `profile`
-  directly.
+\item{data}{Optional long-format data frame containing observed exposure
+histories. Must contain the grouping column specified in `group`, `time`,
+and all exposure variables requested in `var`. Observations are ordered
+internally by `time` within each group.}
 
-  **IMPORTANT:** data in `epi_data` must already be ordered in the correct
-  chronological sequence within each group (oldest → most recent), with no
-  misplaced days or misordered observations. This function does **not**
-  reorder the observed data internally.}
+\item{group}{Optional character scalar naming the grouping column in `data`.}
 
-\item{group}{Optional column name used to identify groups in `epi_data`
-(e.g., `"epi_id"`).}
+\item{group_level}{Optional grouping value or vector of values to evaluate.
+If `NULL`, all observed levels are evaluated.}
 
-\item{group_level}{Optional value or vector of values inside `group` used to
-  select the profile(s) from `epi_data`. This represents the sub-level(s) of
-  the grouping variable (e.g., one or more epidemic IDs). It can be numeric,
-  character, or factor.
+\item{fit}{Fitted model returned by `fit_epidlnm()`. If `NULL`, only
+`ECI_raw` is calculated.}
 
-  If `group_level = NULL`, the function computes ECI estimates for **all**
-  observed levels of `group`.}
+\item{var}{Optional character scalar or vector naming fitted exposure
+variables. Required when the fitted model contains multiple exposures.}
 
-\item{fit}{Fitted model from `fit_epidlnm()`. Required to compute
-`ECI_weighted`. If `NULL`, only `ECI_raw` is returned.}
+\item{scale}{Character. Scale used for `ECI_weighted`: `"link"`,
+`"response"`, or `"percent"`.}
 
-\item{var}{Optional character scalar or vector indicating which fitted
-exposure variable(s) should be used. Required when `fit` contains more
-than one exposure variable. Names in `var` must exactly match the variable
-names stored in the fitted model.}
-
-\item{scale}{Character. Scale for `ECI_weighted`:
-- `"link"`: linear predictor scale (default)
-- `"response"`: inverse-link transformed scale
-- `"percent"`: relative change scale, computed as `(exp(eta) - 1) * 100`}
-
-\item{reverse}{Logical. If `TRUE`, reverses the input profile(s) before analysis.
-Use this when the supplied profile(s) are ordered from oldest to most recent
-(chronological order). If `FALSE`, the function assumes the first value
-corresponds to lag 0 (most recent) and the last value to lag max (oldest).}
-
-\item{uncertainty}{Logical. If `TRUE`, quantify uncertainty.}
+\item{uncertainty}{Logical. If `TRUE`, propagates coefficient uncertainty.}
 
 \item{output}{Character. `"summary"` or `"samples"`.}
 
-\item{n_samples}{Integer. Number of samples used for uncertainty quantification.}
+\item{n_samples}{Positive integer number of coefficient draws.}
 }
 \value{
-A data.frame.
-
-- If `fit = NULL`, returns:
-  - `ECI_raw`
-  - `ECI_weighted = NA`
-
-- If `uncertainty = FALSE`, returns:
-  - `ECI_raw`
-  - `ECI_weighted`
-  - and, when multiple variables are requested, a `var` column
-  - and, when `epi_data` is used, a grouping column named as `group`
-
-- If `uncertainty = TRUE` and `output = "summary"`, returns:
-  - `ECI_raw`
-  - `ECI_weighted`
-  - `sd`
-  - `lower`
-  - `upper`
-  - and, when multiple variables are requested, a `var` column
-  - and, when `epi_data` is used, a grouping column named as `group`
-
-- If `uncertainty = TRUE` and `output = "samples"`, returns:
-  - `sample`
-  - `ECI_raw`
-  - `ECI_weighted`
-  - and, when multiple variables are requested, a `var` column
-  - and, when `epi_data` is used, a grouping column named as `group`
+A data.frame containing `ECI_raw`, `ECI_weighted`, and `scale`.
+  Depending on the requested input and uncertainty settings, the output may
+  also contain `var`, the grouping column, `sample`, `sd`, `lower`, and
+  `upper`.
 }
 \description{
-It supports both deterministic estimation and uncertainty propagation.
-When `uncertainty = TRUE`, `ECI_weighted` is recomputed across simulated or
-posterior draws of the model coefficients.
+Computes the raw Exposure Cumulative Impact (`ECI_raw`) and, when a fitted
+model is provided, the model-weighted Exposure Cumulative Impact
+(`ECI_weighted`) for one or more exposure variables.
 }
 \details{
-If `output = "summary"`, the central estimate is computed as the median of
-the simulated ECI values, while interval limits are obtained from empirical
-quantiles (default: 2.5% and 97.5%).
-
-**Important:** when `uncertainty = TRUE` and `output = "summary"`,
-`ECI_weighted` represents the *central estimate*, computed as the median
-of the simulated distribution on the requested `scale`.
+Exposure profiles must always be supplied in chronological order, from the
+earliest observation to the most recent observation before disease
+assessment. The function preserves this ordering when reconstructing the
+cross-basis. In the final cross-basis row, the most recent observation is
+internally associated with lag 0.
 
 
-Uncertainty is propagated using model-consistent sampling:
-- Bayesian models (e.g., `brms`, `INLA`, `bdlnm`) use posterior draws
-- Frequentist models use simulation from the asymptotic coefficient distribution
+`ECI_raw` is the unweighted sum of the chronological exposure profile:
+\deqn{ECI_{raw}=\sum_{t=0}^{T}x_t}
 
-The use of the median as the central estimate improves robustness under
-asymmetric or non-normal simulated ECI distributions.
+`ECI_weighted` is the contribution of the selected exposure on the requested
+scale, calculated from the final cross-basis row and the aligned fitted
+cross-basis coefficients:
+\deqn{ECI_{weighted}=\mathbf{cb}(x)^\top\boldsymbol{\beta}}
 
-For `scale = "response"`, the inverse link is obtained from the fitted model
-metadata when available.
+For `scale = "response"`, the inverse link is applied to the exposure
+contribution only. The model intercept, other predictors, and random effects
+are not included. For `scale = "percent"`, the transformation is
+`(exp(eta) - 1) * 100`.
 
-For `scale = "percent"`, the transformation is defined as:
-\deqn{(exp(\eta) - 1) * 100}
-which is most directly interpretable for log-linked or relative-effect contexts.
+Frequentist uncertainty is approximated with draws from the asymptotic
+multivariate normal coefficient distribution. Bayesian engines use posterior
+coefficient draws when available. Summary estimates use the median and
+empirical 2.5% and 97.5% quantiles.
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/predict_outcome.R
 \name{predict_outcome}
 \alias{predict_outcome}
-\title{Predict outcome under user-defined exposure-lag profile(s)}
+\title{Predict outcomes under user-defined chronological exposure profiles}
 \usage{
 predict_outcome(
   fit,
@@ -11,7 +11,6 @@ predict_outcome(
   id = NULL,
   allow_new_levels = FALSE,
   type = c("response", "link", "conditional"),
-  reverse = FALSE,
   uncertainty = FALSE,
   output = c("summary", "samples"),
   n_samples = 1000
@@ -20,74 +19,54 @@ predict_outcome(
 \arguments{
 \item{fit}{Fitted model returned by `fit_epidlnm()`.}
 
-\item{profiles}{Numeric vector (single exposure) or named list of numeric
-vectors. If the fitted model contains multiple exposure variables,
-`profiles` must be a named list matching those variables.}
+\item{profiles}{Numeric vector for a single-exposure model or a named list of
+numeric vectors for one or more exposures. Each profile must be chronological
+and have length `lag_max + 1`, using the lag stored for that exposure in the
+fitted-model specification.}
 
-\item{re}{Character. Prediction level:
-- `"population"`: excludes random effects
-- `"conditional"`: includes random effects where supported}
+\item{re}{Character. Prediction level: `"population"` excludes random
+effects; `"conditional"` includes them where supported.}
 
-\item{id}{Optional vector of grouping levels (e.g., `epi_id`).}
+\item{id}{Optional vector of grouping levels. When supplied, one prediction is
+generated for each value. The fitted model must contain the grouping-column
+metadata stored by `fit_epidlnm()`.}
 
-\item{allow_new_levels}{Logical. Allow unseen grouping levels for mixed models.}
+\item{allow_new_levels}{Logical. Allow unseen grouping levels where supported.}
 
-\item{type}{Prediction scale: `"response"`, `"link"`, or `"conditional"`.}
+\item{type}{Character. `"response"`, `"link"`, or `"conditional"`.
+`"conditional"` requests a conditional prediction on the response scale.}
 
-\item{reverse}{Logical. If `TRUE`, reverses each supplied profile before
-analysis. Use this when the supplied profile is ordered from oldest to
-most recent (e.g., `dpp` order). If `FALSE`, the function assumes the
-first value corresponds to lag 0 (most recent) and the last value to
-lag max (oldest).}
+\item{uncertainty}{Logical. If `TRUE`, propagate coefficient uncertainty.}
 
-\item{uncertainty}{Logical. If `TRUE`, quantify uncertainty using simulated
-or posterior coefficient draws.}
+\item{output}{Character. `"summary"` returns median, standard deviation, and
+empirical 95 percent intervals. `"samples"` returns individual draws.}
 
-\item{output}{Character. `"summary"` returns aggregated predictions;
-`"samples"` returns one row per sample (and per `id`, if provided).}
-
-\item{n_samples}{Integer. Number of samples used for uncertainty quantification.}
+\item{n_samples}{Positive integer number of coefficient or posterior draws.}
 }
 \value{
-A data.frame.
-
-- If `uncertainty = FALSE`: same as before, with column `prediction`.
-
-- If `uncertainty = TRUE` and `output = "summary"`:
-  returns columns:
-  - `prediction` (median-based central estimate)
-  - `sd`
-  - `lower`
-  - `upper`
-
-- If `uncertainty = TRUE` and `output = "samples"`:
-  returns one row per sample (and per `id`, if provided), with columns:
-  - `sample`
-  - `prediction`
+A data.frame. Deterministic output contains `prediction`. Summary
+  output additionally contains `sd`, `lower`, and `upper`. Sample output
+  contains `sample` and `prediction`. The grouping column is included when
+  `id` is supplied.
 }
 \description{
-Predicts the outcome associated with one or more user-defined
-exposure-lag profiles, using the DLNM specification and template data
-stored in the fitted model.
+Predicts the outcome associated with one or more user-defined exposure
+profiles using the DLNM specification and model metadata stored by
+`fit_epidlnm()`.
 }
 \details{
-This function supports both deterministic prediction and uncertainty
-propagation. When `uncertainty = TRUE`, predictions are generated from
-simulated or posterior draws of the model coefficients. If
-`output = "summary"`, the central estimate is computed as the median of
-the simulated predictions, while interval limits are obtained from
-empirical quantiles (default: 2.5% and 97.5%).
-
-**Important:** when `uncertainty = TRUE` and `output = "summary"`, the
-column `prediction` represents the *central estimate*, computed as the
-median of the predictive distribution.
+Every profile must be supplied in chronological order, from the earliest
+observation to the most recent observation. Profiles are not reversed
+internally. When the final cross-basis row is reconstructed, the last profile
+value is associated with lag 0 and the first value with lag max.
 
 
-Uncertainty is propagated using model-consistent sampling:
-- Bayesian models (e.g., `brms`, `INLA`, `bdlnm`) use posterior draws
-- Frequentist models use simulation from the asymptotic coefficient distribution
+Bayesian engines use posterior draws when available. Frequentist engines use
+draws from the asymptotic multivariate normal distribution of the fixed-effect
+coefficients. For frequentist mixed models, uncertainty reflects fixed
+effects only.
 
-For summary outputs under uncertainty, the median is used instead of the
-mean to provide a more robust central estimate under asymmetric predictive
-distributions.
+Cross-basis columns are aligned using `epiexposure_cb_cols`, with
+`epiexposure_data_template` as a fallback. Coefficient and covariance-matrix
+names are checked before simulation to prevent silent term omission.
 }

@@ -2,10 +2,10 @@
 % Please edit documentation in R/df_sensitivity.R
 \name{df_sensitivity}
 \alias{df_sensitivity}
-\title{Compute sensitivity of DLNM effects (analytical or finite derivative)}
+\title{Compute sensitivity of exposure–response curves}
 \usage{
 df_sensitivity(
-  df,
+  data,
   x = "value",
   y = "prediction",
   scenario_var = "scenario",
@@ -17,50 +17,68 @@ df_sensitivity(
 )
 }
 \arguments{
-\item{df}{Data frame containing at least columns `value` (predictor)
-and `prediction` or `effect` (response).}
+\item{data}{Data frame containing at least columns `value`
+(predictor) and `prediction` or `effect` (response).}
 
-\item{x}{Character. Name of predictor variable (default = "value")}
+\item{x}{Character. Name of predictor variable
+(default = `"value"`).}
 
-\item{y}{Character. Name of response variable (default = "prediction")}
+\item{y}{Character. Name of response variable
+(default = `"prediction"`).}
 
-\item{scenario_var}{Optional character. Grouping variable (e.g., scenario or id).
-If NULL, computation is done on the full dataset.}
+\item{scenario_var}{Optional character. Grouping variable
+(e.g. scenario or id). If `NULL`, computation is performed on the
+entire dataset.}
 
-\item{k}{Integer. Basis dimension for GAM smoothing (default = 10)}
+\item{k}{Positive integer basis dimension used for GAM smoothing.
+Default = `10`.}
 
-\item{method}{Character. Derivative method:
+\item{method}{Character.
 \describe{
-  \item{"analytical"}{Uses GAM and lpmatrix to compute smooth derivative (default).}
-  \item{"finite"}{Uses finite differences (robust but noisier).}
+  \item{"analytical"}{
+    Computes derivatives from a GAM fitted to the curve.
+  }
+  \item{"finite"}{
+    Computes finite-difference derivatives.
+  }
 }}
 
-\item{elasticity}{Logical. If TRUE, computes elasticity:
-\deqn{(dy/dx) * (x/y)}}
+\item{elasticity}{Logical.
+If `TRUE`, computes elasticity:
+\deqn{
+(dy/dx)(x/y)
+}}
 
-\item{critical}{Logical. If TRUE, detects critical points (sign change in derivative)}
+\item{critical}{Logical.
+If `TRUE`, detects critical points based on derivative sign changes.}
 
-\item{eps}{Small numeric value for numerical stability (default = 1e-6)}
+\item{eps}{Small positive numeric constant used for numerical stability.}
 }
 \value{
 A data.frame including:
 \itemize{
-  \item `sensitivity` (dy/dx)
+  \item `sensitivity`
   \item `elasticity` (optional)
-  \item `critical` (TRUE/FALSE indicator of critical points)
+  \item `critical` (optional)
 }
 }
 \description{
 Calculates the derivative of the exposure–response relationship from
-predicted values or effects. The function (via GAM smoothing) and finite differences, with optional#' predicted values or effects. The function supports both analytical
-elasticity computation and critical point detection.
+predicted values or effects.
 }
 \details{
-The analytical method fits a smooth GAM and computes derivatives via
-the linear predictor matrix (`lpmatrix`). The finite method computes
-local differences between adjacent observations.
+The function supports both analytical derivatives obtained through
+GAM smoothing and finite differences, with optional elasticity
+computation and critical-point detection.
 
-Analytical derivatives are smoother and preferred for continuous
-exposure–response curves, whereas finite differences are more robust
-when the data are irregular or sparse.
+
+The analytical method fits a smooth GAM and computes derivatives
+using the linear-predictor matrix (`lpmatrix`).
+
+The finite method computes local differences between adjacent
+observations.
+
+Analytical derivatives are smoother and generally preferred for
+continuous exposure–response curves, whereas finite differences are
+more robust when curves are sparse or irregular.
 }

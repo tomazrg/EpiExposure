@@ -2,103 +2,139 @@
 % Please edit documentation in R/compare_exposures.R
 \name{compare_exposures}
 \alias{compare_exposures}
-\title{Compare exposure-lag profiles (global or lagwise, with optional grouping)}
+\title{Compare exposure profiles through time}
 \usage{
 compare_exposures(
   exposures = NULL,
   exposure1 = NULL,
   exposure2 = NULL,
-  lags = NULL,
-  reverse = FALSE,
+  time = NULL,
   group = NULL,
   agg_fun = c("median", "mean"),
-  mode = c("global", "lagwise"),
+  mode = c("global", "timewise"),
   q = 0.8,
   eps = 1e-12
 )
 }
 \arguments{
-\item{exposures}{Named list of numeric vectors, where each element
-represents an exposure-lag profile. Each vector must have the same length.
-Alternatively, a single numeric vector is accepted and converted to a list.}
+\item{exposures}{Named list of numeric vectors. Each element represents
+an exposure profile supplied in chronological order, from the earliest
+to the most recent observation. All vectors must have the same length.
+Alternatively, a single numeric vector is accepted and converted to
+a named list.}
 
-\item{exposure1}{Legacy numeric vector (optional).}
+\item{exposure1}{Legacy numeric vector used for backward compatibility.
+Must be supplied together with `exposure2` when `exposures` is `NULL`.}
 
-\item{exposure2}{Legacy numeric vector (optional).
-Used for backward compatibility if `exposures` is not provided.}
+\item{exposure2}{Legacy numeric vector used for backward compatibility.
+Must be supplied together with `exposure1` when `exposures` is `NULL`.}
 
-\item{lags}{Optional numeric vector indicating lag positions
-(same length as exposure profiles). Defaults to `0:(n - 1)`.}
+\item{time}{Optional numeric vector defining chronological time positions.
+The vector must have the same length as each exposure profile and must
+be ordered from the earliest to the most recent observation. If `NULL`,
+the sequence `0:(n - 1)` is used.}
 
-\item{reverse}{Logical. If `TRUE`, each exposure profile is reversed before
-analysis. Use this when the input data are ordered from oldest to most
-recent (e.g., days before present). If `FALSE`, the function assumes the
-first element corresponds to lag 0 (most recent) and the last element to
-lag max (oldest).}
-
-\item{group}{Optional vector defining group membership for each exposure.
-Must have the same length as `exposures`. If provided, profiles are first
-aggregated within each group and comparisons are performed between groups
-instead of individual exposures.}
+\item{group}{Optional vector defining group membership for each exposure
+profile. Its length must equal the number of profiles in `exposures`.
+When provided, profiles are first aggregated within each group and
+comparisons are performed between the resulting group-level profiles.}
 
 \item{agg_fun}{Aggregation function used when `group` is provided.
-Options are `"median"` (default, recommended) or `"mean"`.}
+Available options are `"median"` and `"mean"`. The median is the default
+and is generally more robust to extreme exposure profiles.}
 
 \item{mode}{Type of comparison:
 \describe{
-  \item{"global"}{Aggregated comparison using distances, correlation,
-  and summary statistics across the full lag profile (default).}
-  \item{"lagwise"}{Lag-by-lag comparison, returning a long-format data
-  frame suitable for visualization and temporal analysis.}
+  \item{"global"}{
+    Returns one row per pairwise comparison, including distance,
+    correlation, magnitude, timing, center-of-mass, and overlap metrics.
+  }
+  \item{"timewise"}{
+    Returns one row per chronological time position and pairwise
+    comparison, retaining the full temporal resolution of the profiles.
+  }
 }}
 
-\item{q}{Quantile threshold (between 0 and 1) used to compute overlap of
-high-exposure regions (default = 0.8).}
+\item{q}{Numeric scalar between 0 and 1. Quantile threshold used to define
+high-exposure time positions when calculating overlap. The default is
+`0.8`.}
 
-\item{eps}{Small constant used to avoid division by zero (default = 1e-12).}
+\item{eps}{Positive numeric scalar used to avoid division by zero in ratio
+and center-of-mass calculations. The default is `1e-12`.}
 }
 \value{
 A data.frame.
 
-If `mode = "global"`, returns one row per pairwise comparison with metrics:
+If `mode = "global"`, the output contains one row per pairwise comparison
+with:
 \itemize{
-  \item L1, L2, Linf distances
-  \item Differences in sum, mean, and standard deviation
-  \item Correlation between profiles
-  \item Peak lag timing and shift
-  \item Center of mass and shift
-  \item Overlap of high-exposure regions
+  \item `exposure1` and `exposure2`: names of the compared profiles;
+  \item `n_time`: number of time positions;
+  \item `L1`, `L2`, and `Linf`: distance metrics;
+  \item `diff_sum`, `diff_mean`, and `diff_sd`: differences in profile
+    summary statistics;
+  \item `corr`: Pearson correlation between profiles;
+  \item `peak_time1` and `peak_time2`: chronological positions of maximum
+    exposure;
+  \item `timing_shift_peak`: difference between peak times;
+  \item `com1` and `com2`: temporal centers of mass;
+  \item `center_of_mass_shift`: difference between centers of mass;
+  \item `overlap_above_q`: overlap between high-exposure time positions;
+  \item `q`: quantile used to define high exposure.
 }
 
-If `mode = "lagwise"`, returns one row per lag per pair:
+If `mode = "timewise"`, the output contains one row per time position
+and pairwise comparison with:
 \itemize{
-  \item lag
-  \item value1, value2
-  \item diff, abs_diff, ratio
+  \item `exposure1` and `exposure2`;
+  \item `time`;
+  \item `value1` and `value2`;
+  \item `diff`;
+  \item `abs_diff`;
+  \item `ratio`.
 }
 }
 \description{
-Compares exposure-lag profiles between two or more scenarios, epidemics,
+Compares exposure profiles between two or more scenarios, epidemics,
 or simulated exposure histories. The function supports both global
-(aggregated) comparisons and lag-wise comparisons, enabling detailed
+aggregated comparisons and time-wise comparisons, enabling detailed
 temporal analysis of exposure differences.
 }
 \details{
-It also supports grouping of exposures (e.g., multiple epidemics),
-aggregating profiles per lag using a summary function (median or mean),
-which is particularly useful when working with large observational datasets.
+Exposure profiles must be supplied in chronological order, from the
+earliest observation to the most recent observation. The first element
+of each exposure vector therefore corresponds to the earliest time
+position, and the last element corresponds to the most recent time
+position.
+
+The function also supports grouping of exposure profiles, such as multiple
+epidemics belonging to the same treatment or scenario. When grouping is
+requested, profiles are aggregated at each time position using either
+the median or mean before pairwise comparisons are performed.
 
 
-This function provides two complementary comparison strategies:
+This function operates exclusively on chronological exposure profiles.
+No reversal is applied internally. Users must supply each profile from
+the earliest observation to the most recent observation.
 
-\strong{Global comparison} summarizes the overall similarity between
-exposure profiles using distance metrics, correlation, and timing features.
+Global comparisons summarize overall differences and similarities across
+the complete exposure history. Time-wise comparisons preserve the full
+chronological resolution and are suitable for identifying and plotting
+when differences occurred.
 
-\strong{Lag-wise comparison} retains full temporal resolution, allowing
-identification of when differences between exposure profiles occur,
-which is particularly useful for plotting and interpretation.
+When observational datasets contain many epidemic-specific profiles,
+`group` can be used to create representative group-level profiles before
+comparison. Aggregation is performed independently at each time position.
 
-When working with observational data (e.g., multiple epidemics), providing
-a `group` argument is strongly recommended to avoid excessive pairwise
-comparisons and to obtain representative exposure profiles via aggregation.
+The ratio at each time position is calculated as:
+
+\deqn{
+  \frac{x_1}{x_2 + \epsilon}
+}
+
+where \eqn{\epsilon} is controlled by `eps`.
+
+The temporal center of mass is calculated after replacing negative
+exposure values with zero. Consequently, this metric is primarily
+meaningful for non-negative exposure variables.
 }

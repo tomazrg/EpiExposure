@@ -5,7 +5,7 @@
 \title{Fit DLNM inferential model}
 \usage{
 fit_epidlnm(
-  dat,
+  data,
   model_engine,
   family,
   random_effect = NULL,
@@ -15,7 +15,7 @@ fit_epidlnm(
 )
 }
 \arguments{
-\item{dat}{Design matrix containing y_model and cb_* terms}
+\item{data}{Design matrix containing y_model and cb_* terms}
 
 \item{model_engine}{Modeling engine
 ("glm","glmmTMB","gam","gamm","gls","spamm","brms","inla","bdlnm")}

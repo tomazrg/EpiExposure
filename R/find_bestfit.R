@@ -1,161 +1,68 @@
 #' Find the best DLNM model structure using LOOCV and Lin's CCC
 #'
-#' Tests multiple combinations of exposure variables, exposure-basis degrees of
-#' freedom, and lag-basis degrees of freedom using leave-one-out cross-validation
-#' (LOOCV). Candidate models are ranked using Lin's concordance correlation
-#' coefficient (CCC), alongside the bias correction factor (`Cb`), Pearson
-#' correlation (`rho`), RMSE, and MAE.
+#' Tests combinations of exposure variables and basis dimensions using
+#' leave-one-group-out cross-validation. Candidate models are ranked by Lin's
+#' concordance correlation coefficient (CCC), with Cb, Pearson correlation,
+#' RMSE, and MAE also reported.
 #'
-#' This function is designed to work directly with the same long-format dataset
-#' used by the EpiExposure workflow:
+#' Input observations must be chronological within each group, from the earliest
+#' to the most recent observation. The function orders rows internally by
+#' `group` and `time`. The DLNM lag representation is constructed internally by
+#' `define_exposure()` and `build_design()`.
 #'
-#' \enumerate{
-#'   \item `define_exposure()`
-#'   \item `build_design()`
-#'   \item `prepare_response()`
-#'   \item `fit_epidlnm()`
-#' }
-#'
-#' The input data should contain one row per time point within each epidemic,
-#' with exposure variables measured over time and the response repeated for each
-#' row within the same epidemic.
-#'
-#' @param epi_data Long-format data frame containing the response, time index,
-#'   epidemic/group identifier, and daily exposure variables.
-#'
-#' @param response Character. Name of the response variable in `epi_data`.
-#'   The response may be repeated across rows within each epidemic/group.
-#'
-#' @param group Character. Name of the grouping variable used for LOOCV.
-#'   Default is `"epi_id"`.
-#'
-#' @param time Character. Name of the temporal ordering variable.
-#'   Default is `"dpp"`.
-#'
-#' @param vars Character vector of candidate exposure variables to test.
-#'
-#' @param lag_max Integer. Maximum lag used to build the DLNM crossbasis.
-#'
-#' @param df_var_grid Numeric vector. Candidate degrees of freedom for the
-#'   exposure-response basis.
-#'
-#' @param df_lag_grid Numeric vector. Candidate degrees of freedom for the
-#'   lag-response basis.
-#'
-#' @param min_vars Integer. Minimum number of exposure variables per candidate
-#'   model. Default is `1`.
-#'
-#' @param max_vars Integer or `NULL`. Maximum number of exposure variables per
-#'   candidate model. If `NULL`, all sizes up to `length(vars)` are tested.
-#'
-#' @param var_sets Optional list of character vectors. If supplied, these exact
-#'   variable combinations are tested and `min_vars`/`max_vars` are ignored.
-#'
-#' @param fun_var Character. Exposure-response basis function passed to
-#'   `define_exposure()`. Default is `"ns"`.
-#'
-#' @param fun_lag Character. Lag-response basis function passed to
-#'   `define_exposure()`. Default is `"ns"`.
-#'
-#' @param model_engine Character. Model engine passed to `fit_epidlnm()`.
-#'   Supported values are those supported by `fit_epidlnm()`: `"glm"`,
-#'   `"glmmTMB"`, `"gam"`, `"gamm"`, `"gls"`, `"spamm"`, `"brms"`, `"inla"`,
-#'   and `"bdlnm"`.
-#'
-#' @param family Character or family object. Model family passed to
-#'   `prepare_response()` and `fit_epidlnm()`. For example: `"beta"`,
-#'   `"gaussian"`, `"poisson"`, `"gamma"`, `"binomial"`, `"negbin"`,
-#'   `"negative_binomial"`, or a supported family object when appropriate.
-#'
-#' @param random_effect Optional character. Name of the random-intercept
-#'   grouping variable used by `fit_epidlnm()`; for example `"siteyear"`.
-#'
-#' @param min_success Integer. Minimum number of successful LOOCV folds required
-#'   for a candidate model to be ranked. Default is `2`.
-#'
-#' @param top_n Integer or `Inf`. Number of top-ranked models to return.
-#'   Default is `Inf`, returning all successful candidates.
-#'
-#' @param keep_fits Logical. If `TRUE`, the function refits each successful
-#'   candidate model using all available data and stores the final fitted models
-#'   in `attr(result, "fits")`. This is useful for downstream procedures such
-#'   as `ensemble_bestfit()` with lag-level ensemble decomposition. Default is
-#'   `FALSE` to avoid storing potentially large model objects.
-#'
-#' @param verbose Logical. If `TRUE`, prints progress messages.
-#'
+#' @param data Long-format data frame containing the response, grouping column,
+#'   chronological time column, and candidate exposure variables.
+#' @param response Character scalar naming the response column in `data`. The
+#'   response may be repeated across rows but must be constant within each group.
+#' @param group Character scalar naming the grouping column used for LOOCV.
+#' @param time Character scalar naming the chronological time column.
+#' @param vars Unique character vector of candidate exposure variables.
+#' @param lag_max Maximum lag. A numeric vector such as `c(0, 85)` is normalized
+#'   to its finite maximum.
+#' @param df_var_grid Positive finite candidate dimensions for the exposure basis.
+#' @param df_lag_grid Positive finite candidate dimensions for the lag basis.
+#' @param min_vars Positive integer minimum number of exposure variables.
+#' @param max_vars Positive integer maximum number of exposure variables, or
+#'   `NULL` to use `length(vars)`.
+#' @param var_sets Optional list of exact variable combinations. When supplied,
+#'   `min_vars` and `max_vars` are ignored.
+#' @param fun_var Character exposure-basis function passed to `define_exposure()`.
+#' @param fun_lag Character lag-basis function passed to `define_exposure()`.
+#' @param model_engine Character model engine supported by `fit_epidlnm()`:
+#'   `"glm"`, `"glmmTMB"`, `"gam"`, `"gamm"`, `"gls"`, `"spamm"`,
+#'   `"brms"`, `"inla"`, or `"bdlnm"`.
+#' @param family Character or family object passed to `prepare_response()` and
+#'   `fit_epidlnm()`.
+#' @param random_effect Optional character scalar naming a random-effect column.
+#' @param min_success Minimum number of successful LOOCV folds required.
+#' @param top_n Positive integer or `Inf`; number of ranked candidates returned.
+#' @param keep_fits Logical. Refit successful retained candidates on all data and
+#'   store them in `attr(result, "fits")`.
+#' @param verbose Logical. Print progress messages.
 #' @param ... Additional arguments passed to `fit_epidlnm()`.
 #'
-#' @return A data.frame ranked by decreasing CCC. Columns include:
-#' \itemize{
-#'   \item `rank`
-#'   \item `model_id`
-#'   \item `df_var`
-#'   \item `df_lag`
-#'   \item `vars`
-#'   \item `n_vars`
-#'   \item `CCC`
-#'   \item `Cb`
-#'   \item `rho`
-#'   \item `RMSE`
-#'   \item `MAE`
-#'   \item `n_folds`
-#'   \item `n_success`
-#'   \item `n_failed`
-#' }
-#'
-#' The returned object includes attributes:
-#' \itemize{
-#'   \item `"predictions"`: fold-level observed and predicted values.
-#'   \item `"failures"`: candidate/fold-level failure information, if any.
-#'   \item `"fits"`: final candidate models refitted on the full dataset, only
-#'   when `keep_fits = TRUE`.
-#' }
+#' @return A data frame ranked by decreasing CCC, with attributes
+#'   `"predictions"`, `"failures"`, and optionally `"fits"`.
 #'
 #' @details
-#' **Input structure.** This function expects a single long-format dataset,
-#' similar to the object passed through `define_exposure()`, `build_design()`,
-#' `prepare_response()`, and `fit_epidlnm()`. The response can be repeated
-#' across daily rows within each epidemic/group, but it must be unique within
-#' each group after removing duplicates.
+#' For each fold, basis templates are estimated from the training groups only
+#' and then applied to the held-out group. This prevents the held-out exposure
+#' history from determining the training basis specification.
 #'
-#' **Temporal dimension.** The data are ordered internally by `time` within
-#' each `group` during basis construction. Each group must contain at least
-#' `lag_max + 1` observations for each tested exposure variable.
+#' Direct engine-specific prediction is attempted first. If unavailable, a
+#' fixed-effect fallback uses the official cross-basis column order stored in
+#' `epiexposure_cb_cols`, or `epiexposure_data_template` as a fallback. Missing
+#' model or design columns produce an explicit error rather than being omitted.
 #'
-#' **Cross-validation.** LOOCV is performed by leaving out one `group` level at
-#' a time. DLNM basis templates are built on the training data only and then
-#' applied to the held-out group.
-#'
-#' **Stored fits.** When `keep_fits = TRUE`, the stored models are not fold-level
-#' models. They are final models refitted using the entire dataset for each
-#' successful candidate specification. This is the appropriate object to use
-#' for downstream interpretation and ensemble lag decomposition.
-#'
-#' **Prediction across engines.** The function first attempts engine-specific
-#' prediction on the response scale. If direct prediction is unavailable for an
-#' engine, it falls back to a fixed-effect linear predictor using the model
-#' coefficients and applies an inverse-link transformation based on `family`.
-#'
-#' **Checklist notes.**
-#' \itemize{
-#'   \item Temporal dimension is controlled through `lag_max` and checked per group.
-#'   \item The DLNM API is delegated to `define_exposure()` and `build_design()`.
-#'   \item Coefficient extraction is used only as a prediction fallback.
-#'   \item Coefficient ordering follows the stable `cb_<var>_<index>` convention
-#'     created by `build_design()`.
-#'   \item `b_cb_` standardization is only relevant for posterior-draw functions;
-#'     this LOOCV ranking function does not summarize posterior surfaces.
-#'   \item Surface summarization is not performed; models are ranked by predictive
-#'     agreement via Lin's CCC.
-#' }
+#' The function ranks point predictions and does not propagate coefficient or
+#' posterior-draw uncertainty.
 #'
 #' @export
 find_bestfit <- function(
-    epi_data,
+    data,
     response = "y",
     group = "epi_id",
-    time = "dpp",
+    time = "time",
     vars,
     lag_max,
     df_var_grid = c(3, 4, 5),
@@ -174,707 +81,484 @@ find_bestfit <- function(
     verbose = TRUE,
     ...
 ) {
-  
-  # ------------------------------------------------------------
-  # Basic validations
-  # ------------------------------------------------------------
-  if (!is.data.frame(epi_data)) {
-    stop("`epi_data` must be a data.frame.")
-  }
-  
-  if (!is.character(response) || length(response) != 1L) {
-    stop("`response` must be a single character string.")
-  }
-  
-  if (!response %in% names(epi_data)) {
-    stop("`response` ('", response, "') was not found in `epi_data`.")
-  }
-  
-  if (!is.character(group) || length(group) != 1L) {
-    stop("`group` must be a single character string.")
-  }
-  
-  if (!group %in% names(epi_data)) {
-    stop("`group` ('", group, "') was not found in `epi_data`.")
-  }
-  
-  if (!is.character(time) || length(time) != 1L) {
-    stop("`time` must be a single character string.")
-  }
-  
-  if (!time %in% names(epi_data)) {
-    stop("`time` ('", time, "') was not found in `epi_data`.")
-  }
-  
-  if (!is.character(vars) || length(vars) < 1L) {
-    stop("`vars` must be a non-empty character vector.")
-  }
-  
-  missing_vars <- setdiff(vars, names(epi_data))
-  if (length(missing_vars) > 0) {
-    stop(
-      "The following variables in `vars` were not found in `epi_data`: ",
-      paste(missing_vars, collapse = ", "),
-      "."
-    )
-  }
-  
-  if (!is.numeric(lag_max) || length(lag_max) < 1L ||
-      any(!is.finite(lag_max)) || max(lag_max) < 0) {
-    stop("`lag_max` must be a non-negative integer or numeric vector.")
-  }
-  
-  lag_max <- as.integer(max(lag_max))
-  
-  if (!is.numeric(df_var_grid) || length(df_var_grid) < 1L) {
-    stop("`df_var_grid` must be a non-empty numeric vector.")
-  }
-  
-  if (!is.numeric(df_lag_grid) || length(df_lag_grid) < 1L) {
-    stop("`df_lag_grid` must be a non-empty numeric vector.")
-  }
-  
-  if (!is.numeric(min_vars) || length(min_vars) != 1L || min_vars < 1) {
-    stop("`min_vars` must be a positive integer.")
-  }
-  
-  min_vars <- as.integer(min_vars)
-  
-  if (is.null(max_vars)) {
-    max_vars <- length(vars)
-  }
-  
-  if (!is.numeric(max_vars) || length(max_vars) != 1L ||
-      max_vars < min_vars || max_vars > length(vars)) {
-    stop("`max_vars` must be between `min_vars` and length(`vars`).")
-  }
-  
-  max_vars <- as.integer(max_vars)
-  
-  if (!is.null(random_effect)) {
-    if (!is.character(random_effect) || length(random_effect) != 1L) {
-      stop("`random_effect` must be NULL or a single character string.")
-    }
-    
-    if (!random_effect %in% names(epi_data)) {
-      stop("`random_effect` ('", random_effect, "') was not found in `epi_data`.")
-    }
-  }
-  
-  if (!is.numeric(min_success) || length(min_success) != 1L ||
-      !is.finite(min_success) || min_success < 2) {
-    stop("`min_success` must be an integer >= 2.")
-  }
-  
-  min_success <- as.integer(min_success)
-  
-  if (!is.logical(keep_fits) || length(keep_fits) != 1L) {
-    stop("`keep_fits` must be TRUE or FALSE.")
-  }
-  
-  if (!is.logical(verbose) || length(verbose) != 1L) {
-    stop("`verbose` must be TRUE or FALSE.")
-  }
-  
   model_engine <- match.arg(
     model_engine,
     choices = c("glm", "glmmTMB", "gam", "gamm", "gls", "spamm", "brms", "inla", "bdlnm")
   )
-  
-  `%||%` <- function(a, b) if (!is.null(a)) a else b
-  
-  # ------------------------------------------------------------
-  # Internal standardization to EpiExposure pipeline names
-  # ------------------------------------------------------------
-  dat_long <- epi_data
-  
-  dat_long$epi_id <- dat_long[[group]]
-  dat_long$dpp <- dat_long[[time]]
-  dat_long$y <- dat_long[[response]]
-  
+
+  valid_scalar_name <- function(x) {
+    is.character(x) && length(x) == 1L && !is.na(x) && nzchar(x)
+  }
+  valid_flag <- function(x) is.logical(x) && length(x) == 1L && !is.na(x)
+
+  if (!is.data.frame(data)) stop("`data` must be a data.frame.")
+  if (!valid_scalar_name(response)) stop("`response` must be one non-empty column name.")
+  if (!valid_scalar_name(group)) stop("`group` must be one non-empty column name.")
+  if (!valid_scalar_name(time)) stop("`time` must be one non-empty column name.")
+  required_basic <- c(response, group, time)
+  missing_basic <- setdiff(required_basic, names(data))
+  if (length(missing_basic)) {
+    stop("Required columns missing from `data`: ", paste(missing_basic, collapse = ", "), ".")
+  }
+  if (!is.character(vars) || !length(vars) || anyNA(vars) ||
+      any(!nzchar(vars)) || anyDuplicated(vars)) {
+    stop("`vars` must contain unique non-empty variable names.")
+  }
+  missing_vars <- setdiff(vars, names(data))
+  if (length(missing_vars)) {
+    stop("Variables missing from `data`: ", paste(missing_vars, collapse = ", "), ".")
+  }
+  if (anyNA(data[[group]])) stop("The grouping column cannot contain missing values.")
+  if (!is.numeric(data[[time]]) || any(!is.finite(data[[time]]))) {
+    stop("The chronological time column must contain finite numeric values.")
+  }
+  if (!is.numeric(data[[response]]) || any(!is.finite(data[[response]]))) {
+    stop("The response column must contain finite numeric values.")
+  }
+  for (variable in vars) {
+    if (!is.numeric(data[[variable]]) || any(!is.finite(data[[variable]]))) {
+      stop("Exposure variable '", variable, "' must contain finite numeric values.")
+    }
+  }
+  if (!is.numeric(lag_max) || !length(lag_max) || any(!is.finite(lag_max)) || max(lag_max) < 0) {
+    stop("`lag_max` must contain finite non-negative values.")
+  }
+  lag_max <- as.integer(max(lag_max))
+
+  validate_df_grid <- function(x, argument) {
+    if (!is.numeric(x) || !length(x) || any(!is.finite(x)) || any(x <= 0)) {
+      stop("`", argument, "` must contain positive finite values.")
+    }
+    sort(unique(as.integer(x)))
+  }
+  df_var_grid <- validate_df_grid(df_var_grid, "df_var_grid")
+  df_lag_grid <- validate_df_grid(df_lag_grid, "df_lag_grid")
+
+  if (!is.numeric(min_vars) || length(min_vars) != 1L ||
+      !is.finite(min_vars) || min_vars < 1) {
+    stop("`min_vars` must be a positive integer.")
+  }
+  min_vars <- as.integer(min_vars)
+  if (is.null(max_vars)) max_vars <- length(vars)
+  if (!is.numeric(max_vars) || length(max_vars) != 1L || !is.finite(max_vars) ||
+      max_vars < min_vars || max_vars > length(vars)) {
+    stop("`max_vars` must be between `min_vars` and `length(vars)`.")
+  }
+  max_vars <- as.integer(max_vars)
+
   if (!is.null(random_effect)) {
-    dat_long[[random_effect]] <- epi_data[[random_effect]]
+    if (!valid_scalar_name(random_effect)) {
+      stop("`random_effect` must be NULL or one non-empty column name.")
+    }
+    if (!random_effect %in% names(data)) {
+      stop("`random_effect` ('", random_effect, "') was not found in `data`.")
+    }
+    if (anyNA(data[[random_effect]])) stop("`random_effect` cannot contain missing values.")
   }
-  
-  # Validate a single response per group
-  y_check <- unique(dat_long[, c("epi_id", "y"), drop = FALSE])
-  
-  if (any(duplicated(y_check$epi_id))) {
-    stop(
-      "Multiple distinct response values were found within at least one `group`. ",
-      "The response must be constant/repeated within each group."
-    )
+  if (!is.numeric(min_success) || length(min_success) != 1L ||
+      !is.finite(min_success) || min_success < 2) {
+    stop("`min_success` must be an integer greater than or equal to 2.")
   }
-  
-  # ------------------------------------------------------------
-  # Helpers
-  # ------------------------------------------------------------
-  ccc_lins <- function(obs, pred) {
-    
-    ok <- is.finite(obs) & is.finite(pred)
-    obs <- obs[ok]
-    pred <- pred[ok]
-    
-    if (length(obs) < 2L) {
-      return(list(
-        CCC = NA_real_,
-        Cb = NA_real_,
-        rho = NA_real_,
-        RMSE = NA_real_,
-        MAE = NA_real_
-      ))
-    }
-    
-    mx <- mean(obs)
-    my <- mean(pred)
-    
-    vx <- stats::var(obs)
-    vy <- stats::var(pred)
-    sxy <- stats::cov(obs, pred)
-    
-    rho <- suppressWarnings(stats::cor(obs, pred))
-    
-    CCC <- (2 * sxy) / (vx + vy + (mx - my)^2)
-    
-    Cb <- if (is.finite(rho) && abs(rho) > .Machine$double.eps) {
-      CCC / rho
-    } else {
-      NA_real_
-    }
-    
-    RMSE <- sqrt(mean((obs - pred)^2))
-    MAE <- mean(abs(obs - pred))
-    
-    list(
-      CCC = as.numeric(CCC),
-      Cb = as.numeric(Cb),
-      rho = as.numeric(rho),
-      RMSE = as.numeric(RMSE),
-      MAE = as.numeric(MAE)
-    )
+  min_success <- as.integer(min_success)
+  if (!is.numeric(top_n) || length(top_n) != 1L || is.na(top_n) || top_n <= 0) {
+    stop("`top_n` must be a positive integer or `Inf`.")
   }
-  
-  get_linkinv_from_family <- function(family) {
-    
-    if (inherits(family, "family") && !is.null(family$linkinv)) {
-      return(family$linkinv)
-    }
-    
-    if (is.character(family)) {
-      if (family %in% c("beta", "binomial")) return(stats::plogis)
-      if (family %in% c("poisson", "gamma", "negbin", "negative_binomial")) return(exp)
-      if (family %in% c("gaussian")) return(identity)
-    }
-    
-    identity
+  if (is.finite(top_n)) top_n <- as.integer(top_n)
+  if (!valid_flag(keep_fits)) stop("`keep_fits` must be TRUE or FALSE.")
+  if (!valid_flag(verbose)) stop("`verbose` must be TRUE or FALSE.")
+
+  data_long <- data
+  data_long$epi_id <- data_long[[group]]
+  data_long$time <- data_long[[time]]
+  data_long$y <- data_long[[response]]
+  data_long <- data_long[order(data_long$epi_id, data_long$time), , drop = FALSE]
+  rownames(data_long) <- NULL
+
+  response_check <- unique(data_long[, c("epi_id", "y"), drop = FALSE])
+  if (anyDuplicated(response_check$epi_id)) {
+    stop("Multiple distinct response values were found within at least one group.")
   }
-  
-  extract_fixed_coef <- function(model) {
-    
-    if (inherits(model, "glmmTMB")) {
-      return(glmmTMB::fixef(model)$cond)
+
+  check_temporal_coverage <- function(input_data, variables, maximum_lag) {
+    temporal_summary <- input_data |>
+      dplyr::group_by(epi_id) |>
+      dplyr::summarise(
+        n_rows = dplyr::n(),
+        n_time = dplyr::n_distinct(time),
+        has_missing_time = any(is.na(time)),
+        .groups = "drop"
+      )
+    if (any(temporal_summary$has_missing_time)) {
+      stop("Missing chronological time values were detected within groups.")
     }
-    
-    if (inherits(model, "merMod")) {
-      return(lme4::fixef(model))
+    duplicate_groups <- temporal_summary[temporal_summary$n_rows != temporal_summary$n_time, , drop = FALSE]
+    if (nrow(duplicate_groups)) {
+      stop("Duplicated time values were detected within groups. Example group(s): ",
+           paste(utils::head(duplicate_groups$epi_id, 5), collapse = ", "), ".")
     }
-    
-    if (inherits(model, "gamm")) {
-      return(stats::coef(model$gam))
+    insufficient <- temporal_summary[temporal_summary$n_time < maximum_lag + 1L, , drop = FALSE]
+    if (nrow(insufficient)) {
+      stop("Some groups have insufficient temporal coverage. Required observations: ",
+           maximum_lag + 1L, ". Example group(s): ",
+           paste(utils::head(insufficient$epi_id, 5), collapse = ", "), ".")
     }
-    
-    if (inherits(model, "lme")) {
-      return(nlme::fixef(model))
-    }
-    
-    if (inherits(model, "gls")) {
-      return(stats::coef(model))
-    }
-    
-    if (inherits(model, "gam")) {
-      return(stats::coef(model))
-    }
-    
-    if (inherits(model, "HLfit")) {
-      return(spaMM::fixef(model))
-    }
-    
-    if (inherits(model, "brmsfit")) {
-      fe <- brms::fixef(model)
-      beta <- fe[, "Estimate"]
-      names(beta) <- rownames(fe)
-      return(beta)
-    }
-    
-    if (inherits(model, "inla")) {
-      return(model$summary.fixed$mean)
-    }
-    
-    if (inherits(model, "bdlnm")) {
-      if (!is.null(model$coefficients.summary)) {
-        return(model$coefficients.summary[, "mean"])
+    for (variable in variables) {
+      finite_summary <- input_data |>
+        dplyr::group_by(epi_id) |>
+        dplyr::summarise(
+          n_finite = sum(is.finite(.data[[variable]])),
+          .groups = "drop"
+        )
+      bad <- finite_summary[finite_summary$n_finite < maximum_lag + 1L, , drop = FALSE]
+      if (nrow(bad)) {
+        stop("Insufficient finite observations for variable '", variable, "'.")
       }
     }
-    
+    invisible(TRUE)
+  }
+
+  ccc_lins <- function(obs, pred) {
+    valid <- is.finite(obs) & is.finite(pred)
+    obs <- obs[valid]
+    pred <- pred[valid]
+    if (length(obs) < 2L) {
+      return(list(CCC = NA_real_, Cb = NA_real_, rho = NA_real_,
+                  RMSE = NA_real_, MAE = NA_real_))
+    }
+    mean_obs <- mean(obs)
+    mean_pred <- mean(pred)
+    var_obs <- stats::var(obs)
+    var_pred <- stats::var(pred)
+    covariance <- stats::cov(obs, pred)
+    rho <- suppressWarnings(stats::cor(obs, pred))
+    ccc <- (2 * covariance) / (var_obs + var_pred + (mean_obs - mean_pred)^2)
+    cb <- if (is.finite(rho) && abs(rho) > .Machine$double.eps) ccc / rho else NA_real_
+    list(
+      CCC = as.numeric(ccc), Cb = as.numeric(cb), rho = as.numeric(rho),
+      RMSE = sqrt(mean((obs - pred)^2)), MAE = mean(abs(obs - pred))
+    )
+  }
+
+  get_linkinv_from_family <- function(family_object) {
+    if (inherits(family_object, "family") && !is.null(family_object$linkinv)) {
+      return(family_object$linkinv)
+    }
+    if (is.character(family_object)) {
+      family_name <- tolower(family_object[1])
+      if (family_name %in% c("beta", "binomial")) return(stats::plogis)
+      if (family_name %in% c("poisson", "gamma", "negbin", "negative_binomial")) return(exp)
+      if (family_name == "gaussian") return(identity)
+    }
+    stop("Could not determine the inverse-link function from `family`.")
+  }
+
+  is_gamm_object <- function(model) {
+    is.list(model) && !is.null(model$gam) && inherits(model$gam, "gam")
+  }
+
+  extract_fixed_coef <- function(model) {
+    if (inherits(model, "glmmTMB")) return(glmmTMB::fixef(model)$cond)
+    if (inherits(model, "merMod")) return(lme4::fixef(model))
+    if (is_gamm_object(model)) return(stats::coef(model$gam))
+    if (inherits(model, "lme")) return(nlme::fixef(model))
+    if (inherits(model, "gls") || inherits(model, "gam") || inherits(model, "glm")) {
+      return(stats::coef(model))
+    }
+    if (inherits(model, "HLfit")) return(spaMM::fixef(model))
+    if (inherits(model, "brmsfit")) {
+      fixed <- brms::fixef(model)
+      beta <- fixed[, "Estimate"]
+      names(beta) <- rownames(fixed)
+      return(beta)
+    }
+    if (inherits(model, "inla")) {
+      beta <- model$summary.fixed$mean
+      if (is.null(names(beta))) names(beta) <- rownames(model$summary.fixed)
+      return(beta)
+    }
+    if (inherits(model, "bdlnm") && !is.null(model$coefficients.summary)) {
+      return(model$coefficients.summary[, "mean"])
+    }
     beta <- tryCatch(stats::coef(model), error = function(e) NULL)
-    
     if (is.null(beta) || !is.numeric(beta)) {
       stop("Could not extract fixed-effect coefficients for prediction fallback.")
     }
-    
     beta
   }
-  
-  predict_response_engine <- function(fit, newdata, family, model_engine) {
-    
-    pred_try <- tryCatch({
-      
-      if (inherits(fit, "glmmTMB")) {
-        stats::predict(fit, newdata = newdata, type = "response", allow.new.levels = TRUE)
-        
-      } else if (inherits(fit, "brmsfit")) {
-        if (!requireNamespace("brms", quietly = TRUE)) {
-          stop("Package 'brms' is required for brms prediction.")
-        }
-        
-        ep <- brms::posterior_epred(
-          fit,
-          newdata = newdata,
-          re_formula = NA,
-          allow_new_levels = TRUE
+
+  predict_response_engine <- function(fitted_model, newdata, family_object) {
+    direct <- tryCatch({
+      if (inherits(fitted_model, "glmmTMB")) {
+        stats::predict(fitted_model, newdata = newdata, type = "response", allow.new.levels = TRUE)
+      } else if (inherits(fitted_model, "merMod")) {
+        stats::predict(fitted_model, newdata = newdata, type = "response",
+                       re.form = NA, allow.new.levels = TRUE)
+      } else if (inherits(fitted_model, "brmsfit")) {
+        if (!requireNamespace("brms", quietly = TRUE)) stop("Package 'brms' is required.")
+        posterior_prediction <- brms::posterior_epred(
+          fitted_model, newdata = newdata, re_formula = NA, allow_new_levels = TRUE
         )
-        
-        colMeans(ep)
-        
-      } else if (inherits(fit, "gamm")) {
-        stats::predict(fit$gam, newdata = newdata, type = "response")
-        
-      } else if (inherits(fit, "gam")) {
-        stats::predict(fit, newdata = newdata, type = "response")
-        
-      } else if (inherits(fit, "glm")) {
-        stats::predict(fit, newdata = newdata, type = "response")
-        
-      } else if (inherits(fit, "gls")) {
-        stats::predict(fit, newdata = newdata)
-        
-      } else if (inherits(fit, "lme")) {
-        stats::predict(fit, newdata = newdata, level = 0)
-        
-      } else if (inherits(fit, "HLfit")) {
-        stats::predict(fit, newdata = newdata, type = "response")
-        
+        colMeans(posterior_prediction)
+      } else if (is_gamm_object(fitted_model)) {
+        stats::predict(fitted_model$gam, newdata = newdata, type = "response")
+      } else if (inherits(fitted_model, "gam") || inherits(fitted_model, "glm")) {
+        stats::predict(fitted_model, newdata = newdata, type = "response")
+      } else if (inherits(fitted_model, "gls")) {
+        stats::predict(fitted_model, newdata = newdata)
+      } else if (inherits(fitted_model, "lme")) {
+        stats::predict(fitted_model, newdata = newdata, level = 0)
+      } else if (inherits(fitted_model, "HLfit")) {
+        stats::predict(fitted_model, newdata = newdata, type = "response")
       } else {
-        stop("No direct prediction method used.")
+        stop("No direct prediction method available.")
       }
-      
     }, error = function(e) NULL)
-    
-    if (!is.null(pred_try) && all(is.finite(as.numeric(pred_try)))) {
-      return(as.numeric(pred_try))
+
+    if (!is.null(direct) && length(direct) == nrow(newdata) &&
+        all(is.finite(as.numeric(direct)))) {
+      return(as.numeric(direct))
     }
-    
-    # Fallback: fixed-effect linear predictor
-    beta <- extract_fixed_coef(fit)
-    
-    nm <- names(beta)
-    
-    if (is.null(nm)) {
-      stop("Prediction fallback failed: coefficients have no names.")
+
+    beta <- extract_fixed_coef(fitted_model)
+    coefficient_names <- names(beta)
+    if (is.null(coefficient_names)) {
+      stop("Prediction fallback failed because coefficients have no names.")
     }
-    
+    official_columns <- attr(fitted_model, "epiexposure_cb_cols")
+    if (is.null(official_columns)) {
+      template <- attr(fitted_model, "epiexposure_data_template")
+      if (!is.null(template)) official_columns <- grep("^cb_", names(template), value = TRUE)
+    }
+    if (is.null(official_columns) || !length(official_columns)) {
+      official_columns <- grep("^cb_", coefficient_names, value = TRUE)
+    }
+    missing_design <- setdiff(official_columns, names(newdata))
+    missing_coefficients <- setdiff(official_columns, coefficient_names)
+    if (length(missing_design)) {
+      stop("Prediction fallback failed. Cross-basis columns missing from newdata: ",
+           paste(missing_design, collapse = ", "), ".")
+    }
+    if (length(missing_coefficients)) {
+      stop("Prediction fallback failed. Cross-basis coefficients missing from model: ",
+           paste(missing_coefficients, collapse = ", "), ".")
+    }
     eta <- rep(0, nrow(newdata))
-    
-    if ("(Intercept)" %in% nm) {
-      eta <- eta + as.numeric(beta["(Intercept)"])
+    if ("(Intercept)" %in% coefficient_names) eta <- eta + as.numeric(beta["(Intercept)"])
+    if (length(official_columns)) {
+      design_matrix <- as.matrix(newdata[, official_columns, drop = FALSE])
+      eta <- eta + as.numeric(design_matrix %*% as.numeric(beta[official_columns]))
     }
-    
-    fixed_terms <- intersect(setdiff(nm, "(Intercept)"), names(newdata))
-    
-    if (length(fixed_terms) == 0) {
-      stop("Prediction fallback failed: no matching fixed-effect columns found in `newdata`.")
-    }
-    
-    X <- as.matrix(newdata[, fixed_terms, drop = FALSE])
-    b <- as.numeric(beta[fixed_terms])
-    
-    eta <- eta + as.numeric(X %*% b)
-    
-    linkinv <- get_linkinv_from_family(family)
-    
+    linkinv <- get_linkinv_from_family(family_object)
     as.numeric(linkinv(eta))
   }
-  
-  check_temporal_coverage <- function(dat, vars_use, lag_max) {
-    
-    bad <- dat |>
-      dplyr::group_by(epi_id) |>
-      dplyr::summarise(n_days = dplyr::n_distinct(dpp), .groups = "drop") |>
-      dplyr::filter(n_days < lag_max + 1L)
-    
-    if (nrow(bad) > 0) {
-      stop(
-        "Some groups do not have enough temporal coverage for lag_max.\n",
-        "Required days per group: ", lag_max + 1L, "\n",
-        "Example problematic group(s): ",
-        paste(utils::head(bad$epi_id, 5), collapse = ", ")
-      )
-    }
-    
-    for (v in vars_use) {
-      bad_v <- dat |>
-        dplyr::group_by(epi_id) |>
-        dplyr::summarise(n_finite = sum(is.finite(.data[[v]])), .groups = "drop") |>
-        dplyr::filter(n_finite < lag_max + 1L)
-      
-      if (nrow(bad_v) > 0) {
-        stop(
-          "Some groups do not have enough finite observations for variable '", v, "'.\n",
-          "Required finite observations per group: ", lag_max + 1L
-        )
-      }
-    }
-    
-    invisible(TRUE)
-  }
-  
-  fit_candidate_full_data <- function(dat_long_all, vars_use, df_var, df_lag) {
-    
-    cb_templates <- define_exposure(
-      wx_long = dat_long_all,
-      vars = vars_use,
+
+  build_candidate <- function(input_data, variables, exposure_df, lag_df) {
+    templates <- define_exposure(
+      data = input_data,
+      vars = variables,
       lag_max = lag_max,
-      df_var = df_var,
-      df_lag = df_lag,
+      df_var = exposure_df,
+      df_lag = lag_df,
       fun_var = fun_var,
       fun_lag = fun_lag
     )
-    
-    X_all <- build_design(
-      wx_long = dat_long_all,
-      cb_templates = cb_templates,
+    design <- build_design(
+      data = input_data,
+      cb_templates = templates,
       lag_max = lag_max,
       include_response = TRUE
     )
-    
     if (!is.null(random_effect)) {
-      meta_all <- unique(dat_long_all[, c("epi_id", random_effect), drop = FALSE])
-      X_all <- merge(X_all, meta_all, by = "epi_id", all.x = TRUE)
+      metadata <- unique(input_data[, c("epi_id", random_effect), drop = FALSE])
+      if (anyDuplicated(metadata$epi_id)) {
+        stop("`random_effect` must be unique within each epidemic.")
+      }
+      design <- merge(design, metadata, by = "epi_id", all.x = TRUE, sort = FALSE)
     }
-    
-    dat_all <- prepare_response(
-      dat = X_all,
+    prepared <- prepare_response(
+      data = design,
       y_var = "y",
       family_choice = if (is.character(family)) family else "gaussian"
     )
-    
+    list(templates = templates, design = design, prepared = prepared)
+  }
+
+  fit_candidate <- function(candidate) {
     fit_epidlnm(
-      dat = dat_all,
+      data = candidate$prepared,
       model_engine = model_engine,
       family = family,
       random_effect = random_effect,
-      epiexposure_spec = attr(cb_templates, "spec"),
-      basis_objects = cb_templates,
+      epiexposure_spec = attr(candidate$templates, "spec"),
+      basis_objects = candidate$templates,
       ...
     )
   }
-  
-  # ------------------------------------------------------------
-  # Candidate variable sets
-  # ------------------------------------------------------------
+
   if (is.null(var_sets)) {
-    
     sizes <- seq.int(min_vars, max_vars)
-    
-    var_sets <- unlist(
-      lapply(sizes, function(k) {
-        utils::combn(vars, k, simplify = FALSE)
-      }),
-      recursive = FALSE
-    )
-    
+    var_sets <- unlist(lapply(sizes, function(size) {
+      utils::combn(vars, size, simplify = FALSE)
+    }), recursive = FALSE)
   } else {
-    
-    if (!is.list(var_sets) || length(var_sets) == 0) {
-      stop("`var_sets` must be NULL or a non-empty list of character vectors.")
+    if (!is.list(var_sets) || !length(var_sets)) {
+      stop("`var_sets` must be NULL or a non-empty list.")
     }
-    
-    bad_sets <- unique(unlist(lapply(var_sets, function(s) setdiff(s, vars))))
-    
-    if (length(bad_sets) > 0) {
-      stop(
-        "Some variables in `var_sets` are not present in `vars`: ",
-        paste(bad_sets, collapse = ", "),
-        "."
-      )
-    }
+    var_sets <- lapply(var_sets, function(set) {
+      if (!is.character(set) || !length(set) || anyNA(set) ||
+          any(!nzchar(set)) || anyDuplicated(set)) {
+        stop("Every element of `var_sets` must contain unique non-empty variable names.")
+      }
+      missing <- setdiff(set, vars)
+      if (length(missing)) {
+        stop("Variables in `var_sets` not listed in `vars`: ",
+             paste(missing, collapse = ", "), ".")
+      }
+      sort(set)
+    })
+    keys <- vapply(var_sets, paste, collapse = "||", character(1))
+    var_sets <- var_sets[!duplicated(keys)]
   }
-  
-  # ------------------------------------------------------------
-  # Common checks
-  # ------------------------------------------------------------
-  check_temporal_coverage(dat_long, vars, lag_max)
-  
-  fold_ids <- unique(dat_long$epi_id)
-  
-  if (length(fold_ids) < 2L) {
-    stop("At least two groups are required for LOOCV.")
+
+  check_temporal_coverage(data_long, vars, lag_max)
+  fold_ids <- unique(data_long$epi_id)
+  if (length(fold_ids) < 2L) stop("At least two groups are required for LOOCV.")
+  if (min_success > length(fold_ids)) {
+    stop("`min_success` cannot exceed the number of LOOCV groups.")
   }
-  
-  # ------------------------------------------------------------
-  # Main loop
-  # ------------------------------------------------------------
+
   results <- list()
   predictions <- list()
   failures <- list()
   fits_list <- list()
-  
   model_id <- 1L
-  pred_id <- 1L
-  fail_id <- 1L
-  
+  prediction_id <- 1L
+  failure_id <- 1L
   total_candidates <- length(df_var_grid) * length(df_lag_grid) * length(var_sets)
   candidate_id <- 1L
-  
-  for (df_var in df_var_grid) {
-    for (df_lag in df_lag_grid) {
-      for (vars_use in var_sets) {
-        
+
+  for (exposure_df in df_var_grid) {
+    for (lag_df in df_lag_grid) {
+      for (variables in var_sets) {
         if (verbose) {
-          message(
-            "[", candidate_id, "/", total_candidates, "] ",
-            "df_var = ", df_var,
-            ", df_lag = ", df_lag,
-            ", vars = ", paste(vars_use, collapse = " + ")
-          )
+          message("[", candidate_id, "/", total_candidates, "] df_var = ",
+                  exposure_df, ", df_lag = ", lag_df,
+                  ", vars = ", paste(variables, collapse = " + "))
         }
-        
         candidate_id <- candidate_id + 1L
-        
-        obs_all <- rep(NA_real_, length(fold_ids))
-        pred_all <- rep(NA_real_, length(fold_ids))
+        observed <- rep(NA_real_, length(fold_ids))
+        predicted <- rep(NA_real_, length(fold_ids))
         success <- rep(FALSE, length(fold_ids))
-        
-        for (fold_i in seq_along(fold_ids)) {
-          
-          test_group <- fold_ids[fold_i]
-          train_groups <- setdiff(fold_ids, test_group)
-          
-          dat_train_long <- dat_long[dat_long$epi_id %in% train_groups, , drop = FALSE]
-          dat_test_long  <- dat_long[dat_long$epi_id == test_group, , drop = FALSE]
-          
-          fold_res <- tryCatch({
-            
-            cb_templates <- define_exposure(
-              wx_long = dat_train_long,
-              vars = vars_use,
-              lag_max = lag_max,
-              df_var = df_var,
-              df_lag = df_lag,
-              fun_var = fun_var,
-              fun_lag = fun_lag
-            )
-            
-            X_train <- build_design(
-              wx_long = dat_train_long,
-              cb_templates = cb_templates,
+
+        for (fold_index in seq_along(fold_ids)) {
+          test_group <- fold_ids[fold_index]
+          train_data <- data_long[data_long$epi_id != test_group, , drop = FALSE]
+          test_data <- data_long[data_long$epi_id == test_group, , drop = FALSE]
+
+          fold_result <- tryCatch({
+            training_candidate <- build_candidate(train_data, variables, exposure_df, lag_df)
+            fitted_model <- fit_candidate(training_candidate)
+            test_templates <- training_candidate$templates
+            test_design <- build_design(
+              data = test_data,
+              cb_templates = test_templates,
               lag_max = lag_max,
               include_response = TRUE
             )
-            
-            X_test <- build_design(
-              wx_long = dat_test_long,
-              cb_templates = cb_templates,
-              lag_max = lag_max,
-              include_response = TRUE
-            )
-            
             if (!is.null(random_effect)) {
-              
-              meta_train <- unique(dat_train_long[, c("epi_id", random_effect), drop = FALSE])
-              meta_test  <- unique(dat_test_long[,  c("epi_id", random_effect), drop = FALSE])
-              
-              X_train <- merge(X_train, meta_train, by = "epi_id", all.x = TRUE)
-              X_test  <- merge(X_test,  meta_test,  by = "epi_id", all.x = TRUE)
+              test_metadata <- unique(test_data[, c("epi_id", random_effect), drop = FALSE])
+              if (anyDuplicated(test_metadata$epi_id)) {
+                stop("`random_effect` must be unique within the held-out epidemic.")
+              }
+              test_design <- merge(test_design, test_metadata, by = "epi_id",
+                                   all.x = TRUE, sort = FALSE)
             }
-            
-            dat_train <- prepare_response(
-              dat = X_train,
+            prepared_test <- prepare_response(
+              data = test_design,
               y_var = "y",
               family_choice = if (is.character(family)) family else "gaussian"
             )
-            
-            dat_test <- prepare_response(
-              dat = X_test,
-              y_var = "y",
-              family_choice = if (is.character(family)) family else "gaussian"
-            )
-            
-            fit <- fit_epidlnm(
-              dat = dat_train,
-              model_engine = model_engine,
-              family = family,
-              random_effect = random_effect,
-              epiexposure_spec = attr(cb_templates, "spec"),
-              basis_objects = cb_templates,
-              ...
-            )
-            
-            pred <- predict_response_engine(
-              fit = fit,
-              newdata = dat_test,
-              family = family,
-              model_engine = model_engine
-            )
-            
-            list(
-              obs = dat_test$y_model[1],
-              pred = as.numeric(pred[1])
-            )
-            
+            prediction <- predict_response_engine(fitted_model, prepared_test, family)
+            list(obs = prepared_test$y_model[1], pred = as.numeric(prediction[1]))
           }, error = function(e) {
-            
-            failures[[fail_id]] <<- data.frame(
-              model_id = model_id,
-              fold = fold_i,
-              group = as.character(test_group),
-              df_var = df_var,
-              df_lag = df_lag,
-              vars = paste(vars_use, collapse = " + "),
-              error = conditionMessage(e),
-              stringsAsFactors = FALSE
+            failures[[failure_id]] <<- data.frame(
+              model_id = model_id, fold = fold_index, group = as.character(test_group),
+              df_var = exposure_df, df_lag = lag_df,
+              vars = paste(variables, collapse = " + "),
+              error = conditionMessage(e), stringsAsFactors = FALSE
             )
-            
-            fail_id <<- fail_id + 1L
+            failure_id <<- failure_id + 1L
             NULL
           })
-          
-          if (!is.null(fold_res)) {
-            
-            obs_all[fold_i] <- fold_res$obs
-            pred_all[fold_i] <- fold_res$pred
-            success[fold_i] <- TRUE
-            
-            predictions[[pred_id]] <- data.frame(
-              model_id = model_id,
-              fold = fold_i,
-              group = as.character(test_group),
-              df_var = df_var,
-              df_lag = df_lag,
-              vars = paste(vars_use, collapse = " + "),
-              observed = fold_res$obs,
-              predicted = fold_res$pred,
+
+          if (!is.null(fold_result) && is.finite(fold_result$obs) && is.finite(fold_result$pred)) {
+            observed[fold_index] <- fold_result$obs
+            predicted[fold_index] <- fold_result$pred
+            success[fold_index] <- TRUE
+            predictions[[prediction_id]] <- data.frame(
+              model_id = model_id, fold = fold_index, group = as.character(test_group),
+              df_var = exposure_df, df_lag = lag_df,
+              vars = paste(variables, collapse = " + "),
+              observed = fold_result$obs, predicted = fold_result$pred,
               stringsAsFactors = FALSE
             )
-            
-            pred_id <- pred_id + 1L
+            prediction_id <- prediction_id + 1L
           }
         }
-        
+
         n_success <- sum(success)
         n_failed <- length(fold_ids) - n_success
-        
         if (n_success >= min_success) {
-          
-          metrics <- ccc_lins(
-            obs = obs_all[success],
-            pred = pred_all[success]
-          )
-          
+          metrics <- ccc_lins(observed[success], predicted[success])
           results[[length(results) + 1L]] <- data.frame(
-            model_id = model_id,
-            df_var = df_var,
-            df_lag = df_lag,
-            vars = paste(vars_use, collapse = " + "),
-            n_vars = length(vars_use),
-            CCC = metrics$CCC,
-            Cb = metrics$Cb,
-            rho = metrics$rho,
-            RMSE = metrics$RMSE,
-            MAE = metrics$MAE,
-            n_folds = length(fold_ids),
-            n_success = n_success,
-            n_failed = n_failed,
+            model_id = model_id, df_var = exposure_df, df_lag = lag_df,
+            vars = paste(variables, collapse = " + "), n_vars = length(variables),
+            CCC = metrics$CCC, Cb = metrics$Cb, rho = metrics$rho,
+            RMSE = metrics$RMSE, MAE = metrics$MAE,
+            n_folds = length(fold_ids), n_success = n_success, n_failed = n_failed,
             stringsAsFactors = FALSE
           )
-          
-          if (isTRUE(keep_fits)) {
-            
-            full_fit <- tryCatch(
-              fit_candidate_full_data(
-                dat_long_all = dat_long,
-                vars_use = vars_use,
-                df_var = df_var,
-                df_lag = df_lag
-              ),
-              error = function(e) {
-                failures[[fail_id]] <<- data.frame(
-                  model_id = model_id,
-                  fold = NA_integer_,
-                  group = NA_character_,
-                  df_var = df_var,
-                  df_lag = df_lag,
-                  vars = paste(vars_use, collapse = " + "),
-                  error = paste0("Full-data refit failed: ", conditionMessage(e)),
-                  stringsAsFactors = FALSE
-                )
-                fail_id <<- fail_id + 1L
-                NULL
-              }
-            )
-            
-            if (!is.null(full_fit)) {
-              fits_list[[as.character(model_id)]] <- full_fit
-            }
+          if (keep_fits) {
+            full_fit <- tryCatch({
+              fit_candidate(build_candidate(data_long, variables, exposure_df, lag_df))
+            }, error = function(e) {
+              failures[[failure_id]] <<- data.frame(
+                model_id = model_id, fold = NA_integer_, group = NA_character_,
+                df_var = exposure_df, df_lag = lag_df,
+                vars = paste(variables, collapse = " + "),
+                error = paste0("Full-data refit failed: ", conditionMessage(e)),
+                stringsAsFactors = FALSE
+              )
+              failure_id <<- failure_id + 1L
+              NULL
+            })
+            if (!is.null(full_fit)) fits_list[[as.character(model_id)]] <- full_fit
           }
         }
-        
         model_id <- model_id + 1L
       }
     }
   }
-  
-  if (length(results) == 0) {
-    stop("No candidate model produced enough successful LOOCV predictions.")
-  }
-  
-  results_df <- do.call(rbind, results)
-  
-  results_df <- results_df[order(
-    -results_df$CCC,
-    -results_df$Cb,
-    -results_df$rho,
-    results_df$RMSE,
-    results_df$MAE
+
+  if (!length(results)) stop("No candidate model produced enough successful LOOCV predictions.")
+  results_data <- do.call(rbind, results)
+  results_data <- results_data[order(
+    -results_data$CCC, -results_data$Cb, -results_data$rho,
+    results_data$RMSE, results_data$MAE, na.last = TRUE
   ), , drop = FALSE]
-  
-  results_df$rank <- seq_len(nrow(results_df))
-  results_df <- results_df[, c("rank", setdiff(names(results_df), "rank")), drop = FALSE]
-  
-  if (is.finite(top_n)) {
-    results_df <- utils::head(results_df, top_n)
+  results_data$rank <- seq_len(nrow(results_data))
+  results_data <- results_data[, c("rank", setdiff(names(results_data), "rank")), drop = FALSE]
+  if (is.finite(top_n)) results_data <- utils::head(results_data, top_n)
+  rownames(results_data) <- NULL
+
+  prediction_data <- if (length(predictions)) do.call(rbind, predictions) else data.frame()
+  failure_data <- if (length(failures)) do.call(rbind, failures) else data.frame()
+  attr(results_data, "predictions") <- prediction_data
+  attr(results_data, "failures") <- failure_data
+  if (keep_fits) {
+    retained_ids <- as.character(results_data$model_id)
+    attr(results_data, "fits") <- fits_list[names(fits_list) %in% retained_ids]
   }
-  
-  pred_df <- if (length(predictions) > 0) {
-    do.call(rbind, predictions)
-  } else {
-    data.frame()
-  }
-  
-  fail_df <- if (length(failures) > 0) {
-    do.call(rbind, failures)
-  } else {
-    data.frame()
-  }
-  
-  attr(results_df, "predictions") <- pred_df
-  attr(results_df, "failures") <- fail_df
-  
-  if (isTRUE(keep_fits)) {
-    keep_ids <- as.character(results_df$model_id)
-    fits_list <- fits_list[names(fits_list) %in% keep_ids]
-    attr(results_df, "fits") <- fits_list
-  }
-  
-  results_df
+
+  results_data
 }

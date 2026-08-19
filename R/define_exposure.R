@@ -1,16 +1,30 @@
 #' Define DLNM exposure templates with flexible splines
 #'
-#' @param wx_long Long-format weather data (epi_id, dpp, variables)
-#' @param vars Character vector of exposure variables
-#' @param lag_max Maximum lag
-#' @param df_var Degrees of freedom for exposure dimension
-#' @param df_lag Degrees of freedom for lag dimension
-#' @param fun_var Basis function for exposure ("ns","bs","poly","lin")
-#' @param fun_lag Basis function for lag ("ns","ps","lin")
+#' Creates DLNM exposure templates from long-format exposure histories.
 #'
-#' @return Named list of crossbasis templates (with attribute "spec")
+#' The input dataset must contain:
+#' - `epi_id`: epidemic identifier
+#' - `time`: time index
+#'
+#' Exposure histories must be supplied in chronological order,
+#' from the earliest observation to the most recent observation
+#' prior to disease assessment.
+#'
+#' Internal conversion to the lag structure required by DLNMs is
+#' handled automatically through the cross-basis representation.
+#'
+#' @param data Long-format exposure dataset.
+#' @param vars Character vector of exposure variables.
+#' @param lag_max Maximum lag.
+#' @param df_var Degrees of freedom for the exposure dimension.
+#' @param df_lag Degrees of freedom for the lag dimension.
+#' @param fun_var Basis function for exposure ("ns", "bs", "poly", "lin").
+#' @param fun_lag Basis function for lag ("ns", "ps", "lin").
+#'
+#' @return A named list of crossbasis templates with attribute `"spec"`.
+#'
 #' @export
-define_exposure <- function(wx_long, vars,
+define_exposure <- function(data, vars,
                             lag_max,
                             df_var = 4,
                             df_lag = 4,
@@ -27,13 +41,13 @@ define_exposure <- function(wx_long, vars,
   # ✅ CHECKS BÁSICOS
   # =========================================================
   stopifnot(
-    all(c("epi_id", "dpp") %in% names(wx_long)),
+    all(c("epi_id", "time") %in% names(data)),
     fun_var %in% c("ns", "bs", "poly", "lin"),
     fun_lag %in% c("ns", "ps", "lin")
   )
 
   for (v in vars) {
-    stopifnot(v %in% names(wx_long))
+    stopifnot(v %in% names(data))
   }
 
   # =========================================================
@@ -46,7 +60,7 @@ define_exposure <- function(wx_long, vars,
 
     bad_ids <- dat |>
       dplyr::group_by(epi_id) |>
-      dplyr::summarise(n_days = dplyr::n_distinct(dpp), .groups = "drop") |>
+      dplyr::summarise(n_days = dplyr::n_distinct(time), .groups = "drop") |>
       dplyr::filter(n_days < n_required)
 
     if (nrow(bad_ids) > 0) {
@@ -61,7 +75,7 @@ define_exposure <- function(wx_long, vars,
     }
   }
 
-  .check_lag_coverage(wx_long, lag_max)
+  .check_lag_coverage(data, lag_max)
 
   # =========================================================
   # ✅ pooled series
@@ -74,7 +88,7 @@ define_exposure <- function(wx_long, vars,
     for (i in seq_along(ids)) {
       v <- dat |>
         dplyr::filter(epi_id == ids[i]) |>
-        dplyr::arrange(dpp) |>
+        dplyr::arrange(time) |>
         dplyr::pull(.data[[var]])
 
       out[[i]] <- c(v, rep(NA_real_, sep_n))
@@ -87,7 +101,7 @@ define_exposure <- function(wx_long, vars,
 
   for (v in vars) {
 
-    x_pool <- build_pooled(wx_long, v, lag_max)
+    x_pool <- build_pooled(data, v, lag_max)
 
     # =========================================================
     # ✅ argvar: exposure

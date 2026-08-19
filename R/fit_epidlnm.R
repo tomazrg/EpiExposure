@@ -1,6 +1,6 @@
 #' Fit DLNM inferential model
 #'
-#' @param dat Design matrix containing y_model and cb_* terms
+#' @param data Design matrix containing y_model and cb_* terms
 #' @param model_engine Modeling engine
 #'   ("glm","glmmTMB","gam","gamm","gls","spamm","brms","inla","bdlnm")
 #' @param family Distribution (engine-specific; can be character or family object)
@@ -20,7 +20,7 @@
 #'
 #' @return Fitted model object (same class as before), with extra attributes
 #' @export
-fit_epidlnm <- function(dat,
+fit_epidlnm <- function(data,
                         model_engine,
                         family,
                         random_effect = NULL,
@@ -31,12 +31,12 @@ fit_epidlnm <- function(dat,
   # -------------------------------
   # Basic validation
   # -------------------------------
-  if (!is.data.frame(dat)) {
-    stop("`dat` must be a data.frame.")
+  if (!is.data.frame(data)) {
+    stop("`data` must be a data.frame.")
   }
 
-  if (!"y_model" %in% names(dat)) {
-    stop("`dat` must contain a column named 'y_model'.")
+  if (!"y_model" %in% names(data)) {
+    stop("`data` must contain a column named 'y_model'.")
   }
 
   model_engine <- match.arg(
@@ -86,11 +86,11 @@ fit_epidlnm <- function(dat,
     cols[ord]
   }
 
-  cb_cols <- grep("^cb_", names(dat), value = TRUE)
+  cb_cols <- grep("^cb_", names(data), value = TRUE)
   cb_cols <- sort_cb_cols(cb_cols)
 
   if (length(cb_cols) == 0 && model_engine != "bdlnm") {
-    stop("No cb_* columns found in `dat`.")
+    stop("No cb_* columns found in `data`.")
   }
 
   # -------------------------------
@@ -110,13 +110,13 @@ fit_epidlnm <- function(dat,
   # -------------------------------
   attach_epiexposure_meta <- function(model_obj) {
 
-    dat_template <- dat[1, , drop = FALSE]
+    data_template <- data[1, , drop = FALSE]
 
     attr(model_obj, "epiexposure_engine") <- model_engine
     attr(model_obj, "epiexposure_family") <- family
     attr(model_obj, "epiexposure_cb_cols") <- cb_cols
     attr(model_obj, "epiexposure_vars") <- vars_inferred
-    attr(model_obj, "epiexposure_dat_template") <- dat_template
+    attr(model_obj, "epiexposure_data_template") <- data_template
     attr(model_obj, "epiexposure_id_col") <- if (!is.null(random_effect)) random_effect else NULL
     attr(model_obj, "epiexposure_spec") <- epiexposure_spec
     attr(model_obj, "epiexposure_basis_objects") <- basis_objects
@@ -161,7 +161,7 @@ fit_epidlnm <- function(dat,
       )
     }
 
-    mod <- glm(fml, data = dat, family = fam, ...)
+    mod <- glm(fml, data = data, family = fam, ...)
     return(attach_epiexposure_meta(mod))
   }
 
@@ -183,7 +183,7 @@ fit_epidlnm <- function(dat,
       )
     }
 
-    mod <- glmmTMB::glmmTMB(fml, data = dat, family = fam, ...)
+    mod <- glmmTMB::glmmTMB(fml, data = data, family = fam, ...)
     return(attach_epiexposure_meta(mod))
   }
 
@@ -193,7 +193,7 @@ fit_epidlnm <- function(dat,
       stop("Package 'mgcv' is required for GAM.")
     }
 
-    mod <- mgcv::gam(fml, data = dat, family = family, ...)
+    mod <- mgcv::gam(fml, data = data, family = family, ...)
     return(attach_epiexposure_meta(mod))
   }
 
@@ -203,13 +203,13 @@ fit_epidlnm <- function(dat,
       stop("Package 'mgcv' is required for GAMM.")
     }
 
-    mod <- mgcv::gamm(fml, data = dat, family = family, ...)
+    mod <- mgcv::gamm(fml, data = data, family = family, ...)
     return(attach_epiexposure_meta(mod))
   }
 
   if (model_engine == "gls") {
 
-    mod <- nlme::gls(fml, data = dat, ...)
+    mod <- nlme::gls(fml, data = data, ...)
     return(attach_epiexposure_meta(mod))
   }
 
@@ -219,7 +219,7 @@ fit_epidlnm <- function(dat,
       stop("Package 'spaMM' is required for spatial mixed models.")
     }
 
-    mod <- spaMM::fitme(fml, data = dat, family = family, ...)
+    mod <- spaMM::fitme(fml, data = data, family = family, ...)
     return(attach_epiexposure_meta(mod))
   }
 
@@ -234,7 +234,7 @@ fit_epidlnm <- function(dat,
 
     mod <- brms::brm(
       formula = fml,
-      data    = dat,
+      data    = data,
       family  = family,
       ...
     )
@@ -259,7 +259,7 @@ fit_epidlnm <- function(dat,
 
     mod <- INLA::inla(
       formula = fml_inla,
-      data    = dat,
+      data    = data,
       family  = family,
       ...
     )
@@ -309,7 +309,7 @@ fit_epidlnm <- function(dat,
 
     mod <- bdlnm::bdlnm(
       formula = fml_bdlnm,
-      data    = dat,
+      data    = data,
       family  = family,
       ...
     )
