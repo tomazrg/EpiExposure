@@ -848,25 +848,86 @@ epi_l |>
   ggplot(aes(value,effect))+
   geom_smooth()
 
+
+
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+library(scales)
+library(metR)
+
+
+# 2a) (optional but very useful) "trim" outliers for the color scale
+#     and enforce symmetric limits around zero:
+lims <- quantile(epi_l$effect, c(0.02, 0.98), na.rm = TRUE)
+max_abs <- max(abs(lims))
+epi_plot <- epi_l %>%
+  mutate(PERC_c = pmax(pmin(effect,  max_abs), -max_abs))
+
+# 2b) Heatmap + countour lines
+tmean_movel = epi_plot %>% 
+  filter(var == "tmean") |> 
+ggplot(aes(x = lag, y = value, fill = PERC_c)) +
+  # interpolated raster looks smoother on screen
+  geom_tile(interpolate = TRUE) +
+  # contour lines (0% and ±5, ±10, ±15...)
+  #geom_contour(aes(z = PERC), color = "black", size = 0.25,
+   #            breaks = c(-15, -10, -5, 0, 5, 10, 15)) +
+  # label only the zero contour (neutral) to guide interpretation
+  geom_text_contour(aes(z = effect), breaks = 0, stroke = 0.15,
+                    label.padding = unit(0.15, "lines"), size = 3.2) +
+  # perceptual palette centered at 0 (diverging)
+scale_fill_gradient2(
+  low = "#2c7bb6", mid = "white", high = "#d7191c",
+  midpoint = 0, limits = c(-max_abs, max_abs),
+  oob = squish,
+  name = "RR (%)",
+  guide = guide_colorbar(
+    barwidth  = unit(4, "cm"),  
+    barheight = unit(0.5, "cm")
+  )
+)+
+  #scale_x_reverse()+
+  scale_x_continuous(trans = "reverse",
+    breaks = pretty(epi_l$lag, n = 8), expand = c(0, 0)) +
+  scale_y_continuous(breaks = pretty(epi_l$wetness, n = 6), expand = c(0, 0)) +
+  coord_cartesian(clip = "off") +
+  labs(
+    x = "Lag (days)",
+    y = "Temperature (°C)") +
+  theme_bw(base_size = 12) +
+  theme(
+    panel.grid = element_blank(),
+    axis.title = element_text(face = "bold", size = 12),
+    axis.text  = element_text(size = 10),
+    legend.title = element_text(face = "bold"),
+    plot.title = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(size = 10),
+    legend.position = "top"
+  )
+
+tmean_movel
 ```
 
 ```{r}
 
-period  = define_periods(lag_max = 85, cuts = c(41,85), prefix = "Period")
+period  = define_periods(lag_max = 85, cuts = c(40,85), prefix = "Period")
 
-epi_l = summarise_effects(fit = fit, data = sim_data,
+epi_p = summarise_effects(fit = fit, data = sim_data,
                   scale = "accumulated", effect_measure = "percent",
                   lag_periods = period,
                   uncertainty = TRUE, n_samples = 20,
                   output = "samples")
 
 
-epi_l |> 
-  filter(var == "rain") |> 
-  filter(period == "Period1") |> 
-  ggplot(aes(value,effect))+
+epi_p |> 
+  filter(var == "wetness") |> 
+  filter(period == "Period2") |> 
+  ggplot(aes(value,eta))+
   geom_smooth()+
   theme_bw()
+
 ```
 
 
