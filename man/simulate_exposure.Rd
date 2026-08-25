@@ -2,18 +2,18 @@
 % Please edit documentation in R/simulate_exposure.R
 \name{simulate_exposure}
 \alias{simulate_exposure}
-\title{Simulate exposure history across lags (full or patterned)}
+\title{Simulate exposure profiles}
 \usage{
 simulate_exposure(
   lag_max,
   n = 1,
   mode = c("profile", "pattern"),
-  pattern = c("random_lags", "alternating_lags", "block_lags"),
+  pattern = c("random_times", "alternating_times", "block_times"),
   fixed_value = NULL,
-  n_lags = NULL,
-  lag_range = NULL,
+  n_times = NULL,
+  time_range = NULL,
   alternating_values = NULL,
-  block_lags = NULL,
+  block_times = NULL,
   background = list(dist = "normal", mean = 0, sd = 1),
   bounds = NULL,
   seed = NULL,
@@ -21,36 +21,71 @@ simulate_exposure(
 )
 }
 \arguments{
-\item{lag_max}{Integer. Maximum lag (profile length = lag_max + 1)}
+\item{lag_max}{Non-negative integer maximum lag. The generated profile has
+length `lag_max + 1` and chronological names from `time_0` to
+`time_<lag_max>`.}
 
-\item{n}{Integer. Number of simulations (default = 1)}
+\item{n}{Positive integer number of profiles to simulate. Default is 1.}
 
-\item{mode}{Character. "profile" or "pattern"}
+\item{mode}{Character. `"profile"` simulates only the background process;
+`"pattern"` also applies the selected chronological pattern.}
 
-\item{pattern}{Character. Pattern type (used only if mode = "pattern")}
+\item{pattern}{Character pattern used when `mode = "pattern"`:
+`"random_times"`, `"alternating_times"`, or `"block_times"`.}
 
-\item{fixed_value}{Numeric. Value for pattern-controlled lags}
+\item{fixed_value}{Finite numeric scalar assigned to selected chronological
+times for `"random_times"` and `"block_times"`.}
 
-\item{n_lags}{Integer for "random_lags"}
+\item{n_times}{Positive integer number of chronological times selected by
+`"random_times"`.}
 
-\item{lag_range}{Integer vector of lags}
+\item{time_range}{Optional integer vector identifying eligible chronological
+times. Values must lie between 0 and `lag_max`. If `NULL`, every
+chronological time is eligible.}
 
-\item{alternating_values}{Numeric vector (>=2)}
+\item{alternating_values}{Finite numeric vector with at least two values,
+recycled chronologically over `time_range` for `"alternating_times"`.}
 
-\item{block_lags}{Integer length-2}
+\item{block_times}{Integer vector of length 2 defining the first and final
+chronological times of the inclusive block used by `"block_times"`.}
 
-\item{background}{List controlling background}
+\item{background}{Named list controlling the background process. Supported
+distributions are `"normal"`, `"empirical"`, `"ar1"`, and `"fixed"`.}
 
-\item{bounds}{Optional numeric length-2}
+\item{bounds}{Optional finite numeric vector of length 2. Bounds are applied
+to the simulated background and again after applying the pattern.}
 
-\item{seed}{Optional seed}
+\item{seed}{Optional finite integer seed. When supplied, the complete set of
+simulations is reproducible.}
 
-\item{cumulative}{Logical. If TRUE, returns cumulative (cumsum) profile}
+\item{cumulative}{Logical. If `TRUE`, applies `cumsum()` in chronological
+order after the pattern and bounds have been applied. In this case,
+`bounds` constrain the exposure increments, not the final cumulative values.}
 }
 \value{
-- If n = 1: list(profile, meta)
-- If n > 1: list(profiles, meta)
+If `n = 1`, a list with `profile` and `meta`. If `n > 1`, a list with
+  `profiles` and `meta`. Every profile is ordered chronologically and named
+  `time_0`, `time_1`, ..., `time_<lag_max>`.
 }
 \description{
-Creates one or multiple exposure-lag profiles of length (lag_max + 1)
+Generates one or more exposure profiles in chronological order, from the
+earliest observation to the most recent observation. The first profile value
+corresponds internally to the maximum retrospective lag, whereas the final
+profile value corresponds internally to lag 0.
+}
+\details{
+All user-facing pattern arguments are expressed in chronological time rather
+than retrospective lag. Therefore, `time = 0` always identifies the earliest
+observation and `time = lag_max` identifies the most recent observation.
+
+
+The returned order is always:
+
+`time_0` = earliest observation = internal lag `lag_max`
+
+`time_<lag_max>` = most recent observation = internal lag 0
+
+The backward lag mapping is stored in `meta$retrospective_lag` and is not
+exposed through the pattern arguments. Users specify all patterns in
+chronological time.
 }

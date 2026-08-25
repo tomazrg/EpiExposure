@@ -51,7 +51,8 @@ absolute weights.}
 \item{output}{Character. `"summary"` or `"samples"`. This argument only
 changes the returned object when `uncertainty = TRUE`.}
 
-\item{n_samples}{Positive integer number of coefficient draws.}
+\item{n_samples}{Positive integer number of coefficient draws. At least two
+draws are required when `uncertainty = TRUE`.}
 }
 \value{
 For one profile-variable combination, a list containing `ECI_raw`,
@@ -78,10 +79,28 @@ lag 0. The function does not reverse the profile before constructing the
 cross-basis. The final cross-basis row performs the retrospective lag mapping.
 
 All weighted ECI estimates, numerical-derivative weights, and lag-specific
-contributions are returned on the linear-predictor scale.
+contributions are returned on the linear-predictor scale. Therefore, this
+function does not apply a response-scale or percent transformation. The
+interpretation warning for percent effects under log versus logit links does
+not apply to this function.
 
 Lag-specific weights are numerical derivatives of the DLNM contribution:
 \deqn{w_l(x) \approx [\eta(x + \epsilon e_l)-\eta(x)]/\epsilon}
 or the corresponding central difference. Contributions are calculated as
 \deqn{contribution_l = x_l w_l(x)}.
+
+When `uncertainty = FALSE`, estimates are computed using the central
+coefficient estimates provided by the fitted model. For Bayesian engines,
+these are the coefficient means returned by the fitted object. No single
+posterior draw is used as a deterministic estimate.
+
+When `uncertainty = TRUE`, estimates are computed for each coefficient draw
+and summarized using the median as the central estimate, together with the
+standard deviation and empirical 2.5% and 97.5% quantiles. Consequently,
+deterministic estimates and medians of draw-specific estimates may differ.
+
+Frequentist uncertainty is approximated from the asymptotic multivariate
+normal coefficient distribution. `brms`, INLA, and `bdlnm` models use
+posterior coefficient draws when available. The function does not call
+`posterior_linpred()`, `posterior_epred()`, or `posterior_predict()`.
 }

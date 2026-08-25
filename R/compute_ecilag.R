@@ -29,7 +29,8 @@
 #' @param uncertainty Logical. If `TRUE`, propagate coefficient uncertainty.
 #' @param output Character. `"summary"` or `"samples"`. This argument only
 #'   changes the returned object when `uncertainty = TRUE`.
-#' @param n_samples Positive integer number of coefficient draws.
+#' @param n_samples Positive integer number of coefficient draws. At least two
+#'   draws are required when `uncertainty = TRUE`.
 #'
 #' @return For one profile-variable combination, a list containing `ECI_raw`,
 #'   `ECI_weighted`, and `by_lag`. With uncertainty, ECI uncertainty summaries
@@ -44,12 +45,30 @@
 #' cross-basis. The final cross-basis row performs the retrospective lag mapping.
 #'
 #' All weighted ECI estimates, numerical-derivative weights, and lag-specific
-#' contributions are returned on the linear-predictor scale.
+#' contributions are returned on the linear-predictor scale. Therefore, this
+#' function does not apply a response-scale or percent transformation. The
+#' interpretation warning for percent effects under log versus logit links does
+#' not apply to this function.
 #'
 #' Lag-specific weights are numerical derivatives of the DLNM contribution:
 #' \deqn{w_l(x) \approx [\eta(x + \epsilon e_l)-\eta(x)]/\epsilon}
 #' or the corresponding central difference. Contributions are calculated as
 #' \deqn{contribution_l = x_l w_l(x)}.
+#'
+#' When `uncertainty = FALSE`, estimates are computed using the central
+#' coefficient estimates provided by the fitted model. For Bayesian engines,
+#' these are the coefficient means returned by the fitted object. No single
+#' posterior draw is used as a deterministic estimate.
+#'
+#' When `uncertainty = TRUE`, estimates are computed for each coefficient draw
+#' and summarized using the median as the central estimate, together with the
+#' standard deviation and empirical 2.5% and 97.5% quantiles. Consequently,
+#' deterministic estimates and medians of draw-specific estimates may differ.
+#'
+#' Frequentist uncertainty is approximated from the asymptotic multivariate
+#' normal coefficient distribution. `brms`, INLA, and `bdlnm` models use
+#' posterior coefficient draws when available. The function does not call
+#' `posterior_linpred()`, `posterior_epred()`, or `posterior_predict()`.
 #'
 #' @export
 compute_ecilag <- function(
@@ -82,10 +101,13 @@ compute_ecilag <- function(
     stop("`uncertainty` must be TRUE or FALSE.")
   }
   if (!is.numeric(n_samples) || length(n_samples) != 1L ||
-      !is.finite(n_samples) || n_samples <= 0) {
+      !is.finite(n_samples) || n_samples <= 0 || n_samples != as.integer(n_samples)) {
     stop("`n_samples` must be a positive integer.")
   }
   n_samples <- as.integer(n_samples)
+  if (uncertainty && n_samples < 2L) {
+    stop("`n_samples` must be at least 2 when `uncertainty = TRUE`.")
+  }
 
   `%||%` <- function(a, b) if (!is.null(a)) a else b
 
@@ -127,27 +149,21 @@ compute_ecilag <- function(
 
     if (!is.null(stored_cb_columns)) {
       stored <- sort_cb_names(grep(
-        paste0("^cb_", variable, "_"),
-        stored_cb_columns,
-        value = TRUE
+        paste0("^cb_", variable, "_"), stored_cb_columns, value = TRUE
       ))
       matched <- stored[stored %in% coefficient_names]
     }
 
     if (!length(matched) && !is.null(data_template)) {
       template <- sort_cb_names(grep(
-        paste0("^cb_", variable, "_"),
-        names(data_template),
-        value = TRUE
+        paste0("^cb_", variable, "_"), names(data_template), value = TRUE
       ))
       matched <- template[template %in% coefficient_names]
     }
 
     if (!length(matched)) {
       matched <- sort_cb_names(grep(
-        paste0("^cb_", variable, "_"),
-        coefficient_names,
-        value = TRUE
+        paste0("^cb_", variable, "_"), coefficient_names, value = TRUE
       ))
     }
 
@@ -158,7 +174,6 @@ compute_ecilag <- function(
         length(matched), "."
       )
     }
-
     matched
   }
 
@@ -184,52 +199,43 @@ compute_ecilag <- function(
       beta = glmmTMB::fixef(model)$cond,
       vcov = as.matrix(stats::vcov(model)$cond)
     ))
-
     if (inherits(model, "merMod")) return(list(
       beta = lme4::fixef(model),
       vcov = as.matrix(stats::vcov(model))
     ))
-
     if (inherits(model, "lme")) return(list(
       beta = nlme::fixef(model),
       vcov = as.matrix(stats::vcov(model))
     ))
-
     if (inherits(model, "gls")) return(list(
       beta = stats::coef(model),
       vcov = as.matrix(stats::vcov(model))
     ))
-
     if (is.list(model) && !is.null(model$gam) && inherits(model$gam, "gam")) {
       return(list(
         beta = stats::coef(model$gam),
         vcov = as.matrix(stats::vcov(model$gam))
       ))
     }
-
     if (inherits(model, "glm") || inherits(model, "gam")) return(list(
       beta = stats::coef(model),
       vcov = as.matrix(stats::vcov(model))
     ))
-
     if (inherits(model, "HLfit")) {
       covariance_matrix <- tryCatch(
-        as.matrix(stats::vcov(model)),
-        error = function(e) NULL
+        as.matrix(stats::vcov(model)), error = function(e) NULL
       )
       if (is.null(covariance_matrix)) {
         stop("Could not extract the covariance matrix from the spaMM model.")
       }
       return(list(beta = spaMM::fixef(model), vcov = covariance_matrix))
     }
-
     if (inherits(model, "brmsfit")) {
       fixed_effects <- brms::fixef(model)
       beta <- fixed_effects[, "Estimate"]
       names(beta) <- rownames(fixed_effects)
       return(list(beta = beta, vcov = as.matrix(stats::vcov(model))))
     }
-
     if (inherits(model, "inla")) {
       beta <- model$summary.fixed$mean
       if (is.null(names(beta))) names(beta) <- rownames(model$summary.fixed)
@@ -237,7 +243,6 @@ compute_ecilag <- function(
       dimnames(covariance_matrix) <- list(names(beta), names(beta))
       return(list(beta = beta, vcov = covariance_matrix))
     }
-
     if (inherits(model, "bdlnm")) {
       if (is.null(model$coefficients.summary) || is.null(model$coefficients)) {
         stop("The bdlnm model lacks coefficient summaries or posterior draws.")
@@ -246,16 +251,10 @@ compute_ecilag <- function(
       covariance_matrix <- stats::cov(t(model$coefficients))
       return(list(beta = beta, vcov = covariance_matrix))
     }
-
     stop("Unsupported model class for lag-specific ECI decomposition.")
   }
 
-  extract_beta_draws <- function(
-    model,
-    names_ref,
-    requested_samples,
-    coefficient_info
-  ) {
+  extract_beta_draws <- function(model, names_ref, requested_samples, coefficient_info) {
     if (inherits(model, "brmsfit")) {
       if (!requireNamespace("posterior", quietly = TRUE)) {
         stop("Package 'posterior' is required for brms uncertainty.")
@@ -265,9 +264,8 @@ compute_ecilag <- function(
       draws <- as.matrix(draws[, draw_names, drop = FALSE])
       if (nrow(draws) > requested_samples) {
         draws <- draws[
-          sample(seq_len(nrow(draws)), requested_samples),
-          ,
-          drop = FALSE
+          sample(seq_len(nrow(draws)), requested_samples, replace = FALSE),
+          , drop = FALSE
         ]
       }
       colnames(draws) <- names_ref
@@ -307,8 +305,7 @@ compute_ecilag <- function(
       draws <- draws[names_ref, , drop = FALSE]
       if (ncol(draws) > requested_samples) {
         draws <- draws[
-          ,
-          sample(seq_len(ncol(draws)), requested_samples),
+          , sample(seq_len(ncol(draws)), requested_samples, replace = FALSE),
           drop = FALSE
         ]
       }
@@ -318,11 +315,9 @@ compute_ecilag <- function(
     }
 
     check_vcov_names(coefficient_info$vcov, names_ref)
-
     if (!requireNamespace("MASS", quietly = TRUE)) {
       stop("Package 'MASS' is required for frequentist uncertainty.")
     }
-
     draws <- MASS::mvrnorm(
       n = requested_samples,
       mu = coefficient_info$beta[names_ref],
@@ -356,19 +351,14 @@ compute_ecilag <- function(
       )
     }
   }
-
   if (!is.character(var) || !length(var) || anyNA(var) || any(var == "")) {
     stop("`var` must be a non-empty character scalar or vector.")
   }
   if (anyDuplicated(var)) stop("`var` must contain unique names.")
-
   invalid_variables <- setdiff(var, fitted_variables)
   if (length(invalid_variables)) {
-    stop(
-      "Variables not found in the fitted model: ",
-      paste(invalid_variables, collapse = ", "),
-      "."
-    )
+    stop("Variables not found in the fitted model: ",
+         paste(invalid_variables, collapse = ", "), ".")
   }
 
   using_profile <- !is.null(profile)
@@ -381,21 +371,17 @@ compute_ecilag <- function(
 
   if (using_profile) {
     if (is.numeric(profile)) {
-      if (length(var) != 1L) {
-        stop("A numeric `profile` can only be used with one variable.")
-      }
+      if (length(var) != 1L) stop("A numeric `profile` can only be used with one variable.")
       if (any(!is.finite(profile))) stop("`profile` must contain finite values.")
       profiles <- stats::setNames(list(as.numeric(profile)), var)
     } else if (is.list(profile)) {
       if (!length(profile)) stop("`profile` cannot be empty.")
-
       for (i in seq_along(profile)) {
         if (!is.numeric(profile[[i]]) || any(!is.finite(profile[[i]]))) {
           stop("All profiles must be finite numeric vectors.")
         }
         profile[[i]] <- as.numeric(profile[[i]])
       }
-
       if (is.null(names(profile))) {
         if (length(profile) != length(var)) {
           stop("The length of an unnamed `profile` list must match `var`.")
@@ -406,9 +392,7 @@ compute_ecilag <- function(
         if (anyNA(names(profile)) || any(names(profile) == "")) {
           stop("Every element of a named `profile` list must have a name.")
         }
-        if (anyDuplicated(names(profile))) {
-          stop("Names in `profile` must be unique.")
-        }
+        if (anyDuplicated(names(profile))) stop("Names in `profile` must be unique.")
         missing_profiles <- setdiff(var, names(profile))
         if (length(missing_profiles)) {
           stop("Profiles are missing for: ", paste(missing_profiles, collapse = ", "), ".")
@@ -426,24 +410,20 @@ compute_ecilag <- function(
         is.na(group) || group == "") {
       stop("When using `data`, `group` must be one non-empty column name.")
     }
-
     required_columns <- c(group, "time", var)
     missing_columns <- setdiff(required_columns, names(data))
     if (length(missing_columns)) {
       stop("Columns missing from `data`: ", paste(missing_columns, collapse = ", "), ".")
     }
-
     if (anyNA(data[[group]])) stop("The grouping column cannot contain missing values.")
     if (!is.numeric(data$time) || any(!is.finite(data$time))) {
       stop("`time` must contain finite numeric values.")
     }
-
     for (variable in var) {
       if (!is.numeric(data[[variable]]) || any(!is.finite(data[[variable]]))) {
         stop("Exposure variable '", variable, "' must contain finite numeric values.")
       }
     }
-
     available_levels <- unique(data[[group]])
     if (is.null(group_level)) {
       levels_to_use <- available_levels
@@ -454,7 +434,6 @@ compute_ecilag <- function(
       }
       levels_to_use <- group_level
     }
-
     if (!length(levels_to_use)) {
       stop("No group levels are available for lag-specific ECI calculation.")
     }
@@ -474,18 +453,11 @@ compute_ecilag <- function(
       arglag = variable_specification$arglag
     )
     row <- as.numeric(cross_basis[maximum_lag + 1L, , drop = TRUE])
-    if (any(!is.finite(row))) {
-      stop("The reconstructed cross-basis row contains non-finite values.")
-    }
+    if (any(!is.finite(row))) stop("The reconstructed cross-basis row contains non-finite values.")
     row
   }
 
-  calculate_eta <- function(
-    profile_values,
-    beta_cb,
-    variable_specification,
-    maximum_lag
-  ) {
+  calculate_eta <- function(profile_values, beta_cb, variable_specification, maximum_lag) {
     row <- build_cb_row(profile_values, variable_specification, maximum_lag)
     if (length(row) != length(beta_cb)) {
       stop("Cross-basis and coefficient dimensions do not match.")
@@ -498,16 +470,12 @@ compute_ecilag <- function(
     if (is.null(variable_specification)) {
       stop("Missing exposure specification for variable '", variable, "'.")
     }
-
     maximum_lag <- as.integer(max(variable_specification$lag_max))
     expected_length <- maximum_lag + 1L
-
     if (length(chronology) != expected_length) {
-      stop(
-        "Temporal coverage for variable '", variable,
-        "' must equal lag_max + 1. Expected ", expected_length,
-        " observations but received ", length(chronology), "."
-      )
+      stop("Temporal coverage for variable '", variable,
+           "' must equal lag_max + 1. Expected ", expected_length,
+           " observations but received ", length(chronology), ".")
     }
     if (!is.numeric(chronology) || any(!is.finite(chronology))) {
       stop("Profile for '", variable, "' must contain finite numeric values.")
@@ -516,7 +484,6 @@ compute_ecilag <- function(
     chronology <- as.numeric(chronology)
     eci_raw <- sum(chronology)
     reference_row <- build_cb_row(chronology, variable_specification, maximum_lag)
-
     coefficient_names <- get_cb_names(
       coefficient_names = names(beta_full),
       variable = variable,
@@ -524,22 +491,14 @@ compute_ecilag <- function(
       stored_cb_columns = fitted_cb_columns,
       data_template = fitted_data_template
     )
-
     lag_for_position <- maximum_lag:0
 
     calculate_decomposition <- function(beta_cb) {
-      eta0 <- calculate_eta(
-        chronology,
-        beta_cb,
-        variable_specification,
-        maximum_lag
-      )
+      eta0 <- calculate_eta(chronology, beta_cb, variable_specification, maximum_lag)
       weights <- numeric(expected_length)
-
       for (i in seq_len(expected_length)) {
         plus <- chronology
         plus[i] <- plus[i] + eps
-
         if (center) {
           minus <- chronology
           minus[i] <- minus[i] - eps
@@ -553,70 +512,46 @@ compute_ecilag <- function(
           ) / eps
         }
       }
-
       contribution <- chronology * weights
       denominator <- sum(abs(contribution))
-      percent_contribution <- if (denominator > 0) {
+      percent_contribution <- if (is.finite(denominator) && denominator > 0) {
         100 * abs(contribution) / denominator
       } else {
         rep(NA_real_, expected_length)
       }
-
-      list(
-        eta = eta0,
-        weight = weights,
-        contribution = contribution,
-        percent = percent_contribution
-      )
+      list(eta = eta0, weight = weights, contribution = contribution,
+           percent = percent_contribution)
     }
 
     if (!uncertainty) {
       result <- calculate_decomposition(as.numeric(beta_full[coefficient_names]))
       by_lag <- data.frame(
-        var = variable,
-        lag = lag_for_position,
-        exposure = chronology,
-        weight = result$weight,
-        contribution = result$contribution,
-        percent_contribution = result$percent,
-        stringsAsFactors = FALSE
+        var = variable, lag = lag_for_position, exposure = chronology,
+        weight = result$weight, contribution = result$contribution,
+        percent_contribution = result$percent, stringsAsFactors = FALSE
       )
-
       if (absolute) {
         by_lag$abs_contribution <- abs(by_lag$contribution)
         by_lag$abs_weight <- abs(by_lag$weight)
       }
-
       by_lag <- by_lag[order(by_lag$lag), , drop = FALSE]
       rownames(by_lag) <- NULL
-
-      return(list(
-        ECI_raw = eci_raw,
-        ECI_weighted = result$eta,
-        by_lag = by_lag
-      ))
+      return(list(ECI_raw = eci_raw, ECI_weighted = result$eta, by_lag = by_lag))
     }
 
     beta_draws <- extract_beta_draws(
-      model = fit,
-      names_ref = coefficient_names,
-      requested_samples = n_samples,
-      coefficient_info = coefficient_info
+      model = fit, names_ref = coefficient_names,
+      requested_samples = n_samples, coefficient_info = coefficient_info
     )
-
     draw_sd <- apply(beta_draws, 2, stats::sd)
     if (all(!is.finite(draw_sd)) || all(draw_sd < 1e-12, na.rm = TRUE)) {
-      warning(
-        "Near-zero coefficient-draw variability for variable '", variable,
-        "'. ECI-lag intervals may collapse.",
-        call. = FALSE
-      )
+      warning("Near-zero coefficient-draw variability for variable '", variable,
+              "'. ECI-lag intervals may collapse.", call. = FALSE)
     }
 
     draw_results <- lapply(seq_len(nrow(beta_draws)), function(draw_index) {
       calculate_decomposition(beta_draws[draw_index, ])
     })
-
     eta_draws <- vapply(draw_results, `[[`, numeric(1), "eta")
     weight_matrix <- do.call(cbind, lapply(draw_results, `[[`, "weight"))
     contribution_matrix <- do.call(cbind, lapply(draw_results, `[[`, "contribution"))
@@ -630,19 +565,14 @@ compute_ecilag <- function(
         upper = apply(matrix_object, 1, function(x) safe_quantile(x)[2])
       )
     }
-
     weight_summary <- summarise_rows(weight_matrix)
     contribution_summary <- summarise_rows(contribution_matrix)
     percent_summary <- summarise_rows(percent_matrix)
 
     by_lag <- data.frame(
-      var = variable,
-      lag = lag_for_position,
-      exposure = chronology,
-      weight = weight_summary$estimate,
-      weight_sd = weight_summary$sd,
-      weight_lower = weight_summary$lower,
-      weight_upper = weight_summary$upper,
+      var = variable, lag = lag_for_position, exposure = chronology,
+      weight = weight_summary$estimate, weight_sd = weight_summary$sd,
+      weight_lower = weight_summary$lower, weight_upper = weight_summary$upper,
       contribution = contribution_summary$estimate,
       contribution_sd = contribution_summary$sd,
       contribution_lower = contribution_summary$lower,
@@ -657,7 +587,6 @@ compute_ecilag <- function(
     if (absolute) {
       absolute_contribution_summary <- summarise_rows(abs(contribution_matrix))
       absolute_weight_summary <- summarise_rows(abs(weight_matrix))
-
       by_lag$abs_contribution <- absolute_contribution_summary$estimate
       by_lag$abs_contribution_sd <- absolute_contribution_summary$sd
       by_lag$abs_contribution_lower <- absolute_contribution_summary$lower
@@ -671,7 +600,6 @@ compute_ecilag <- function(
     by_lag <- by_lag[order(by_lag$lag), , drop = FALSE]
     rownames(by_lag) <- NULL
     interval <- safe_quantile(eta_draws)
-
     result <- list(
       ECI_raw = eci_raw,
       ECI_weighted = stats::median(eta_draws, na.rm = TRUE),
@@ -684,11 +612,8 @@ compute_ecilag <- function(
     if (output == "samples") {
       sample_rows <- lapply(seq_along(draw_results), function(draw_index) {
         sample_data <- data.frame(
-          sample = draw_index,
-          var = variable,
-          lag = lag_for_position,
-          exposure = chronology,
-          weight = draw_results[[draw_index]]$weight,
+          sample = draw_index, var = variable, lag = lag_for_position,
+          exposure = chronology, weight = draw_results[[draw_index]]$weight,
           contribution = draw_results[[draw_index]]$contribution,
           percent_contribution = draw_results[[draw_index]]$percent,
           stringsAsFactors = FALSE
@@ -699,27 +624,22 @@ compute_ecilag <- function(
         }
         sample_data[order(sample_data$lag), , drop = FALSE]
       })
-
       result$by_lag_samples <- do.call(rbind, sample_rows)
       rownames(result$by_lag_samples) <- NULL
       result$ECI_weighted_samples <- data.frame(
-        sample = seq_along(eta_draws),
-        ECI_weighted = eta_draws,
+        sample = seq_along(eta_draws), ECI_weighted = eta_draws,
         stringsAsFactors = FALSE
       )
     }
-
     result
   }
 
   package_results <- function(results, variables, groups = NULL) {
     if (length(results) == 1L && is.null(groups)) return(results[[1]])
-
     summary_data <- do.call(rbind, lapply(seq_along(results), function(i) {
       current <- results[[i]]
       data.frame(
-        var = variables[i],
-        ECI_raw = current$ECI_raw,
+        var = variables[i], ECI_raw = current$ECI_raw,
         ECI_weighted = current$ECI_weighted,
         ECI_weighted_sd = current$ECI_weighted_sd %||% NA_real_,
         ECI_weighted_lower = current$ECI_weighted_lower %||% NA_real_,
@@ -727,67 +647,40 @@ compute_ecilag <- function(
         stringsAsFactors = FALSE
       )
     }))
-
     by_lag <- do.call(rbind, lapply(results, `[[`, "by_lag"))
 
     if (!is.null(groups)) {
       summary_data[[group]] <- groups
-      summary_data <- summary_data[
-        ,
-        c(group, setdiff(names(summary_data), group)),
-        drop = FALSE
-      ]
-
-      by_lag[[group]] <- rep(
-        groups,
-        vapply(results, function(x) nrow(x$by_lag), integer(1))
-      )
+      summary_data <- summary_data[, c(group, setdiff(names(summary_data), group)), drop = FALSE]
+      by_lag[[group]] <- rep(groups, vapply(results, function(x) nrow(x$by_lag), integer(1)))
       by_lag <- by_lag[, c(group, setdiff(names(by_lag), group)), drop = FALSE]
     }
 
-    output_object <- list(
-      eci_summary = summary_data,
-      by_lag = by_lag
-    )
-
+    output_object <- list(eci_summary = summary_data, by_lag = by_lag)
     if (uncertainty && output == "samples") {
       by_lag_samples <- do.call(rbind, lapply(seq_along(results), function(i) {
         sample_data <- results[[i]]$by_lag_samples
         if (!is.null(groups)) sample_data[[group]] <- groups[i]
         sample_data
       }))
-
       weighted_samples <- do.call(rbind, lapply(seq_along(results), function(i) {
         sample_data <- results[[i]]$ECI_weighted_samples
         sample_data$var <- variables[i]
         if (!is.null(groups)) sample_data[[group]] <- groups[i]
         sample_data
       }))
-
       if (!is.null(groups)) {
-        by_lag_samples <- by_lag_samples[
-          ,
-          c(group, setdiff(names(by_lag_samples), group)),
-          drop = FALSE
-        ]
-        weighted_samples <- weighted_samples[
-          ,
-          c(group, setdiff(names(weighted_samples), group)),
-          drop = FALSE
-        ]
+        by_lag_samples <- by_lag_samples[, c(group, setdiff(names(by_lag_samples), group)), drop = FALSE]
+        weighted_samples <- weighted_samples[, c(group, setdiff(names(weighted_samples), group)), drop = FALSE]
       }
-
       output_object$by_lag_samples <- by_lag_samples
       output_object$ECI_weighted_samples <- weighted_samples
     }
-
     output_object
   }
 
   if (using_profile) {
-    results <- lapply(var, function(variable) {
-      compute_one(variable, profiles[[variable]])
-    })
+    results <- lapply(var, function(variable) compute_one(variable, profiles[[variable]]))
     return(package_results(results, var))
   }
 
@@ -795,31 +688,21 @@ compute_ecilag <- function(
   result_variables <- character(0)
   result_groups <- rep(levels_to_use, each = length(var))
   output_index <- 1L
-
   for (current_level in levels_to_use) {
     group_data <- data[data[[group]] == current_level, , drop = FALSE]
-    if (!nrow(group_data)) {
-      stop("No observations found for group level '", current_level, "'.")
-    }
-
+    if (!nrow(group_data)) stop("No observations found for group level '", current_level, "'.")
     group_data <- group_data[order(group_data$time), , drop = FALSE]
-
     if (anyDuplicated(group_data$time)) {
       stop("Duplicated `time` values for group level '", current_level, "'.")
     }
     if (is.unsorted(group_data$time, strictly = TRUE)) {
       stop("`time` is not strictly increasing for group level '", current_level, "'.")
     }
-
     for (variable in var) {
-      results[[output_index]] <- compute_one(
-        variable,
-        as.numeric(group_data[[variable]])
-      )
+      results[[output_index]] <- compute_one(variable, as.numeric(group_data[[variable]]))
       result_variables[output_index] <- variable
       output_index <- output_index + 1L
     }
   }
-
   package_results(results, result_variables, result_groups)
 }

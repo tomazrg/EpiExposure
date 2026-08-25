@@ -77,11 +77,27 @@ cross-basis coefficients:
 
 For `scale = "response"`, the inverse link is applied to the exposure
 contribution only. The model intercept, other predictors, and random effects
-are not included. For `scale = "percent"`, the transformation is
+are not included.
+
+For `scale = "percent"`, the transformation is:
 `(exp(eta) - 1) * 100`.
+
+For models using a log link (e.g. Poisson, Gamma and Negative Binomial),
+this quantity can be interpreted as a relative percentage change with
+respect to the reference exposure condition.
+
+For models using a logit link (e.g. Beta and Binomial), this quantity
+represents a relative exposure effect on the linear-predictor scale and
+should not be interpreted as a direct percentage change in the response
+variable.
+
+When `uncertainty = FALSE`, ECI is calculated using the central coefficient
+estimates provided by the fitted model.
+
+When `uncertainty = TRUE`, ECI is calculated for each coefficient draw and
+summarized using the median together with empirical uncertainty intervals.
 
 Frequentist uncertainty is approximated with draws from the asymptotic
 multivariate normal coefficient distribution. Bayesian engines use posterior
-coefficient draws when available. Summary estimates use the median and
-empirical 2.5% and 97.5% quantiles.
+coefficient draws when available.
 }

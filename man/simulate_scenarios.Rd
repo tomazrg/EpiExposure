@@ -7,110 +7,74 @@
 simulate_scenarios(
   fit,
   scenarios,
-  wx_long = NULL,
+  data = NULL,
   periods = NULL,
-  lag_max = NULL,
-  df_var = NULL,
-  df_lag = NULL,
-  fun_var = NULL,
-  fun_lag = NULL,
   ref_vals = NULL,
   pop_level = TRUE,
   uncertainty = FALSE,
   output = c("summary", "samples"),
-  n_samples = 1000
+  n_samples = 1000,
+  seed = NULL
 )
 }
-\arguments{
-\item{fit}{Fitted model returned by `fit_epidlnm()`.}
-
-\item{scenarios}{Output from `simulate_range()` or a named list of scenarios.
-Recommended structured object:
-`list(scenarios = ..., info = ..., periods = ...)`.}
-
-\item{wx_long}{Optional long-format weather data. Used only as fallback
-to derive default reference values when `ref_vals` are not supplied
-and the fitted model does not store centering information.}
-
-\item{periods}{Optional period table. If `NULL`, the function will
-try to read it from `scenarios$periods`.}
-
-\item{lag_max}{Optional maximum lag. Used only if `fit` does not store lag_max.}
-
-\item{df_var}{Optional degrees of freedom (exposure). Ignored if `fit` contains
-`epiexposure_spec`. Kept only for fallback compatibility.}
-
-\item{df_lag}{Optional degrees of freedom (lag). Ignored if `fit` contains
-`epiexposure_spec`. Kept only for fallback compatibility.}
-
-\item{fun_var}{Optional basis function for exposure. Ignored if `fit` contains
-`epiexposure_spec`. Kept only for fallback compatibility.}
-
-\item{fun_lag}{Optional basis function for lag. Ignored if `fit` contains
-`epiexposure_spec`. Kept only for fallback compatibility.}
-
-\item{ref_vals}{Optional named list of reference values for each variable.
-If `NULL`, the function tries in order:
-1. median from `wx_long`
-2. centering value stored in `fit` spec (`argvar$cen`)}
-
-\item{pop_level}{Logical. If `TRUE`, predictions exclude random effects
-where supported.}
-
-\item{uncertainty}{Logical. If `TRUE`, quantify uncertainty.}
-
-\item{output}{Character. `"summary"` or `"samples"`.}
-
-\item{n_samples}{Integer. Number of samples used for uncertainty quantification.}
-}
-\value{
-A data.frame.
-
-If `uncertainty = FALSE`, returns one row per scenario point with column:
-- `prediction`
-
-If `uncertainty = TRUE` and `output = "summary"`, returns one row per scenario
-point with columns:
-- `prediction` (median-based central estimate)
-- `sd`
-- `lower`
-- `upper`
-
-If `uncertainty = TRUE` and `output = "samples"`, returns one row per sample
-with columns:
-- `sample`
-- `prediction`
-
-Additional metadata columns from `scenarios$info` are preserved.
-}
 \description{
-Generates predicted outcomes for one or more user-defined epidemiological
-scenarios, using exposure profiles assembled across lag periods.
+Generates predicted outcomes under user-defined epidemiological scenarios
+using distributed lag nonlinear models (DLNMs).
 }
 \details{
+The function combines exposure conditions specified for one or more lag
+periods, assembles complete exposure histories, and evaluates the resulting
+outcome predictions through `predict_outcome()`.
+
 Scenarios can be supplied either as:
+
 - a structured object returned by `simulate_range()`, or
 - a named list of scenario definitions.
 
+Exposure profiles are assembled in chronological order:
+
+- the first profile element represents the oldest exposure;
+- the last profile element represents the most recent exposure.
+
+Internal conversion to retrospective lag indexing is handled
+automatically by the package and is never required from the user.
+
+Reference exposure values can be supplied explicitly through
+`ref_vals`. When omitted, the function attempts to determine
+appropriate reference values from:
+
+1. the median of each variable in `data`;
+2. centering values stored in the fitted DLNM specification.
+
+When `uncertainty = FALSE`, predictions are computed using the
+central coefficient estimates stored in the fitted model.
+
 When `uncertainty = TRUE`, uncertainty is propagated through
-`predict_outcome()`. If `output = "summary"`, the central estimate is
-computed as the median of simulated predictions, and interval limits are
-obtained from empirical quantiles (default: 2.5% and 97.5%).
+`predict_outcome()` using model-specific coefficient draws:
 
-**Important:** in the summary output, the column `prediction` represents the
-central estimate, computed as the median when uncertainty is propagated.
+- posterior draws for Bayesian models;
+- simulated coefficient draws based on the asymptotic covariance
+  matrix for frequentist models.
 
+If `output = "summary"`, simulated predictions are summarized by:
 
-Uncertainty is propagated through `predict_outcome()`, which uses
-model-consistent sampling:
-- Bayesian models use posterior draws
-- Frequentist models use simulation from the asymptotic coefficient distribution
+- median prediction;
+- empirical standard deviation;
+- empirical 95% uncertainty interval.
 
-Profiles are assembled internally in lag order:
-- first value = lag 0 (most recent)
-- last value = lag max (oldest)
+If `output = "samples"`, all simulated predictions are returned
+without aggregation.
 
-For summary outputs under uncertainty, the median is used instead of the mean
-to provide a more robust central estimate under asymmetric predictive
-distributions.
+For mixed-effects models, `pop_level = TRUE` produces population-level
+predictions when supported by the fitted engine, whereas
+`pop_level = FALSE` includes conditional predictions.
+
+The function is intended for scenario analysis, intervention
+assessment, counterfactual simulations, and exposure profile
+comparisons across multiple lag periods.
+
+Conceptually, each scenario represents a complete exposure history.
+The prediction associated with a scenario therefore reflects the
+cumulative effect of the entire exposure profile rather than the
+effect of a single lag or a single exposure value.
 }

@@ -15,33 +15,55 @@ fit_epidlnm(
 )
 }
 \arguments{
-\item{data}{Design matrix containing y_model and cb_* terms}
+\item{data}{Data frame containing `y_model` and the fitted `cb_*` terms.
+Data prepared with `prepare_response()` may contain the
+`response_family_name` attribute, which is checked against `family`.}
 
-\item{model_engine}{Modeling engine
-("glm","glmmTMB","gam","gamm","gls","spamm","brms","inla","bdlnm")}
+\item{model_engine}{Character scalar identifying the modeling engine:
+`"glm"`, `"glmmTMB"`, `"gam"`, `"gamm"`, `"gls"`, `"spamm"`,
+`"brms"`, `"inla"`, or `"bdlnm"`.}
 
-\item{family}{Distribution (engine-specific; can be character or family object)}
+\item{family}{Distribution family supplied as a supported character name or
+an engine-compatible family object. Canonical family names are `"beta"`,
+`"binomial"`, `"poisson"`, `"gamma"`, `"gaussian"`,
+`"negative_binomial"`, and `"ordinal"`. Aliases such as `"negbin"`,
+`"nbinom1"`, and `"nbinom2"` are normalized internally.}
 
-\item{random_effect}{Random effect variable (optional)}
+\item{random_effect}{Optional character scalar naming a random-effect column.}
 
-\item{epiexposure_spec}{Optional list describing how crossbasis was built.
-Recommended structure (by variable name):
-list(
-  tmean = list(lag_max=85, argvar=list(...), arglag=list(...)),
-  vpd   = list(lag_max=85, argvar=list(...), arglag=list(...))
-)
-If NULL, the model is fit normally but downstream prediction from profiles
-will not be available.}
+\item{epiexposure_spec}{Optional named list describing how each cross-basis
+was constructed. The recommended structure is:
+`list(tmean = list(lag_max = 85, argvar = list(...), arglag = list(...)))`.
+If `NULL`, the model can be fitted, but profile-based downstream functions
+may not be available.}
 
-\item{basis_objects}{Optional named list of original crossbasis/onebasis objects.
-Required when model_engine = "bdlnm", because bdlnm::bdlnm() needs the basis
-objects explicitly in the formula environment.}
+\item{basis_objects}{Optional named list of original cross-basis or one-basis
+objects. Required when `model_engine = "bdlnm"`.}
 
-\item{...}{Additional arguments passed to the modeling engine}
+\item{...}{Additional arguments passed to the selected modeling engine.}
 }
 \value{
-Fitted model object (same class as before), with extra attributes
+A fitted model object with standardized EpiExposure attributes,
+  including the engine, canonical family name, engine-specific family,
+  link, ordered cross-basis columns, exposure variables, data template,
+  grouping column, exposure specification, and basis objects.
 }
 \description{
-Fit DLNM inferential model
+Fits a DLNM inferential model from an epidemic-level design matrix and
+stores standardized EpiExposure metadata for downstream prediction,
+effect summarization, and exposure-impact calculations.
+}
+\details{
+This function fits models but does not generate posterior predictions or
+uncertainty summaries. Consequently, it does not call
+`posterior_linpred()`, `posterior_epred()`, or `posterior_predict()`, and no
+single posterior draw is used as a deterministic estimate.
+
+Family specifications are normalized to a canonical family name and then
+converted to the representation expected by the selected engine. Unknown or
+unsupported engine-family combinations generate explicit errors. No silent
+fallback to the Gaussian family is used.
+
+If `prepare_response()` stored a `response_family_name` attribute in `data`,
+that family must match the canonical family used for model fitting.
 }

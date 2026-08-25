@@ -10,63 +10,84 @@ predict_outcome(
   re = c("population", "conditional"),
   id = NULL,
   allow_new_levels = FALSE,
-  type = c("response", "link", "conditional"),
+  type = c("response", "link"),
   uncertainty = FALSE,
   output = c("summary", "samples"),
-  n_samples = 1000
+  n_samples = 1000,
+  seed = NULL
 )
 }
 \arguments{
 \item{fit}{Fitted model returned by `fit_epidlnm()`.}
 
 \item{profiles}{Numeric vector for a single-exposure model or a named list of
-numeric vectors for one or more exposures. Each profile must be chronological
-and have length `lag_max + 1`, using the lag stored for that exposure in the
-fitted-model specification.}
+numeric vectors for one or more exposures. Each profile must contain
+`lag_max + 1` chronological values according to the stored specification.}
 
-\item{re}{Character. Prediction level: `"population"` excludes random
-effects; `"conditional"` includes them where supported.}
+\item{re}{Character. `"population"` excludes random effects;
+`"conditional"` includes them where supported.}
 
-\item{id}{Optional vector of grouping levels. When supplied, one prediction is
-generated for each value. The fitted model must contain the grouping-column
-metadata stored by `fit_epidlnm()`.}
+\item{id}{Optional vector of grouping levels. One prediction is generated
+for each value.}
 
 \item{allow_new_levels}{Logical. Allow unseen grouping levels where supported.}
 
-\item{type}{Character. `"response"`, `"link"`, or `"conditional"`.
-`"conditional"` requests a conditional prediction on the response scale.}
+\item{type}{Character. Prediction scale: `"response"` or `"link"`.
+Use `re = "conditional"` to include random effects where supported.}
 
-\item{uncertainty}{Logical. If `TRUE`, propagate coefficient uncertainty.}
+\item{uncertainty}{Logical. If `TRUE`, propagate coefficient or posterior
+uncertainty.}
 
-\item{output}{Character. `"summary"` returns median, standard deviation, and
-empirical 95 percent intervals. `"samples"` returns individual draws.}
+\item{output}{Character. `"summary"` returns the median, standard deviation,
+and empirical 95 percent interval. `"samples"` returns individual draws.}
 
-\item{n_samples}{Positive integer number of coefficient or posterior draws.}
+\item{n_samples}{Positive integer number of coefficient or posterior draws.
+At least two draws are required when `uncertainty = TRUE`.}
+
+\item{seed}{Optional integer seed used for reproducible draw selection and
+simulation. The random-number state is changed only when `seed` is supplied.}
 }
 \value{
 A data.frame. Deterministic output contains `prediction`. Summary
-  output additionally contains `sd`, `lower`, and `upper`. Sample output
-  contains `sample` and `prediction`. The grouping column is included when
-  `id` is supplied.
+  output also contains `sd`, `lower`, and `upper`. Sample output contains
+  `sample` and `prediction`. The grouping column is included when `id` is
+  supplied.
 }
 \description{
 Predicts the outcome associated with one or more user-defined exposure
-profiles using the DLNM specification and model metadata stored by
-`fit_epidlnm()`.
+profiles using the DLNM specification and standardized model metadata stored
+by `fit_epidlnm()`.
 }
 \details{
-Every profile must be supplied in chronological order, from the earliest
-observation to the most recent observation. Profiles are not reversed
-internally. When the final cross-basis row is reconstructed, the last profile
-value is associated with lag 0 and the first value with lag max.
+Profiles must be supplied in chronological order, from the earliest to the
+most recent observation. Profiles are not reversed internally. In the final
+reconstructed cross-basis row, the final profile value is associated with
+lag 0 and the first profile value with the maximum lag.
 
 
-Bayesian engines use posterior draws when available. Frequentist engines use
-draws from the asymptotic multivariate normal distribution of the fixed-effect
-coefficients. For frequentist mixed models, uncertainty reflects fixed
-effects only.
+When `uncertainty = FALSE`, predictions use the central estimates supplied
+by the fitted engine. For `brms`, posterior expected predictions are
+summarized by their median. When `uncertainty = TRUE`, predictions are
+calculated draw by draw and summarized using the median and empirical 2.5%
+and 97.5% quantiles. Deterministic estimates and medians of draw-specific
+predictions may differ after nonlinear transformations.
+
+`posterior_epred()` is used for expected `brms` response predictions and
+`posterior_linpred()` for link-scale predictions. `posterior_predict()` is
+not used because observational noise is not part of the expected outcome.
+
+The `type` and `re` arguments represent separate prediction dimensions.
+`type` controls the prediction scale, whereas `re` controls whether random
+effects are excluded (`"population"`) or included (`"conditional"`) where
+supported.
 
 Cross-basis columns are aligned using `epiexposure_cb_cols`, with
-`epiexposure_data_template` as a fallback. Coefficient and covariance-matrix
-names are checked before simulation to prevent silent term omission.
+`epiexposure_data_template` as a fallback. For `bdlnm`, missing stored
+`cb_*` metadata is reconstructed from the stored specification and matched
+explicitly to posterior coefficient names. No coefficient is omitted
+silently.
+
+Ordinal predictions are not currently implemented because ordinal response
+predictions require an explicit policy for category probabilities or an
+expected category.
 }

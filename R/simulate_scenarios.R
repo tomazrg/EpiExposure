@@ -1,102 +1,81 @@
 #' Simulate epidemiological DLNM scenarios
 #'
-#' Generates predicted outcomes for one or more user-defined epidemiological
-#' scenarios, using exposure profiles assembled across lag periods.
+#' Generates predicted outcomes under user-defined epidemiological scenarios
+#' using distributed lag nonlinear models (DLNMs).
+#'
+#' The function combines exposure conditions specified for one or more lag
+#' periods, assembles complete exposure histories, and evaluates the resulting
+#' outcome predictions through `predict_outcome()`.
 #'
 #' Scenarios can be supplied either as:
+#'
 #' - a structured object returned by `simulate_range()`, or
 #' - a named list of scenario definitions.
 #'
+#' Exposure profiles are assembled in chronological order:
+#'
+#' - the first profile element represents the oldest exposure;
+#' - the last profile element represents the most recent exposure.
+#'
+#' Internal conversion to retrospective lag indexing is handled
+#' automatically by the package and is never required from the user.
+#'
+#' Reference exposure values can be supplied explicitly through
+#' `ref_vals`. When omitted, the function attempts to determine
+#' appropriate reference values from:
+#'
+#' 1. the median of each variable in `data`;
+#' 2. centering values stored in the fitted DLNM specification.
+#'
+#' When `uncertainty = FALSE`, predictions are computed using the
+#' central coefficient estimates stored in the fitted model.
+#'
 #' When `uncertainty = TRUE`, uncertainty is propagated through
-#' `predict_outcome()`. If `output = "summary"`, the central estimate is
-#' computed as the median of simulated predictions, and interval limits are
-#' obtained from empirical quantiles (default: 2.5% and 97.5%).
+#' `predict_outcome()` using model-specific coefficient draws:
 #'
-#' **Important:** in the summary output, the column `prediction` represents the
-#' central estimate, computed as the median when uncertainty is propagated.
+#' - posterior draws for Bayesian models;
+#' - simulated coefficient draws based on the asymptotic covariance
+#'   matrix for frequentist models.
 #'
-#' @param fit Fitted model returned by `fit_epidlnm()`.
-#' @param scenarios Output from `simulate_range()` or a named list of scenarios.
-#'   Recommended structured object:
-#'   `list(scenarios = ..., info = ..., periods = ...)`.
-#' @param wx_long Optional long-format weather data. Used only as fallback
-#'   to derive default reference values when `ref_vals` are not supplied
-#'   and the fitted model does not store centering information.
-#' @param periods Optional period table. If `NULL`, the function will
-#'   try to read it from `scenarios$periods`.
-#' @param lag_max Optional maximum lag. Used only if `fit` does not store lag_max.
-#' @param df_var Optional degrees of freedom (exposure). Ignored if `fit` contains
-#'   `epiexposure_spec`. Kept only for fallback compatibility.
-#' @param df_lag Optional degrees of freedom (lag). Ignored if `fit` contains
-#'   `epiexposure_spec`. Kept only for fallback compatibility.
-#' @param fun_var Optional basis function for exposure. Ignored if `fit` contains
-#'   `epiexposure_spec`. Kept only for fallback compatibility.
-#' @param fun_lag Optional basis function for lag. Ignored if `fit` contains
-#'   `epiexposure_spec`. Kept only for fallback compatibility.
-#' @param ref_vals Optional named list of reference values for each variable.
-#'   If `NULL`, the function tries in order:
-#'   1. median from `wx_long`
-#'   2. centering value stored in `fit` spec (`argvar$cen`)
-#' @param pop_level Logical. If `TRUE`, predictions exclude random effects
-#'   where supported.
-#' @param uncertainty Logical. If `TRUE`, quantify uncertainty.
-#' @param output Character. `"summary"` or `"samples"`.
-#' @param n_samples Integer. Number of samples used for uncertainty quantification.
+#' If `output = "summary"`, simulated predictions are summarized by:
 #'
-#' @return A data.frame.
+#' - median prediction;
+#' - empirical standard deviation;
+#' - empirical 95% uncertainty interval.
 #'
-#' If `uncertainty = FALSE`, returns one row per scenario point with column:
-#' - `prediction`
+#' If `output = "samples"`, all simulated predictions are returned
+#' without aggregation.
 #'
-#' If `uncertainty = TRUE` and `output = "summary"`, returns one row per scenario
-#' point with columns:
-#' - `prediction` (median-based central estimate)
-#' - `sd`
-#' - `lower`
-#' - `upper`
+#' For mixed-effects models, `pop_level = TRUE` produces population-level
+#' predictions when supported by the fitted engine, whereas
+#' `pop_level = FALSE` includes conditional predictions.
 #'
-#' If `uncertainty = TRUE` and `output = "samples"`, returns one row per sample
-#' with columns:
-#' - `sample`
-#' - `prediction`
+#' The function is intended for scenario analysis, intervention
+#' assessment, counterfactual simulations, and exposure profile
+#' comparisons across multiple lag periods.
 #'
-#' Additional metadata columns from `scenarios$info` are preserved.
-#'
-#' @details
-#' Uncertainty is propagated through `predict_outcome()`, which uses
-#' model-consistent sampling:
-#' - Bayesian models use posterior draws
-#' - Frequentist models use simulation from the asymptotic coefficient distribution
-#'
-#' Profiles are assembled internally in lag order:
-#' - first value = lag 0 (most recent)
-#' - last value = lag max (oldest)
-#'
-#' For summary outputs under uncertainty, the median is used instead of the mean
-#' to provide a more robust central estimate under asymmetric predictive
-#' distributions.
+#' Conceptually, each scenario represents a complete exposure history.
+#' The prediction associated with a scenario therefore reflects the
+#' cumulative effect of the entire exposure profile rather than the
+#' effect of a single lag or a single exposure value.
 #'
 #' @export
 simulate_scenarios <- function(
     fit,
     scenarios,
-    wx_long = NULL,
+    data = NULL,
     periods = NULL,
-    lag_max = NULL,
-    df_var = NULL,
-    df_lag = NULL,
-    fun_var = NULL,
-    fun_lag = NULL,
     ref_vals = NULL,
     pop_level = TRUE,
     uncertainty = FALSE,
     output = c("summary", "samples"),
-    n_samples = 1000
+    n_samples = 1000,
+    seed = NULL
 ) {
 
   output <- match.arg(output)
 
-  `%||%` <- function(a, b) if (!is.null(a)) a else b
+  `%||%` <- function(a,b) if(!is.null(a)) a else b
 
   safe_quantile <- function(x, probs = c(0.025, 0.975)) {
     stats::quantile(x, probs = probs, na.rm = TRUE, names = FALSE)
@@ -104,46 +83,51 @@ simulate_scenarios <- function(
 
   safe_sd <- function(x) {
     x <- x[is.finite(x)]
-    if (length(x) <= 1L) return(0)
+    if(length(x) <= 1L) return(0)
     stats::sd(x)
   }
 
-  # ------------------------------------------------------------
-  # validations
-  # ------------------------------------------------------------
-  if (is.null(fit)) {
-    stop("`fit` cannot be NULL.")
+  is_whole_number <- function(x){
+    is.numeric(x) && length(x)==1L && is.finite(x) &&
+      abs(x-round(x)) < sqrt(.Machine$double.eps)
   }
 
-  if (!is.logical(pop_level) || length(pop_level) != 1L) {
+  if (is.null(fit)) stop("`fit` cannot be NULL.")
+
+  if (!is.logical(pop_level) || length(pop_level)!=1L || is.na(pop_level)) {
     stop("`pop_level` must be TRUE or FALSE.")
   }
 
-  if (!is.logical(uncertainty) || length(uncertainty) != 1L) {
+  if (!is.logical(uncertainty) || length(uncertainty)!=1L || is.na(uncertainty)) {
     stop("`uncertainty` must be TRUE or FALSE.")
   }
 
-  if (!is.numeric(n_samples) || length(n_samples) != 1L ||
-      !is.finite(n_samples) || n_samples <= 0) {
+  if (!is_whole_number(n_samples) || n_samples <= 0) {
     stop("`n_samples` must be a positive integer.")
   }
   n_samples <- as.integer(n_samples)
 
-  fit_spec     <- attr(fit, "epiexposure_spec")
-  fit_vars     <- attr(fit, "epiexposure_vars")
-  dat_template <- attr(fit, "epiexposure_dat_template")
+  if (uncertainty && n_samples < 2L) {
+    stop("`n_samples` must be at least 2 when `uncertainty = TRUE`.")
+  }
+
+  if (!is.null(seed)) {
+    if (!is_whole_number(seed)) stop("`seed` must be NULL or a finite integer.")
+    set.seed(as.integer(seed))
+  }
+
+  fit_spec <- attr(fit, "epiexposure_spec")
+  fit_vars <- attr(fit, "epiexposure_vars")
+  dat_template <- attr(fit, "epiexposure_data_template")
 
   if (is.null(dat_template) || !is.data.frame(dat_template) || nrow(dat_template) < 1L) {
-    stop("The fitted model does not contain `epiexposure_dat_template`. Refit with fit_epidlnm().")
+    stop("The fitted model does not contain `epiexposure_data_template`.")
   }
 
   if (is.null(fit_spec) || !is.list(fit_spec)) {
-    stop("The fitted model does not contain `epiexposure_spec`. Refit with fit_epidlnm().")
+    stop("The fitted model does not contain `epiexposure_spec`.")
   }
 
-  # ------------------------------------------------------------
-  # Handle structured scenarios
-  # ------------------------------------------------------------
   scenario_info <- NULL
   periods_from_scenarios <- NULL
 
@@ -153,256 +137,124 @@ simulate_scenarios <- function(
     scenarios <- scenarios$scenarios
   }
 
-  if (!is.list(scenarios) || is.null(names(scenarios)) || any(names(scenarios) == "")) {
-    stop("`scenarios` must be a named list or a structured object containing `$scenarios`.")
+  if (!is.null(scenario_info) && "profile_order" %in% names(scenario_info)) {
+    if (any(scenario_info$profile_order != "chronological")) {
+      stop("All profile-based scenarios must be stored in chronological order.")
+    }
   }
 
-  # ------------------------------------------------------------
-  # Resolve periods
-  # ------------------------------------------------------------
+  if (!is.list(scenarios) || is.null(names(scenarios)) || any(names(scenarios)=="")) {
+    stop("`scenarios` must be a named list.")
+  }
+
   periods <- periods %||% periods_from_scenarios
 
-  if (is.null(periods)) {
-    stop("`periods` is missing. Provide it explicitly or include it inside the `scenarios` object.")
-  }
+  if (is.null(periods)) stop("`periods` is missing.")
 
-  req_cols <- c("period", "lag_start", "lag_end")
+  req_cols <- c("period","lag_start","lag_end")
   if (!all(req_cols %in% names(periods))) {
     stop("`periods` must contain columns: period, lag_start, lag_end.")
   }
 
-  if (anyDuplicated(periods$period)) {
-    stop("`periods$period` must contain unique labels.")
-  }
+  if (anyDuplicated(periods$period)) stop("`periods$period` must contain unique labels.")
 
   if (any(!is.finite(periods$lag_start)) || any(!is.finite(periods$lag_end))) {
-    stop("`lag_start` and `lag_end` in `periods` must be finite numeric values.")
+    stop("`lag_start` and `lag_end` must be finite.")
   }
 
-  # ------------------------------------------------------------
-  # Resolve variables
-  # ------------------------------------------------------------
-  if (!is.null(fit_vars) && length(fit_vars) > 0L) {
-    vars <- fit_vars
-  } else {
-    vars <- unique(unlist(lapply(scenarios, function(scen) {
-      unique(unlist(lapply(scen, names), use.names = FALSE))
-    }), use.names = FALSE))
+  if (any(abs(periods$lag_start-round(periods$lag_start)) > 0) ||
+      any(abs(periods$lag_end-round(periods$lag_end)) > 0)) {
+    stop("`lag_start` and `lag_end` must be integers.")
   }
 
-  if (length(vars) == 0L) {
-    stop("No variables could be detected from fit metadata or scenarios.")
+  if (any(periods$lag_start > periods$lag_end)) {
+    stop("Every period must satisfy `lag_start <= lag_end`.")
   }
 
-  # ------------------------------------------------------------
-  # Resolve per-variable lag length
-  # ------------------------------------------------------------
-  get_var_lagmax <- function(v) {
-    if (!is.null(fit_spec[[v]]) && !is.null(fit_spec[[v]]$lag_max)) {
-      return(as.integer(max(fit_spec[[v]]$lag_max)))
-    }
-    if (!is.null(lag_max)) {
-      return(as.integer(max(lag_max)))
-    }
-    stop(
-      "Could not determine lag_max for variable: ", v,
-      ". The model must contain `epiexposure_spec[[var]]$lag_max`, or you must supply `lag_max`."
-    )
+  vars <- if (!is.null(fit_vars) && length(fit_vars)>0L) fit_vars else unique(unlist(lapply(scenarios,function(s) unique(unlist(lapply(s,names),use.names=FALSE))),use.names=FALSE))
+
+  get_var_lagmax <- function(v){
+    if(!is.null(fit_spec[[v]]$lag_max)) return(as.integer(max(fit_spec[[v]]$lag_max)))
+    stop("Could not determine lag_max for variable: ",v)
   }
 
-  var_lagmax <- setNames(lapply(vars, get_var_lagmax), vars)
+  var_lagmax <- setNames(lapply(vars,get_var_lagmax),vars)
 
-  # ------------------------------------------------------------
-  # Validate period coverage against lag_max
-  # ------------------------------------------------------------
-  max_period_lag <- max(periods$lag_end, na.rm = TRUE)
-
-  for (v in vars) {
-    max_allowed <- var_lagmax[[v]]
-    if (max_period_lag > max_allowed) {
-      stop(
-        "Period definitions exceed lag_max for variable '", v, "'. ",
-        "Maximum lag in `periods` = ", max_period_lag,
-        ", but lag_max = ", max_allowed, "."
-      )
+  max_period_lag <- max(periods$lag_end)
+  for(v in vars){
+    if(max_period_lag > var_lagmax[[v]]){
+      stop("Period definitions exceed lag_max for variable '",v,"'.")
     }
   }
 
-  # ------------------------------------------------------------
-  # Resolve reference values
-  # ------------------------------------------------------------
   if (is.null(ref_vals)) {
-    ref_vals <- vector("list", length(vars))
-    names(ref_vals) <- vars
-
-    for (v in vars) {
-
-      if (!is.null(wx_long) && is.data.frame(wx_long) && v %in% names(wx_long)) {
-        ref_vals[[v]] <- as.numeric(stats::median(wx_long[[v]], na.rm = TRUE))
-        next
+    ref_vals <- setNames(vector("list", length(vars)), vars)
+    for(v in vars){
+      if(!is.null(data) && is.data.frame(data) && v %in% names(data)){
+        ref_vals[[v]] <- as.numeric(stats::median(data[[v]], na.rm=TRUE)); next
       }
-
-      if (!is.null(fit_spec[[v]]) &&
-          !is.null(fit_spec[[v]]$argvar) &&
-          !is.null(fit_spec[[v]]$argvar$cen)) {
-        ref_vals[[v]] <- as.numeric(fit_spec[[v]]$argvar$cen)
-        next
+      if(!is.null(fit_spec[[v]]$argvar$cen)){
+        ref_vals[[v]] <- as.numeric(fit_spec[[v]]$argvar$cen); next
       }
-
-      stop(
-        "Could not determine default reference value for variable '", v, "'. ",
-        "Provide `ref_vals` explicitly or `wx_long`."
-      )
-    }
-  } else {
-    if (!is.list(ref_vals) || is.null(names(ref_vals))) {
-      stop("`ref_vals` must be a named list.")
-    }
-
-    miss_ref <- setdiff(vars, names(ref_vals))
-    if (length(miss_ref) > 0L) {
-      stop("Missing reference values for variable(s): ", paste(miss_ref, collapse = ", "))
-    }
-
-    for (v in vars) {
-      if (!is.numeric(ref_vals[[v]]) || length(ref_vals[[v]]) != 1L || !is.finite(ref_vals[[v]])) {
-        stop("Each element of `ref_vals` must be a finite numeric scalar. Problem with variable: ", v)
-      }
+      stop("Could not determine default reference value for variable '",v,"'.")
     }
   }
 
-  # ------------------------------------------------------------
-  # Lag utility
-  # IMPORTANT: profiles are built in lag-order:
-  # lag 0 -> first position; lag max -> last position
-  # ------------------------------------------------------------
-  lag_to_idx <- function(lags, N) {
-    idx <- lags + 1L
+  lag_to_idx <- function(lags, N){
+    idx <- N - lags
     idx[idx >= 1L & idx <= N]
   }
 
-  # ------------------------------------------------------------
-  # Build exposure profile for ONE variable under ONE scenario point
-  # ------------------------------------------------------------
-  build_profile <- function(var, scen_values) {
-
+  build_profile <- function(var, scen_values){
     N_var <- var_lagmax[[var]] + 1L
     x <- rep(ref_vals[[var]], N_var)
 
-    for (i in seq_len(nrow(periods))) {
-
+    for(i in seq_len(nrow(periods))){
       p_id <- periods$period[i]
-
-      if (!is.null(scen_values[[p_id]]) &&
-          !is.null(scen_values[[p_id]][[var]])) {
-
+      if(!is.null(scen_values[[p_id]]) && !is.null(scen_values[[p_id]][[var]])){
         lags <- seq(periods$lag_start[i], periods$lag_end[i])
         idx <- lag_to_idx(lags, N_var)
-
         val <- scen_values[[p_id]][[var]]
-
-        if (!(length(val) %in% c(1L, length(idx)))) {
-          stop(
-            "Scenario '", p_id, "', variable '", var,
-            "' has length ", length(val),
-            " but expected either 1 or ", length(idx), "."
-          )
+        if(!(length(val) %in% c(1L,length(idx)))){
+          stop("Scenario '",p_id,"', variable '",var,"' has invalid length.")
         }
-
         x[idx] <- val
       }
     }
-
     x
   }
 
-  # ------------------------------------------------------------
-  # Expand continuous scenario points
-  # ------------------------------------------------------------
-  expand_scenario_points <- function(scen_values) {
-
-    lens <- unlist(lapply(scen_values, function(block) {
-      sapply(block, length)
-    }), use.names = FALSE)
-
+  expand_scenario_points <- function(scen_values){
+    lens <- unlist(lapply(scen_values,function(block) sapply(block,length)), use.names=FALSE)
     lens_gt1 <- unique(lens[lens > 1L])
-
-    if (length(lens_gt1) == 0L) {
-      return(list(scen_values))
-    }
-
-    if (length(lens_gt1) > 1L) {
-      stop("All varying scenario vectors must have the same length.")
-    }
-
+    if(length(lens_gt1)==0L) return(list(scen_values))
+    if(length(lens_gt1)>1L) stop("All varying scenario vectors must have the same length.")
     n_pts <- lens_gt1[1]
-    pts <- vector("list", n_pts)
-
-    for (i in seq_len(n_pts)) {
-      pts[[i]] <- lapply(scen_values, function(block) {
-        lapply(block, function(val) {
-          if (length(val) > 1L) val[i] else val
-        })
+    lapply(seq_len(n_pts), function(i){
+      lapply(scen_values, function(block){
+        lapply(block, function(val) if(length(val)>1L) val[i] else val)
       })
-    }
-
-    pts
+    })
   }
 
-  # ------------------------------------------------------------
-  # Attach scenario metadata
-  # ------------------------------------------------------------
-  attach_scenario_info <- function(name, point_index = 1L, n_rows = 1L, total_points = 1L) {
-
-    if (is.null(scenario_info)) {
-      return(data.frame(
-        scenario = rep(name, n_rows),
-        stringsAsFactors = FALSE
-      ))
-    }
-
-    df_info <- scenario_info[scenario_info$scenario == name, , drop = FALSE]
-
-    if (nrow(df_info) == 0L) {
-      return(data.frame(
-        scenario = rep(name, n_rows),
-        stringsAsFactors = FALSE
-      ))
-    }
-
-    if (nrow(df_info) == 1L) {
-      df_info <- df_info[rep(1L, n_rows), , drop = FALSE]
-      rownames(df_info) <- NULL
-      return(df_info)
-    }
-
-    if (nrow(df_info) == total_points) {
-      df_info <- df_info[point_index, , drop = FALSE]
-      df_info <- df_info[rep(1L, n_rows), , drop = FALSE]
-      rownames(df_info) <- NULL
-      return(df_info)
-    }
-
-    stop("scenario_info rows for scenario '", name, "' do not match the number of simulated points.")
+  attach_scenario_info <- function(name, point_index=1L, n_rows=1L, total_points=1L){
+    if(is.null(scenario_info)) return(data.frame(scenario=rep(name,n_rows), stringsAsFactors=FALSE))
+    df_info <- scenario_info[scenario_info$scenario==name,,drop=FALSE]
+    if(nrow(df_info)==0L) return(data.frame(scenario=rep(name,n_rows), stringsAsFactors=FALSE))
+    if(nrow(df_info)==1L){ df_info <- df_info[rep(1L,n_rows),,drop=FALSE]; rownames(df_info)<-NULL; return(df_info)}
+    if(nrow(df_info)==total_points){ df_info <- df_info[point_index,,drop=FALSE]; df_info <- df_info[rep(1L,n_rows),,drop=FALSE]; rownames(df_info)<-NULL; return(df_info)}
+    stop("scenario_info rows mismatch.")
   }
 
-  # ------------------------------------------------------------
-  # Apply scenarios using predict_outcome()
-  # ------------------------------------------------------------
-  re_mode <- if (isTRUE(pop_level)) "population" else "conditional"
+  re_mode <- if(isTRUE(pop_level)) "population" else "conditional"
+  pred_output <- if(uncertainty) "samples" else output
 
-  pred_output <- if (uncertainty) "samples" else output
+  out_list <- purrr::imap(scenarios, function(scen,name){
+    pts <- expand_scenario_points(scen)
+    pred_list <- vector("list", length(pts))
 
-  out_list <- purrr::imap(scenarios, function(scen, name) {
-
-    scen_pts <- expand_scenario_points(scen)
-    n_pts <- length(scen_pts)
-
-    pred_list <- vector("list", n_pts)
-
-    for (j in seq_len(n_pts)) {
-
-      profiles_j <- lapply(vars, function(v) build_profile(v, scen_pts[[j]]))
+    for(j in seq_along(pts)){
+      profiles_j <- lapply(vars, function(v) build_profile(v, pts[[j]]))
       names(profiles_j) <- vars
 
       pred_j <- predict_outcome(
@@ -411,45 +263,34 @@ simulate_scenarios <- function(
         re = re_mode,
         allow_new_levels = TRUE,
         type = "response",
-        reverse = FALSE,  # profiles are already assembled in lag-order
         uncertainty = uncertainty,
         output = pred_output,
-        n_samples = n_samples
+        n_samples = n_samples,
+        seed = seed
       )
 
-      meta_j <- attach_scenario_info(
-        name = name,
-        point_index = j,
-        n_rows = 1L,
-        total_points = n_pts
-      )
+      meta_j <- attach_scenario_info(name,j,1L,length(pts))
 
-      if (!uncertainty) {
-
+      if(!uncertainty){
         meta_j$prediction <- pred_j$prediction[1]
         pred_list[[j]] <- meta_j
-
-      } else if (output == "summary") {
-
-        meta_j$prediction <- stats::median(pred_j$prediction, na.rm = TRUE)
+      } else if(output == "summary"){
+        meta_j$prediction <- stats::median(pred_j$prediction, na.rm=TRUE)
         meta_j$sd <- safe_sd(pred_j$prediction)
         meta_j$lower <- safe_quantile(pred_j$prediction)[1]
         meta_j$upper <- safe_quantile(pred_j$prediction)[2]
         pred_list[[j]] <- meta_j
-
       } else {
-
-        tmp <- meta_j[rep(1L, nrow(pred_j)), , drop = FALSE]
+        tmp <- meta_j[rep(1L,nrow(pred_j)),,drop=FALSE]
         tmp$sample <- pred_j$sample
         tmp$prediction <- pred_j$prediction
         pred_list[[j]] <- tmp
       }
     }
-
-    do.call(rbind, pred_list)
+    do.call(rbind,pred_list)
   })
 
-  out <- do.call(rbind, out_list)
+  out <- do.call(rbind,out_list)
   rownames(out) <- NULL
   out
 }

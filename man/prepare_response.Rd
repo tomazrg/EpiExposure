@@ -9,39 +9,54 @@ prepare_response(data, y_var, family)
 \arguments{
 \item{data}{A data.frame containing the response variable.}
 
-\item{y_var}{Character scalar. Name of the response variable in `data`.}
+\item{y_var}{Character scalar naming the response variable in `data`.}
 
-\item{family}{Character scalar. Distribution to be used in modeling.
-Supported options are:
-- `"beta"`: proportions in (0,1)
-- `"binomial"`: binary outcomes (0/1)
-- `"poisson"`: count data (non-negative integers)
-- `"negbin"` or `"negative_binomial"`: overdispersed counts
-- `"gaussian"`: continuous values
-- `"gamma"`: positive continuous values
-- `"ordinal"`: integer categorical severity levels (1, 2, 3, ...)}
+\item{family}{Distribution family supplied as a supported character name or
+  family object. Canonical family names are:
+  - `"beta"`: proportions in the open interval (0, 1)
+  - `"binomial"`: binary outcomes coded as 0 or 1
+  - `"poisson"`: non-negative integer counts
+  - `"negative_binomial"`: overdispersed non-negative integer counts
+  - `"gaussian"`: continuous numeric values
+  - `"gamma"`: strictly positive continuous values
+  - `"ordinal"`: ordered integer categories coded as 1, 2, 3, ...
+
+  Supported aliases include `"bernoulli"`, `"normal"`, `"negbin"`,
+  `"nbinom"`, `"nbinom1"`, `"nbinom2"`, and `"cumulative"`.}
 }
 \value{
-A data.frame identical to `data`, with an added column:
-  - `y_model`: processed response variable ready for modeling
-
-  Additionally, the function attaches an attribute:
-  - `"y_scale_mult"`: scaling factor applied to `y` (e.g., 100 if percentages were converted to proportions)
+A data.frame identical to `data`, with an added `y_model` column.
+  The returned data frame contains the following attributes:
+  - `"y_scale_mult"`: scaling factor applied to the original response
+  - `"response_family_name"`: canonical family name used for preparation
+  - `"response_levels"`: ordered response levels for ordinal outcomes,
+    otherwise `NULL`
+  - `"response_n_categories"`: number of ordinal categories, otherwise
+    `NULL`
 }
 \description{
-Prepares and validates a response variable (`y`) according to the selected
-distribution family. When needed, the function applies transformations to
-ensure compatibility with the model assumptions (e.g., scaling proportions
-for Beta regression or enforcing integer counts for Poisson models).
+Prepares and validates a response variable according to the selected
+distribution family. When necessary, the function transforms the response
+to satisfy the family requirements, such as converting percentages to
+proportions for Beta regression.
 }
 \details{
-If the response variable is already compatible with the selected distribution,
-values are preserved without modification.
+The `family` argument may be supplied as a supported character name or as a
+family object containing a valid `family` field. Family aliases are
+normalized internally to a canonical name.
 
 
-- For `"beta"`, values are constrained to the open interval (0,1) using a small epsilon.
-- For `"binomial"`, non-binary values are set to NA.
-- For count families (`"poisson"`, `"negbin"`), values are rounded and negative values are set to NA.
-- For `"gamma"`, non-positive values are set to NA.
-- For `"ordinal"`, values must be integers ≥ 1.
+For `"beta"`, responses expressed on a 0-100 percentage scale are divided
+by 100 when at least one finite value exceeds 1. Values are then constrained
+to the open interval (0, 1) using `epsilon = 1e-5`.
+
+For `"binomial"`, values must be exactly 0 or 1. For `"poisson"` and
+`"negative_binomial"`, values must be non-negative integers. The function
+does not silently truncate or round invalid binary or count responses.
+
+For `"gamma"`, values must be strictly positive. For `"ordinal"`, values
+must be consecutive integers beginning at 1 and at least two categories must
+be present.
+
+No unsupported family is silently converted to Gaussian.
 }

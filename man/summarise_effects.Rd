@@ -8,11 +8,6 @@ summarise_effects(
   fit,
   data,
   var = NULL,
-  lag_max = NULL,
-  df_var = NULL,
-  df_lag = NULL,
-  fun_var = NULL,
-  fun_lag = NULL,
   scale = c("daily", "accumulated"),
   lag_periods = NULL,
   probs = seq(0.05, 0.95, by = 0.01),
@@ -21,64 +16,85 @@ summarise_effects(
   incremental = FALSE,
   uncertainty = FALSE,
   output = c("summary", "samples"),
-  n_samples = 1000
+  n_samples = 1000,
+  diagnostics = FALSE,
+  seed = NULL
 )
 }
 \arguments{
 \item{fit}{Fitted model returned by `fit_epidlnm()`.}
 
-\item{data}{Long-format exposure data. Must contain `epi_id`, `time`, and
-the exposure variables used in the fitted model. Within each epidemic,
-observations must be supplied chronologically, from earliest to most recent.}
+\item{data}{Long-format exposure data containing `epi_id`, `time`, and the
+fitted exposure variables.}
 
-\item{var}{Exposure-variable name, character vector of names, or `NULL`.
-If `NULL`, all variables stored in the fitted-model metadata are used.}
-
-\item{lag_max}{Optional maximum lag. Ignored when available in model metadata.}
-
-\item{df_var}{Optional exposure-basis degrees of freedom used as fallback.}
-
-\item{df_lag}{Optional lag-basis degrees of freedom used as fallback.}
-
-\item{fun_var}{Optional exposure-basis function used as fallback.}
-
-\item{fun_lag}{Optional lag-basis function used as fallback.}
+\item{var}{Exposure-variable name(s), or `NULL` for all fitted exposures.}
 
 \item{scale}{Character. `"daily"` or `"accumulated"`.}
 
-\item{lag_periods}{Optional table containing `period`, `lag_start`, and
-`lag_end`; required for non-incremental accumulated summaries.}
+\item{lag_periods}{Optional data.frame with `period`, `lag_start`, and
+`lag_end`, required for non-incremental accumulated summaries.}
 
-\item{probs}{Quantiles used to define the exposure grid.}
+\item{probs}{Unique probabilities used to build the exposure grid.}
 
-\item{ref}{Reference definition list with `method` and optional `value`.}
+\item{ref}{List with `method = "median"`, `"percentile"`, or `"fixed"`, and
+an optional `value`.}
 
 \item{effect_measure}{Character. `"linear"`, `"exponentiated"`, or
 `"percent"`.}
 
-\item{incremental}{Logical. If `TRUE` with accumulated effects, returns
-cumulative effects from lag 0 through each lag.}
+\item{incremental}{Logical. For accumulated effects, calculate cumulative
+effects from lag 0 through each lag.}
 
-\item{uncertainty}{Logical. If `TRUE`, propagates coefficient uncertainty.}
+\item{uncertainty}{Logical. Propagate coefficient uncertainty draw by draw.}
 
 \item{output}{Character. `"summary"` or `"samples"`.}
 
-\item{n_samples}{Positive integer number of coefficient draws.}
+\item{n_samples}{Positive integer number of draws. At least two are required
+when `uncertainty = TRUE`.}
+
+\item{diagnostics}{Logical. For daily non-ordinal effects, return integrated
+lag rankings and contribution metrics. Rankings depend on `effect_measure`.}
+
+\item{seed}{Optional finite integer seed for reproducible sampling.}
 }
 \value{
-A data.frame.
+A data.frame of effects or category probabilities. For non-ordinal
+  models, `predicted` is the response-scale prediction, `baseline` is the
+  response-scale reference prediction, and `delta` is their absolute
+  difference (`predicted - baseline`) in the natural units of the response.
+  With `diagnostics = TRUE`, a list with `effects` and `diagnostics`.
 }
 \description{
-Summarises DLNM effects on either the daily or accumulated scale using
-exposure grids derived from observed data and the DLNM specification stored
-in the fitted model.
+Summarises daily or accumulated distributed lag nonlinear model effects from
+the exposure specification stored by `fit_epidlnm()`. Exposure histories are
+interpreted chronologically: the first observation is the oldest exposure and
+the final observation is the most recent exposure, corresponding internally
+to lag 0.
 }
 \details{
-`time` is chronological, not lag. Observations are ordered internally by
-`time` before reconstructing the cross-basis. The DLNM representation maps
-the most recent observation to lag 0. Returned effects remain indexed by lag.
+For non-ordinal models, effects may be returned on the linear scale, as
+`exp(eta)`, or as `(exp(eta) - 1) * 100`. Under a log link, the percent form is
+a relative percentage change in the expected outcome. Under a logit link, it
+is a relative exposure effect and must not be interpreted as a direct
+percentage change in the response.
 
-Coefficient names are aligned with cross-basis columns using the ordered
-`epiexposure_cb_cols` metadata stored by `fit_epidlnm()`. The function checks
-both the coefficient vector and covariance-matrix names before prediction.
+For ordinal `brms` models, the function returns the predicted probability of
+every response category. `effect_measure` is not applied to ordinal category
+probabilities.
+
+The `delta` column is defined consistently for every non-ordinal family as
+`predicted - baseline` on the response scale. Its interpretation follows the
+response distribution: a difference in predicted means for Gaussian and
+Gamma models, a difference in expected counts for Poisson and Negative
+Binomial models, and a difference in predicted proportions or probabilities
+for Beta and Binomial models. For Beta and Binomial models, multiplying
+`delta` by 100 gives the difference in percentage points.
+
+
+The cross-basis is reconstructed exclusively from `epiexposure_spec`; basis
+arguments are not re-specified by the user. When `uncertainty = FALSE`, the
+central coefficients supplied by the fitted engine are used. When
+`uncertainty = TRUE`, every draw is transformed separately and summaries use
+the median and empirical 2.5% and 97.5% quantiles. The baseline response is
+intentionally held fixed, consistently with other EpiExposure functions.
 }

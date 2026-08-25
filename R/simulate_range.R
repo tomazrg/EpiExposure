@@ -1,17 +1,22 @@
 #' Generate DLNM simulation scenarios (scenario or profile mode)
 #'
-#' Creates structured input for simulate_scenarios(), supporting both
-#' discrete scenarios and continuous profiles (ranges).
+#' Creates structured input for `simulate_scenarios()`, supporting both
+#' discrete scenarios and chronological exposure profiles.
 #'
-#' @param periods Output from define_periods()
-#' @param vary Named list of variables to vary (vectors of values)
-#' @param fixed Named list of fixed values
-#' @param scenario_type "grid" (all combinations) or "paired"
-#' @param mode "scenario" (default) or "profile"
-#' @param scenario_names Optional custom names
-#' @param scenario_var Optional variable used to define scenario naming
+#' In `mode = "profile"`, supplied vectors must be chronological exposure
+#' profiles ordered from the earliest observation to the most recent
+#' observation. Internal lag mapping is handled by downstream functions.
 #'
-#' @return A structured list with:
+#' @param periods Output from define_periods(). Must contain columns
+#'   `period`, `lag_start`, and `lag_end`.
+#' @param vary Named list of variables to vary.
+#' @param fixed Named list of variables to keep fixed.
+#' @param scenario_type Character. `"grid"` or `"paired"`.
+#' @param mode Character. `"scenario"` or `"profile"`.
+#' @param scenario_names Optional scenario names.
+#' @param scenario_var Optional variable used to define automatic scenario names.
+#'
+#' @return A list containing:
 #'   - scenarios
 #'   - periods
 #'   - info
@@ -30,9 +35,6 @@ simulate_range <- function(
   scenario_type <- match.arg(scenario_type)
   mode <- match.arg(mode)
 
-  # ------------------------------------------------------------
-  # validations
-  # ------------------------------------------------------------
   if (!is.data.frame(periods)) {
     stop("`periods` must be a data.frame.")
   }
@@ -42,50 +44,58 @@ simulate_range <- function(
     stop("`periods` must contain columns: period, lag_start, lag_end.")
   }
 
+  if (anyDuplicated(periods$period)) {
+    stop("`periods$period` must contain unique labels.")
+  }
+
   if (!is.list(vary) || length(vary) == 0) {
     stop("`vary` must be a non-empty named list.")
   }
 
   var_names <- names(vary)
-  if (is.null(var_names) || any(var_names == "")) {
+  if (is.null(var_names) || anyNA(var_names) || any(var_names == "")) {
     stop("`vary` must be a named list.")
+  }
+
+  for (nm in var_names) {
+    if (length(vary[[nm]]) == 0) {
+      stop("Variable '", nm, "' contains no values.")
+    }
   }
 
   if (!is.list(fixed)) {
     stop("`fixed` must be a named list.")
   }
 
-  if (anyDuplicated(periods$period)) {
-    stop("`periods$period` must contain unique labels.")
+  overlap <- intersect(names(vary), names(fixed))
+  if (length(overlap)) {
+    stop(
+      "Variables cannot appear in both `vary` and `fixed`: ",
+      paste(overlap, collapse = ", "), "."
+    )
   }
 
-  # ============================================================
-  # ✅ SCENARIO MODE
-  # ============================================================
   if (mode == "scenario") {
 
-    # ---- build combinations ----
     if (scenario_type == "grid") {
-
       grid <- expand.grid(
         vary,
         KEEP.OUT.ATTRS = FALSE,
         stringsAsFactors = FALSE
       )
-
     } else {
-
-      lens <- sapply(vary, length)
-      if (length(unique(lens)) != 1) {
-        stop("For scenario_type = 'paired', all vectors in `vary` must have the same length.")
+      lens <- vapply(vary, length, integer(1))
+      if (length(unique(lens)) != 1L) {
+        stop(
+          "For scenario_type = 'paired', all vectors in `vary` ",
+          "must have the same length."
+        )
       }
-
       grid <- as.data.frame(vary, stringsAsFactors = FALSE)
     }
 
     n_scen <- nrow(grid)
 
-    # ---- define naming variable ----
     if (is.null(scenario_var)) {
       scenario_var <- var_names[1]
     }
@@ -94,7 +104,6 @@ simulate_range <- function(
       stop("`scenario_var` must be one of the names in `vary`.")
     }
 
-    # ---- scenario names ----
     if (is.null(scenario_names)) {
       prefix <- toupper(scenario_var)
       scenario_names <- paste0(prefix, "_s", seq_len(n_scen))
@@ -112,22 +121,14 @@ simulate_range <- function(
       stop("`scenario_names` must be unique.")
     }
 
-    # ---- build scenarios ----
     scenarios_out <- vector("list", n_scen)
 
     for (i in seq_len(n_scen)) {
-
       scen_row <- as.list(grid[i, , drop = FALSE])
       scen_i <- list()
 
       for (p in periods$period) {
-
-        scen_period <- scen_row
-
-        if (length(fixed) > 0) {
-          scen_period <- c(scen_period, fixed)
-        }
-
+        scen_period <- c(scen_row, fixed)
         scen_i[[p]] <- scen_period
       }
 
@@ -147,17 +148,18 @@ simulate_range <- function(
     ))
   }
 
-  # ============================================================
-  # ✅ PROFILE MODE
-  # ============================================================
   if (mode == "profile") {
 
-    if (length(vary) != 1) {
+    if (length(vary) != 1L) {
       stop("For mode = 'profile', `vary` must contain exactly one variable.")
     }
 
     var <- var_names[1]
     x_vals <- vary[[1]]
+
+    if (!is.numeric(x_vals) || anyNA(x_vals) || any(!is.finite(x_vals))) {
+      stop("Profile values must be finite numeric values.")
+    }
 
     if (is.null(scenario_var)) {
       scenario_var <- var
@@ -176,12 +178,10 @@ simulate_range <- function(
     scen <- list()
 
     for (p in periods$period) {
-
       scen_period <- c(
-        setNames(list(x_vals), var),
+        setNames(list(as.numeric(x_vals)), var),
         fixed
       )
-
       scen[[p]] <- scen_period
     }
 
@@ -192,6 +192,7 @@ simulate_range <- function(
       scenario = scenario_name,
       variable = var,
       mode = "profile",
+      profile_order = "chronological",
       stringsAsFactors = FALSE
     )
 

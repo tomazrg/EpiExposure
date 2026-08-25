@@ -217,6 +217,22 @@ find_bestfit <- function(
     invisible(TRUE)
   }
 
+  resolve_family_name <- function(family) {
+
+    if (is.character(family)) {
+      return(tolower(family[[1]]))
+    }
+
+    if (inherits(family, "family")) {
+      return(tolower(family$family))
+    }
+
+    stop(
+      "Unsupported family specification."
+    )
+
+  }
+
   ccc_lins <- function(obs, pred) {
     valid <- is.finite(obs) & is.finite(pred)
     obs <- obs[valid]
@@ -296,9 +312,18 @@ find_bestfit <- function(
       } else if (inherits(fitted_model, "brmsfit")) {
         if (!requireNamespace("brms", quietly = TRUE)) stop("Package 'brms' is required.")
         posterior_prediction <- brms::posterior_epred(
-          fitted_model, newdata = newdata, re_formula = NA, allow_new_levels = TRUE
+          fitted_model,
+          newdata = newdata,
+          re_formula = NA,
+          allow_new_levels = TRUE
         )
-        colMeans(posterior_prediction)
+
+        apply(
+          posterior_prediction,
+          2,
+          stats::median,
+          na.rm = TRUE
+        )
       } else if (is_gamm_object(fitted_model)) {
         stats::predict(fitted_model$gam, newdata = newdata, type = "response")
       } else if (inherits(fitted_model, "gam") || inherits(fitted_model, "glm")) {
@@ -378,7 +403,7 @@ find_bestfit <- function(
     prepared <- prepare_response(
       data = design,
       y_var = "y",
-      family_choice = if (is.character(family)) family else "gaussian"
+      family = resolve_family_name(family)
     )
     list(templates = templates, design = design, prepared = prepared)
   }
@@ -476,7 +501,7 @@ find_bestfit <- function(
             prepared_test <- prepare_response(
               data = test_design,
               y_var = "y",
-              family_choice = if (is.character(family)) family else "gaussian"
+              family = resolve_family_name(family)
             )
             prediction <- predict_response_engine(fitted_model, prepared_test, family)
             list(obs = prepared_test$y_model[1], pred = as.numeric(prediction[1]))

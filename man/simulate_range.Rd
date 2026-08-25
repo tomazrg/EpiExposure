@@ -15,27 +15,33 @@ simulate_range(
 )
 }
 \arguments{
-\item{periods}{Output from define_periods()}
+\item{periods}{Output from define_periods(). Must contain columns
+`period`, `lag_start`, and `lag_end`.}
 
-\item{vary}{Named list of variables to vary (vectors of values)}
+\item{vary}{Named list of variables to vary.}
 
-\item{fixed}{Named list of fixed values}
+\item{fixed}{Named list of variables to keep fixed.}
 
-\item{scenario_type}{"grid" (all combinations) or "paired"}
+\item{scenario_type}{Character. `"grid"` or `"paired"`.}
 
-\item{mode}{"scenario" (default) or "profile"}
+\item{mode}{Character. `"scenario"` or `"profile"`.}
 
-\item{scenario_names}{Optional custom names}
+\item{scenario_names}{Optional scenario names.}
 
-\item{scenario_var}{Optional variable used to define scenario naming}
+\item{scenario_var}{Optional variable used to define automatic scenario names.}
 }
 \value{
-A structured list with:
+A list containing:
   - scenarios
   - periods
   - info
 }
 \description{
-Creates structured input for simulate_scenarios(), supporting both
-discrete scenarios and continuous profiles (ranges).
+Creates structured input for `simulate_scenarios()`, supporting both
+discrete scenarios and chronological exposure profiles.
+}
+\details{
+In `mode = "profile"`, supplied vectors must be chronological exposure
+profiles ordered from the earliest observation to the most recent
+observation. Internal lag mapping is handled by downstream functions.
 }
