@@ -1573,21 +1573,49 @@ ct = compute_eci(
                   output = "summary"
 )
 
+
+ctt = ct |> 
+  filter(var == "rain")
+
+
+
+
+sim_datact = sim_data |> 
+  group_by(epi_id) |> 
+  summarise(y = mean(y))
+
+
+ctt$y = sim_datact$y
+
+cor.test(ctt$ECI_weighted, ctt$y,
+         method = "spearman")
+
+ctt |> 
+  ggplot()+
+  #geom_point(aes(ECI_weighted,y))+
+  geom_smooth(aes(ECI_weighted,y),se = F)+
+  geom_smooth(aes(lower,y),se = F)+
+  geom_smooth(aes(upper,y),se = F)
+
+
+
+sum(ct2$by_lag$percent_contribution)
+```
+```{r}
 ct2  = compute_ecilag(
   data = sim_data,
   group = "epi_id",
   fit = fit,
   group_level = 1,
   var = c("tmean", "rain","wetness"),
-  uncertainty = TRUE,
+  uncertainty = FALSE,
   n_samples = 10,
-output = "summary"
-)
+ output = "summary")
 
 ct3 = ct2$by_lag
 
 ct3 |> 
-  filter(var == "wetness") |> 
+  filter(var == "rain") |> 
   ggplot()+
   geom_smooth(aes(exposure,abs_contribution), se = F)+
   geom_smooth(aes(exposure,abs_contribution_upper), se = F, linetype = 2)+
@@ -1595,7 +1623,7 @@ ct3 |>
   theme_bw()
   
 ct_tmean = ct3 %>% 
-  filter(var == "tmean")
+  filter(var == "rain")
 
 datt = sim_data |> 
   filter(epi_id == 1)
@@ -1609,13 +1637,14 @@ ct_tmean %>%
   geom_histogram(bins = 20, color = "white")
 
 
-ct_tmean
 
-cor.test(ct_tmean$lag, ct_tmean$percent_contribution)
+
+cor.test(ct_tmean$exposure, ct_tmean$percent_contribution,
+         method = "spearman")
 
 
 ct_tmean |> 
-  ggplot(aes(lag,percent_contribution))+
+  ggplot(aes(exposure,percent_contribution))+
   geom_point()
 ```
 
