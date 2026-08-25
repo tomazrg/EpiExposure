@@ -11,6 +11,7 @@ summarise_effects(
   scale = c("daily", "accumulated"),
   lag_periods = NULL,
   probs = seq(0.05, 0.95, by = 0.01),
+  at = NULL,
   ref = list(method = "median", value = NULL),
   effect_measure = c("linear", "exponentiated", "percent"),
   incremental = FALSE,
@@ -34,7 +35,18 @@ fitted exposure variables.}
 \item{lag_periods}{Optional data.frame with `period`, `lag_start`, and
 `lag_end`, required for non-incremental accumulated summaries.}
 
-\item{probs}{Unique probabilities used to build the exposure grid.}
+\item{probs}{Unique probabilities used to generate the exposure grid for
+variables without a custom `at` specification. The default preserves the
+current quantile-based behavior.}
+
+\item{at}{Optional exposure values at which effects are evaluated. Use
+`NULL` to generate quantile-based grids from `probs` for every variable.
+A numeric vector is allowed when exactly one exposure variable is
+requested. For multiple variables, use a named list, for example
+`list(tmax = seq(29, 34, length.out = 1000), rain = seq(0, 50, by = 0.5))`.
+The list may be partial: variables omitted from `at` continue to use the
+quantile-based grid defined by `probs`. To evaluate effects at the unique
+observed values, supply `sort(unique(data[[variable]]))` for that variable.}
 
 \item{ref}{List with `method = "median"`, `"percentile"`, or `"fixed"`, and
 an optional `value`.}

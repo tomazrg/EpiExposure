@@ -848,80 +848,680 @@ check_identifiability(data = sim_data, var = "tmean",
 epi_l = summarise_effects(fit = fit, data = sim_data,
                   scale = "daily", effect_measure = "percent",
                   uncertainty = TRUE, n_samples = 20,
-                  output = "summary")
+                  output = "summary",
+                  at = list (
+                    tmean = seq(15,35, length.out = 1000),
+                    rain = seq(0,15, length.out = 1000),
+                    wetness = seq(0,24, length.out = 1000)))
 
 
 epi_l |> 
-  filter(var == "wetness") |> 
-  filter(lag == 30) |> 
-  ggplot(aes(value,effect))+
-  geom_smooth()
+  filter(var == "rain") |> 
+  filter(lag == 1) |> 
+  ggplot()+
+  geom_smooth(aes(value,effect), color = "#4C72B0", se = F)+
+  geom_smooth(aes(value,effect_lower), color = "#4C72B0", se = F, linetype = 2)+
+  geom_smooth(aes(value,effect_upper), color = "#4C72B0", se = F, linetype = 2)+
+  theme_bw()+
+  labs(x = "Exposure (mm)",
+       y = "Effect")
+
+```
+
+```{r}
 
 
+epi_plot <- epi_l %>%
+  filter(var == "tmean")
 
+
+lims <- quantile(
+  epi_plot$effect,
+  probs = c(0.02, 0.98),
+  na.rm = TRUE
+)
+
+max_abs <- max(abs(lims))
+
+epi_plot <- epi_plot %>%
+  mutate(
+    effect_c = pmax(
+      pmin(effect, max_abs),
+      -max_abs
+    )
+  )
+
+library(ggplot2)
+library(dplyr)
+library(scales)
+library(metR)
+library(grid)
+
+tmean_contour <- ggplot(
+  epi_plot,
+  aes(
+    x = lag,
+    y = value
+  )
+) +
+
+  geom_raster(
+    aes(fill = effect_c),
+    interpolate = TRUE
+  ) +
+
+  geom_contour(
+    aes(z = effect),
+    color = "black",
+    linewidth = 0.25,
+    breaks = c(-15, -10, -5, 0, 5, 10, 15)
+  ) +
+
+  geom_text_contour(
+    aes(z = effect),
+    breaks = 0,
+    stroke = 0.15,
+    #label.padding = unit(0.15, "lines"),
+    size = 3.2
+  ) +
+
+  scale_fill_gradient2(
+    low = "#3B4CC0", 
+    mid = "white",
+    high = "#B40426",
+    midpoint = 0,
+    limits = c(-max_abs, max_abs),
+    oob = squish,
+    name = "RR (%)",
+    guide = guide_colorbar(
+      barwidth  = unit(4, "cm"),
+      barheight = unit(0.5, "cm")
+    )
+  ) +
+
+  scale_x_reverse(
+    breaks = pretty(epi_plot$lag, n = 8),
+    expand = c(0, 0)
+  ) +
+
+  scale_y_continuous(
+    breaks = pretty(epi_plot$value, n = 6),
+    expand = c(0, 0)
+  ) +
+
+  coord_cartesian(
+    clip = "off"
+  ) +
+
+  labs(
+    x = "Lag",
+    y = "Mean temperature (°C)"
+  ) +
+
+  theme_bw(base_size = 12) +
+
+  theme(
+    panel.grid = element_blank(),
+    axis.title = element_text(
+      face = "bold",
+      size = 12
+    ),
+    axis.text = element_text(size = 10),
+    legend.title = element_text(face = "bold"),
+    legend.position = "top"
+  )
+
+tmean_contour
 ```
 ```{r}
 library(ggplot2)
 library(dplyr)
 library(scales)
 library(metR)
+library(grid)
 
 
-# 2a) (optional but very useful) "trim" outliers for the color scale
-#     and enforce symmetric limits around zero:
-lims <- quantile(epi_l$effect, c(0.02, 0.98), na.rm = TRUE)
-max_abs <- max(abs(lims))
+
 epi_plot <- epi_l %>%
-  mutate(PERC_c = pmax(pmin(effect,  max_abs), -max_abs))
-
-# 2b) Heatmap + countour lines
-tmean_movel = epi_plot %>% 
   filter(var == "tmean") |> 
-ggplot(aes(x = lag, y = value, fill = PERC_c)) +
-  # interpolated raster looks smoother on screen
-  geom_tile(interpolate = TRUE) +
-  # contour lines (0% and ±5, ±10, ±15...)
-  #geom_contour(aes(z = PERC), color = "black", size = 0.25,
-   #            breaks = c(-15, -10, -5, 0, 5, 10, 15)) +
-  # label only the zero contour (neutral) to guide interpretation
-  geom_text_contour(aes(z = effect), breaks = 0, stroke = 0.15,
-                    label.padding = unit(0.15, "lines"), size = 3.2) +
-  # perceptual palette centered at 0 (diverging)
-scale_fill_gradient2(
-  low = "#2c7bb6", mid = "white", high = "#d7191c",
-  midpoint = 0, limits = c(-max_abs, max_abs),
-  oob = squish,
-  name = "RR (%)",
-  guide = guide_colorbar(
-    barwidth  = unit(4, "cm"),  
-    barheight = unit(0.5, "cm")
+  mutate(delta = delta*100)
+
+
+lims <- quantile(
+  epi_plot$delta,
+  probs = c(0.02, 0.98),
+  na.rm = TRUE
+)
+
+max_abs <- max(abs(lims))
+
+epi_plot <- epi_plot %>%
+  mutate(
+    delta_c = pmax(
+      pmin(delta, max_abs),
+      -max_abs
+    )
   )
-)+
-  #scale_x_reverse()+
-  scale_x_continuous(trans = "reverse",
-    breaks = pretty(epi_l$lag, n = 8), expand = c(0, 0)) +
-  scale_y_continuous(breaks = pretty(epi_l$wetness, n = 6), expand = c(0, 0)) +
-  coord_cartesian(clip = "off") +
+
+
+tmean_delta <- ggplot(
+  epi_plot,
+  aes(
+    x = lag,
+    y = value
+  )
+) +
+
+  geom_raster(
+    aes(fill = delta_c),
+    interpolate = TRUE
+  ) +
+
+  geom_contour(
+    aes(z = delta),
+    color = "black",
+    linewidth = 0.25,
+    bins = 10
+  ) +
+
+  geom_contour(
+    aes(z = delta),
+    breaks = 0,
+    color = "black",
+    linewidth = 0.8
+  ) +
+
+  geom_text_contour(
+    aes(z = delta),
+    breaks = 0,
+    stroke = 0.15,
+    size = 3
+  ) +
+
+scale_fill_viridis_c(name = "Δ") +
+
+  scale_x_reverse(
+    breaks = pretty(epi_plot$lag, n = 8),
+    expand = c(0, 0)
+  ) +
+
+  scale_y_continuous(
+    breaks = pretty(epi_plot$value, n = 6),
+    expand = c(0, 0)
+  ) +
+
   labs(
-    x = "Lag (days)",
-    y = "Temperature (°C)") +
+    x = "Lag",
+    y = "Mean temperature (°C)"
+  ) +
+
+  coord_cartesian(
+    clip = "off"
+  ) +
+
   theme_bw(base_size = 12) +
+
   theme(
     panel.grid = element_blank(),
-    axis.title = element_text(face = "bold", size = 12),
-    axis.text  = element_text(size = 10),
+    axis.title = element_text(
+      face = "bold",
+      size = 12
+    ),
+    axis.text = element_text(
+      size = 10
+    ),
+    legend.position = "bottom",
+    legend.title = element_text(
+      face = "bold"
+    )
+  )
+
+tmean_delta
+
+```
+```{r}
+epi_plot <- epi_l %>%
+  filter(var == "rain")
+
+
+lims <- quantile(
+  epi_plot$effect,
+  probs = c(0.02, 0.98),
+  na.rm = TRUE
+)
+
+max_abs <- max(abs(lims))
+
+epi_plot <- epi_plot %>%
+  mutate(
+    effect_c = pmax(
+      pmin(effect, max_abs),
+      -max_abs
+    )
+  )
+
+library(ggplot2)
+library(dplyr)
+library(scales)
+library(metR)
+library(grid)
+
+rain_contour <- ggplot(
+  epi_plot,
+  aes(
+    x = lag,
+    y = value
+  )
+) +
+
+  geom_raster(
+    aes(fill = effect_c),
+    interpolate = TRUE
+  ) +
+
+  geom_contour(
+    aes(z = effect),
+    color = "black",
+    linewidth = 0.25,
+    breaks = c(-15, -10, -5, 0, 5, 10, 15)
+  ) +
+
+  geom_text_contour(
+    aes(z = effect),
+    breaks = 0,
+    stroke = 0.15,
+    #label.padding = unit(0.15, "lines"),
+    size = 3.2
+  ) +
+
+  scale_fill_gradient2(
+    low = "#3B4CC0", 
+    mid = "white",
+    high = "#B40426",
+    midpoint = 0,
+    limits = c(-max_abs, max_abs),
+    oob = squish,
+    name = "RR (%)",
+    guide = guide_colorbar(
+      barwidth  = unit(4, "cm"),
+      barheight = unit(0.5, "cm")
+    )
+  ) +
+
+  scale_x_reverse(
+    breaks = pretty(epi_plot$lag, n = 8),
+    expand = c(0, 0)
+  ) +
+
+  scale_y_continuous(
+    breaks = pretty(epi_plot$value, n = 6),
+    expand = c(0, 0)
+  ) +
+
+  coord_cartesian(
+    clip = "off"
+  ) +
+
+  labs(
+    x = "Lag",
+    y = "Daily precipitation (mm)"
+  ) +
+
+  theme_bw(base_size = 12) +
+
+  theme(
+    panel.grid = element_blank(),
+    axis.title = element_text(
+      face = "bold",
+      size = 12
+    ),
+    axis.text = element_text(size = 10),
     legend.title = element_text(face = "bold"),
-    plot.title = element_text(face = "bold", size = 13),
-    plot.subtitle = element_text(size = 10),
     legend.position = "top"
   )
 
-tmean_movel
+rain_contour
 ```
 
 ```{r}
+library(ggplot2)
+library(dplyr)
+library(scales)
+library(metR)
+library(grid)
 
-period  = define_periods(lag_max = 85, cuts = c(40,85), prefix = "Period")
+# ==========================================================
+# Filtrar variável
+# ==========================================================
+
+epi_plot <- epi_l %>%
+  filter(var == "rain") |> 
+  mutate(delta = delta*100)
+
+# ==========================================================
+# Limites usando DELTA
+# ==========================================================
+
+lims <- quantile(
+  epi_plot$delta,
+  probs = c(0.02, 0.98),
+  na.rm = TRUE
+)
+
+max_abs <- max(abs(lims))
+
+epi_plot <- epi_plot %>%
+  mutate(
+    delta_c = pmax(
+      pmin(delta, max_abs),
+      -max_abs
+    )
+  )
+
+# ==========================================================
+# Gráfico
+# ==========================================================
+
+rain_delta <- ggplot(
+  epi_plot,
+  aes(
+    x = lag,
+    y = value
+  )
+) +
+
+  geom_raster(
+    aes(fill = delta_c),
+    interpolate = TRUE
+  ) +
+
+  geom_contour(
+    aes(z = delta),
+    color = "black",
+    linewidth = 0.25,
+    bins = 10
+  ) +
+
+  geom_contour(
+    aes(z = delta),
+    breaks = 0,
+    color = "black",
+    linewidth = 0.8
+  ) +
+
+  geom_text_contour(
+    aes(z = delta),
+    breaks = 0,
+    stroke = 0.15,
+    size = 3
+  ) +
+
+scale_fill_viridis_c(name = "Δ") +
+
+  scale_x_reverse(
+    breaks = pretty(epi_plot$lag, n = 8),
+    expand = c(0, 0)
+  ) +
+
+  scale_y_continuous(
+    breaks = pretty(epi_plot$value, n = 6),
+    expand = c(0, 0)
+  ) +
+
+  labs(
+    x = "Lag",
+    y = "Daily precipitation (mm)"
+  ) +
+
+  coord_cartesian(
+    clip = "off"
+  ) +
+
+  theme_bw(base_size = 12) +
+
+  theme(
+    panel.grid = element_blank(),
+    axis.title = element_text(
+      face = "bold",
+      size = 12
+    ),
+    axis.text = element_text(
+      size = 10
+    ),
+    legend.position = "bottom",
+    legend.title = element_text(
+      face = "bold"
+    )
+  )
+
+rain_delta
+
+```
+
+```{r}
+epi_plot <- epi_l %>%
+  filter(var == "wetness")
+
+
+lims <- quantile(
+  epi_plot$effect,
+  probs = c(0.02, 0.98),
+  na.rm = TRUE
+)
+
+max_abs <- max(abs(lims))
+
+epi_plot <- epi_plot %>%
+  mutate(
+    effect_c = pmax(
+      pmin(effect, max_abs),
+      -max_abs
+    )
+  )
+
+library(ggplot2)
+library(dplyr)
+library(scales)
+library(metR)
+library(grid)
+
+wetness_contour <- ggplot(
+  epi_plot,
+  aes(
+    x = lag,
+    y = value
+  )
+) +
+
+  geom_raster(
+    aes(fill = effect_c),
+    interpolate = TRUE
+  ) +
+
+  geom_contour(
+    aes(z = effect),
+    color = "black",
+    linewidth = 0.25,
+    breaks = c(-15, -10, -5, 0, 5, 10, 15)
+  ) +
+
+  geom_text_contour(
+    aes(z = effect),
+    breaks = 0,
+    stroke = 0.15,
+    #label.padding = unit(0.15, "lines"),
+    size = 3.2
+  ) +
+
+  scale_fill_gradient2(
+    low = "#3B4CC0", 
+    mid = "white",
+    high = "#B40426",
+    midpoint = 0,
+    limits = c(-max_abs, max_abs),
+    oob = squish,
+    name = "RR (%)",
+    guide = guide_colorbar(
+      barwidth  = unit(4, "cm"),
+      barheight = unit(0.5, "cm")
+    )
+  ) +
+
+  scale_x_reverse(
+    breaks = pretty(epi_plot$lag, n = 8),
+    expand = c(0, 0)
+  ) +
+
+  scale_y_continuous(
+    breaks = pretty(epi_plot$value, n = 6),
+    expand = c(0, 0)
+  ) +
+
+  coord_cartesian(
+    clip = "off"
+  ) +
+
+  labs(
+    x = "Lag",
+    y = "Leaf wetness (%)"
+  ) +
+
+  theme_bw(base_size = 12) +
+
+  theme(
+    panel.grid = element_blank(),
+    axis.title = element_text(
+      face = "bold",
+      size = 12
+    ),
+    axis.text = element_text(size = 10),
+    legend.title = element_text(face = "bold"),
+    legend.position = "top"
+  )
+
+wetness_contour
+```
+```{r}
+library(ggplot2)
+library(dplyr)
+library(scales)
+library(metR)
+library(grid)
+
+
+
+epi_plot <- epi_l %>%
+  filter(var == "wetness") |> 
+  mutate(delta = delta*100)
+
+
+lims <- quantile(
+  epi_plot$delta,
+  probs = c(0.02, 0.98),
+  na.rm = TRUE
+)
+
+max_abs <- max(abs(lims))
+
+epi_plot <- epi_plot %>%
+  mutate(
+    delta_c = pmax(
+      pmin(delta, max_abs),
+      -max_abs
+    )
+  )
+
+
+wetness_delta <- ggplot(
+  epi_plot,
+  aes(
+    x = lag,
+    y = value
+  )
+) +
+
+  geom_raster(
+    aes(fill = delta_c),
+    interpolate = TRUE
+  ) +
+
+  geom_contour(
+    aes(z = delta),
+    color = "black",
+    linewidth = 0.25,
+    bins = 10
+  ) +
+
+  geom_contour(
+    aes(z = delta),
+    breaks = 0,
+    color = "black",
+    linewidth = 0.8
+  ) +
+
+  geom_text_contour(
+    aes(z = delta),
+    breaks = 0,
+    stroke = 0.15,
+    size = 3
+  ) +
+
+scale_fill_viridis_c(name = "Δ") +
+
+  scale_x_reverse(
+    breaks = pretty(epi_plot$lag, n = 8),
+    expand = c(0, 0)
+  ) +
+
+  scale_y_continuous(
+    breaks = pretty(epi_plot$value, n = 6),
+    expand = c(0, 0)
+  ) +
+
+  labs(
+    x = "Lag",
+    y = "Leaf wetness (%)"
+  ) +
+
+  coord_cartesian(
+    clip = "off"
+  ) +
+
+  theme_bw(base_size = 12) +
+
+  theme(
+    panel.grid = element_blank(),
+    axis.title = element_text(
+      face = "bold",
+      size = 12
+    ),
+    axis.text = element_text(
+      size = 10
+    ),
+    legend.position = "bottom",
+    legend.title = element_text(
+      face = "bold"
+    )
+  )
+
+wetness_delta
+
+```
+
+```{r}
+plot_grid(tmean_contour,rain_contour,wetness_contour,
+          tmean_delta, rain_delta, wetness_delta,ncol = 3)
+
+#ggsave("lag_effect.png",dpi = 600, width = 10, height = 4)
+ggsave("lag_effect2.png",dpi = 600, width = 10, height = 8)
+```
+
+
+
+
+```{r}
+
+period  = define_periods(lag_max = 85, cuts = c(20,40,60,85), prefix = "Period")
 
 epi_p = summarise_effects(fit = fit, data = sim_data,
                   scale = "accumulated", effect_measure = "percent",
@@ -931,7 +1531,7 @@ epi_p = summarise_effects(fit = fit, data = sim_data,
 
 
 epi_p |> 
-  filter(var == "rain") |> 
+  filter(var == "wetness") |> 
   filter(period == "Period1") |> 
   ggplot(aes(value,eta))+
   geom_smooth()+
@@ -939,6 +1539,85 @@ epi_p |>
 
 ```
 
+```{r}
+  epi_p %>% 
+  filter(var == "wetness") |> 
+ggplot(aes(x=value, y=eta, group = period, color = period)) +
+  #annotate("rect", xmin = 31.5, xmax = 32.5, ymin = -Inf, ymax = Inf, fill = "#E6F2E6", color = "#E6F2E6",alpha = .7) +
+  #geom_hline(yintercept = 0, linetype=2) +
+  #geom_vline(xintercept = 31.5, linetype=2) +
+  #geom_vline(xintercept = 32.5, linetype=2) +
+  #geom_smooth(size = 3,  se = F) + #colour = "#B2182B",
+  geom_smooth(size = 3, method = "gam",
+              formula = y ~ s(x, bs = "cs", k = 2),
+              se = FALSE)+
+  scale_color_viridis_d()+
+  labs(x="Temperature (°C)",
+       y="Effect") +
+  facet_wrap(~period, ncol = 4)+
+  theme_bw()+
+  theme(
+    text = element_text(face = "bold", size = 14) )
+
+
+```
+```{r}
+ct = compute_eci(
+  data = sim_data,
+  group = "epi_id",
+  group_level = NULL,
+  fit = fit,
+  var = c("tmean", "rain", "wetness"),
+  scale = "percent",
+  uncertainty = TRUE, n_samples = 10,
+                  output = "summary"
+)
+
+ct2  = compute_ecilag(
+  data = sim_data,
+  group = "epi_id",
+  fit = fit,
+  group_level = 1,
+  var = c("tmean", "rain","wetness"),
+  uncertainty = TRUE,
+  n_samples = 10,
+output = "summary"
+)
+
+ct3 = ct2$by_lag
+
+ct3 |> 
+  filter(var == "wetness") |> 
+  ggplot()+
+  geom_smooth(aes(exposure,abs_contribution), se = F)+
+  geom_smooth(aes(exposure,abs_contribution_upper), se = F, linetype = 2)+
+  geom_smooth(aes(exposure,abs_contribution_lower), se = F, linetype = 2)+
+  theme_bw()
+  
+ct_tmean = ct3 %>% 
+  filter(var == "tmean")
+
+datt = sim_data |> 
+  filter(epi_id == 1)
+
+ct_tmean$sev = datt$y
+
+
+ct_tmean %>% 
+  #filter(lag == 85) %>% 
+  ggplot(aes(ECI_weighted))+
+  geom_histogram(bins = 20, color = "white")
+
+
+ct_tmean
+
+cor.test(ct_tmean$lag, ct_tmean$percent_contribution)
+
+
+ct_tmean |> 
+  ggplot(aes(lag,percent_contribution))+
+  geom_point()
+```
 
 #FIM
 

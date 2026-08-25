@@ -31,7 +31,17 @@
 #' @param scale Character. `"daily"` or `"accumulated"`.
 #' @param lag_periods Optional data.frame with `period`, `lag_start`, and
 #'   `lag_end`, required for non-incremental accumulated summaries.
-#' @param probs Unique probabilities used to build the exposure grid.
+#' @param probs Unique probabilities used to generate the exposure grid for
+#'   variables without a custom `at` specification. The default preserves the
+#'   current quantile-based behavior.
+#' @param at Optional exposure values at which effects are evaluated. Use
+#'   `NULL` to generate quantile-based grids from `probs` for every variable.
+#'   A numeric vector is allowed when exactly one exposure variable is
+#'   requested. For multiple variables, use a named list, for example
+#'   `list(tmax = seq(29, 34, length.out = 1000), rain = seq(0, 50, by = 0.5))`.
+#'   The list may be partial: variables omitted from `at` continue to use the
+#'   quantile-based grid defined by `probs`. To evaluate effects at the unique
+#'   observed values, supply `sort(unique(data[[variable]]))` for that variable.
 #' @param ref List with `method = "median"`, `"percentile"`, or `"fixed"`, and
 #'   an optional `value`.
 #' @param effect_measure Character. `"linear"`, `"exponentiated"`, or
@@ -67,6 +77,7 @@ summarise_effects <- function(
     scale = c("daily", "accumulated"),
     lag_periods = NULL,
     probs = seq(0.05, 0.95, by = 0.01),
+    at = NULL,
     ref = list(method = "median", value = NULL),
     effect_measure = c("linear", "exponentiated", "percent"),
     incremental = FALSE,
@@ -118,6 +129,9 @@ summarise_effects <- function(
   }
   if (anyDuplicated(probs)) stop("`probs` must contain unique probabilities.")
   probs <- sort(probs)
+  if (!is.null(at) && !is.numeric(at) && !is.list(at)) {
+    stop("`at` must be NULL, a numeric vector, or a named list.")
+  }
   if (!is.list(ref) || is.null(ref$method) ||
       !is.character(ref$method) || length(ref$method) != 1L ||
       is.na(ref$method) || !nzchar(ref$method)) {
@@ -566,6 +580,57 @@ summarise_effects <- function(
          paste(missing_data_vars, collapse = ", "), ".")
   }
 
+  # Validate and standardise optional exposure-specific evaluation grids.
+  # `at = NULL` preserves the original quantile-based behaviour. A partial
+  # named list overrides only the listed variables; all others use `probs`.
+  if (is.numeric(at)) {
+    if (length(variables) != 1L) {
+      stop(
+        "A numeric `at` can be used only when exactly one exposure variable ",
+        "is requested. For multiple variables, supply `at` as a named list."
+      )
+    }
+    if (!length(at) || any(!is.finite(at))) {
+      stop("A numeric `at` must contain at least one finite value.")
+    }
+    if (anyDuplicated(at)) {
+      stop("A numeric `at` must contain unique values.")
+    }
+    at <- sort(as.numeric(at))
+  } else if (is.list(at)) {
+    if (!length(at) || is.null(names(at)) || anyNA(names(at)) ||
+        any(names(at) == "") || anyDuplicated(names(at))) {
+      stop(
+        "When supplied as a list, `at` must be a non-empty named list ",
+        "with unique, non-empty variable names."
+      )
+    }
+    unknown_at_variables <- setdiff(names(at), variables)
+    if (length(unknown_at_variables)) {
+      stop(
+        "`at` contains variables that were not requested: ",
+        paste(unknown_at_variables, collapse = ", "), "."
+      )
+    }
+    for (current_variable in names(at)) {
+      current_values <- at[[current_variable]]
+      if (!is.numeric(current_values) || !length(current_values) ||
+          any(!is.finite(current_values))) {
+        stop(
+          "`at[['", current_variable,
+          "']]` must contain at least one finite numeric value."
+        )
+      }
+      if (anyDuplicated(current_values)) {
+        stop(
+          "`at[['", current_variable,
+          "']]` must contain unique values."
+        )
+      }
+      at[[current_variable]] <- sort(as.numeric(current_values))
+    }
+  }
+
   transform_effect <- function(eta) {
     if (effect_measure == "linear") return(eta)
     if (effect_measure == "exponentiated") return(exp(eta))
@@ -715,9 +780,42 @@ summarise_effects <- function(
     if (!is.numeric(x_all) || all(!is.finite(x_all))) {
       stop("Exposure variable '", variable, "' must contain finite numeric values.")
     }
-    at_values <- sort(unique(as.numeric(stats::quantile(
-      x_all, probs = probs, na.rm = TRUE
-    ))))
+    variable_at <- NULL
+    if (is.numeric(at)) {
+      variable_at <- at
+    } else if (is.list(at) && variable %in% names(at)) {
+      variable_at <- at[[variable]]
+    }
+
+    if (is.null(variable_at)) {
+      at_values <- sort(unique(as.numeric(stats::quantile(
+        x_all,
+        probs = probs,
+        na.rm = TRUE,
+        names = FALSE
+      ))))
+    } else {
+      at_values <- sort(unique(as.numeric(variable_at)))
+    }
+
+    if (!length(at_values) || any(!is.finite(at_values))) {
+      stop(
+        "No valid exposure evaluation values were available for variable '",
+        variable, "'."
+      )
+    }
+
+    observed_range <- range(x_all, na.rm = TRUE)
+    outside_observed_range <- at_values < observed_range[1] |
+      at_values > observed_range[2]
+    if (any(outside_observed_range)) {
+      stop(
+        "`at` contains values outside the observed range for variable '",
+        variable, "'. Observed range: [",
+        format(observed_range[1]), ", ", format(observed_range[2]), "]."
+      )
+    }
+
     center_value <- switch(
       ref_method,
       median = stats::median(x_all, na.rm = TRUE),
