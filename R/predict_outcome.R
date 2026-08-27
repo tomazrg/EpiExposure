@@ -1,65 +1,50 @@
-#' Predict outcomes under user-defined chronological exposure profiles
+#' Predict outcomes under one or more chronological exposure profiles
 #'
-#' Predicts the outcome associated with one or more user-defined exposure
-#' profiles using the DLNM specification and standardized model metadata stored
-#' by `fit_epidlnm()`.
+#' Predicts the expected outcome associated with one or more user-defined
+#' exposure histories using the DLNM specification and model metadata stored by
+#' `fit_epidlnm()`.
 #'
-#' Profiles must be supplied in chronological order, from the earliest to the
-#' most recent observation. Profiles are not reversed internally. In the final
-#' reconstructed cross-basis row, the final profile value is associated with
-#' lag 0 and the first profile value with the maximum lag.
+#' Profiles must be ordered chronologically, from the oldest to the most recent
+#' observation. The final value is associated internally with lag 0 and the
+#' first value with the maximum lag.
 #'
 #' @param fit Fitted model returned by `fit_epidlnm()`.
-#' @param profiles Numeric vector for a single-exposure model or a named list of
-#'   numeric vectors for one or more exposures. Each profile must contain
-#'   `lag_max + 1` chronological values according to the stored specification.
+#' @param profiles A numeric vector for one profile in a single-exposure model,
+#'   or a named list with one element per fitted exposure. Each exposure element
+#'   may be: (1) one numeric vector; (2) a list of numeric vectors; (3) a matrix
+#'   or data.frame with one profile per row. Every profile must contain
+#'   `lag_max + 1` values. Across exposures, numbers of profiles must be equal,
+#'   except that a single profile is recycled across the other exposures.
 #' @param re Character. `"population"` excludes random effects;
 #'   `"conditional"` includes them where supported.
-#' @param id Optional vector of grouping levels. One prediction is generated
-#'   for each value.
+#' @param id Optional grouping levels. Supply one value to recycle, or one value
+#'   per exposure profile.
 #' @param allow_new_levels Logical. Allow unseen grouping levels where supported.
 #' @param type Character. Prediction scale: `"response"` or `"link"`.
-#'   Use `re = "conditional"` to include random effects where supported.
 #' @param uncertainty Logical. If `TRUE`, propagate coefficient or posterior
 #'   uncertainty.
 #' @param output Character. `"summary"` returns the median, standard deviation,
 #'   and empirical 95 percent interval. `"samples"` returns individual draws.
-#' @param n_samples Positive integer number of coefficient or posterior draws.
-#'   At least two draws are required when `uncertainty = TRUE`.
-#' @param seed Optional integer seed used for reproducible draw selection and
-#'   simulation. The random-number state is changed only when `seed` is supplied.
+#' @param n_samples Positive integer number of draws. At least two are required
+#'   when `uncertainty = TRUE`.
+#' @param seed Optional finite integer seed.
 #'
-#' @return A data.frame. Deterministic output contains `prediction`. Summary
-#'   output also contains `sd`, `lower`, and `upper`. Sample output contains
-#'   `sample` and `prediction`. The grouping column is included when `id` is
-#'   supplied.
+#' @return A data.frame. When more than one exposure profile is supplied, the
+#'   `profile` column identifies profile combinations in their input order.
+#'   Deterministic output contains `prediction`; uncertainty summaries also
+#'   contain `sd`, `lower`, and `upper`; sample output contains `sample`.
 #'
 #' @details
-#' When `uncertainty = FALSE`, predictions use the central estimates supplied
-#' by the fitted engine. For `brms`, posterior expected predictions are
-#' summarized by their median. When `uncertainty = TRUE`, predictions are
-#' calculated draw by draw and summarized using the median and empirical 2.5%
-#' and 97.5% quantiles. Deterministic estimates and medians of draw-specific
-#' predictions may differ after nonlinear transformations.
+#' A list of 100 profiles for each fitted exposure produces 100 matched
+#' predictions: profile 1 of every exposure is combined, then profile 2, and so
+#' forth. The function does not construct the Cartesian product of profiles.
+#' A single profile for one exposure may be recycled when other exposures have
+#' multiple profiles.
 #'
-#' `posterior_epred()` is used for expected `brms` response predictions and
-#' `posterior_linpred()` for link-scale predictions. `posterior_predict()` is
-#' not used because observational noise is not part of the expected outcome.
-#'
-#' The `type` and `re` arguments represent separate prediction dimensions.
-#' `type` controls the prediction scale, whereas `re` controls whether random
-#' effects are excluded (`"population"`) or included (`"conditional"`) where
-#' supported.
-#'
-#' Cross-basis columns are aligned using `epiexposure_cb_cols`, with
-#' `epiexposure_data_template` as a fallback. For `bdlnm`, missing stored
-#' `cb_*` metadata is reconstructed from the stored specification and matched
-#' explicitly to posterior coefficient names. No coefficient is omitted
-#' silently.
-#'
-#' Ordinal predictions are not currently implemented because ordinal response
-#' predictions require an explicit policy for category probabilities or an
-#' expected category.
+#' When `uncertainty = FALSE`, central engine estimates are used. For `brms`,
+#' deterministic expected predictions are summarized by their median. When
+#' `uncertainty = TRUE`, predictions are calculated draw by draw and summarized
+#' using the median and empirical 2.5 and 97.5 percent quantiles.
 #'
 #' @export
 predict_outcome <- function(
@@ -139,9 +124,7 @@ predict_outcome <- function(
     raw <- NULL
     if (is.character(x) && length(x) >= 1L) raw <- x[[1]]
     if (is.list(x) && !is.null(x$family)) raw <- x$family[[1]]
-    if (is.null(raw)) {
-      stop("Missing canonical family metadata in `fit`.")
-    }
+    if (is.null(raw)) stop("Missing canonical family metadata in `fit`.")
     z <- tolower(gsub("[[:space:]-]+", "_", as.character(raw)))
     if (z %in% c("beta", "beta_family")) return("beta")
     if (z %in% c("binomial", "bernoulli")) return("binomial")
@@ -158,7 +141,6 @@ predict_outcome <- function(
   if (identical(family_name, "ordinal")) {
     stop("Ordinal predictions are not yet implemented in `predict_outcome()`.")
   }
-
   if (is.null(fitted_link) || !is.character(fitted_link) ||
       length(fitted_link) != 1L || is.na(fitted_link) || !nzchar(fitted_link)) {
     if (inherits(fitted_family, "family") && !is.null(fitted_family$link)) {
@@ -169,8 +151,7 @@ predict_outcome <- function(
       fitted_link <- switch(
         family_name,
         beta = "logit", binomial = "logit", poisson = "log",
-        gamma = "log", gaussian = "identity",
-        negative_binomial = "log",
+        gamma = "log", gaussian = "identity", negative_binomial = "log",
         stop("Could not determine the model link from metadata.")
       )
     }
@@ -179,18 +160,13 @@ predict_outcome <- function(
 
   get_linkinv <- function(link_name) {
     switch(
-      tolower(link_name),
-      identity = identity,
-      log = exp,
-      logit = stats::plogis,
-      probit = stats::pnorm,
-      cloglog = function(x) 1 - exp(-exp(x)),
-      inverse = function(x) 1 / x,
+      tolower(link_name), identity = identity, log = exp,
+      logit = stats::plogis, probit = stats::pnorm,
+      cloglog = function(x) 1 - exp(-exp(x)), inverse = function(x) 1 / x,
       stop("Unsupported inverse-link function for link '", link_name, "'.")
     )
   }
   linkinv <- get_linkinv(fitted_link)
-
   safe_quantile <- function(x, probs = c(0.025, 0.975)) {
     x <- x[is.finite(x)]
     if (!length(x)) return(rep(NA_real_, length(probs)))
@@ -221,10 +197,8 @@ predict_outcome <- function(
     if (is.null(rownames(vcov_matrix)) || is.null(colnames(vcov_matrix))) {
       stop("The coefficient covariance matrix must contain row and column names.")
     }
-    missing <- setdiff(
-      coefficient_names,
-      intersect(rownames(vcov_matrix), colnames(vcov_matrix))
-    )
+    missing <- setdiff(coefficient_names,
+                       intersect(rownames(vcov_matrix), colnames(vcov_matrix)))
     if (length(missing)) {
       stop("Coefficients absent from the covariance matrix: ",
            paste(missing, collapse = ", "), ".")
@@ -235,17 +209,51 @@ predict_outcome <- function(
     is.list(model) && !is.null(model$gam) && inherits(model$gam, "gam")
   }
 
-  if (is.numeric(profiles)) {
+  # Standardize each exposure as a list of numeric profiles. This is the main
+  # extension that allows one or many profiles without breaking single-profile
+  # calls.
+  as_profile_list <- function(x, variable) {
+    if (is.numeric(x) && is.null(dim(x))) return(list(as.numeric(x)))
+    if (is.matrix(x) || is.data.frame(x)) {
+      x <- as.matrix(x)
+      if (!is.numeric(x)) {
+        stop("Matrix/data.frame profiles for '", variable, "' must be numeric.")
+      }
+      return(lapply(seq_len(nrow(x)), function(i) as.numeric(x[i, ])))
+    }
+    if (is.list(x)) {
+      if (!length(x)) stop("No profiles were supplied for '", variable, "'.")
+      return(lapply(seq_along(x), function(i) {
+        value <- x[[i]]
+        if (is.data.frame(value) || is.matrix(value)) {
+          if (nrow(as.matrix(value)) != 1L) {
+            stop("Nested profile ", i, " for '", variable,
+                 "' must contain exactly one row.")
+          }
+          value <- as.numeric(as.matrix(value)[1, ])
+        }
+        if (!is.numeric(value) || is.list(value)) {
+          stop("Profile ", i, " for '", variable,
+               "' must be a numeric vector.")
+        }
+        as.numeric(value)
+      }))
+    }
+    stop("Profiles for '", variable,
+         "' must be a numeric vector, list, matrix, or data.frame.")
+  }
+
+  if (is.numeric(profiles) && is.null(dim(profiles))) {
     if (length(fitted_variables) != 1L) {
       stop("A numeric `profiles` vector can only be used with one fitted exposure.")
     }
-    profiles <- stats::setNames(list(as.numeric(profiles)), fitted_variables)
+    profiles <- stats::setNames(list(profiles), fitted_variables)
   } else if (!is.list(profiles)) {
-    stop("`profiles` must be a numeric vector or a named list of numeric vectors.")
+    stop("`profiles` must be a numeric vector or a named list by exposure.")
   }
   if (!length(profiles) || is.null(names(profiles)) || anyNA(names(profiles)) ||
       any(names(profiles) == "") || anyDuplicated(names(profiles))) {
-    stop("`profiles` must have unique non-empty variable names.")
+    stop("`profiles` must have unique non-empty exposure-variable names.")
   }
   extra_variables <- setdiff(names(profiles), fitted_variables)
   missing_variables <- setdiff(fitted_variables, names(profiles))
@@ -263,40 +271,62 @@ predict_outcome <- function(
          paste(missing_specification, collapse = ", "), ".")
   }
 
-  build_cb_row <- function(profile_values, variable_specification, variable) {
+  profile_sets <- lapply(names(profiles), function(variable) {
+    as_profile_list(profiles[[variable]], variable)
+  })
+  names(profile_sets) <- names(profiles)
+  profile_counts <- vapply(profile_sets, length, integer(1))
+  n_profiles <- max(profile_counts)
+  incompatible <- profile_counts != 1L & profile_counts != n_profiles
+  if (any(incompatible)) {
+    stop(
+      "Exposure variables must provide either one profile or the common maximum ",
+      "number of profiles. Received: ",
+      paste(paste0(names(profile_counts), "=", profile_counts), collapse = ", "), "."
+    )
+  }
+  for (variable in names(profile_sets)) {
+    if (length(profile_sets[[variable]]) == 1L && n_profiles > 1L) {
+      profile_sets[[variable]] <- rep(profile_sets[[variable]], n_profiles)
+    }
+  }
+
+  build_cb_row <- function(profile_values, variable_specification, variable,
+                           profile_index) {
     maximum_lag <- as.integer(max(variable_specification$lag_max))
     expected_length <- maximum_lag + 1L
     if (!is.numeric(profile_values) || any(!is.finite(profile_values))) {
-      stop("Profile for variable '", variable,
+      stop("Profile ", profile_index, " for variable '", variable,
            "' must contain finite numeric values.")
     }
     if (length(profile_values) != expected_length) {
-      stop("Profile length for variable '", variable,
-           "' must equal lag_max + 1. Expected ", expected_length,
-           " values but received ", length(profile_values), ".")
+      stop("Profile ", profile_index, " for variable '", variable,
+           "' must have lag_max + 1 values. Expected ", expected_length,
+           " but received ", length(profile_values), ".")
     }
     cb <- dlnm::crossbasis(
-      as.numeric(profile_values), lag = maximum_lag,
+      profile_values, lag = maximum_lag,
       argvar = variable_specification$argvar,
       arglag = variable_specification$arglag
     )
     row <- as.numeric(cb[expected_length, , drop = TRUE])
     if (any(!is.finite(row))) {
-      stop("The reconstructed cross-basis row contains non-finite values for '",
-           variable, "'.")
+      stop("The reconstructed cross-basis row is non-finite for variable '",
+           variable, "', profile ", profile_index, ".")
     }
     row
   }
 
-  profile_rows <- list()
-  for (variable in names(profiles)) {
-    profiles[[variable]] <- as.numeric(profiles[[variable]])
-    profile_rows[[variable]] <- build_cb_row(
-      profiles[[variable]], specification[[variable]], variable
-    )
-  }
+  profile_rows <- lapply(names(profile_sets), function(variable) {
+    do.call(rbind, lapply(seq_len(n_profiles), function(i) {
+      build_cb_row(profile_sets[[variable]][[i]], specification[[variable]],
+                   variable, i)
+    }))
+  })
+  names(profile_rows) <- names(profile_sets)
 
-  derive_cb_columns <- function(variable, expected_columns, coefficient_names = NULL) {
+  derive_cb_columns <- function(variable, expected_columns,
+                                coefficient_names = NULL) {
     candidates <- character(0)
     if (!is.null(fitted_cb_columns) && length(fitted_cb_columns)) {
       candidates <- sort_cb_names(grep(
@@ -314,11 +344,8 @@ predict_outcome <- function(
       ))
     }
     if (!length(candidates) && identical(fitted_engine, "bdlnm")) {
-      stop(
-        "Could not map the stored bdlnm basis for variable '", variable,
-        "' to named posterior coefficients. Store compatible `cb_*` metadata ",
-        "or use a bdlnm object whose coefficient names follow the `cb_*` convention."
-      )
+      stop("Could not map the stored bdlnm basis for variable '", variable,
+           "' to named posterior coefficients.")
     }
     if (length(candidates) != expected_columns) {
       stop("Could not align cross-basis columns for variable '", variable,
@@ -328,7 +355,6 @@ predict_outcome <- function(
     candidates
   }
 
-  # Recover coefficient names early for bdlnm metadata reconstruction.
   bdlnm_coefficient_names <- NULL
   if (inherits(fit, "bdlnm")) {
     if (!is.null(fit$coefficients) && !is.null(rownames(fit$coefficients))) {
@@ -337,16 +363,15 @@ predict_outcome <- function(
       bdlnm_coefficient_names <- rownames(fit$coefficients.summary)
     }
   }
-
-  cb_map <- list()
-  for (variable in names(profile_rows)) {
-    cb_map[[variable]] <- derive_cb_columns(
-      variable, length(profile_rows[[variable]]), bdlnm_coefficient_names
-    )
-  }
+  cb_map <- lapply(names(profile_rows), function(variable) {
+    derive_cb_columns(variable, ncol(profile_rows[[variable]]),
+                      bdlnm_coefficient_names)
+  })
+  names(cb_map) <- names(profile_rows)
   fitted_cb_columns <- unname(unlist(cb_map, use.names = FALSE))
 
-  newdata <- data_template[1, , drop = FALSE]
+  newdata <- data_template[rep(1L, n_profiles), , drop = FALSE]
+  rownames(newdata) <- NULL
   if (!is.null(id)) {
     if (is.null(id_column) || !is.character(id_column) || !nzchar(id_column)) {
       stop("The fitted model does not contain grouping-column metadata.")
@@ -358,25 +383,23 @@ predict_outcome <- function(
     if (!length(id) || anyNA(id)) {
       stop("`id` must contain at least one non-missing grouping level.")
     }
-    newdata <- newdata[rep(1L, length(id)), , drop = FALSE]
+    if (length(id) == 1L) id <- rep(id, n_profiles)
+    if (length(id) != n_profiles) {
+      stop("`id` must have length 1 or equal the number of profiles (",
+           n_profiles, ").")
+    }
     newdata[[id_column]] <- id
   }
   for (variable in names(profile_rows)) {
-    row <- profile_rows[[variable]]
     columns <- cb_map[[variable]]
-    replacement <- matrix(
-      rep(row, each = nrow(newdata)), nrow = nrow(newdata),
-      ncol = length(row), byrow = FALSE
-    )
+    replacement <- profile_rows[[variable]]
     colnames(replacement) <- columns
     newdata[columns] <- as.data.frame(replacement)
   }
 
   expected_fixed_terms <- function(coefficient_names, input_data) {
-    terms <- unique(c(
-      if ("(Intercept)" %in% coefficient_names) "(Intercept)",
-      fitted_cb_columns
-    ))
+    terms <- unique(c(if ("(Intercept)" %in% coefficient_names) "(Intercept)",
+                      fitted_cb_columns))
     missing_coefficients <- setdiff(terms, coefficient_names)
     missing_data <- setdiff(terms, names(input_data))
     if (length(missing_coefficients)) {
@@ -389,7 +412,6 @@ predict_outcome <- function(
     }
     terms
   }
-
   manual_fixed_prediction <- function(beta, input_data, requested_type) {
     if (is.null(names(beta))) stop("The fixed-effect coefficient vector has no names.")
     input_data <- ensure_intercept(input_data, names(beta))
@@ -399,7 +421,6 @@ predict_outcome <- function(
     if (requested_type == "link") return(eta)
     linkinv(eta)
   }
-
   point_predict <- function(model, input_data, requested_re, requested_type) {
     population <- identical(requested_re, "population")
     if (inherits(model, "glmmTMB")) return(as.numeric(stats::predict(
@@ -414,32 +435,25 @@ predict_outcome <- function(
       allow.new.levels = allow_new_levels
     )))
     if (inherits(model, "brmsfit")) {
-      posterior_values <- if (requested_type == "link") {
-        brms::posterior_linpred(
-          model, newdata = input_data,
-          re_formula = if (population) NA else NULL,
-          allow_new_levels = allow_new_levels
-        )
+      values <- if (requested_type == "link") {
+        brms::posterior_linpred(model, newdata = input_data,
+                                re_formula = if (population) NA else NULL,
+                                allow_new_levels = allow_new_levels)
       } else {
-        brms::posterior_epred(
-          model, newdata = input_data,
-          re_formula = if (population) NA else NULL,
-          allow_new_levels = allow_new_levels
-        )
+        brms::posterior_epred(model, newdata = input_data,
+                              re_formula = if (population) NA else NULL,
+                              allow_new_levels = allow_new_levels)
       }
-      return(apply(as.matrix(posterior_values), 2, stats::median, na.rm = TRUE))
+      return(apply(as.matrix(values), 2, stats::median, na.rm = TRUE))
     }
     if (is_gamm_object(model)) return(as.numeric(stats::predict(
       model$gam, newdata = input_data,
-      type = if (requested_type == "link") "link" else "response"
-    )))
+      type = if (requested_type == "link") "link" else "response")))
     if (inherits(model, "gam")) return(as.numeric(stats::predict(
       model, newdata = input_data,
-      type = if (requested_type == "link") "link" else "response"
-    )))
+      type = if (requested_type == "link") "link" else "response")))
     if (inherits(model, "lme")) return(as.numeric(nlme::predict.lme(
-      model, newdata = input_data, level = if (population) 0 else 1
-    )))
+      model, newdata = input_data, level = if (population) 0 else 1)))
     if (inherits(model, "gls")) {
       return(as.numeric(nlme::predict.gls(model, newdata = input_data)))
     }
@@ -447,50 +461,49 @@ predict_outcome <- function(
       direct <- tryCatch(as.numeric(stats::predict(
         model, newdata = input_data,
         type = if (requested_type == "link") "link" else "response",
-        re.form = if (population) NA else NULL
-      )), error = function(e) NULL)
+        re.form = if (population) NA else NULL)), error = function(e) NULL)
       if (!is.null(direct) && all(is.finite(direct))) return(direct)
-      return(manual_fixed_prediction(spaMM::fixef(model), input_data, requested_type))
+      return(manual_fixed_prediction(spaMM::fixef(model), input_data,
+                                     requested_type))
     }
     if (inherits(model, "inla")) {
       beta <- model$summary.fixed$mean
       if (is.null(names(beta))) names(beta) <- rownames(model$summary.fixed)
       if (!population) warning(
         "INLA conditional prediction is not implemented; using fixed effects.",
-        call. = FALSE
-      )
+        call. = FALSE)
       return(manual_fixed_prediction(beta, input_data, requested_type))
     }
     if (inherits(model, "bdlnm")) {
-      if (is.null(model$coefficients.summary)) {
-        stop("The bdlnm object does not contain coefficient summaries.")
-      }
       beta <- model$coefficients.summary[, "mean"]
       if (is.null(names(beta))) names(beta) <- rownames(model$coefficients.summary)
       return(manual_fixed_prediction(beta, input_data, requested_type))
     }
     direct <- tryCatch(as.numeric(stats::predict(
       model, newdata = input_data,
-      type = if (requested_type == "link") "link" else "response"
-    )), error = function(e) NULL)
+      type = if (requested_type == "link") "link" else "response")),
+      error = function(e) NULL)
     if (!is.null(direct) && all(is.finite(direct))) return(direct)
     manual_fixed_prediction(stats::coef(model), input_data, requested_type)
   }
 
+  add_profile_columns <- function(out, profile_values) {
+    if (n_profiles > 1L) out$profile <- profile_values
+    if (!is.null(id)) out[[id_column]] <- id[profile_values]
+    leading <- c(if (!is.null(id)) id_column,
+                 if (n_profiles > 1L) "profile")
+    out[, c(leading, setdiff(names(out), leading)), drop = FALSE]
+  }
   format_samples <- function(draw_matrix) {
     draw_matrix <- as.matrix(draw_matrix)
     rows <- lapply(seq_len(ncol(draw_matrix)), function(j) {
-      x <- data.frame(
-        sample = seq_len(nrow(draw_matrix)),
-        prediction = as.numeric(draw_matrix[, j]),
-        stringsAsFactors = FALSE
-      )
-      if (!is.null(id)) x[[id_column]] <- id[j]
-      x
+      x <- data.frame(sample = seq_len(nrow(draw_matrix)),
+                      prediction = as.numeric(draw_matrix[, j]),
+                      stringsAsFactors = FALSE)
+      add_profile_columns(x, rep(j, nrow(draw_matrix)))
     })
     out <- do.call(rbind, rows)
     rownames(out) <- NULL
-    if (!is.null(id)) out <- out[, c(id_column, "sample", "prediction"), drop = FALSE]
     out
   }
   format_summary <- function(draw_matrix) {
@@ -498,62 +511,43 @@ predict_outcome <- function(
     q <- t(apply(draw_matrix, 2, safe_quantile))
     out <- data.frame(
       prediction = apply(draw_matrix, 2, stats::median, na.rm = TRUE),
-      sd = apply(draw_matrix, 2, safe_sd),
-      lower = q[, 1], upper = q[, 2], stringsAsFactors = FALSE
+      sd = apply(draw_matrix, 2, safe_sd), lower = q[, 1], upper = q[, 2],
+      stringsAsFactors = FALSE
     )
-    if (!is.null(id)) {
-      out[[id_column]] <- id
-      out <- out[, c(id_column, "prediction", "sd", "lower", "upper"), drop = FALSE]
-    }
-    out
+    add_profile_columns(out, seq_len(n_profiles))
   }
 
   if (!uncertainty) {
-    prediction <- point_predict(fit, newdata, re, type)
-    out <- data.frame(prediction = as.numeric(prediction), stringsAsFactors = FALSE)
-    if (!is.null(id)) {
-      out[[id_column]] <- id
-      out <- out[, c(id_column, "prediction"), drop = FALSE]
-    }
-    return(out)
+    out <- data.frame(prediction = point_predict(fit, newdata, re, type),
+                      stringsAsFactors = FALSE)
+    return(add_profile_columns(out, seq_len(n_profiles)))
   }
-
   if (inherits(fit, "brmsfit")) {
     draws <- if (type == "link") {
-      brms::posterior_linpred(
-        fit, newdata = newdata,
-        re_formula = if (re == "population") NA else NULL,
-        allow_new_levels = allow_new_levels, ndraws = n_samples
-      )
+      brms::posterior_linpred(fit, newdata = newdata,
+                              re_formula = if (re == "population") NA else NULL,
+                              allow_new_levels = allow_new_levels, ndraws = n_samples)
     } else {
-      brms::posterior_epred(
-        fit, newdata = newdata,
-        re_formula = if (re == "population") NA else NULL,
-        allow_new_levels = allow_new_levels, ndraws = n_samples
-      )
+      brms::posterior_epred(fit, newdata = newdata,
+                            re_formula = if (re == "population") NA else NULL,
+                            allow_new_levels = allow_new_levels, ndraws = n_samples)
     }
     draws <- as.matrix(draws)
     if (output == "samples") return(format_samples(draws))
     return(format_summary(draws))
   }
-
   if (inherits(fit, "inla")) {
     if (!requireNamespace("INLA", quietly = TRUE)) {
       stop("Package 'INLA' is required for INLA uncertainty.")
     }
-    samples <- tryCatch(
-      INLA::inla.posterior.sample(n = n_samples, result = fit),
-      error = function(e) NULL
+    samples <- tryCatch(INLA::inla.posterior.sample(n = n_samples, result = fit),
+                        error = function(e) NULL)
+    if (is.null(samples)) stop(
+      "INLA posterior samples could not be drawn. Fit with ",
+      "`control.compute = list(config = TRUE)`."
     )
-    if (is.null(samples)) {
-      stop(
-        "INLA posterior samples could not be drawn. Fit the model with ",
-        "`control.compute = list(config = TRUE)`."
-      )
-    }
     beta_names <- rownames(fit$summary.fixed)
     if (is.null(beta_names)) beta_names <- names(fit$summary.fixed$mean)
-    if (is.null(beta_names)) stop("Could not determine INLA fixed-effect names.")
     inla_data <- ensure_intercept(newdata, beta_names)
     terms <- expected_fixed_terms(beta_names, inla_data)
     beta_draws <- do.call(rbind, lapply(samples, function(x) {
@@ -563,23 +557,19 @@ predict_outcome <- function(
       if (anyNA(values)) stop("Could not match INLA draws to fixed-effect terms.")
       as.numeric(values)
     }))
-    colnames(beta_draws) <- terms
     draws <- beta_draws %*% t(as.matrix(inla_data[, terms, drop = FALSE]))
     if (type != "link") draws <- apply_linkinv_matrix(draws)
     if (re != "population") warning(
       "INLA conditional uncertainty is not implemented; using fixed effects.",
-      call. = FALSE
-    )
+      call. = FALSE)
     if (output == "samples") return(format_samples(draws))
     return(format_summary(draws))
   }
-
   if (inherits(fit, "bdlnm")) {
-    if (is.null(fit$coefficients)) {
-      stop("The bdlnm object does not contain posterior coefficient draws.")
-    }
     coefficient_draws <- fit$coefficients
-    if (is.null(dim(coefficient_draws))) coefficient_draws <- matrix(coefficient_draws, ncol = 1L)
+    if (is.null(dim(coefficient_draws))) {
+      coefficient_draws <- matrix(coefficient_draws, ncol = 1L)
+    }
     if (is.null(rownames(coefficient_draws))) {
       stop("The bdlnm coefficient-draw matrix has no row names.")
     }
@@ -587,10 +577,11 @@ predict_outcome <- function(
     terms <- expected_fixed_terms(rownames(coefficient_draws), bdlnm_data)
     coefficient_draws <- coefficient_draws[terms, , drop = FALSE]
     if (ncol(coefficient_draws) > n_samples) {
-      keep <- sample(seq_len(ncol(coefficient_draws)), n_samples, replace = FALSE)
+      keep <- sample(seq_len(ncol(coefficient_draws)), n_samples)
       coefficient_draws <- coefficient_draws[, keep, drop = FALSE]
     }
-    draws <- t(as.matrix(bdlnm_data[, terms, drop = FALSE]) %*% coefficient_draws)
+    draws <- t(as.matrix(bdlnm_data[, terms, drop = FALSE]) %*%
+                 coefficient_draws)
     if (type != "link") draws <- apply_linkinv_matrix(draws)
     if (output == "samples") return(format_samples(draws))
     return(format_summary(draws))
@@ -599,25 +590,17 @@ predict_outcome <- function(
   extract_coef_vcov <- function(model) {
     if (inherits(model, "glmmTMB")) return(list(
       beta = glmmTMB::fixef(model)$cond,
-      vcov = as.matrix(stats::vcov(model)$cond)
-    ))
+      vcov = as.matrix(stats::vcov(model)$cond)))
     if (inherits(model, "merMod")) return(list(
-      beta = lme4::fixef(model), vcov = as.matrix(stats::vcov(model))
-    ))
+      beta = lme4::fixef(model), vcov = as.matrix(stats::vcov(model))))
     if (is_gamm_object(model)) return(list(
-      beta = stats::coef(model$gam), vcov = as.matrix(stats::vcov(model$gam))
-    ))
+      beta = stats::coef(model$gam), vcov = as.matrix(stats::vcov(model$gam))))
     if (inherits(model, "lme")) return(list(
-      beta = nlme::fixef(model), vcov = as.matrix(stats::vcov(model))
-    ))
+      beta = nlme::fixef(model), vcov = as.matrix(stats::vcov(model))))
     if (inherits(model, "gls") || inherits(model, "gam")) return(list(
-      beta = stats::coef(model), vcov = as.matrix(stats::vcov(model))
-    ))
-    if (inherits(model, "HLfit")) {
-      V <- tryCatch(as.matrix(stats::vcov(model)), error = function(e) NULL)
-      if (is.null(V)) stop("Could not extract the covariance matrix from the spaMM model.")
-      return(list(beta = spaMM::fixef(model), vcov = V))
-    }
+      beta = stats::coef(model), vcov = as.matrix(stats::vcov(model))))
+    if (inherits(model, "HLfit")) return(list(
+      beta = spaMM::fixef(model), vcov = as.matrix(stats::vcov(model))))
     beta <- stats::coef(model)
     V <- tryCatch(as.matrix(stats::vcov(model)), error = function(e) NULL)
     if (!is.numeric(beta) || is.null(V)) {
@@ -625,37 +608,25 @@ predict_outcome <- function(
     }
     list(beta = beta, vcov = V)
   }
-
   info <- extract_coef_vcov(fit)
   beta_hat <- info$beta
   covariance_hat <- info$vcov
-  if (is.null(names(beta_hat))) stop("The fitted coefficient vector has no names.")
   fixed_data <- ensure_intercept(newdata, names(beta_hat))
   fixed_terms <- expected_fixed_terms(names(beta_hat), fixed_data)
   check_vcov_names(covariance_hat, fixed_terms)
   beta_hat <- beta_hat[fixed_terms]
   covariance_hat <- covariance_hat[fixed_terms, fixed_terms, drop = FALSE]
-  if (any(!is.finite(beta_hat)) || any(!is.finite(covariance_hat))) {
-    stop("Non-finite coefficient or covariance values were detected. Check model convergence.")
-  }
   if (!requireNamespace("MASS", quietly = TRUE)) {
     stop("Package 'MASS' is required for frequentist uncertainty.")
   }
-  beta_draws <- MASS::mvrnorm(
-    n = n_samples, mu = beta_hat, Sigma = covariance_hat
-  )
+  beta_draws <- MASS::mvrnorm(n = n_samples, mu = beta_hat,
+                              Sigma = covariance_hat)
   if (is.null(dim(beta_draws))) beta_draws <- matrix(beta_draws, nrow = 1L)
-  colnames(beta_draws) <- fixed_terms
-  draw_sd <- apply(beta_draws, 2, stats::sd)
-  if (all(!is.finite(draw_sd)) || all(draw_sd < 1e-12, na.rm = TRUE)) {
-    warning("Near-zero coefficient-draw variability was detected. Prediction intervals may collapse.",
-            call. = FALSE)
-  }
   draws <- beta_draws %*% t(as.matrix(fixed_data[, fixed_terms, drop = FALSE]))
   if (re != "population" &&
       (inherits(fit, "glmmTMB") || inherits(fit, "merMod") ||
        inherits(fit, "lme"))) {
-    warning("Frequentist mixed-model uncertainty currently reflects fixed effects only.",
+    warning("Frequentist mixed-model uncertainty reflects fixed effects only.",
             call. = FALSE)
   }
   if (type != "link") draws <- apply_linkinv_matrix(draws)

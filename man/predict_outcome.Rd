@@ -2,7 +2,7 @@
 % Please edit documentation in R/predict_outcome.R
 \name{predict_outcome}
 \alias{predict_outcome}
-\title{Predict outcomes under user-defined chronological exposure profiles}
+\title{Predict outcomes under one or more chronological exposure profiles}
 \usage{
 predict_outcome(
   fit,
@@ -20,20 +20,22 @@ predict_outcome(
 \arguments{
 \item{fit}{Fitted model returned by `fit_epidlnm()`.}
 
-\item{profiles}{Numeric vector for a single-exposure model or a named list of
-numeric vectors for one or more exposures. Each profile must contain
-`lag_max + 1` chronological values according to the stored specification.}
+\item{profiles}{A numeric vector for one profile in a single-exposure model,
+or a named list with one element per fitted exposure. Each exposure element
+may be: (1) one numeric vector; (2) a list of numeric vectors; (3) a matrix
+or data.frame with one profile per row. Every profile must contain
+`lag_max + 1` values. Across exposures, numbers of profiles must be equal,
+except that a single profile is recycled across the other exposures.}
 
 \item{re}{Character. `"population"` excludes random effects;
 `"conditional"` includes them where supported.}
 
-\item{id}{Optional vector of grouping levels. One prediction is generated
-for each value.}
+\item{id}{Optional grouping levels. Supply one value to recycle, or one value
+per exposure profile.}
 
 \item{allow_new_levels}{Logical. Allow unseen grouping levels where supported.}
 
-\item{type}{Character. Prediction scale: `"response"` or `"link"`.
-Use `re = "conditional"` to include random effects where supported.}
+\item{type}{Character. Prediction scale: `"response"` or `"link"`.}
 
 \item{uncertainty}{Logical. If `TRUE`, propagate coefficient or posterior
 uncertainty.}
@@ -41,53 +43,36 @@ uncertainty.}
 \item{output}{Character. `"summary"` returns the median, standard deviation,
 and empirical 95 percent interval. `"samples"` returns individual draws.}
 
-\item{n_samples}{Positive integer number of coefficient or posterior draws.
-At least two draws are required when `uncertainty = TRUE`.}
+\item{n_samples}{Positive integer number of draws. At least two are required
+when `uncertainty = TRUE`.}
 
-\item{seed}{Optional integer seed used for reproducible draw selection and
-simulation. The random-number state is changed only when `seed` is supplied.}
+\item{seed}{Optional finite integer seed.}
 }
 \value{
-A data.frame. Deterministic output contains `prediction`. Summary
-  output also contains `sd`, `lower`, and `upper`. Sample output contains
-  `sample` and `prediction`. The grouping column is included when `id` is
-  supplied.
+A data.frame. When more than one exposure profile is supplied, the
+  `profile` column identifies profile combinations in their input order.
+  Deterministic output contains `prediction`; uncertainty summaries also
+  contain `sd`, `lower`, and `upper`; sample output contains `sample`.
 }
 \description{
-Predicts the outcome associated with one or more user-defined exposure
-profiles using the DLNM specification and standardized model metadata stored
-by `fit_epidlnm()`.
+Predicts the expected outcome associated with one or more user-defined
+exposure histories using the DLNM specification and model metadata stored by
+`fit_epidlnm()`.
 }
 \details{
-Profiles must be supplied in chronological order, from the earliest to the
-most recent observation. Profiles are not reversed internally. In the final
-reconstructed cross-basis row, the final profile value is associated with
-lag 0 and the first profile value with the maximum lag.
+Profiles must be ordered chronologically, from the oldest to the most recent
+observation. The final value is associated internally with lag 0 and the
+first value with the maximum lag.
 
 
-When `uncertainty = FALSE`, predictions use the central estimates supplied
-by the fitted engine. For `brms`, posterior expected predictions are
-summarized by their median. When `uncertainty = TRUE`, predictions are
-calculated draw by draw and summarized using the median and empirical 2.5%
-and 97.5% quantiles. Deterministic estimates and medians of draw-specific
-predictions may differ after nonlinear transformations.
+A list of 100 profiles for each fitted exposure produces 100 matched
+predictions: profile 1 of every exposure is combined, then profile 2, and so
+forth. The function does not construct the Cartesian product of profiles.
+A single profile for one exposure may be recycled when other exposures have
+multiple profiles.
 
-`posterior_epred()` is used for expected `brms` response predictions and
-`posterior_linpred()` for link-scale predictions. `posterior_predict()` is
-not used because observational noise is not part of the expected outcome.
-
-The `type` and `re` arguments represent separate prediction dimensions.
-`type` controls the prediction scale, whereas `re` controls whether random
-effects are excluded (`"population"`) or included (`"conditional"`) where
-supported.
-
-Cross-basis columns are aligned using `epiexposure_cb_cols`, with
-`epiexposure_data_template` as a fallback. For `bdlnm`, missing stored
-`cb_*` metadata is reconstructed from the stored specification and matched
-explicitly to posterior coefficient names. No coefficient is omitted
-silently.
-
-Ordinal predictions are not currently implemented because ordinal response
-predictions require an explicit policy for category probabilities or an
-expected category.
+When `uncertainty = FALSE`, central engine estimates are used. For `brms`,
+deterministic expected predictions are summarized by their median. When
+`uncertainty = TRUE`, predictions are calculated draw by draw and summarized
+using the median and empirical 2.5 and 97.5 percent quantiles.
 }
