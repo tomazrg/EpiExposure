@@ -1442,15 +1442,114 @@ pred_scenarios |>
 
 ```{r}
 
-compare_exp = compare_exposures(
+compare_exp_tmean = compare_exposures(
+  exposure1 = exposure_tmean_01$profile,
+  exposure2 = exposure_tmean_02$profile,
+  mode = "timewise"
+)
+
+exp_tmean = compare_exp_tmean |> 
+  ggplot(aes(time,diff))+
+  geom_line(size = 1.4, color = "#C44E52")+
+  labs(x = "Time",
+       y = "Difference")+
+  theme(text = element_text(size = 10, face = "bold"))+
+  theme_bw()
+```
+
+```{r}
+
+compare_exp_tmean = compare_exposures(
+  exposure1 = exposure_tmean_01$profile,
+  exposure2 = exposure_tmean_02$profile,
+  mode = "timewise"
+)
+
+exp_tmean_ratio = compare_exp_tmean |> 
+  ggplot(aes(time,ratio))+
+  geom_line(size = 1.4, color = "#C44E52")+
+  labs(x = "Time",
+       y = "Ratio")+
+  theme(text = element_text(size = 10, face = "bold"))+
+  theme_bw()
+```
+
+```{r}
+
+compare_exp_rain = compare_exposures(
+  exposure1 = exposure_rain_01$profile,
+  exposure2 = exposure_rain_02$profile,
+  mode = "timewise"
+)
+
+exp_rain = compare_exp_rain |> 
+  ggplot(aes(time,diff))+
+  geom_line(size = 1.4, color = "#4C72B0")+
+  labs(x = "Time",
+       y = "Difference")+
+  theme(text = element_text(size = 10, face = "bold"))+
+  theme_bw()
+```
+
+```{r}
+
+compare_exp_rain = compare_exposures(
+  exposure1 = exposure_rain_01$profile,
+  exposure2 = exposure_rain_02$profile,
+  mode = "timewise"
+)
+
+exp_rain_ratio = compare_exp_rain |> 
+  ggplot(aes(time,ratio))+
+  geom_line(size = 1.4, color = "#4C72B0")+
+  labs(x = "Time",
+       y = "Ratio")+
+  theme(text = element_text(size = 10, face = "bold"))+
+  theme_bw()
+```
+
+
+```{r}
+
+compare_exp_wetness = compare_exposures(
   exposure1 = exposure_wetness_01$profile,
   exposure2 = exposure_wetness_02$profile,
   mode = "timewise"
 )
 
-compare_exp |> 
+exp_wetness = compare_exp_wetness |> 
   ggplot(aes(time,diff))+
-  geom_line()
+  geom_line(size = 1.4, color = "#55A868")+
+  labs(x = "Time",
+       y = "Difference")+
+  theme(text = element_text(size = 10, face = "bold"))+
+  theme_bw()
+
+```
+
+```{r}
+
+compare_exp_wetness = compare_exposures(
+  exposure1 = exposure_wetness_01$profile,
+  exposure2 = exposure_wetness_02$profile,
+  mode = "timewise"
+)
+
+exp_wetness_ratio = compare_exp_wetness |> 
+  ggplot(aes(time,ratio))+
+  geom_line(size = 1.4, color = "#55A868")+
+  labs(x = "Time",
+       y = "Ratio")+
+  theme(text = element_text(size = 10, face = "bold"))+
+  theme_bw()
+
+```
+
+```{r}
+plot_grid(exp_tmean+exp_rain+exp_wetness+exp_tmean_ratio+exp_rain_ratio+exp_wetness_ratio,nrow = 1)
+
+
+ggsave("compare_exposures.png", dpi = 600, height = 6, width = 12)
 ```
 
 ## Predictions
@@ -1469,11 +1568,29 @@ scenario_B <- list(
   wetness = rep(2, 86)
 )
 
+scenario_C <- list(
+  tmean = rep(15, 86),
+  rain = rep(0, 86),
+  wetness = rep(2, 86)
+)
+
+scenario_D <- list(
+  tmean = rep(10, 86),
+  rain = rep(15, 86),
+  wetness = rep(20, 86)
+)
+
+
+```
+
+```{r}
 compare_pred = compare_predictions(
   fit = fit,
   profiles = list(
-    baseline = scenario_A,
-    favorable = scenario_B
+    A = scenario_A,
+    B = scenario_B,
+    C = scenario_C,
+    D = scenario_D
   ),
   uncertainty = TRUE,
   output =  "summary",
@@ -1481,5 +1598,63 @@ compare_pred = compare_predictions(
 )
 
 
+compare_pred <- compare_pred %>%
+  dplyr::mutate(
+    scenario = paste(scenario1, scenario2, sep = " x ")
+  )
+
+compare_pred
+
+
+compare_pred2 = compare_predictions(
+  fit = fit,
+  profiles = list(
+    A = scenario_A,
+    B = scenario_B,
+    C = scenario_C,
+    D = scenario_D
+  ),
+  uncertainty = TRUE,
+  output =  "samples",
+  n_samples = 100
+)
+
+compare_pred2 <- compare_pred2 %>%
+  dplyr::mutate(
+    scenario = paste(scenario1, scenario2, sep = " x ")
+  )
+
+compare_pred2
+
+ggplot(compare_pred,
+       aes(reorder(scenario, diff*100),
+           y = diff*100)) +
+
+  geom_jitter(
+    data = compare_pred2,
+    aes(
+      reorder(scenario, diff*100),
+      y = diff*100
+    ),
+    color = "gray50",
+    alpha = 0.4,
+    size = 2,
+    width = 0.2
+  ) +
+
+  geom_pointrange(
+    aes(
+      ymin = diff_lower*100,
+      ymax = diff_upper*100
+    ),
+    linewidth = 0.6
+  ) +
+
+  theme_bw() +
+  labs(
+    x = "Scenarios comparison",
+    y = "Difference (%)"
+  )+
+  theme(text = element_text(size = 10, face = "bold"))
 ```
 
