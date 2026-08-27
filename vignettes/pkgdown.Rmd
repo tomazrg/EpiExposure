@@ -1375,12 +1375,111 @@ plot_grid(plot_tmean_simu_01,plot_rain_simu_01,plot_wetness_simu_01,sev_01,
 ggsave("simu_plot2.png", dpi = 600, height = 6, width = 12)
 ```
 
-```{r}
-help(simulate_range)
+# Scenarios simulation
 
-range = simulate_range(
+```{r}
+
+range <- simulate_range(
   periods = period,
-  
+  vary = list(
+    #tmean = seq(18,34, by = 1),
+    tmean = c(28,34),
+    #rain = c(0,15),
+    rain = seq(0,15, by = 1),
+    wetness = c(2,5)
+  ),
+  scenario_type = "grid",
+  mode = "scenario",
+  scenario_var = "rain"
 )
+
+
+
+pred_scenarios = simulate_scenarios(
+  fit = fit,
+  scenarios = range,
+  data = sim_data,
+  uncertainty = TRUE,
+  output = "samples",
+  n_samples = 20,
+  seed = 123)
+
+pred_scenarios |>
+  #filter(rain %in% c(5,15)) |>
+  #filter(wetness %in% c(5,15)) |>
+  ggplot()+
+  geom_smooth(aes(rain,prediction*100, group = sample, color = sample),se = F)+
+  scale_color_viridis_c()+
+  #geom_smooth(aes(rain,lower*100),se = F, color = "black", linetype = 2)+
+  #geom_smooth(aes(rain,upper*100),se = F, color = "black", linetype = 2)+
+  #facet_wrap(~as.factor(wetness)+as.factor(rain))
+  theme_bw()+
+  labs(x = "Exposure",
+       y = "Predicted")+
+  theme(text = element_text(size = 10, face = "bold"))+
+  facet_wrap(~wetness+tmean)+
+  theme(
+  axis.title = element_text(size = 12, face = "bold"),
+  strip.background = element_rect(fill = "white", colour = "black"),
+  legend.position = "none")
+
+
+
+ggsave("simulate_scenarios.png", dpi = 600, height = 6, width = 8)
+```
+
+```{r}
+pred_scenarios |> 
+  ggplot(aes(rain,tmean, fill = prediction*100))+
+  geom_tile()+
+  scale_fill_viridis_b()+
+  facet_wrap(~as.factor(wetness))
+```
+
+# Comparative analysis
+
+## Exposures
+
+```{r}
+
+compare_exp = compare_exposures(
+  exposure1 = exposure_wetness_01$profile,
+  exposure2 = exposure_wetness_02$profile,
+  mode = "timewise"
+)
+
+compare_exp |> 
+  ggplot(aes(time,diff))+
+  geom_line()
+```
+
+## Predictions
+
+```{r}
+
+scenario_A <- list(
+  tmean = rep(25, 86),
+  rain = rep(5, 86),
+  wetness = rep(15, 86)
+)
+
+scenario_B <- list(
+  tmean = rep(34, 86),
+  rain = rep(5, 86),
+  wetness = rep(2, 86)
+)
+
+compare_pred = compare_predictions(
+  fit = fit,
+  profiles = list(
+    baseline = scenario_A,
+    favorable = scenario_B
+  ),
+  uncertainty = TRUE,
+  output =  "summary",
+  n_samples = 100
+)
+
+
 ```
 

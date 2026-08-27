@@ -25,13 +25,14 @@
 #'   are matched by this column.
 #' @param allow_new_levels Logical. Passed to `predict_outcome()`.
 #' @param type Character. Prediction scale passed to `predict_outcome()`:
-#'   `"response"`, `"link"`, or `"conditional"`.
+#'   `"response"` or `"link"`. Conditional predictions are selected with
+#'   `re = "conditional"`, not through `type`.
 #' @param uncertainty Logical. If `TRUE`, comparisons are calculated for every
 #'   coefficient draw returned by `predict_outcome()`.
 #' @param output Character. When `uncertainty = TRUE`, `"summary"` returns
 #'   median-based summaries and uncertainty intervals, while `"samples"`
-#'   returns the draw-level comparisons. When `uncertainty = FALSE`, a
-#'   deterministic comparison is returned regardless of `output`.
+#'   returns draw-level comparisons. When `uncertainty = FALSE`, a deterministic
+#'   comparison is returned regardless of `output`.
 #' @param n_samples Positive integer number of coefficient draws requested from
 #'   `predict_outcome()` when `uncertainty = TRUE`.
 #' @param eps Positive finite numeric constant used to stabilize percentage and
@@ -47,7 +48,7 @@
 #' row per matched draw and scenario pair.
 #'
 #' With `uncertainty = TRUE` and `output = "summary"`, the output contains
-#' medians, standard deviations, and 95% empirical intervals for `pred1`,
+#' medians, standard deviations, and empirical 95 percent intervals for `pred1`,
 #' `pred2`, `diff`, `percent_change`, and `ratio`.
 #'
 #' @details
@@ -63,6 +64,11 @@
 #' of `diff` and `percent_change`, and the direction of `ratio`, depend on that
 #' ordering.
 #'
+#' Uncertainty summaries are calculated from draw-level comparisons. Temporary
+#' names are used for medians inside `dplyr::summarise()` so that the original
+#' draw columns are not overwritten before their standard deviations and
+#' quantiles are calculated.
+#'
 #' @export
 compare_predictions <- function(
     fit,
@@ -72,7 +78,7 @@ compare_predictions <- function(
     re = c("population", "conditional"),
     id = NULL,
     allow_new_levels = FALSE,
-    type = c("response", "link", "conditional"),
+    type = c("response", "link"),
     uncertainty = FALSE,
     output = c("summary", "samples"),
     n_samples = 1000,
@@ -81,6 +87,8 @@ compare_predictions <- function(
   re <- match.arg(re)
   type <- match.arg(type)
   output <- match.arg(output)
+
+  if (is.null(fit)) stop("`fit` cannot be NULL.")
 
   if (!is.logical(allow_new_levels) ||
       length(allow_new_levels) != 1L ||
@@ -97,11 +105,15 @@ compare_predictions <- function(
   if (!is.numeric(n_samples) ||
       length(n_samples) != 1L ||
       !is.finite(n_samples) ||
-      n_samples <= 0) {
+      n_samples <= 0 ||
+      n_samples != as.integer(n_samples)) {
     stop("`n_samples` must be a positive integer.")
   }
-
   n_samples <- as.integer(n_samples)
+
+  if (uncertainty && n_samples < 2L) {
+    stop("`n_samples` must be at least 2 when `uncertainty = TRUE`.")
+  }
 
   if (!is.numeric(eps) ||
       length(eps) != 1L ||
@@ -115,25 +127,18 @@ compare_predictions <- function(
     stop("`id` must be NULL or a single non-empty column name.")
   }
 
-  # ------------------------------------------------------------
-  # Backward compatibility
-  # ------------------------------------------------------------
-
+  # Backward compatibility -------------------------------------------------
   if (is.null(profiles)) {
     if (is.null(profiles1) || is.null(profiles2)) {
       stop("Provide either `profiles` or both `profiles1` and `profiles2`.")
     }
-
     profiles <- list(
       scenario1 = profiles1,
       scenario2 = profiles2
     )
   }
 
-  # ------------------------------------------------------------
-  # Validate scenarios
-  # ------------------------------------------------------------
-
+  # Validate scenarios -----------------------------------------------------
   if (!is.list(profiles) || length(profiles) < 2L) {
     stop("`profiles` must be a named list containing at least two scenarios.")
   }
@@ -149,16 +154,9 @@ compare_predictions <- function(
   }
 
   scenario_names <- names(profiles)
-  combinations <- utils::combn(
-    scenario_names,
-    2,
-    simplify = FALSE
-  )
+  combinations <- utils::combn(scenario_names, 2, simplify = FALSE)
 
-  # ------------------------------------------------------------
-  # Prediction backend
-  # ------------------------------------------------------------
-
+  # Prediction backend -----------------------------------------------------
   backend_output <- if (uncertainty) "samples" else "summary"
 
   predictions_list <- lapply(
@@ -183,16 +181,14 @@ compare_predictions <- function(
       if (!"prediction" %in% names(prediction)) {
         stop(
           "`predict_outcome()` did not return a `prediction` column for scenario '",
-          scenario_name,
-          "'."
+          scenario_name, "'."
         )
       }
 
       if (!is.numeric(prediction$prediction) ||
           any(!is.finite(prediction$prediction))) {
         stop(
-          "Predictions for scenario '",
-          scenario_name,
+          "Predictions for scenario '", scenario_name,
           "' must be finite numeric values."
         )
       }
@@ -200,18 +196,14 @@ compare_predictions <- function(
       if (!is.null(id) && !id %in% names(prediction)) {
         stop(
           "`predict_outcome()` did not return the requested id column '",
-          id,
-          "' for scenario '",
-          scenario_name,
-          "'."
+          id, "' for scenario '", scenario_name, "'."
         )
       }
 
       if (uncertainty && !"sample" %in% names(prediction)) {
         stop(
           "`predict_outcome()` did not return a `sample` column for scenario '",
-          scenario_name,
-          "'."
+          scenario_name, "'."
         )
       }
 
@@ -219,13 +211,9 @@ compare_predictions <- function(
       prediction
     }
   )
-
   names(predictions_list) <- scenario_names
 
-  # ------------------------------------------------------------
-  # Helpers
-  # ------------------------------------------------------------
-
+  # Helpers ----------------------------------------------------------------
   safe_sd <- function(x) {
     x <- x[is.finite(x)]
     if (length(x) <= 1L) return(0)
@@ -251,17 +239,13 @@ compare_predictions <- function(
     data_frame
   }
 
-  # ------------------------------------------------------------
-  # Deterministic comparisons
-  # ------------------------------------------------------------
-
+  # Deterministic comparisons ----------------------------------------------
   if (!uncertainty) {
     output_list <- lapply(
       combinations,
       function(comparison) {
         scenario1 <- comparison[1]
         scenario2 <- comparison[2]
-
         prediction1 <- predictions_list[[scenario1]]
         prediction2 <- predictions_list[[scenario2]]
 
@@ -307,10 +291,7 @@ compare_predictions <- function(
               nrow(comparison_data) != nrow(second)) {
             stop(
               "Predictions could not be matched one-to-one by id for scenarios '",
-              scenario1,
-              "' and '",
-              scenario2,
-              "'."
+              scenario1, "' and '", scenario2, "'."
             )
           }
 
@@ -332,23 +313,17 @@ compare_predictions <- function(
     return(output_data)
   }
 
-  # ------------------------------------------------------------
-  # Draw-level uncertainty comparisons
-  # ------------------------------------------------------------
-
+  # Draw-level uncertainty comparisons ------------------------------------
   sample_outputs <- lapply(
     combinations,
     function(comparison) {
       scenario1 <- comparison[1]
       scenario2 <- comparison[2]
-
       prediction1 <- predictions_list[[scenario1]]
       prediction2 <- predictions_list[[scenario2]]
 
       matching_columns <- "sample"
-      if (!is.null(id)) {
-        matching_columns <- c(id, "sample")
-      }
+      if (!is.null(id)) matching_columns <- c(id, "sample")
 
       if (anyDuplicated(prediction1[matching_columns]) ||
           anyDuplicated(prediction2[matching_columns])) {
@@ -384,10 +359,7 @@ compare_predictions <- function(
           nrow(comparison_data) != nrow(second)) {
         stop(
           "Prediction draws could not be matched one-to-one for scenarios '",
-          scenario1,
-          "' and '",
-          scenario2,
-          "'."
+          scenario1, "' and '", scenario2, "'."
         )
       }
 
@@ -414,63 +386,77 @@ compare_predictions <- function(
   samples_data <- do.call(rbind, sample_outputs)
   rownames(samples_data) <- NULL
 
-  if (output == "samples") {
-    return(samples_data)
-  }
+  if (output == "samples") return(samples_data)
 
-  # ------------------------------------------------------------
-  # Median-based uncertainty summaries
-  # ------------------------------------------------------------
-
+  # Median-based uncertainty summaries ------------------------------------
   grouping_variables <- c(
     if (!is.null(id)) id,
     "scenario1",
     "scenario2"
   )
 
+  # IMPORTANT: central estimates use temporary names. Reusing `pred1`,
+  # `pred2`, `diff`, `percent_change`, or `ratio` as an output name before
+  # calculating SDs and quantiles would mask the original draw-level column
+  # inside dplyr::summarise().
   summary_data <- samples_data |>
     dplyr::group_by(
-      dplyr::across(
-        dplyr::all_of(grouping_variables)
-      )
+      dplyr::across(dplyr::all_of(grouping_variables))
     ) |>
     dplyr::summarise(
-      pred1 = stats::median(.data$pred1, na.rm = TRUE),
+      pred1_estimate = stats::median(.data$pred1, na.rm = TRUE),
       pred1_sd = safe_sd(.data$pred1),
       pred1_lower = safe_quantile(.data$pred1, 0.025),
       pred1_upper = safe_quantile(.data$pred1, 0.975),
 
-      pred2 = stats::median(.data$pred2, na.rm = TRUE),
+      pred2_estimate = stats::median(.data$pred2, na.rm = TRUE),
       pred2_sd = safe_sd(.data$pred2),
       pred2_lower = safe_quantile(.data$pred2, 0.025),
       pred2_upper = safe_quantile(.data$pred2, 0.975),
 
-      diff = stats::median(.data$diff, na.rm = TRUE),
+      diff_estimate = stats::median(.data$diff, na.rm = TRUE),
       diff_sd = safe_sd(.data$diff),
       diff_lower = safe_quantile(.data$diff, 0.025),
       diff_upper = safe_quantile(.data$diff, 0.975),
 
-      percent_change = stats::median(
+      percent_change_estimate = stats::median(
         .data$percent_change,
         na.rm = TRUE
       ),
       percent_change_sd = safe_sd(.data$percent_change),
-      percent_change_lower = safe_quantile(
-        .data$percent_change,
-        0.025
-      ),
-      percent_change_upper = safe_quantile(
-        .data$percent_change,
-        0.975
-      ),
+      percent_change_lower = safe_quantile(.data$percent_change, 0.025),
+      percent_change_upper = safe_quantile(.data$percent_change, 0.975),
 
-      ratio = stats::median(.data$ratio, na.rm = TRUE),
+      ratio_estimate = stats::median(.data$ratio, na.rm = TRUE),
       ratio_sd = safe_sd(.data$ratio),
       ratio_lower = safe_quantile(.data$ratio, 0.025),
       ratio_upper = safe_quantile(.data$ratio, 0.975),
 
       .groups = "drop"
     )
+
+  # Restore the established public output names after all summaries have been
+  # calculated from the original draw-level columns.
+  names(summary_data)[names(summary_data) == "pred1_estimate"] <- "pred1"
+  names(summary_data)[names(summary_data) == "pred2_estimate"] <- "pred2"
+  names(summary_data)[names(summary_data) == "diff_estimate"] <- "diff"
+  names(summary_data)[names(summary_data) == "percent_change_estimate"] <-
+    "percent_change"
+  names(summary_data)[names(summary_data) == "ratio_estimate"] <- "ratio"
+
+  summary_data <- summary_data[
+    ,
+    c(
+      grouping_variables,
+      "pred1", "pred1_sd", "pred1_lower", "pred1_upper",
+      "pred2", "pred2_sd", "pred2_lower", "pred2_upper",
+      "diff", "diff_sd", "diff_lower", "diff_upper",
+      "percent_change", "percent_change_sd",
+      "percent_change_lower", "percent_change_upper",
+      "ratio", "ratio_sd", "ratio_lower", "ratio_upper"
+    ),
+    drop = FALSE
+  ]
 
   as.data.frame(summary_data)
 }

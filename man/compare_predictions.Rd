@@ -12,7 +12,7 @@ compare_predictions(
   re = c("population", "conditional"),
   id = NULL,
   allow_new_levels = FALSE,
-  type = c("response", "link", "conditional"),
+  type = c("response", "link"),
   uncertainty = FALSE,
   output = c("summary", "samples"),
   n_samples = 1000,
@@ -42,15 +42,16 @@ are matched by this column.}
 \item{allow_new_levels}{Logical. Passed to `predict_outcome()`.}
 
 \item{type}{Character. Prediction scale passed to `predict_outcome()`:
-`"response"`, `"link"`, or `"conditional"`.}
+`"response"` or `"link"`. Conditional predictions are selected with
+`re = "conditional"`, not through `type`.}
 
 \item{uncertainty}{Logical. If `TRUE`, comparisons are calculated for every
 coefficient draw returned by `predict_outcome()`.}
 
 \item{output}{Character. When `uncertainty = TRUE`, `"summary"` returns
 median-based summaries and uncertainty intervals, while `"samples"`
-returns the draw-level comparisons. When `uncertainty = FALSE`, a
-deterministic comparison is returned regardless of `output`.}
+returns draw-level comparisons. When `uncertainty = FALSE`, a deterministic
+comparison is returned regardless of `output`.}
 
 \item{n_samples}{Positive integer number of coefficient draws requested from
 `predict_outcome()` when `uncertainty = TRUE`.}
@@ -69,7 +70,7 @@ With `uncertainty = TRUE` and `output = "samples"`, the output contains one
 row per matched draw and scenario pair.
 
 With `uncertainty = TRUE` and `output = "summary"`, the output contains
-medians, standard deviations, and 95% empirical intervals for `pred1`,
+medians, standard deviations, and empirical 95 percent intervals for `pred1`,
 `pred2`, `diff`, `percent_change`, and `ratio`.
 }
 \description{
@@ -96,4 +97,9 @@ For a comparison between scenario 1 and scenario 2, the function calculates:
 Scenario order follows the order of names in `profiles`. Therefore, the sign
 of `diff` and `percent_change`, and the direction of `ratio`, depend on that
 ordering.
+
+Uncertainty summaries are calculated from draw-level comparisons. Temporary
+names are used for medians inside `dplyr::summarise()` so that the original
+draw columns are not overwritten before their standard deviations and
+quantiles are calculated.
 }
