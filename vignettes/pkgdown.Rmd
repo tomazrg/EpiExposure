@@ -1581,6 +1581,13 @@ scenario_D <- list(
 )
 
 
+exp01 <- simulate_exposure(lag_max = 85,
+                  mode = "profile", seed = 123,
+                  #pattern = "alternating_times",
+                  #alternating_values = c(20,24),
+                  #background = list(dist = "normal", mean = 25, sd = 10),
+                  background = list(dist = "ar1", mean = 25, sd = 4, phi = 0.90),
+                  n = 1)
 ```
 
 ```{r}
@@ -1605,7 +1612,9 @@ compare_pred <- compare_pred %>%
 
 compare_pred
 
+```
 
+```{r}
 compare_pred2 = compare_predictions(
   fit = fit,
   profiles = list(
@@ -1626,6 +1635,9 @@ compare_pred2 <- compare_pred2 %>%
 
 compare_pred2
 
+```
+
+```{r}
 ggplot(compare_pred,
        aes(reorder(scenario, diff*100),
            y = diff*100)) +
@@ -1634,27 +1646,28 @@ ggplot(compare_pred,
     data = compare_pred2,
     aes(
       reorder(scenario, diff*100),
-      y = diff*100
+      y = diff*100, color = sample
     ),
-    color = "gray50",
     alpha = 0.4,
     size = 2,
     width = 0.2
   ) +
-
+  scale_color_viridis_b()+
   geom_pointrange(
     aes(
       ymin = diff_lower*100,
       ymax = diff_upper*100
     ),
     linewidth = 0.6
-  ) +
-
+  )+
   theme_bw() +
   labs(
     x = "Scenarios comparison",
     y = "Difference (%)"
   )+
-  theme(text = element_text(size = 10, face = "bold"))
+  theme(text = element_text(size = 10, face = "bold"),
+        legend.position = "none")
+
+ggsave("compare_predictions.png", dpi = 600, height = 4, width = 6)
 ```
 
