@@ -276,7 +276,7 @@ tmean_contour <- ggplot(
     midpoint = 0,
     limits = c(-max_abs, max_abs),
     oob = squish,
-    name = "RR (%)",
+    name = "Effect (%)",
     guide = guide_colorbar(
       barwidth  = unit(4, "cm"),
       barheight = unit(0.5, "cm")
@@ -298,7 +298,7 @@ tmean_contour <- ggplot(
   ) +
 
   labs(
-    x = "Lag",
+    x = "",
     y = "Mean temperature (°C)"
   ) +
 
@@ -312,7 +312,8 @@ tmean_contour <- ggplot(
     ),
     axis.text = element_text(size = 10),
     legend.title = element_text(face = "bold"),
-    legend.position = "top"
+    legend.position = "top",
+    axis.text.x = element_blank()
   )
 
 tmean_contour
@@ -485,7 +486,7 @@ rain_contour <- ggplot(
     midpoint = 0,
     limits = c(-max_abs, max_abs),
     oob = squish,
-    name = "RR (%)",
+    name = "Effect (%)",
     guide = guide_colorbar(
       barwidth  = unit(4, "cm"),
       barheight = unit(0.5, "cm")
@@ -507,7 +508,7 @@ rain_contour <- ggplot(
   ) +
 
   labs(
-    x = "Lag",
+    x = "",
     y = "Daily precipitation (mm)"
   ) +
 
@@ -521,7 +522,8 @@ rain_contour <- ggplot(
     ),
     axis.text = element_text(size = 10),
     legend.title = element_text(face = "bold"),
-    legend.position = "top"
+    legend.position = "top",
+    axis.text.x = element_blank()
   )
 
 rain_contour
@@ -704,7 +706,7 @@ wetness_contour <- ggplot(
     midpoint = 0,
     limits = c(-max_abs, max_abs),
     oob = squish,
-    name = "RR (%)",
+    name = "Effect (%)",
     guide = guide_colorbar(
       barwidth  = unit(4, "cm"),
       barheight = unit(0.5, "cm")
@@ -726,7 +728,7 @@ wetness_contour <- ggplot(
   ) +
 
   labs(
-    x = "Lag",
+    x = "",
     y = "Leaf wetness (%)"
   ) +
 
@@ -740,7 +742,8 @@ wetness_contour <- ggplot(
     ),
     axis.text = element_text(size = 10),
     legend.title = element_text(face = "bold"),
-    legend.position = "top"
+    legend.position = "top",
+    axis.text.x = element_blank()
   )
 
 wetness_contour
@@ -857,7 +860,47 @@ plot_grid(tmean_contour,rain_contour,wetness_contour,
           tmean_delta, rain_delta, wetness_delta,ncol = 3)
 
 #ggsave("lag_effect.png",dpi = 600, width = 10, height = 4)
+ggsave("lag_effect.png",dpi = 600, width = 10, height = 8)
+```
+
+```{r}
+lag_plot <- plot_effects(
+  data = epi_l,
+  scale = "lag",
+  var = c("tmean", "rain", "wetness"),
+  metric = c("effect", "delta"),
+  delta_multiplier = 100,
+  ylab = c(
+    tmean   = "Mean temperature (°C)",
+    rain    = "Daily precipitation (mm)",
+    wetness = "Leaf wetness (%)"
+  )
+)
+
+lag_plot
+
 ggsave("lag_effect2.png",dpi = 600, width = 10, height = 8)
+
+
+period_plot <- plot_effects(
+  data = epi_p,
+  scale = "period",
+  var = c("tmean", "rain", "wetness"),
+  period_order = c(
+    "Period4",
+    "Period3",
+    "Period2",
+    "Period1"
+  ),
+  period_var_order = c(
+    "tmean",
+    "rain",
+    "wetness"
+  )
+)
+
+period_plot
+
 ```
 
 
@@ -878,6 +921,8 @@ epi_p = summarise_effects(fit = fit, data = sim_data,
 
 epi_p
 ```
+
+
 ```{r}
 epi_p1 = summarise_effects(fit = fit, data = sim_data,
                   scale = "accumulated", effect_measure = "percent",
@@ -899,7 +944,7 @@ epi_p2
 
 ```{r}
 
-epi_p11 <- epi_p1 |>
+epi_p11 <- epi_p |>
   mutate(
     period = factor(
       period,
@@ -926,7 +971,7 @@ epi_p11 |>
     x = "Exposure",
     y = "Response")
 
-ggsave("phase_effect.png",dpi = 600, width = 8, height = 6)
+ggsave("phase_effect2.png",dpi = 600, width = 8, height = 6)
 
 ```
 
@@ -1383,10 +1428,10 @@ range <- simulate_range(
   periods = period,
   vary = list(
     #tmean = seq(18,34, by = 1),
-    tmean = c(28,34),
+    tmean = c(20,34),
     #rain = c(0,15),
     rain = seq(0,15, by = 1),
-    wetness = c(2,5)
+    wetness = c(2,10)
   ),
   scenario_type = "grid",
   mode = "scenario",
@@ -1421,7 +1466,10 @@ pred_scenarios |>
   theme(
   axis.title = element_text(size = 12, face = "bold"),
   strip.background = element_rect(fill = "white", colour = "black"),
-  legend.position = "none")
+  legend.position = "none")+
+  scale_x_continuous(
+  limits = c(0, 15),
+  expand = expansion(mult = c(0.01, 0.01)))
 
 
 
@@ -1669,5 +1717,203 @@ ggplot(compare_pred,
         legend.position = "none")
 
 ggsave("compare_predictions.png", dpi = 600, height = 4, width = 6)
+```
+
+```{r}
+
+
+best_models <- find_bestfit(
+  data = sim_data,
+  response = "y",
+  group = "epi_id",
+  time = "time",
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  lag_max = 85,
+  df_var_grid = c(2,3,4),
+  df_lag_grid = c(2,3,4),
+  min_vars = 1,
+  #var_sets = list(
+  #  c("tmean")
+  #),
+  fun_var = "ns",
+  fun_lag = "ns",
+  model_engine = "glmmTMB",
+  family = "beta",
+  random_effect = NULL,
+  min_success = 2,
+  verbose = TRUE,
+  keep_fits = TRUE
+)
+```
+
+```{r}
+best_m = readxl::read_xlsx("best_models.xlsx")
+best_pred = readxl::read_xlsx("prediction_data.xlsx")
+```
+
+```{r}
+
+ccc_lab <- best_m |>
+  filter(model_id %in% c(63,42,56,35,49,28,40,61,19,47,33,54,
+                         26,12,5)) |>
+  mutate(label = sprintf("CCC = %.2f", CCC))
+
+best_pred |>
+  filter(model_id %in% c(63,42,56,35,49,28,40,61,19,47,33,54,
+                         26,12,5)) |>
+  ggplot(aes(observed*100, predicted*100)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "orange") +
+  geom_abline(slope = 1, intercept = 0, color = "red",
+              linetype = "dashed")+
+  geom_text(
+    data = ccc_lab,
+    aes(label = label),
+    x = -Inf,
+    y = Inf,
+    hjust = -0.1,
+    vjust = 1.4,
+    inherit.aes = FALSE,
+    size = 3.5) +
+
+  facet_wrap(~model_id, ncol = 5) +
+  theme_bw() +
+  labs(
+    x = "Observed (%)",
+    y = "Predicted (%)"
+  ) +
+  theme(
+    text = element_text(size = 10, face = "bold"),
+    legend.position = "none"
+  )
+
+
+```
+
+```{r}
+ggsave("find_bestfit.png", dpi = 600, height = 6, width = 8)
+```
+
+## Substituir pelo script da Lais
+```{r}
+ens <- ensemble_bestfit(
+  bestfit = best,
+  ensemble_scope = "lag",
+  epi_data = sim_dataa,
+  group = "epi_id",
+  var = c("tmean", "rain"),
+  reverse = TRUE
+)
+
+help(ensemble_bestfit)
+```
+
+# Sensitivity
+```{r}
+range_rain = simulate_range(
+     periods = period,
+     vary = list(
+       tmean = 25,
+       rain  = seq(0,15, by = 0.5),
+       wetness = 10
+     ),
+     scenario_type = "grid",
+     mode = "scenario",
+     scenario_var = "rain"
+)
+
+range_tmean = simulate_range(
+     periods = period,
+     vary = list(
+       rain = 5,
+       tmean  = seq(18,34, by = 0.5),
+       wetness = 2
+     ),
+     scenario_type = "grid",
+     mode = "scenario",
+     scenario_var = "tmean"
+)
+
+
+range_wetness = simulate_range(
+     periods = period,
+     vary = list(
+       rain = 5,
+       wetness  = seq(0,24, by = 0.5),
+       tmean = 25
+     ),
+     scenario_type = "grid",
+     mode = "scenario",
+     scenario_var = "wetness"
+)
+
+pred_rain = simulate_scenarios(
+  fit = fit,
+  data = sim_data,
+  scenarios = range_tmean,
+  uncertainty = TRUE,
+  output = "summary",
+  n_samples = 20
+)
+
+curve_rain = pred_rain |> 
+    #group_by(sample) |> 
+  transmute(
+    value = tmean,
+    prediction = prediction*100,
+    lower = lower*100,
+    upper = upper*100
+  ) |>
+  arrange(value)
+
+epi_l
+
+sens_p = epi_p |> 
+  filter(var == "tmean") |> 
+  filter(sample == 1)
+
+
+sens_rain = df_sensitivity(
+  data = curve_rain,
+  x = "value",
+  y = "prediction",
+  scenario_var = NULL,
+  elasticity = TRUE,
+  critical = TRUE,
+  k = 3)
+
+sens_rain |> 
+  ggplot(aes(value, elasticity, group = sample))+
+  geom_smooth(se = F, color = "black")+
+  theme_bw()
+
+
+sens_rain |> 
+  ggplot()+
+  geom_smooth(aes(value, prediction),se = F, color = "black")+
+  geom_smooth(aes(value, lower),se = F,
+              color = "black", linetype = "dashed")+
+  geom_smooth(aes(value, upper),se = F,
+              color = "black", linetype = "dashed")+
+  theme_bw()
+
+
+sens_rain |> 
+  ggplot(aes(value,sensitivity))+
+  geom_smooth(se = F)
+
+unique(epi_p$period)
+```
+
+```{r}
+#' @details
+#' For predictors with highly skewed distributions or many repeated values,
+#' `splines::ns()` may issue a knot-placement warning when interior knots
+#' coincide with boundary values. This adjustment is handled automatically
+#' and does not prevent model fitting.
 ```
 

@@ -614,13 +614,13 @@ compute_eci <- function(
       stop("Missing exposure specification for variable '", variable, "'.")
     }
 
-    lag_max_use <- as.integer(max(variable_specification$lag_max))
-    expected_length <- lag_max_use + 1L
+    max_lag_use <- as.integer(max(variable_specification$max_lag))
+    expected_length <- max_lag_use + 1L
 
     if (length(profile_values) != expected_length) {
       stop(
         "Profile length for variable '", variable,
-        "' must equal lag_max + 1. Expected ", expected_length,
+        "' must equal max_lag + 1. Expected ", expected_length,
         " values but received ", length(profile_values), "."
       )
     }
@@ -633,7 +633,7 @@ compute_eci <- function(
 
     cross_basis <- dlnm::crossbasis(
       profile_values,
-      lag = lag_max_use,
+      lag = max_lag_use,
       argvar = variable_specification$argvar,
       arglag = variable_specification$arglag
     )

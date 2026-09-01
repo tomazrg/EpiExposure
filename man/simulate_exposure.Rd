@@ -5,7 +5,7 @@
 \title{Simulate exposure profiles}
 \usage{
 simulate_exposure(
-  lag_max,
+  max_lag,
   n = 1,
   mode = c("profile", "pattern"),
   pattern = c("random_times", "alternating_times", "block_times"),
@@ -21,9 +21,9 @@ simulate_exposure(
 )
 }
 \arguments{
-\item{lag_max}{Non-negative integer maximum lag. The generated profile has
-length `lag_max + 1` and chronological names from `time_0` to
-`time_<lag_max>`.}
+\item{max_lag}{Non-negative integer maximum lag. The generated profile has
+length `max_lag + 1` and chronological names from `time_0` to
+`time_<max_lag>`.}
 
 \item{n}{Positive integer number of profiles to simulate. Default is 1.}
 
@@ -40,7 +40,7 @@ times for `"random_times"` and `"block_times"`.}
 `"random_times"`.}
 
 \item{time_range}{Optional integer vector identifying eligible chronological
-times. Values must lie between 0 and `lag_max`. If `NULL`, every
+times. Values must lie between 0 and `max_lag`. If `NULL`, every
 chronological time is eligible.}
 
 \item{alternating_values}{Finite numeric vector with at least two values,
@@ -65,7 +65,7 @@ order after the pattern and bounds have been applied. In this case,
 \value{
 If `n = 1`, a list with `profile` and `meta`. If `n > 1`, a list with
   `profiles` and `meta`. Every profile is ordered chronologically and named
-  `time_0`, `time_1`, ..., `time_<lag_max>`.
+  `time_0`, `time_1`, ..., `time_<max_lag>`.
 }
 \description{
 Generates one or more exposure profiles in chronological order, from the
@@ -76,14 +76,14 @@ profile value corresponds internally to lag 0.
 \details{
 All user-facing pattern arguments are expressed in chronological time rather
 than retrospective lag. Therefore, `time = 0` always identifies the earliest
-observation and `time = lag_max` identifies the most recent observation.
+observation and `time = max_lag` identifies the most recent observation.
 
 
 The returned order is always:
 
-`time_0` = earliest observation = internal lag `lag_max`
+`time_0` = earliest observation = internal lag `max_lag`
 
-`time_<lag_max>` = most recent observation = internal lag 0
+`time_<max_lag>` = most recent observation = internal lag 0
 
 The backward lag mapping is stored in `meta$retrospective_lag` and is not
 exposed through the pattern arguments. Users specify all patterns in

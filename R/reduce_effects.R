@@ -125,9 +125,9 @@ reduce_effects <- function(
   }
 
   s <- spec[[var]]
-  if (is.null(s$lag_max) || !is.numeric(s$lag_max) || any(!is.finite(s$lag_max))) stop("Invalid `lag_max` metadata for variable '", var, "'.")
-  max_lag <- as.integer(max(s$lag_max))
-  if (type == "lag" && (value < 0 || value > max_lag)) stop("For `type = 'lag'`, `value` must lie between 0 and lag_max.")
+  if (is.null(s$max_lag) || !is.numeric(s$max_lag) || any(!is.finite(s$max_lag))) stop("Invalid `max_lag` metadata for variable '", var, "'.")
+  max_lag <- as.integer(max(s$max_lag))
+  if (type == "lag" && (value < 0 || value > max_lag)) stop("For `type = 'lag'`, `value` must lie between 0 and max_lag.")
   if (is.null(s$argvar) || !is.list(s$argvar) || is.null(s$arglag) || !is.list(s$arglag)) stop("Invalid `argvar` or `arglag` metadata for variable '", var, "'.")
 
   ids <- unique(data[[group]])

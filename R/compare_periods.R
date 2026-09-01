@@ -1,10 +1,10 @@
-#' Compare accumulated DLNM effects between periods
+#' Compare period-specific cumulative effects
 #'
-#' Compares accumulated effects across epidemiological periods
-#' using a reference period. Differences and ratios are computed
-#' relative to the reference.
+#' Compares cumulative associations among user-defined periods
+#' using a selected reference period. Differences and ratios
+#' are estimated relative to the reference.
 #'
-#' @param accumulated_df Output from summarise_effects(scale = "accumulated").
+#' @param period_df Output from summarise_effects(scale = "accumulated").
 #'   Must contain columns: value, period, effect.
 #' @param period_ref Reference period (numeric index or character label, e.g. 1 or "W1")
 #' @param eps Small constant to avoid division by zero in ratio calculation.
@@ -13,7 +13,7 @@
 #'
 #' @export
 compare_periods <- function(
-    accumulated_df,
+    period_df,
     period_ref = 1,
     eps = 1e-10
 ) {
@@ -23,11 +23,11 @@ compare_periods <- function(
   # ------------------------------------------------------------
   req_cols <- c("value", "period", "effect")
 
-  if (!all(req_cols %in% names(accumulated_df))) {
-    stop("accumulated_df must contain columns: value, period, effect.")
+  if (!all(req_cols %in% names(period_df))) {
+    stop("period_df must contain columns: value, period, effect.")
   }
 
-  if (!is.numeric(accumulated_df$effect)) {
+  if (!is.numeric(period_df$effect)) {
     stop("'effect' column must be numeric.")
   }
 
@@ -38,7 +38,7 @@ compare_periods <- function(
   # ------------------------------------------------------------
   # ✅ Check duplicates (value, period)
   # ------------------------------------------------------------
-  dup_check <- accumulated_df |>
+  dup_check <- period_df |>
     dplyr::count(value, period, name = "n") |>
     dplyr::filter(n > 1)
 
@@ -52,7 +52,7 @@ compare_periods <- function(
   # ------------------------------------------------------------
   if (is.numeric(period_ref)) {
 
-    example_period <- accumulated_df$period[1]
+    example_period <- period_df$period[1]
 
     if (!grepl("[0-9]+$", example_period)) {
       stop("period labels must end in numeric index (e.g. W1, W2). ",
@@ -67,21 +67,21 @@ compare_periods <- function(
   # ------------------------------------------------------------
   # Check reference period exists
   # ------------------------------------------------------------
-  if (!period_ref %in% accumulated_df$period) {
-    stop("period_ref not found in accumulated_df$period.")
+  if (!period_ref %in% period_df$period) {
+    stop("period_ref not found in period_df$period.")
   }
 
   # ------------------------------------------------------------
   # Extract reference values
   # ------------------------------------------------------------
-  ref_df <- accumulated_df |>
+  ref_df <- period_df |>
     dplyr::filter(period == period_ref) |>
     dplyr::select(value, ref_effect = effect)
 
   # ------------------------------------------------------------
   # Join reference to all periods
   # ------------------------------------------------------------
-  out <- accumulated_df |>
+  out <- period_df |>
     dplyr::left_join(ref_df, by = "value")
 
   # ------------------------------------------------------------

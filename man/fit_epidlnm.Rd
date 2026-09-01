@@ -33,7 +33,7 @@ an engine-compatible family object. Canonical family names are `"beta"`,
 
 \item{epiexposure_spec}{Optional named list describing how each cross-basis
 was constructed. The recommended structure is:
-`list(tmean = list(lag_max = 85, argvar = list(...), arglag = list(...)))`.
+`list(tmean = list(max_lag = 85, argvar = list(...), arglag = list(...)))`.
 If `NULL`, the model can be fitted, but profile-based downstream functions
 may not be available.}
 

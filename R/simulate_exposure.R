@@ -7,11 +7,11 @@
 #'
 #' All user-facing pattern arguments are expressed in chronological time rather
 #' than retrospective lag. Therefore, `time = 0` always identifies the earliest
-#' observation and `time = lag_max` identifies the most recent observation.
+#' observation and `time = max_lag` identifies the most recent observation.
 #'
-#' @param lag_max Non-negative integer maximum lag. The generated profile has
-#'   length `lag_max + 1` and chronological names from `time_0` to
-#'   `time_<lag_max>`.
+#' @param max_lag Non-negative integer maximum lag. The generated profile has
+#'   length `max_lag + 1` and chronological names from `time_0` to
+#'   `time_<max_lag>`.
 #' @param n Positive integer number of profiles to simulate. Default is 1.
 #' @param mode Character. `"profile"` simulates only the background process;
 #'   `"pattern"` also applies the selected chronological pattern.
@@ -22,7 +22,7 @@
 #' @param n_times Positive integer number of chronological times selected by
 #'   `"random_times"`.
 #' @param time_range Optional integer vector identifying eligible chronological
-#'   times. Values must lie between 0 and `lag_max`. If `NULL`, every
+#'   times. Values must lie between 0 and `max_lag`. If `NULL`, every
 #'   chronological time is eligible.
 #' @param alternating_values Finite numeric vector with at least two values,
 #'   recycled chronologically over `time_range` for `"alternating_times"`.
@@ -40,14 +40,14 @@
 #'
 #' @return If `n = 1`, a list with `profile` and `meta`. If `n > 1`, a list with
 #'   `profiles` and `meta`. Every profile is ordered chronologically and named
-#'   `time_0`, `time_1`, ..., `time_<lag_max>`.
+#'   `time_0`, `time_1`, ..., `time_<max_lag>`.
 #'
 #' @details
 #' The returned order is always:
 #'
-#' `time_0` = earliest observation = internal lag `lag_max`
+#' `time_0` = earliest observation = internal lag `max_lag`
 #'
-#' `time_<lag_max>` = most recent observation = internal lag 0
+#' `time_<max_lag>` = most recent observation = internal lag 0
 #'
 #' The backward lag mapping is stored in `meta$retrospective_lag` and is not
 #' exposed through the pattern arguments. Users specify all patterns in
@@ -55,7 +55,7 @@
 #'
 #' @export
 simulate_exposure <- function(
-    lag_max,
+    max_lag,
     n = 1,
     mode = c("profile", "pattern"),
     pattern = c("random_times", "alternating_times", "block_times"),
@@ -88,7 +88,7 @@ simulate_exposure <- function(
     as.numeric(x)
   }
 
-  validate_time_vector <- function(x, argument, lag_max_i) {
+  validate_time_vector <- function(x, argument, max_lag_i) {
     if (!is.numeric(x) || !length(x) || anyNA(x) || any(!is.finite(x)) ||
         any(abs(x - round(x)) >= sqrt(.Machine$double.eps))) {
       stop("`", argument, "` must contain finite integer times.")
@@ -96,10 +96,10 @@ simulate_exposure <- function(
 
     x <- as.integer(round(x))
 
-    if (any(x < 0L) || any(x > lag_max_i)) {
+    if (any(x < 0L) || any(x > max_lag_i)) {
       stop(
         "`", argument, "` must contain chronological times between 0 and ",
-        "`lag_max`."
+        "`max_lag`."
       )
     }
 
@@ -114,10 +114,10 @@ simulate_exposure <- function(
   # BASIC VALIDATION
   # =========================================================
 
-  if (!is_whole_number(lag_max) || lag_max < 0) {
-    stop("`lag_max` must be a non-negative integer.")
+  if (!is_whole_number(max_lag) || max_lag < 0) {
+    stop("`max_lag` must be a non-negative integer.")
   }
-  lag_max_i <- as.integer(round(lag_max))
+  max_lag_i <- as.integer(round(max_lag))
 
   if (!is_whole_number(n) || n <= 0) {
     stop("`n` must be a positive integer.")
@@ -168,8 +168,8 @@ simulate_exposure <- function(
   # CHRONOLOGICAL INDEX
   # =========================================================
 
-  profile_length <- lag_max_i + 1L
-  chronological_time <- seq.int(0L, lag_max_i)
+  profile_length <- max_lag_i + 1L
+  chronological_time <- seq.int(0L, max_lag_i)
   retrospective_lag <- rev(chronological_time)
   profile_names <- paste0("time_", chronological_time)
 
@@ -179,7 +179,7 @@ simulate_exposure <- function(
     time_range_i <- validate_time_vector(
       time_range,
       "time_range",
-      lag_max_i
+      max_lag_i
     )
     time_range_i <- sort(time_range_i)
   }
@@ -350,7 +350,7 @@ simulate_exposure <- function(
     block_times <- validate_time_vector(
       block_times,
       "block_times",
-      lag_max_i
+      max_lag_i
     )
 
     block_times <- sort(block_times)
@@ -416,7 +416,7 @@ simulate_exposure <- function(
     list(
       profile = x,
       meta = list(
-        lag_max = lag_max_i,
+        max_lag = max_lag_i,
         profile_length = profile_length,
         profile_order = "chronological",
         chronological_time = chronological_time,
@@ -429,7 +429,7 @@ simulate_exposure <- function(
         time_range = time_range_i,
         selected_times = selected_times,
         selected_positions = selected_times + 1L,
-        selected_internal_lags = lag_max_i - selected_times,
+        selected_internal_lags = max_lag_i - selected_times,
         cumulative = cumulative,
         bounds_apply_to = if (cumulative) {
           "increments_before_cumulative_sum"

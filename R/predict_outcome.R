@@ -13,7 +13,7 @@
 #'   or a named list with one element per fitted exposure. Each exposure element
 #'   may be: (1) one numeric vector; (2) a list of numeric vectors; (3) a matrix
 #'   or data.frame with one profile per row. Every profile must contain
-#'   `lag_max + 1` values. Across exposures, numbers of profiles must be equal,
+#'   `max_lag + 1` values. Across exposures, numbers of profiles must be equal,
 #'   except that a single profile is recycled across the other exposures.
 #' @param re Character. `"population"` excludes random effects;
 #'   `"conditional"` includes them where supported.
@@ -293,7 +293,7 @@ predict_outcome <- function(
 
   build_cb_row <- function(profile_values, variable_specification, variable,
                            profile_index) {
-    maximum_lag <- as.integer(max(variable_specification$lag_max))
+    maximum_lag <- as.integer(max(variable_specification$max_lag))
     expected_length <- maximum_lag + 1L
     if (!is.numeric(profile_values) || any(!is.finite(profile_values))) {
       stop("Profile ", profile_index, " for variable '", variable,
@@ -301,7 +301,7 @@ predict_outcome <- function(
     }
     if (length(profile_values) != expected_length) {
       stop("Profile ", profile_index, " for variable '", variable,
-           "' must have lag_max + 1 values. Expected ", expected_length,
+           "' must have max_lag + 1 values. Expected ", expected_length,
            " but received ", length(profile_values), ".")
     }
     cb <- dlnm::crossbasis(

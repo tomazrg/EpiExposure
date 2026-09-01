@@ -4,10 +4,10 @@
 \alias{define_periods}
 \title{Define epidemiological lag periods}
 \usage{
-define_periods(lag_max, cuts = NULL, prefix = "W")
+define_periods(max_lag, cuts = NULL, prefix = "W")
 }
 \arguments{
-\item{lag_max}{Maximum lag. Must be a positive integer.}
+\item{max_lag}{Maximum lag. Must be a positive integer.}
 
 \item{cuts}{Optional numeric vector of cut points defining lag periods.}
 
@@ -27,7 +27,7 @@ Creates lag periods used to summarise cumulative DLNM effects.
 }
 \details{
 Lag periods are defined on the retrospective lag scale, where
-lag 0 represents the most recent observation and `lag_max`
+lag 0 represents the most recent observation and `max_lag`
 represents the oldest observation included in the exposure history.
 
 
@@ -35,7 +35,7 @@ If `cuts = NULL`, a single cumulative lag period is returned:
 
 \preformatted{
 lag_start = 0
-lag_end   = lag_max
+lag_end   = max_lag
 }
 
 If cut points are supplied, periods are created as contiguous,
@@ -46,9 +46,9 @@ cuts = c(7, 14)
 
 W1 = 0 - 7
 W2 = 8 - 14
-W3 = 15 - lag_max
+W3 = 15 - max_lag
 }
 
 Invalid cut points outside the interval
-`[1, lag_max - 1]` are ignored.
+`[1, max_lag - 1]` are ignored.
 }

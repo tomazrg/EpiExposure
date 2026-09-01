@@ -2,13 +2,13 @@
 % Please edit documentation in R/summarise_effects.R
 \name{summarise_effects}
 \alias{summarise_effects}
-\title{Summarise DLNM effects}
+\title{Summarises distributed lag nonlinear model effects}
 \usage{
 summarise_effects(
   fit,
   data,
   var = NULL,
-  scale = c("daily", "accumulated"),
+  scale = c("lag", "period"),
   lag_periods = NULL,
   probs = seq(0.05, 0.95, by = 0.01),
   at = NULL,
@@ -30,10 +30,11 @@ fitted exposure variables.}
 
 \item{var}{Exposure-variable name(s), or `NULL` for all fitted exposures.}
 
-\item{scale}{Character. `"daily"` or `"accumulated"`.}
+\item{scale}{Character. `"lag"` for lag-specific effects or
+`"period"` for cumulative effects aggregated across lag intervals.}
 
-\item{lag_periods}{Optional data.frame with `period`, `lag_start`, and
-`lag_end`, required for non-incremental accumulated summaries.}
+\item{lag_periods}{Optional data.frame with `period`, `lag_start`,
+and `lag_end`, required for user-defined period summaries.}
 
 \item{probs}{Unique probabilities used to generate the exposure grid for
 variables without a custom `at` specification. The default preserves the
@@ -54,8 +55,9 @@ an optional `value`.}
 \item{effect_measure}{Character. `"linear"`, `"exponentiated"`, or
 `"percent"`.}
 
-\item{incremental}{Logical. For accumulated effects, calculate cumulative
-effects from lag 0 through each lag.}
+\item{incremental}{Logical. For `scale = "period"`, calculate
+cumulative effects incrementally from lag 0 through each lag
+instead of using user-defined periods.}
 
 \item{uncertainty}{Logical. Propagate coefficient uncertainty draw by draw.}
 
@@ -64,8 +66,9 @@ effects from lag 0 through each lag.}
 \item{n_samples}{Positive integer number of draws. At least two are required
 when `uncertainty = TRUE`.}
 
-\item{diagnostics}{Logical. For daily non-ordinal effects, return integrated
-lag rankings and contribution metrics. Rankings depend on `effect_measure`.}
+\item{diagnostics}{Logical. Available only for lag-specific non-ordinal
+effects. Returns integrated lag rankings and contribution metrics.
+Rankings depend on `effect_measure`.}
 
 \item{seed}{Optional finite integer seed for reproducible sampling.}
 }
@@ -77,18 +80,28 @@ A data.frame of effects or category probabilities. For non-ordinal
   With `diagnostics = TRUE`, a list with `effects` and `diagnostics`.
 }
 \description{
-Summarises daily or accumulated distributed lag nonlinear model effects from
-the exposure specification stored by `fit_epidlnm()`. Exposure histories are
-interpreted chronologically: the first observation is the oldest exposure and
-the final observation is the most recent exposure, corresponding internally
-to lag 0.
+Returns lag-specific or period-specific effect summaries based on the
+exposure specification stored by `fit_epidlnm()`. Exposure histories are
+interpreted chronologically: the first observation is the oldest exposure
+and the final observation is the most recent exposure, corresponding
+internally to lag 0.
 }
 \details{
-For non-ordinal models, effects may be returned on the linear scale, as
-`exp(eta)`, or as `(exp(eta) - 1) * 100`. Under a log link, the percent form is
-a relative percentage change in the expected outcome. Under a logit link, it
-is a relative exposure effect and must not be interpreted as a direct
-percentage change in the response.
+For non-ordinal models, effects are calculated relative to a reference
+(baseline) exposure condition. The `"linear"` scale returns the contrast
+on the linear predictor scale (`eta`). The `"exponentiated"` scale returns
+`exp(eta)`, and the `"percent"` scale returns `(exp(eta) - 1) * 100`.
+
+Effects therefore describe how strongly a given exposure condition is
+associated with the outcome relative to the selected reference exposure.
+Values greater than zero indicate a greater relative effect than the
+reference condition, whereas values below zero indicate a smaller relative
+effect.
+
+Under a log link, exponentiated and percent effects can be interpreted as
+relative changes in the expected outcome. Under a logit link, they represent
+relative exposure effects with respect to the reference condition and should
+not be interpreted as direct changes in the response variable.
 
 For ordinal `brms` models, the function returns the predicted probability of
 every response category. `effect_measure` is not applied to ordinal category

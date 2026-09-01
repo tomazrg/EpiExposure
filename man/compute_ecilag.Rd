@@ -73,7 +73,7 @@ internally by `time`. The returned decomposition is indexed by lag, where
 lag 0 is the most recent observation and lag max is the oldest observation.
 
 
-For a chronological profile of length `lag_max + 1`, profile position 1 is
+For a chronological profile of length `max_lag + 1`, profile position 1 is
 associated with lag max and the final profile position is associated with
 lag 0. The function does not reverse the profile before constructing the
 cross-basis. The final cross-basis row performs the retrospective lag mapping.

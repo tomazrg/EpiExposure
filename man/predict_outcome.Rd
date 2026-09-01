@@ -24,7 +24,7 @@ predict_outcome(
 or a named list with one element per fitted exposure. Each exposure element
 may be: (1) one numeric vector; (2) a list of numeric vectors; (3) a matrix
 or data.frame with one profile per row. Every profile must contain
-`lag_max + 1` values. Across exposures, numbers of profiles must be equal,
+`max_lag + 1` values. Across exposures, numbers of profiles must be equal,
 except that a single profile is recycled across the other exposures.}
 
 \item{re}{Character. `"population"` excludes random effects;

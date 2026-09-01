@@ -7,7 +7,7 @@
 check_identifiability(
   data,
   var,
-  lag_max,
+  max_lag,
   df_var = 4,
   df_lag = 4,
   fun_var = "ns",
@@ -26,7 +26,7 @@ Observations must be supplied in chronological order
 
 \item{var}{Exposure variable (e.g. "tmax")}
 
-\item{lag_max}{Maximum lag}
+\item{max_lag}{Maximum lag}
 
 \item{df_var}{Degrees of freedom (exposure)}
 

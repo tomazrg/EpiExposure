@@ -2,12 +2,12 @@
 % Please edit documentation in R/compare_periods.R
 \name{compare_periods}
 \alias{compare_periods}
-\title{Compare accumulated DLNM effects between periods}
+\title{Compare period-specific cumulative effects}
 \usage{
-compare_periods(accumulated_df, period_ref = 1, eps = 1e-10)
+compare_periods(period_df, period_ref = 1, eps = 1e-10)
 }
 \arguments{
-\item{accumulated_df}{Output from summarise_effects(scale = "accumulated").
+\item{period_df}{Output from summarise_effects(scale = "accumulated").
 Must contain columns: value, period, effect.}
 
 \item{period_ref}{Reference period (numeric index or character label, e.g. 1 or "W1")}
@@ -18,7 +18,7 @@ Must contain columns: value, period, effect.}
 A data.frame with comparisons relative to the reference period.
 }
 \description{
-Compares accumulated effects across epidemiological periods
-using a reference period. Differences and ratios are computed
-relative to the reference.
+Compares cumulative associations among user-defined periods
+using a selected reference period. Differences and ratios
+are estimated relative to the reference.
 }

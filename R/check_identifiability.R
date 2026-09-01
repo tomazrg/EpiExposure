@@ -11,7 +11,7 @@
 #' Observations must be supplied in chronological order
 #' (earliest observation → most recent observation).
 #' @param var Exposure variable (e.g. "tmax")
-#' @param lag_max Maximum lag
+#' @param max_lag Maximum lag
 #' @param df_var Degrees of freedom (exposure)
 #' @param df_lag Degrees of freedom (lag)
 #' @param fun_var Basis ("ns","bs","poly","lin")
@@ -22,7 +22,7 @@
 check_identifiability <- function(
     data,
     var,
-    lag_max,
+    max_lag,
     df_var = 4,
     df_lag = 4,
     fun_var = "ns",
@@ -30,10 +30,10 @@ check_identifiability <- function(
 ) {
 
   # =========================================================
-  # ✅ AJUSTE 1 — DIMENSÃO TEMPORAL (lag_max)
+  # AJUSTE 1 — DIMENSÃO TEMPORAL (max_lag)
   # =========================================================
   # 🔵 Garante consistência (evita c(0,85))
-  lag_max <- as.integer(max(lag_max))
+  max_lag <- as.integer(max(max_lag))
 
   # =========================================================
   # ✅ CHECKS BÁSICOS
@@ -49,9 +49,9 @@ check_identifiability <- function(
   # =========================================================
   # ✅ AJUSTE 6 — CHECK AUTOMÁTICO DE COBERTURA TEMPORAL
   # =========================================================
-  .check_lag_coverage <- function(dat, lag_max) {
+  .check_lag_coverage <- function(dat, max_lag) {
 
-    n_required <- lag_max + 1L
+    n_required <- max_lag + 1L
 
     temporal_summary <- dat |>
       dplyr::group_by(epi_id) |>
@@ -104,7 +104,7 @@ check_identifiability <- function(
 
       stop(
         paste0(
-          "Some epidemics do not have enough temporal coverage for lag_max.\n",
+          "Some epidemics do not have enough temporal coverage for max_lag.\n",
           "Required observations per epi_id: ",
           n_required,
           "\n",
@@ -120,7 +120,7 @@ check_identifiability <- function(
     invisible(TRUE)
   }
 
-  .check_lag_coverage(data, lag_max)
+  .check_lag_coverage(data, max_lag)
 
   # ----------------------------------------------------------
   # pooled series
@@ -141,7 +141,7 @@ check_identifiability <- function(
     unlist(out)
   }
 
-  SEPARATOR <- lag_max
+  SEPARATOR <- max_lag
   x_pool <- build_pooled_series(data, var, SEPARATOR)
 
   # ----------------------------------------------------------
@@ -168,7 +168,7 @@ check_identifiability <- function(
 
   cb <- dlnm::crossbasis(
     x_pool,
-    lag    = lag_max,
+    lag    = max_lag,
     argvar = argvar,
     arglag = arglag
   )
@@ -197,7 +197,7 @@ check_identifiability <- function(
     warning(
       paste0(
         "Cross-basis is rank-deficient (", k, " < ", p, "). ",
-        "Consider reducing df_var, df_lag, or lag_max."
+        "Consider reducing df_var, df_lag, or max_lag."
       )
     )
     return(FALSE)

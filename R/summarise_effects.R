@@ -1,16 +1,26 @@
-#' Summarise DLNM effects
+#' Summarises distributed lag nonlinear model effects
 #'
-#' Summarises daily or accumulated distributed lag nonlinear model effects from
-#' the exposure specification stored by `fit_epidlnm()`. Exposure histories are
-#' interpreted chronologically: the first observation is the oldest exposure and
-#' the final observation is the most recent exposure, corresponding internally
-#' to lag 0.
+#' Returns lag-specific or period-specific effect summaries based on the
+#' exposure specification stored by `fit_epidlnm()`. Exposure histories are
+#' interpreted chronologically: the first observation is the oldest exposure
+#' and the final observation is the most recent exposure, corresponding
+#' internally to lag 0.
 #'
-#' For non-ordinal models, effects may be returned on the linear scale, as
-#' `exp(eta)`, or as `(exp(eta) - 1) * 100`. Under a log link, the percent form is
-#' a relative percentage change in the expected outcome. Under a logit link, it
-#' is a relative exposure effect and must not be interpreted as a direct
-#' percentage change in the response.
+#' For non-ordinal models, effects are calculated relative to a reference
+#' (baseline) exposure condition. The `"linear"` scale returns the contrast
+#' on the linear predictor scale (`eta`). The `"exponentiated"` scale returns
+#' `exp(eta)`, and the `"percent"` scale returns `(exp(eta) - 1) * 100`.
+#'
+#' Effects therefore describe how strongly a given exposure condition is
+#' associated with the outcome relative to the selected reference exposure.
+#' Values greater than zero indicate a greater relative effect than the
+#' reference condition, whereas values below zero indicate a smaller relative
+#' effect.
+#'
+#' Under a log link, exponentiated and percent effects can be interpreted as
+#' relative changes in the expected outcome. Under a logit link, they represent
+#' relative exposure effects with respect to the reference condition and should
+#' not be interpreted as direct changes in the response variable.
 #'
 #' For ordinal `brms` models, the function returns the predicted probability of
 #' every response category. `effect_measure` is not applied to ordinal category
@@ -28,9 +38,10 @@
 #' @param data Long-format exposure data containing `epi_id`, `time`, and the
 #'   fitted exposure variables.
 #' @param var Exposure-variable name(s), or `NULL` for all fitted exposures.
-#' @param scale Character. `"daily"` or `"accumulated"`.
-#' @param lag_periods Optional data.frame with `period`, `lag_start`, and
-#'   `lag_end`, required for non-incremental accumulated summaries.
+#' @param scale Character. `"lag"` for lag-specific effects or
+#'   `"period"` for cumulative effects aggregated across lag intervals.
+#' @param lag_periods Optional data.frame with `period`, `lag_start`,
+#'   and `lag_end`, required for user-defined period summaries.
 #' @param probs Unique probabilities used to generate the exposure grid for
 #'   variables without a custom `at` specification. The default preserves the
 #'   current quantile-based behavior.
@@ -46,14 +57,16 @@
 #'   an optional `value`.
 #' @param effect_measure Character. `"linear"`, `"exponentiated"`, or
 #'   `"percent"`.
-#' @param incremental Logical. For accumulated effects, calculate cumulative
-#'   effects from lag 0 through each lag.
+#' @param incremental Logical. For `scale = "period"`, calculate
+#'   cumulative effects incrementally from lag 0 through each lag
+#'   instead of using user-defined periods.
 #' @param uncertainty Logical. Propagate coefficient uncertainty draw by draw.
 #' @param output Character. `"summary"` or `"samples"`.
 #' @param n_samples Positive integer number of draws. At least two are required
 #'   when `uncertainty = TRUE`.
-#' @param diagnostics Logical. For daily non-ordinal effects, return integrated
-#'   lag rankings and contribution metrics. Rankings depend on `effect_measure`.
+#' @param diagnostics Logical. Available only for lag-specific non-ordinal
+#'   effects. Returns integrated lag rankings and contribution metrics.
+#'   Rankings depend on `effect_measure`.
 #' @param seed Optional finite integer seed for reproducible sampling.
 #'
 #' @details
@@ -74,7 +87,7 @@ summarise_effects <- function(
     fit,
     data,
     var = NULL,
-    scale = c("daily", "accumulated"),
+    scale = c("lag", "period"),
     lag_periods = NULL,
     probs = seq(0.05, 0.95, by = 0.01),
     at = NULL,
@@ -104,8 +117,8 @@ summarise_effects <- function(
   if (!is.logical(diagnostics) || length(diagnostics) != 1L || is.na(diagnostics)) {
     stop("`diagnostics` must be TRUE or FALSE.")
   }
-  if (diagnostics && scale != "daily") {
-    stop("`diagnostics = TRUE` is available only when `scale = 'daily'`.")
+  if (diagnostics && scale != "lag") {
+    stop("`diagnostics = TRUE` is available only when `scale = 'lag'`.")
   }
   if (!is.numeric(n_samples) || length(n_samples) != 1L ||
       !is.finite(n_samples) || n_samples <= 0 ||
@@ -138,8 +151,8 @@ summarise_effects <- function(
     stop("`ref` must contain one valid character `method`.")
   }
   ref_method <- match.arg(ref$method, c("median", "percentile", "fixed"))
-  if (scale == "accumulated" && !incremental && is.null(lag_periods)) {
-    stop("`lag_periods` is required when scale = 'accumulated' and incremental = FALSE.")
+  if (scale == "period" && !incremental && is.null(lag_periods)) {
+    stop("`lag_periods` is required when scale = 'period' and incremental = FALSE.")
   }
   if (!is.null(lag_periods)) {
     required <- c("period", "lag_start", "lag_end")
@@ -414,16 +427,16 @@ summarise_effects <- function(
     )
   }
 
-  # Integrated daily diagnostics -------------------------------------------
-  # The input must be deterministic daily effects or sample-level daily
+  # Integrated lag diagnostics -------------------------------------------
+  # The input must be deterministic lag effects or sample-level lag
   # effects. A single diagnostics table combines lag ranking and contribution
   # metrics, so the returned object has only two top-level components.
-  compute_daily_diagnostics <- function(daily_df) {
-    if (!all(c("var", "lag", "effect") %in% names(daily_df))) {
+  compute_lag_diagnostics <- function(lag_df) {
+    if (!all(c("var", "lag", "effect") %in% names(lag_df))) {
       stop("Internal diagnostics require columns 'var', 'lag', and 'effect'.")
     }
-    if (!is.numeric(daily_df$effect)) {
-      stop("The internal daily `effect` column must be numeric.")
+    if (!is.numeric(lag_df$effect)) {
+      stop("The internal lag `effect` column must be numeric.")
     }
 
     compute_one_diagnostic <- function(df) {
@@ -480,10 +493,10 @@ summarise_effects <- function(
         )
     }
 
-    has_samples <- "sample" %in% names(daily_df)
+    has_samples <- "sample" %in% names(lag_df)
 
     if (!has_samples) {
-      diagnostics_out <- daily_df |>
+      diagnostics_out <- lag_df |>
         dplyr::group_by(var) |>
         dplyr::group_modify(~compute_one_diagnostic(.x)) |>
         dplyr::ungroup() |>
@@ -491,7 +504,7 @@ summarise_effects <- function(
       return(as.data.frame(diagnostics_out))
     }
 
-    sample_diagnostics <- daily_df |>
+    sample_diagnostics <- lag_df |>
       dplyr::group_by(sample, var) |>
       dplyr::group_modify(~compute_one_diagnostic(.x)) |>
       dplyr::ungroup()
@@ -547,6 +560,17 @@ summarise_effects <- function(
     stop("`fit` does not contain valid `epiexposure_family_name` metadata.")
   }
   family_name <- tolower(family_name)
+  if (
+    family_name == "ordinal" &&
+    effect_measure != "linear"
+  ) {
+    warning(
+      "`effect_measure = '", effect_measure,
+      "' is ignored for ordinal models. ",
+      "Category probabilities are returned instead.",
+      call. = FALSE
+    )
+  }
   if (is.null(link_name) || !is.character(link_name) || length(link_name) != 1L) {
     stop("`fit` does not contain valid `epiexposure_link` metadata.")
   }
@@ -645,7 +669,7 @@ summarise_effects <- function(
 
     make_reference_profiles <- function() {
       profiles <- lapply(fit_vars, function(v) {
-        lv <- as.integer(max(fit_spec[[v]]$lag_max))
+        lv <- as.integer(max(fit_spec[[v]]$max_lag))
         rep(stats::median(data[[v]], na.rm = TRUE), lv + 1L)
       })
       names(profiles) <- fit_vars
@@ -655,7 +679,7 @@ summarise_effects <- function(
       nd <- data_template[1, , drop = FALSE]
       for (v in fit_vars) {
         sp <- fit_spec[[v]]
-        lv <- as.integer(max(sp$lag_max))
+        lv <- as.integer(max(sp$max_lag))
         cbv <- dlnm::crossbasis(profiles[[v]], lag = lv, argvar = sp$argvar, arglag = sp$arglag)
         row <- as.numeric(cbv[lv + 1L, , drop = TRUE])
         stored <- sort_cb_names(grep(paste0("^cb_", v, "_"), cb_cols_fit, value = TRUE))
@@ -666,15 +690,15 @@ summarise_effects <- function(
       nd
     }
     conditions <- list(); metadata <- list(); k <- 0L
-    lag_values <- 0:as.integer(max(variable_spec$lag_max))
+    lag_values <- 0:as.integer(max(variable_spec$max_lag))
     refs <- make_reference_profiles()
-    if (scale == "daily") {
+    if (scale == "lag") {
       for (value in at_values) for (lag in lag_values) {
         k <- k + 1L; pr <- refs
         pos <- length(pr[[variable]]) - lag
         pr[[variable]][pos] <- value
         conditions[[k]] <- make_newdata(pr)
-        metadata[[k]] <- data.frame(var=variable, lag=lag, scale="daily", value=value)
+        metadata[[k]] <- data.frame(var=variable, lag=lag, scale="lag", value=value)
       }
     } else if (incremental) {
       for (value in at_values) for (lag in lag_values) {
@@ -682,7 +706,7 @@ summarise_effects <- function(
         positions <- length(pr[[variable]]) - (0:lag)
         pr[[variable]][positions] <- value
         conditions[[k]] <- make_newdata(pr)
-        metadata[[k]] <- data.frame(var=variable, lag=lag, period=paste0("0-",lag), scale="accumulated", value=value)
+        metadata[[k]] <- data.frame(var=variable, lag=lag, period=paste0("0-",lag), scale="period", value=value)
       }
     } else {
       for (value in at_values) for (i in seq_len(nrow(lag_periods))) {
@@ -691,7 +715,7 @@ summarise_effects <- function(
         positions <- length(pr[[variable]]) - lags
         pr[[variable]][positions] <- value
         conditions[[k]] <- make_newdata(pr)
-        metadata[[k]] <- data.frame(var=variable, period=lag_periods$period[i], scale="accumulated", value=value)
+        metadata[[k]] <- data.frame(var=variable, period=lag_periods$period[i], scale="period", value=value)
       }
     }
     nd <- do.call(rbind, conditions)
@@ -735,22 +759,22 @@ summarise_effects <- function(
       stop("No valid `epiexposure_spec` metadata for variable '", variable, "'.")
     }
     variable_spec <- fit_spec[[variable]]
-    if (is.null(variable_spec$lag_max) || is.null(variable_spec$argvar) ||
+    if (is.null(variable_spec$max_lag) || is.null(variable_spec$argvar) ||
         is.null(variable_spec$arglag)) {
       stop("Incomplete exposure specification for variable '", variable, "'.")
     }
-    lag_max_use <- as.integer(max(variable_spec$lag_max))
+    max_lag_use <- as.integer(max(variable_spec$max_lag))
     argvar <- variable_spec$argvar
     arglag <- variable_spec$arglag
 
-    if (!is.null(lag_periods) && any(lag_periods$lag_end > lag_max_use)) {
+    if (!is.null(lag_periods) && any(lag_periods$lag_end > max_lag_use)) {
       stop("`lag_periods` exceeds the maximum lag for variable '", variable, "'.")
     }
-    check_lag_coverage(data, lag_max_use)
-    pooled <- build_pooled_series(data, variable, lag_max_use)
+    check_lag_coverage(data, max_lag_use)
+    pooled <- build_pooled_series(data, variable, max_lag_use)
     cb <- dlnm::crossbasis(
       pooled,
-      lag = lag_max_use,
+      lag = max_lag_use,
       argvar = argvar,
       arglag = arglag
     )
@@ -863,7 +887,7 @@ summarise_effects <- function(
         all(fit_vars %in% names(data))) {
       reference_profiles <- lapply(fit_vars, function(current_variable) {
         current_spec <- fit_spec[[current_variable]]
-        current_lag <- as.integer(max(current_spec$lag_max))
+        current_lag <- as.integer(max(current_spec$max_lag))
         reference_value <- stats::median(data[[current_variable]], na.rm = TRUE)
         rep(reference_value, current_lag + 1L)
       })
@@ -884,7 +908,7 @@ summarise_effects <- function(
     }
 
     build_output <- function(eta_matrix) {
-      if (scale == "daily") {
+      if (scale == "lag") {
         transformed_eta <- eta_matrix
         grid <- expand.grid(
           value = at_values,
@@ -895,7 +919,7 @@ summarise_effects <- function(
         result <- data.frame(
           var = variable,
           lag = grid$lag,
-          scale = "daily",
+          scale = "lag",
           value = grid$value,
           eta = as.vector(transformed_eta),
           stringsAsFactors = FALSE
@@ -912,7 +936,7 @@ summarise_effects <- function(
           var = variable,
           lag = grid$lag,
           period = paste0("0-", grid$lag),
-          scale = "accumulated",
+          scale = "period",
           value = grid$value,
           eta = as.vector(transformed_eta),
           stringsAsFactors = FALSE
@@ -937,7 +961,7 @@ summarise_effects <- function(
           period_result <- data.frame(
             var = variable,
             period = lag_periods$period[i],
-            scale = "accumulated",
+            scale = "period",
             value = at_values,
             eta = period_eta,
             stringsAsFactors = FALSE
@@ -1060,7 +1084,7 @@ summarise_effects <- function(
   diagnostics_source <- dplyr::bind_rows(
     lapply(variable_results, `[[`, "diagnostics_source")
   )
-  diagnostics_data <- compute_daily_diagnostics(diagnostics_source)
+  diagnostics_data <- compute_lag_diagnostics(diagnostics_source)
   rownames(diagnostics_data) <- NULL
 
   structure(

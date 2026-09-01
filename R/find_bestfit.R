@@ -17,7 +17,7 @@
 #' @param group Character scalar naming the grouping column used for LOOCV.
 #' @param time Character scalar naming the chronological time column.
 #' @param vars Unique character vector of candidate exposure variables.
-#' @param lag_max Maximum lag. A numeric vector such as `c(0, 85)` is normalized
+#' @param max_lag Maximum lag. A numeric vector such as `c(0, 85)` is normalized
 #'   to its finite maximum.
 #' @param df_var_grid Positive finite candidate dimensions for the exposure basis.
 #' @param df_lag_grid Positive finite candidate dimensions for the lag basis.
@@ -64,7 +64,7 @@ find_bestfit <- function(
     group = "epi_id",
     time = "time",
     vars,
-    lag_max,
+    max_lag,
     df_var_grid = c(3, 4, 5),
     df_lag_grid = c(3, 4, 5),
     min_vars = 1,
@@ -120,10 +120,10 @@ find_bestfit <- function(
       stop("Exposure variable '", variable, "' must contain finite numeric values.")
     }
   }
-  if (!is.numeric(lag_max) || !length(lag_max) || any(!is.finite(lag_max)) || max(lag_max) < 0) {
-    stop("`lag_max` must contain finite non-negative values.")
+  if (!is.numeric(max_lag) || !length(max_lag) || any(!is.finite(max_lag)) || max(max_lag) < 0) {
+    stop("`max_lag` must contain finite non-negative values.")
   }
-  lag_max <- as.integer(max(lag_max))
+  max_lag <- as.integer(max(max_lag))
 
   validate_df_grid <- function(x, argument) {
     if (!is.numeric(x) || !length(x) || any(!is.finite(x)) || any(x <= 0)) {
@@ -381,7 +381,7 @@ find_bestfit <- function(
     templates <- define_exposure(
       data = input_data,
       vars = variables,
-      lag_max = lag_max,
+      max_lag = max_lag,
       df_var = exposure_df,
       df_lag = lag_df,
       fun_var = fun_var,
@@ -390,7 +390,7 @@ find_bestfit <- function(
     design <- build_design(
       data = input_data,
       cb_templates = templates,
-      lag_max = lag_max,
+      max_lag = max_lag,
       include_response = TRUE
     )
     if (!is.null(random_effect)) {
@@ -445,7 +445,7 @@ find_bestfit <- function(
     var_sets <- var_sets[!duplicated(keys)]
   }
 
-  check_temporal_coverage(data_long, vars, lag_max)
+  check_temporal_coverage(data_long, vars, max_lag)
   fold_ids <- unique(data_long$epi_id)
   if (length(fold_ids) < 2L) stop("At least two groups are required for LOOCV.")
   if (min_success > length(fold_ids)) {
@@ -487,7 +487,7 @@ find_bestfit <- function(
             test_design <- build_design(
               data = test_data,
               cb_templates = test_templates,
-              lag_max = lag_max,
+              max_lag = max_lag,
               include_response = TRUE
             )
             if (!is.null(random_effect)) {

@@ -18,7 +18,7 @@
 #' @param random_effect Optional character scalar naming a random-effect column.
 #' @param epiexposure_spec Optional named list describing how each cross-basis
 #'   was constructed. The recommended structure is:
-#'   `list(tmean = list(lag_max = 85, argvar = list(...), arglag = list(...)))`.
+#'   `list(tmean = list(max_lag = 85, argvar = list(...), arglag = list(...)))`.
 #'   If `NULL`, the model can be fitted, but profile-based downstream functions
 #'   may not be available.
 #' @param basis_objects Optional named list of original cross-basis or one-basis
@@ -435,13 +435,13 @@ fit_epidlnm <- function(
         stop("Specification for variable '", nm, "' must be a list.")
       }
 
-      if (is.null(current$lag_max)) {
-        stop("Missing `lag_max` for variable '", nm, "'.")
+      if (is.null(current$max_lag)) {
+        stop("Missing `max_lag` for variable '", nm, "'.")
       }
 
-      if (!is.numeric(current$lag_max) || !length(current$lag_max) ||
-          any(!is.finite(current$lag_max)) || max(current$lag_max) < 0) {
-        stop("Invalid `lag_max` for variable '", nm, "'.")
+      if (!is.numeric(current$max_lag) || !length(current$max_lag) ||
+          any(!is.finite(current$max_lag)) || max(current$max_lag) < 0) {
+        stop("Invalid `max_lag` for variable '", nm, "'.")
       }
 
       if (is.null(current$argvar) || !is.list(current$argvar)) {
@@ -452,7 +452,7 @@ fit_epidlnm <- function(
         stop("Missing or invalid `arglag` for variable '", nm, "'.")
       }
 
-      current$lag_max <- as.integer(max(current$lag_max))
+      current$max_lag <- as.integer(max(current$max_lag))
       spec[[nm]] <- current
     }
 

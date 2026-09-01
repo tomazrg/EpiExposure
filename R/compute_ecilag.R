@@ -39,7 +39,7 @@
 #'   requested.
 #'
 #' @details
-#' For a chronological profile of length `lag_max + 1`, profile position 1 is
+#' For a chronological profile of length `max_lag + 1`, profile position 1 is
 #' associated with lag max and the final profile position is associated with
 #' lag 0. The function does not reverse the profile before constructing the
 #' cross-basis. The final cross-basis row performs the retrospective lag mapping.
@@ -470,11 +470,11 @@ compute_ecilag <- function(
     if (is.null(variable_specification)) {
       stop("Missing exposure specification for variable '", variable, "'.")
     }
-    maximum_lag <- as.integer(max(variable_specification$lag_max))
+    maximum_lag <- as.integer(max(variable_specification$max_lag))
     expected_length <- maximum_lag + 1L
     if (length(chronology) != expected_length) {
       stop("Temporal coverage for variable '", variable,
-           "' must equal lag_max + 1. Expected ", expected_length,
+           "' must equal max_lag + 1. Expected ", expected_length,
            " observations but received ", length(chronology), ".")
     }
     if (!is.numeric(chronology) || any(!is.finite(chronology))) {

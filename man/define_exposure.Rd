@@ -7,7 +7,7 @@
 define_exposure(
   data,
   vars,
-  lag_max,
+  max_lag,
   df_var = 4,
   df_lag = 4,
   fun_var = "ns",
@@ -19,7 +19,7 @@ define_exposure(
 
 \item{vars}{Character vector of exposure variables.}
 
-\item{lag_max}{Maximum lag.}
+\item{max_lag}{Maximum lag.}
 
 \item{df_var}{Degrees of freedom for the exposure dimension.}
 

@@ -15,7 +15,7 @@
 #'
 #' @param data Long-format exposure dataset.
 #' @param vars Character vector of exposure variables.
-#' @param lag_max Maximum lag.
+#' @param max_lag Maximum lag.
 #' @param df_var Degrees of freedom for the exposure dimension.
 #' @param df_lag Degrees of freedom for the lag dimension.
 #' @param fun_var Basis function for exposure ("ns", "bs", "poly", "lin").
@@ -25,20 +25,20 @@
 #'
 #' @export
 define_exposure <- function(data, vars,
-                            lag_max,
+                            max_lag,
                             df_var = 4,
                             df_lag = 4,
                             fun_var = "ns",
                             fun_lag = "ns") {
 
   # =========================================================
-  # ✅ AJUSTE 1 — DIMENSÃO TEMPORAL (lag_max)
+  #  AJUSTE 1 — DIMENSÃO TEMPORAL (max_lag)
   # =========================================================
-  # 🔵 Garante que lag_max seja escalar consistente
-  lag_max <- as.integer(max(lag_max))
+  #  Garante que max_lag seja escalar consistente
+  max_lag <- as.integer(max(max_lag))
 
   # =========================================================
-  # ✅ CHECKS BÁSICOS
+  # CHECKS BÁSICOS
   # =========================================================
   stopifnot(
     all(c("epi_id", "time") %in% names(data)),
@@ -51,12 +51,12 @@ define_exposure <- function(data, vars,
   }
 
   # =========================================================
-  # ✅ AJUSTE 6 — CHECK AUTOMÁTICO DE COBERTURA TEMPORAL
+  # JUSTE 6 — CHECK AUTOMÁTICO DE COBERTURA TEMPORAL
   # =========================================================
-  # 🔵 Evita crossbasis mal definida (mesmo raciocínio da build_design)
-  .check_lag_coverage <- function(dat, lag_max) {
+  # Evita crossbasis mal definida (mesmo raciocínio da build_design)
+  .check_lag_coverage <- function(dat, max_lag) {
 
-    n_required <- lag_max + 1
+    n_required <- max_lag + 1
 
     bad_ids <- dat |>
       dplyr::group_by(epi_id) |>
@@ -66,7 +66,7 @@ define_exposure <- function(data, vars,
     if (nrow(bad_ids) > 0) {
       stop(
         paste0(
-          "Some epidemics do not have enough temporal coverage for lag_max.\n",
+          "Some epidemics do not have enough temporal coverage for max_lag.\n",
           "Required days per epi_id: ", n_required, "\n",
           "Example problematic epi_id: ",
           paste(head(bad_ids$epi_id, 5), collapse = ", ")
@@ -75,10 +75,10 @@ define_exposure <- function(data, vars,
     }
   }
 
-  .check_lag_coverage(data, lag_max)
+  .check_lag_coverage(data, max_lag)
 
   # =========================================================
-  # ✅ pooled series
+  # ooled series
   # =========================================================
   build_pooled <- function(dat, var, sep_n) {
 
@@ -101,10 +101,10 @@ define_exposure <- function(data, vars,
 
   for (v in vars) {
 
-    x_pool <- build_pooled(data, v, lag_max)
+    x_pool <- build_pooled(data, v, max_lag)
 
     # =========================================================
-    # ✅ argvar: exposure
+    # argvar: exposure
     # =========================================================
     argvar <- switch(
       fun_var,
@@ -120,7 +120,7 @@ define_exposure <- function(data, vars,
     }
 
     # =========================================================
-    # ✅ arglag: lag
+    # arglag: lag
     # =========================================================
     arglag <- switch(
       fun_lag,
@@ -131,13 +131,13 @@ define_exposure <- function(data, vars,
 
     cb <- dlnm::crossbasis(
       x_pool,
-      lag    = lag_max,
+      lag    = max_lag,
       argvar = argvar,
       arglag = arglag
     )
 
     # =========================================================
-    # ✅ AJUSTE 4 — ORDEM DOS COEFICIENTES (ESTRUTURAL)
+    #  AJUSTE 4 — ORDEM DOS COEFICIENTES (ESTRUTURAL)
     # =========================================================
     # 🔵 garante indexação consistente futura (evita ambiguidades)
     attr(cb, "cb_colnames") <- colnames(cb)
@@ -146,7 +146,7 @@ define_exposure <- function(data, vars,
   }
 
   # =========================================================
-  # ✅ criar spec automaticamente
+  #  criar spec automaticamente
   # =========================================================
   epiexposure_spec <- lapply(cb_templates, function(cb) {
 
@@ -155,14 +155,14 @@ define_exposure <- function(data, vars,
     lag_val <- if (length(lag_val) > 1) max(lag_val) else lag_val
 
     list(
-      lag_max = lag_val,
+      max_lag = lag_val,
       argvar  = attr(cb, "argvar"),
       arglag  = attr(cb, "arglag")
     )
   })
 
   # =========================================================
-  # ✅ anexar spec
+  #  anexar spec
   # =========================================================
   attr(cb_templates, "spec") <- epiexposure_spec
 

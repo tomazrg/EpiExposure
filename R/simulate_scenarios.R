@@ -174,8 +174,8 @@ simulate_scenarios <- function(
   vars <- if (!is.null(fit_vars) && length(fit_vars)>0L) fit_vars else unique(unlist(lapply(scenarios,function(s) unique(unlist(lapply(s,names),use.names=FALSE))),use.names=FALSE))
 
   get_var_lagmax <- function(v){
-    if(!is.null(fit_spec[[v]]$lag_max)) return(as.integer(max(fit_spec[[v]]$lag_max)))
-    stop("Could not determine lag_max for variable: ",v)
+    if(!is.null(fit_spec[[v]]$max_lag)) return(as.integer(max(fit_spec[[v]]$max_lag)))
+    stop("Could not determine max_lag for variable: ",v)
   }
 
   var_lagmax <- setNames(lapply(vars,get_var_lagmax),vars)
@@ -183,7 +183,7 @@ simulate_scenarios <- function(
   max_period_lag <- max(periods$lag_end)
   for(v in vars){
     if(max_period_lag > var_lagmax[[v]]){
-      stop("Period definitions exceed lag_max for variable '",v,"'.")
+      stop("Period definitions exceed max_lag for variable '",v,"'.")
     }
   }
 
