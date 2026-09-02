@@ -1715,6 +1715,19 @@ ggplot(compare_pred,
 
 ggsave("compare_predictions.png", dpi = 600, height = 4, width = 6)
 ```
+# Prediction 
+
+## Best fit
+```{r}
+library(future)
+
+future::plan(
+  future::multisession,
+  workers = 25
+)
+
+future::nbrOfWorkers()
+```
 
 ```{r}
 
@@ -1746,6 +1759,29 @@ best_models <- find_bestfit(
   keep_fits = TRUE
 )
 ```
+
+```{r}
+ws <- attr(best_models, "warning_summary")
+
+ws[
+  ws$model_id == 63,
+  c(
+    "model_id",
+    "df_var",
+    "df_lag",
+    "vars",
+    "n_warning_folds",
+    "warning_rate",
+    "n_warning_events",
+    "n_warning_types",
+    "warning_messages",
+    "full_refit_warning_events",
+    "full_refit_warning_messages"
+  )
+]
+
+```
+
 
 ```{r}
 best_m = readxl::read_xlsx("best_models.xlsx")
@@ -1794,19 +1830,249 @@ best_pred |>
 ```{r}
 ggsave("find_bestfit.png", dpi = 600, height = 6, width = 8)
 ```
-
-## Substituir pelo script da Lais
 ```{r}
-ens <- ensemble_bestfit(
-  bestfit = best,
-  ensemble_scope = "lag",
-  epi_data = sim_dataa,
-  group = "epi_id",
-  var = c("tmean", "rain"),
-  reverse = TRUE
+best_models_plot <- best_models %>%
+  dplyr::mutate(
+    splines = paste(df_lag, df_var, sep = " x ")
+  )
+
+library(ggplot2)
+library(grid)
+
+best_plot <- best_models_plot %>%
+  ggplot(aes(
+    Cb, CCC,
+    color = as.factor(splines),
+    shape = as.factor(vars)
+  )) +
+ 
+  geom_point(size = 4) +
+ 
+  scale_color_viridis_d() +
+ 
+  labs(
+    x = "Cb",
+    y = "CCC",
+    color = "Splines",
+    shape = "Predictors"
+  ) +
+ 
+  guides(
+    color = guide_legend(
+      position = "top",
+      nrow = 1,
+      byrow = TRUE,
+      title.position = "left",
+      theme = theme(
+        legend.key.height = unit(0.25, "cm"),
+        legend.key.width = unit(0.45, "cm"),
+        legend.spacing.y = unit(0, "cm"),
+        legend.margin = margin(
+          t = -3,
+          r = 0,
+          b = -3,
+          l = 0
+        )
+      )
+    ),
+   
+    shape = guide_legend(
+      position = "right"
+    )
+  ) +
+ 
+  theme_bw() +
+ 
+  theme(
+    text = element_text(
+      size = 10,
+      face = "bold"
+    )
+  )
+
+
+ggsave("bestmodels.png", dpi = 600, bg = "white", height = 6, width = 10)
+```
+
+## Ensemble
+```{r}
+ens_mean <- ensemble_bestfit(
+  bestfit = best_models,
+  ensemble_scope = "model",
+  method = "unweighted",
+  model_ids = c(63, 23, 44),
+  weight_metric = "CCC",
+  hb = TRUE,
+  verbose = TRUE
 )
 
-help(ensemble_bestfit)
+ens_weighted <- ensemble_bestfit(
+  bestfit = best_models,
+  ensemble_scope = "model",
+  method = "weighted",
+  model_ids = c(63, 23, 44),
+  weight_metric = "CCC",
+  weight_transform = "rank_inverse",
+  hb = TRUE
+)
+
+ens_stack <- ensemble_bestfit(
+  bestfit = best_models,
+  ensemble_scope = "model",
+  method = "stacked",
+  model_ids = c(63, 23, 44),
+  stacking_model = "ridge",
+  stack_objective = "regularized",
+  lambda = 1e-6,
+  stack_intercept = TRUE
+)
+
+CCC_ensemble = rbind(
+  unweighted = ens_mean$ensemble_summary[, c(
+    "CCC", "Cb", "rho", "RMSE", "MAE"
+  )],
+ 
+  weighted = ens_weighted$ensemble_summary[, c(
+    "CCC", "Cb", "rho", "RMSE", "MAE"
+  )],
+ 
+  stacked = ens_stack$ensemble_summary[, c(
+    "CCC", "Cb", "rho", "RMSE", "MAE"
+  )]
+)
+
+CCC_ensemble$method = c("unweighted","weighted","stacked")
+```
+
+
+```{r}
+
+ens_mean$ensemble_predictions$method = "unweighted"
+ens_weighted$ensemble_predictions$method = "weighted"
+ens_stack$ensemble_predictions$method = "stacked"
+
+ensemble_all = rbind(ens_mean$ensemble_predictions,ens_weighted$ensemble_predictions, ens_stack$ensemble_predictions)
+
+
+```
+
+```{r}
+
+ordem_methods <- c(
+  "unweighted",
+  "weighted",
+  "stacked"
+)
+
+ensemble_plot <- ensemble_all %>%
+  filter(!is.na(method)) %>%
+  mutate(
+    method = as.character(method)
+  ) %>%
+  filter(method %in% ordem_methods) %>%
+  mutate(
+    method = factor(
+      method,
+      levels = ordem_methods
+    )
+  )
+
+
+
+CCC_plot <- CCC_ensemble %>%
+  mutate(
+    method = factor(
+      method,
+      levels = ordem_methods
+    )
+  )
+
+
+
+pos_CCC <- ensemble_plot %>%
+  group_by(method) %>%
+  summarise(
+    x = min(observed, na.rm = TRUE) +
+      0.05 * diff(range(observed, na.rm = TRUE)),
+   
+    y = max(predicted_ensemble, na.rm = TRUE) -
+      0.05 * diff(range(predicted_ensemble, na.rm = TRUE)),
+   
+    .groups = "drop"
+  ) %>%
+  left_join(
+    CCC_plot %>% select(method, CCC),
+    by = "method"
+  )
+
+
+
+ ensemble_gg = ggplot(ensemble_plot,aes(observed*100, predicted_ensemble*100)) +
+  geom_point()+
+  geom_smooth(method = "lm",se = FALSE, color = "orange") +
+  geom_abline(
+    intercept = 0,
+    slope = 1,
+    color = "red",
+    linetype = "dashed",
+    linewidth = 1) +
+  geom_text(
+    data = pos_CCC,
+    aes(
+      x = 2,
+      y = 97,
+      label = sprintf("CCC = %.2f", CCC)
+    ),
+    inherit.aes = FALSE,
+    hjust = 0,
+    vjust = 1,
+    size = 4) +
+  facet_wrap(
+    ~method,
+    ncol = 1) +
+  theme_bw() +
+    scale_x_continuous(
+    limits = c(0, 100),
+    breaks = seq(0, 100, 20),
+    expand = expansion(mult = 0.03)
+  ) +
+ 
+  scale_y_continuous(
+    limits = c(0, 100),
+    breaks = seq(0, 100, 20),
+    expand = expansion(mult = 0.03)
+  ) +
+  labs(
+    x = "Observed (%)",
+    y = "Predicted (%)") +
+  theme(text = element_text(size = 10,face = "bold"),legend.position = "none")
+
+
+ ggsave("ensemble.png", dpi = 600, bg = "white", height = 6, width = 10)
+```
+
+```{r}
+library(patchwork)
+
+final_plot <- ensemble_gg + best_plot +
+  plot_layout(ncol = 2) +
+  plot_annotation(
+    tag_levels = "a",
+    tag_prefix = "(",
+    tag_suffix = ")"
+  ) &
+  theme(
+    plot.tag = element_text(
+      size = 12,
+      face = "bold"
+    ),
+    plot.tag.position = c(0.02, 0.94)
+  )
+
+final_plot
+
+#ggsave("best_ensemble.png", dpi = 600, bg = "white", height = 8, width = 12)
+ggsave("best_ensemble.png", dpi = 600, bg = "white", height = 6, width = 10)
 ```
 
 # Sensitivity
@@ -1909,9 +2175,23 @@ unique(epi_p$period)
 # Simulate losses
 
 ```{r}
+
+range_losses <- simulate_range(
+  periods = period,
+  vary = list(
+    tmean = c(20,34),
+    rain = seq(0,15, by = 1),
+    wetness = c(2,10)
+  ),
+  scenario_type = "grid",
+  mode = "scenario",
+  scenario_var = "rain"
+)
+
+
 scenarios_losses = simulate_scenarios(
   fit = fit,
-  scenarios = range,
+  scenarios = range_losses,
   data = sim_data,
   uncertainty = TRUE,
   output = "summary",
@@ -1933,18 +2213,18 @@ losses = simulate_losses(
              price = 300
 )
 
-max(losses$economic_loss)
+losses
 ```
 ```{r}
-  losses %>%
+yld_losses = losses %>%
   ggplot(aes(rain, attainable_yield, fill = yield_loss)) +
   geom_raster() +
-  scale_x_continuous(breaks = seq(0, 15, by = 1),
+  scale_x_continuous(breaks = seq(0, 15, by = 3),
                      expand = c(0.02,0.02)) +
   scale_y_continuous(breaks = seq(4000, 12000, by = 2000),
                      expand = c(0.02,0.02)) +
  scale_fill_viridis_b()+
-  facet_wrap(~tmean+wetness, ncol =2)+
+  facet_wrap(~tmean+wetness, ncol = 4)+
   theme_bw() +
   labs(
     y = "Attainable yield (kg/ha)",
@@ -1955,14 +2235,60 @@ max(losses$economic_loss)
   theme(
   axis.title = element_text(size = 12, face = "bold"),
   strip.background = element_rect(fill = "white", colour = "black"),
-  legend.position = "right")+
-  scale_x_continuous(
-  limits = c(0, 15),
-  expand = expansion(mult = c(0.01, 0.01)))
+  legend.position = "right",
+  axis.text.x = element_blank())
 
-ggsave("simulate_losses.png", dpi = 600, height = 6, width = 8)
+#ggsave("simulate_losses.png", dpi = 600, height = 6, width = 8)
 
 ```
+
+```{r}
+ec_losses = losses %>%
+  ggplot(aes(rain, attainable_yield, fill = economic_loss)) +
+  geom_raster() +
+  scale_x_continuous(breaks = seq(0, 15, by = 3),
+                     expand = c(0.02,0.02)) +
+  scale_y_continuous(breaks = seq(4000, 12000, by = 2000),
+                     expand = c(0.02,0.02)) +
+ scale_fill_viridis_b()+
+  facet_wrap(~tmean+wetness, ncol =4)+
+  theme_bw() +
+  labs(
+    y = "Attainable yield (kg/ha)",
+    x = "Daily precipitation (mm)",
+    fill = "(USD/ha)"
+  )+
+  theme(text = element_text(size = 10, face = "bold"))+
+  theme(
+  axis.title = element_text(size = 12, face = "bold"),
+  strip.background = element_blank(),
+  strip.text = element_blank(),
+  legend.position = "right")
+```
+
+```{r}
+library(patchwork)
+
+losses_plot <- yld_losses + ec_losses +
+  plot_layout(nrow = 2) +
+  plot_annotation(
+    tag_levels = "a",
+    tag_prefix = "(",
+    tag_suffix = ")"
+  ) &
+  theme(
+    plot.tag = element_text(
+      size = 12,
+      face = "bold"
+    ),
+    plot.tag.position = c(0.01, 1.02)
+  )
+
+losses_plot
+
+ggsave("simulation_yld_ec_losses.png", dpi = 600, bg = "white", height = 6, width = 10)
+```
+
 
 ```{r}
 #' @details

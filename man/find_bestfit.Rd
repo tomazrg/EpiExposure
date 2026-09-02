@@ -10,7 +10,7 @@ find_bestfit(
   group = "epi_id",
   time = "time",
   vars,
-  lag_max,
+  max_lag,
   df_var_grid = c(3, 4, 5),
   df_lag_grid = c(3, 4, 5),
   min_vars = 1,
@@ -43,7 +43,7 @@ response may be repeated across rows but must be constant within each group.}
 
 \item{vars}{Unique character vector of candidate exposure variables.}
 
-\item{lag_max}{Maximum lag. A numeric vector such as `c(0, 85)` is normalized
+\item{max_lag}{Maximum lag. A numeric vector such as `c(0, 85)` is normalized
 to its finite maximum.}
 
 \item{df_var_grid}{Positive finite candidate dimensions for the exposure basis.}
