@@ -2,7 +2,7 @@
 % Please edit documentation in R/find_bestfit.R
 \name{find_bestfit}
 \alias{find_bestfit}
-\title{Find the best DLNM model structure using LOOCV and Lin's CCC}
+\title{Find the best DLNM model structure using LOOCV}
 \usage{
 find_bestfit(
   data,
@@ -10,7 +10,7 @@ find_bestfit(
   group = "epi_id",
   time = "time",
   vars,
-  max_lag,
+  lag_max,
   df_var_grid = c(3, 4, 5),
   df_lag_grid = c(3, 4, 5),
   min_vars = 1,
@@ -22,6 +22,8 @@ find_bestfit(
   family = "beta",
   random_effect = NULL,
   min_success = 2,
+  rank_metric = NULL,
+  threshold = 0.5,
   top_n = Inf,
   keep_fits = FALSE,
   verbose = TRUE,
@@ -41,7 +43,7 @@ response may be repeated across rows but must be constant within each group.}
 
 \item{vars}{Unique character vector of candidate exposure variables.}
 
-\item{max_lag}{Maximum lag. A numeric vector such as `c(0, 85)` is normalized
+\item{lag_max}{Maximum lag. A numeric vector such as `c(0, 85)` is normalized
 to its finite maximum.}
 
 \item{df_var_grid}{Positive finite candidate dimensions for the exposure basis.}
@@ -65,11 +67,33 @@ to its finite maximum.}
 `"brms"`, `"inla"`, or `"bdlnm"`.}
 
 \item{family}{Character or family object passed to `prepare_response()` and
-`fit_epidlnm()`.}
+`fit_epidlnm()`. The same family is used to determine the appropriate
+performance metrics. Supported canonical families are `"beta"`,
+`"binomial"`, `"poisson"`, `"gamma"`, `"gaussian"`,
+`"negative_binomial"`, and `"ordinal"`; aliases are normalized by the
+shared internal family resolver.}
 
 \item{random_effect}{Optional character scalar naming a random-effect column.}
 
 \item{min_success}{Minimum number of successful LOOCV folds required.}
+
+\item{rank_metric}{Optional character scalar selecting the primary metric used
+to rank candidate models. If `NULL`, the default is `"CCC"` for non-binary
+outcomes and `"ROC_AUC"` for binary outcomes. For non-binary outcomes the
+available metrics are `"CCC"`, `"Cb"`, `"rho"`, `"RMSE"`, and `"MAE"`.
+For binary outcomes the available metrics are `"ROC_AUC"`, `"Brier"`,
+`"LogLoss"`, `"Accuracy"`, `"Balanced_Accuracy"`, `"Sensitivity"`,
+`"Specificity"`, `"F1"`, `"MCC"`, and `"Precision"`. The function
+automatically maximizes or minimizes the selected metric as appropriate.}
+
+\item{threshold}{Numeric probability threshold strictly between 0 and 1 used
+only for `family = "binomial"` to convert predicted probabilities into
+classes 0/1 for classification metrics. The default is `0.5`. The threshold
+applies to predicted probabilities, not predictions that have already been
+reduced to class labels 0/1. It affects `Accuracy`, `Balanced_Accuracy`,
+`Sensitivity`, `Specificity`, `F1`, `MCC`, and `Precision`, but does not
+affect `ROC_AUC`, `Brier`, or `LogLoss`. It is ignored for non-binary
+outcomes.}
 
 \item{top_n}{Positive integer or `Inf`; number of ranked candidates returned.}
 
@@ -81,14 +105,29 @@ store them in `attr(result, "fits")`.}
 \item{...}{Additional arguments passed to `fit_epidlnm()`.}
 }
 \value{
-A data frame ranked by decreasing CCC, with attributes
-  `"predictions"`, `"failures"`, and optionally `"fits"`.
+A data frame ranked by `rank_metric`. Non-binary families report
+  `CCC`, `Cb`, `rho`, `RMSE`, and `MAE`. Binary families report `ROC_AUC`,
+  `Brier`, `LogLoss`, `Accuracy`, `Balanced_Accuracy`, `Sensitivity`,
+  `Specificity`, `F1`, `MCC`, and `Precision`.
+
+  In addition to the original `"predictions"` and `"failures"` attributes,
+  the returned object stores `"predictions_by_model"` (a named list of LOOCV
+  prediction data frames), `"warnings"` (warning details and classes by
+  candidate/fold/stage), `"warning_summary"` (one warning summary per
+  candidate, including counts for knot, convergence, Hessian, other, and
+  performance-metric warnings), `"timing"` (overall run timing), and
+  `"candidate_times"` (elapsed time per candidate). If `keep_fits = TRUE`,
+  fitted full-data models are stored in `"fits"`.
+
+  The result also stores standardized metadata in attributes `"family"`,
+  `"outcome_type"`, `"rank_metric"`, and `"threshold"` for downstream use,
+  including by `ensemble_bestfit()`.
 }
 \description{
 Tests combinations of exposure variables and basis dimensions using
-leave-one-group-out cross-validation. Candidate models are ranked by Lin's
-concordance correlation coefficient (CCC), with Cb, Pearson correlation,
-RMSE, and MAE also reported.
+leave-one-group-out cross-validation and family-aware predictive performance
+metrics. Candidate models are ranked by a user-selected performance metric,
+with metric direction (maximize or minimize) determined automatically.
 }
 \details{
 Input observations must be chronological within each group, from the earliest
@@ -99,7 +138,37 @@ to the most recent observation. The function orders rows internally by
 
 For each fold, basis templates are estimated from the training groups only
 and then applied to the held-out group. This prevents the held-out exposure
-history from determining the training basis specification.
+history from determining the training basis specification. The LOOCV fold
+construction, basis estimation, model fitting, and held-out prediction steps
+are not altered by the performance-metric layer.
+
+Performance metrics are computed only after all successful out-of-fold
+predictions for a candidate have been collected. Both `find_bestfit()` and
+`ensemble_bestfit()` use the shared internal `.compute_performance_metrics()`
+implementation so the same metric definitions are used throughout the package.
+
+For non-binary outcomes (`beta`, `poisson`, `gamma`, `gaussian`, and
+`negative_binomial`), performance is summarized by CCC, Cb, Pearson
+correlation, RMSE, and MAE. For binary outcomes (`binomial`), predicted
+probabilities are retained and evaluated using ROC AUC, Brier score, and Log
+Loss; the configured `threshold` is then applied to those probabilities to
+obtain 0/1 classes for Accuracy, Balanced Accuracy, Sensitivity, Specificity,
+F1, MCC, and Precision.
+
+If a binary outcome contains only one observed class, metrics that require
+both classes are returned as `NA` and a diagnostic warning is recorded. A
+threshold is meaningful for predicted probabilities; if binary predictions
+contain only 0/1 values, a warning is recorded because probability-resolution
+information has already been lost.
+
+The `ordinal` family is recognized and normalized consistently with
+`fit_epidlnm()`, but ordinal-specific performance metrics have not yet been
+defined. `find_bestfit()` therefore stops explicitly for ordinal outcomes
+rather than silently applying continuous or binary metrics.
+
+Candidate ranking uses `rank_metric` as the primary criterion. Remaining
+family-appropriate metrics are used only as deterministic tie-breakers in
+their canonical order, each with its own automatically recognized direction.
 
 Direct engine-specific prediction is attempted first. If unavailable, a
 fixed-effect fallback uses the official cross-basis column order stored in
@@ -108,4 +177,17 @@ model or design columns produce an explicit error rather than being omitted.
 
 The function ranks point predictions and does not propagate coefficient or
 posterior-draw uncertainty.
+
+Warnings raised while fitting or predicting individual LOOCV folds are
+captured internally and muffled. They therefore do not flood the console.
+The number of affected folds and warning events is recorded for each
+candidate. Fit/prediction warnings are additionally classified as `"knot"`,
+`"convergence"`, `"hessian"`, or `"other"`, without changing model fitting,
+eligibility, or ranking. Performance-metric warnings are stored separately
+at the candidate level and do not count as failed LOOCV folds. When
+`verbose = TRUE`, at most one warning summary message is emitted per affected
+candidate after candidate evaluation finishes.
+
+Timing is diagnostic only and does not alter model fitting. Total elapsed
+time and per-candidate elapsed times are stored as attributes of the result.
 }

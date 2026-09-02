@@ -14,10 +14,11 @@ ensemble_bestfit(
   var = NULL,
   compute_ecilag_args = list(),
   ensemble_scope = c("model", "lag", "both"),
-  method = c("unweighted", "weighted", "hard_voting", "best", "stacked"),
+  method = "unweighted",
   top_n = 3,
   model_ids = NULL,
-  weight_metric = "CCC",
+  weight_metric = NULL,
+  threshold = NULL,
   weight_transform = c("softmax", "positive", "rank_inverse", "uniform"),
   stacking_model = c("ridge", "lm"),
   stack_objective = c("regularized", "min_error", "constrained"),
@@ -28,17 +29,20 @@ ensemble_bestfit(
   lag_group_cols = c("var", "lag"),
   lg_strategy = c("requested_available", "model", "strict"),
   rl_weights = TRUE,
-  hb = TRUE,
   verbose = TRUE
 )
 }
 \arguments{
 \item{bestfit}{Data frame returned by `find_bestfit()`. It must contain the
-model identifier and the metric selected by `weight_metric`.}
+model identifier and the metric selected by `weight_metric`. The current
+`find_bestfit()` also stores `family`, `outcome_type`, `rank_metric`, and
+`threshold` as attributes, which are inherited here when appropriate.}
 
 \item{predictions}{Optional data frame of out-of-fold predictions. If `NULL`,
 `attr(bestfit, "predictions")` is used. Required columns are `model_col`,
-`id_cols`, `observed`, and `predicted`.}
+`id_cols`, `observed`, and `predicted`. For binomial outcomes, `predicted`
+must contain predicted probabilities in `[0, 1]`, not already-thresholded
+class labels.}
 
 \item{lag_data}{Optional data frame of lag-specific contributions. Required
 columns are `model_col`, `lag_group_cols`, and `contribution`.}
@@ -58,25 +62,44 @@ lag decomposition.}
 `compute_ecilag()`. It cannot override `data`, `group`, `fit`, `var`, or
 `profile`.}
 
-\item{ensemble_scope}{Character. `"model"`, `"lag"`, or `"both"`.}
+\item{ensemble_scope}{Character scalar. One of `"model"`, `"lag"`, or
+`"both"`.}
 
-\item{method}{Character. `"best"`, `"hard_voting"`, `"unweighted"`,
-`"weighted"`, or `"stacked"`. Stacking is available only for model-level
-ensembles.}
+\item{method}{One or more ensemble methods selected from `"best"`,
+`"hard_voting"`, `"unweighted"`, `"weighted"`, and `"stacked"`.
+Multiple methods can be evaluated in a single call, for example
+`method = c("unweighted", "weighted", "stacked")`. `"stacked"` and
+`"hard_voting"` are available only for `ensemble_scope = "model"`.
+`"hard_voting"` additionally requires a binomial outcome.}
 
-\item{top_n}{Positive integer number of top-ranked models.}
+\item{top_n}{Positive integer number of top-ranked models included in each
+requested ensemble.}
 
 \item{model_ids}{Optional vector of model identifiers. If supplied, `top_n`
 is ignored, but selected models are still ordered by `weight_metric`.}
 
-\item{weight_metric}{Numeric column in `bestfit` used for ranking and weights.}
+\item{weight_metric}{Optional character scalar naming a performance metric in
+`bestfit` used to rank/select models and, for `method = "weighted"`, derive
+model weights. If `NULL`, the function first inherits
+`attr(bestfit, "rank_metric")`; if unavailable, the default is `"CCC"` for
+non-binary outcomes and `"ROC_AUC"` for binomial outcomes. Metric direction
+is determined automatically; higher-is-better metrics are maximized and
+error/loss metrics are minimized.}
 
-\item{weight_transform}{Character. `"softmax"`, `"positive"`,
-`"rank_inverse"`, or `"uniform"`.}
+\item{threshold}{Optional numeric probability threshold strictly between 0
+and 1. For a binomial outcome, it converts predicted probabilities into
+classes 0/1 for classification metrics and converts individual-model
+probabilities into votes for `method = "hard_voting"`. It is valid for
+probabilities, not predictions already reduced to class labels 0/1. It
+does not affect ROC AUC, Brier score, or Log Loss. If `NULL`, the function
+inherits `attr(bestfit, "threshold")`; if unavailable, `0.5` is used.}
 
-\item{stacking_model}{Character. `"ridge"` or `"lm"`.}
+\item{weight_transform}{Character scalar. One of `"softmax"`, `"positive"`,
+`"rank_inverse"`, or `"uniform"`. Used only by `method = "weighted"`.}
 
-\item{stack_objective}{Character. `"regularized"`, `"min_error"`, or
+\item{stacking_model}{Character scalar. `"ridge"` or `"lm"`.}
+
+\item{stack_objective}{Character scalar. `"regularized"`, `"min_error"`, or
 `"constrained"`.}
 
 \item{lambda}{Non-negative ridge penalty.}
@@ -91,30 +114,49 @@ is ignored, but selected models are still ordered by `weight_metric`.}
 Include an epidemic/group column, for example
 `c("epi_id", "var", "lag")`, when lag contributions are group-specific.}
 
-\item{lg_strategy}{Character. `"requested_available"`, `"model"`, or
-`"strict"`.}
+\item{lg_strategy}{Character scalar. One of `"requested_available"`,
+`"model"`, or `"strict"`.}
 
 \item{rl_weights}{Logical. Renormalize model weights within each lag unit.}
-
-\item{hb}{Logical. If `TRUE`, higher `weight_metric` values are better.}
 
 \item{verbose}{Logical. Print informative messages.}
 }
 \value{
 A list containing `ensemble_summary`, `ensemble_predictions`,
   `ensemble_by_lag`, `lag_data`, `model_weights`, `selected_models`,
-  `method`, `ensemble_scope`, `lg_strategy`, and `rl_weights`.
+  `metric_warnings`, `method`, `ensemble_scope`, `lg_strategy`, `rl_weights`,
+  `family`, `outcome_type`, `weight_metric`, `metric_direction`, and
+  `threshold`. Outputs that vary by ensemble method contain an explicit
+  `method` column, allowing several methods to be compared from one call.
 }
 \description{
-Builds model-level ensembles from out-of-fold predictions produced by
-`find_bestfit()` and, optionally, lag-level ensembles from lag-specific
-contributions. Automatic lag decomposition uses `compute_ecilag()`.
+Builds one or more model-level ensembles from out-of-fold predictions
+produced by `find_bestfit()` and, optionally, lag-level ensembles from
+lag-specific contributions. Automatic lag decomposition uses
+`compute_ecilag()`.
 }
 \details{
 Exposure histories supplied through `data` must be chronological, from the
 earliest to the most recent observation within each group. Their conversion
 to the retrospective lag representation is handled by `compute_ecilag()`.
 
+
+Model ranking and weighting use the common EpiExposure performance-metric
+infrastructure also used by `find_bestfit()`. Supported non-binary metrics
+are CCC, Cb, rho, RMSE, and MAE. Supported binomial metrics are ROC AUC,
+Brier score, Log Loss, Accuracy, Balanced Accuracy, Sensitivity, Specificity,
+F1, MCC, and Precision. The direction of each metric is resolved internally,
+so no higher-is-better flag is required.
+
+For binomial outcomes, `best`, `unweighted`, `weighted`, and `stacked`
+combine or generate predicted probabilities. Classification metrics are then
+computed after applying `threshold`. `hard_voting` is different: each model
+probability is thresholded first and the final class is obtained by majority
+vote. With an even number of models, an exact vote tie is broken using the
+class predicted by the highest-ranked selected model. The returned
+`vote_fraction` is the fraction of positive votes and is not treated as a
+calibrated predicted probability. Consequently, probability-based metrics
+(ROC AUC, Brier, and Log Loss) are returned as `NA` for hard voting.
 
 Lag ensembles combine lag-specific contributions, not raw DLNM coefficients:
 \deqn{C_{ens,l}=\sum_m \alpha_m C_{m,l}}
@@ -128,14 +170,8 @@ summarized `by_lag` estimates returned by `compute_ecilag()`. It does not
 combine `by_lag_samples` draw by draw and therefore does not return ensemble
 uncertainty intervals.
 
-Lag-level ensembles are calculated from summarized lag-specific
-estimates returned by `compute_ecilag()`. Draw-specific lag
-contributions are not combined across models and therefore
-ensemble uncertainty intervals are not currently available.
-
-Model-level ensembles combine out-of-fold predictions that have
-already been generated by the underlying models. Therefore,
-deterministic and uncertainty-related behaviour is inherited
-from the prediction workflows used to create the input
-`predictions` object.
+Model-level ensembles combine out-of-fold predictions that have already been
+generated by the underlying models. Therefore, deterministic and
+uncertainty-related behaviour is inherited from the prediction workflows
+used to create the input `predictions` object.
 }

@@ -29,10 +29,10 @@ wetness_plot = sim_data%>%
   ggplot(aes(time,wetness, group = epi_id))+
   geom_smooth(se = F, color = "#55A868",linewidth = 0.3)+
   theme_bw()+
-  labs(x = "Days before the assessement",
+  labs(x = "Days after planting the rice",
        y = "Leaf wetness (%)")+
   scale_x_continuous(limits = c(0,85), expand = c(0,0),
-                     breaks = pretty(sim_data$dpp, n = 8))+
+                     breaks = pretty(sim_data$time, n = 8))+
   theme(text = element_text(size = 10))
 
 wetness_plot
@@ -68,14 +68,11 @@ tmean_plot
 ```
 
 ```{r}
-#tmean_plot/rain_plot/wetness_plot
 
 plot_grid(tmean_plot,rain_plot,wetness_plot, ncol = 1)
 
-#ggsave("fig4.png", dpi = 600, bg = "white", height = 4, width = 8)
 
-
-ggsave("fig4.png", dpi = 600, bg = "white", height = 6, width = 8)
+ggsave("exposure_lag.png", dpi = 600, bg = "white", height = 6, width = 8)
 ```
 
 
@@ -95,7 +92,7 @@ sim_data3$epi_id = as.factor(sim_data3$epi_id)
 cb <- define_exposure(
   data = sim_data2,
   vars = c("wetness","tmean","rain"),
-  lag_max = 85,
+  max_lag = 85,
   df_var = 3,
   df_lag = 2
 )
@@ -103,7 +100,7 @@ cb <- define_exposure(
 dat <- build_design(
   data = sim_data2,
   cb_templates = cb,
-  lag_max = 85
+  max_lag = 85
 )
 
 dat <- prepare_response(data = dat, y_var = "y", family = "beta")
@@ -131,7 +128,7 @@ any(is.na(vcov(fit)$cond))
 cb2 <- define_exposure(
   data = sim_data3,
   vars = c("wetness","tmean","rain"),
-  lag_max = 85,
+  max_lag = 85,
   df_var = 3,
   df_lag = 2
 )
@@ -139,7 +136,7 @@ cb2 <- define_exposure(
 dat2 <- build_design(
   data = sim_data3,
   cb_templates = cb,
-  lag_max = 85
+  max_lag = 85
 )
 
 dat2 <- prepare_response(data = dat2, y_var = "y", family = "beta")
@@ -1907,6 +1904,64 @@ sens_rain |>
   geom_smooth(se = F)
 
 unique(epi_p$period)
+```
+
+# Simulate losses
+
+```{r}
+scenarios_losses = simulate_scenarios(
+  fit = fit,
+  scenarios = range,
+  data = sim_data,
+  uncertainty = TRUE,
+  output = "summary",
+  n_samples = 20,
+  seed = 123)
+
+scenarios_losses$prediction = scenarios_losses$prediction*100
+scenarios_losses$lower = scenarios_losses$lower*100
+scenarios_losses$upper = scenarios_losses$upper*100
+```
+
+```{r}
+losses = simulate_losses(
+             data = scenarios_losses,
+             y = "prediction",
+             slope = 49.3,
+             intercept = 9691.0,
+             attainable_yield = seq(4000,12000, by = 50),
+             price = 300
+)
+
+max(losses$economic_loss)
+```
+```{r}
+  losses %>%
+  ggplot(aes(rain, attainable_yield, fill = yield_loss)) +
+  geom_raster() +
+  scale_x_continuous(breaks = seq(0, 15, by = 1),
+                     expand = c(0.02,0.02)) +
+  scale_y_continuous(breaks = seq(4000, 12000, by = 2000),
+                     expand = c(0.02,0.02)) +
+ scale_fill_viridis_b()+
+  facet_wrap(~tmean+wetness, ncol =2)+
+  theme_bw() +
+  labs(
+    y = "Attainable yield (kg/ha)",
+    x = "",
+    fill = "(USD/ha)"
+  )+
+  theme(text = element_text(size = 10, face = "bold"))+
+  theme(
+  axis.title = element_text(size = 12, face = "bold"),
+  strip.background = element_rect(fill = "white", colour = "black"),
+  legend.position = "right")+
+  scale_x_continuous(
+  limits = c(0, 15),
+  expand = expansion(mult = c(0.01, 0.01)))
+
+ggsave("simulate_losses.png", dpi = 600, height = 6, width = 8)
+
 ```
 
 ```{r}
