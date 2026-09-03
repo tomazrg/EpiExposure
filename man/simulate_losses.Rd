@@ -7,12 +7,15 @@
 simulate_losses(
   data,
   y,
+  lower = NULL,
+  upper = NULL,
   slope = 100,
   intercept = 11142.94,
   attainable_yield = seq(4000, 12000, by = 50),
   price = seq(100, 300, by = 10),
   n_sim = 1L,
   random_sd = 0,
+  y_multiplier = 1,
   seed = NULL
 )
 }
@@ -22,6 +25,12 @@ scenario variables.}
 
 \item{y}{Character string giving the name of the numeric response column
 used to calculate yield and economic losses.}
+
+\item{lower}{Optional character string giving the column containing the
+lower bound of `y`. If supplied, `upper` must also be supplied.}
+
+\item{upper}{Optional character string giving the column containing the
+upper bound of `y`. If supplied, `lower` must also be supplied.}
 
 \item{slope}{Numeric. Regression slope relating `y` to yield loss.
 A single value uses a fixed slope. Two values are interpreted as the
@@ -42,36 +51,60 @@ can contain user-supplied parameter draws.}
 \item{random_sd}{Standard deviation of the normally distributed random
 effect used in the yield model. Default is 0 (no random effect).}
 
+\item{y_multiplier}{Numeric multiplier applied internally to `y`, `lower`,
+and `upper` before loss calculations. Default is 1. For example, use
+`y_multiplier = 100` when model predictions are proportions (0-1) but
+the yield-loss coefficients were estimated using percentages (0-100).}
+
 \item{seed}{Optional random seed.}
 }
 \value{
-A data.frame containing all original columns from `data`, plus:
-  `.loss_row_id`, `.sim`, `slope_sim`, `intercept_sim`, `random_effect`,
-  `predicted_yield`, `relative_yield_pct`, `yield_loss_pct`,
-  `attainable_yield`, `yield_loss`, `price`, and `economic_loss`.
+A data.frame containing all original columns from `data` plus
+  simulation identifiers, parameter draws, transformed response values,
+  and loss metrics. When `lower` and `upper` are supplied, lower and upper
+  bounds are returned for every derived metric.
 }
 \description{
 Simulates predicted yield, relative yield, yield loss, and economic loss
-from a user-specified response variable. Each row of the original data is
-retained and expanded across combinations of attainable yield, price, and
-optional parameter simulations.
+from a user-specified response variable. Optional lower and upper response
+bounds are propagated through all derived loss metrics.
 }
 \details{
-Predicted yield is calculated as:
+Each row of the original data is retained and expanded across combinations
+of attainable yield, price, and optional parameter simulations.
 
-  intercept - slope * y - random_effect
 
-Predicted yield is automatically constrained to be non-negative.
+The response used internally is:
 
-Percentage yield loss is calculated as:
+  response = y * y_multiplier
 
-  (slope / intercept) * y * 100
+Predicted yield is:
 
-and is automatically constrained between 0 and 100%.
+  intercept - slope * response - random_effect
+
+and is constrained to be non-negative.
+
+Relative yield proportion is:
+
+  predicted_yield / intercept
+
+Relative yield percentage is:
+
+  relative_yield_proportion * 100
+
+Yield-loss proportion is:
+
+  (slope / intercept) * response
+
+and is constrained between 0 and 1.
+
+Yield-loss percentage is:
+
+  yield_loss_proportion * 100
 
 Absolute yield loss is:
 
-  attainable_yield * yield_loss_pct / 100
+  attainable_yield * yield_loss_proportion
 
 Economic loss is:
 
@@ -79,4 +112,10 @@ Economic loss is:
 
 The division by 1000 is fixed internally, assuming yield is expressed in
 kg per unit area and price is expressed per metric ton.
+
+When response bounds are supplied, the function evaluates each metric at
+both response bounds and then uses the minimum and maximum resulting values
+as the metric-specific lower and upper bounds. This is important because
+increasing disease response increases loss metrics but decreases predicted
+and relative yield.
 }

@@ -2215,6 +2215,8 @@ losses = simulate_losses(
 
 losses
 ```
+
+
 ```{r}
 yld_losses = losses %>%
   ggplot(aes(rain, attainable_yield, fill = yield_loss)) +
@@ -2229,7 +2231,7 @@ yld_losses = losses %>%
   labs(
     y = "Attainable yield (kg/ha)",
     x = "",
-    fill = "(USD/ha)"
+    fill = "(kg/ha)"
   )+
   theme(text = element_text(size = 10, face = "bold"))+
   theme(
