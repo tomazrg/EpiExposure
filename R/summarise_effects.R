@@ -893,7 +893,7 @@ summarise_effects <- function(
       })
       names(reference_profiles) <- fit_vars
       baseline_response <- tryCatch(
-        as.numeric(predict_outcome(
+        as.numeric(predict_outcomes(
           fit = fit,
           profiles = reference_profiles,
           re = "population",

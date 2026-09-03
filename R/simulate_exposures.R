@@ -54,7 +54,7 @@
 #' chronological time.
 #'
 #' @export
-simulate_exposure <- function(
+simulate_exposures <- function(
     max_lag,
     n = 1,
     mode = c("profile", "pattern"),

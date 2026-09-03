@@ -24,7 +24,7 @@ compare_predictions(
 
 \item{profiles}{Named list of exposure scenarios. Each top-level element
 represents one scenario and must contain the profile structure expected by
-`predict_outcome()`. Profiles must be supplied in chronological order.}
+`predict_outcomes()`. Profiles must be supplied in chronological order.}
 
 \item{profiles1}{Legacy profile for the first scenario. Used together with
 `profiles2` only when `profiles = NULL`.}
@@ -36,17 +36,17 @@ represents one scenario and must contain the profile structure expected by
 `"conditional"`.}
 
 \item{id}{Optional character scalar identifying the grouping column returned
-by `predict_outcome()`. When supplied, predictions and coefficient draws
+by `predict_outcomes()`. When supplied, predictions and coefficient draws
 are matched by this column.}
 
-\item{allow_new_levels}{Logical. Passed to `predict_outcome()`.}
+\item{allow_new_levels}{Logical. Passed to `predict_outcomes()`.}
 
-\item{type}{Character. Prediction scale passed to `predict_outcome()`:
+\item{type}{Character. Prediction scale passed to `predict_outcomes()`:
 `"response"` or `"link"`. Conditional predictions are selected with
 `re = "conditional"`, not through `type`.}
 
 \item{uncertainty}{Logical. If `TRUE`, comparisons are calculated for every
-coefficient draw returned by `predict_outcome()`.}
+coefficient draw returned by `predict_outcomes()`.}
 
 \item{output}{Character. When `uncertainty = TRUE`, `"summary"` returns
 median-based summaries and uncertainty intervals, while `"samples"`
@@ -54,7 +54,7 @@ returns draw-level comparisons. When `uncertainty = FALSE`, a deterministic
 comparison is returned regardless of `output`.}
 
 \item{n_samples}{Positive integer number of coefficient draws requested from
-`predict_outcome()` when `uncertainty = TRUE`.}
+`predict_outcomes()` when `uncertainty = TRUE`.}
 
 \item{eps}{Positive finite numeric constant used to stabilize percentage and
 ratio calculations when the first prediction is close to zero.}
@@ -75,7 +75,7 @@ medians, standard deviations, and empirical 95 percent intervals for `pred1`,
 }
 \description{
 Compares predicted outcomes across two or more exposure scenarios using
-`predict_outcome()` as the computational backend. Comparisons are performed
+`predict_outcomes()` as the computational backend. Comparisons are performed
 pairwise for all scenarios supplied in `profiles`.
 }
 \details{
@@ -83,7 +83,7 @@ Exposure profiles must be supplied in chronological order, from the earliest
 observation to the most recent observation. Validation of profile lengths,
 reconstruction of the DLNM cross-basis, coefficient alignment, conversion
 to the internal lag representation, model-engine handling, and uncertainty
-propagation are delegated to `predict_outcome()`.
+propagation are delegated to `predict_outcomes()`.
 
 
 For a comparison between scenario 1 and scenario 2, the function calculates:

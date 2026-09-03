@@ -47,7 +47,7 @@
 #' using the median and empirical 2.5 and 97.5 percent quantiles.
 #'
 #' @export
-predict_outcome <- function(
+predict_outcomes <- function(
     fit,
     profiles,
     re = c("population", "conditional"),
@@ -139,7 +139,7 @@ predict_outcome <- function(
 
   family_name <- resolve_family_name(fitted_family)
   if (identical(family_name, "ordinal")) {
-    stop("Ordinal predictions are not yet implemented in `predict_outcome()`.")
+    stop("Ordinal predictions are not yet implemented in `predict_outcomes()`.")
   }
   if (is.null(fitted_link) || !is.character(fitted_link) ||
       length(fitted_link) != 1L || is.na(fitted_link) || !nzchar(fitted_link)) {

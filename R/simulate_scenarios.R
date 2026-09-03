@@ -5,11 +5,11 @@
 #'
 #' The function combines exposure conditions specified for one or more lag
 #' periods, assembles complete exposure histories, and evaluates the resulting
-#' outcome predictions through `predict_outcome()`.
+#' outcome predictions through `predict_outcomes()`.
 #'
 #' Scenarios can be supplied either as:
 #'
-#' - a structured object returned by `simulate_range()`, or
+#' - a structured object returned by `simulate_ranges()`, or
 #' - a named list of scenario definitions.
 #'
 #' Exposure profiles are assembled in chronological order:
@@ -31,7 +31,7 @@
 #' central coefficient estimates stored in the fitted model.
 #'
 #' When `uncertainty = TRUE`, uncertainty is propagated through
-#' `predict_outcome()` using model-specific coefficient draws:
+#' `predict_outcomes()` using model-specific coefficient draws:
 #'
 #' - posterior draws for Bayesian models;
 #' - simulated coefficient draws based on the asymptotic covariance
@@ -257,7 +257,7 @@ simulate_scenarios <- function(
       profiles_j <- lapply(vars, function(v) build_profile(v, pts[[j]]))
       names(profiles_j) <- vars
 
-      pred_j <- predict_outcome(
+      pred_j <- predict_outcomes(
         fit = fit,
         profiles = profiles_j,
         re = re_mode,

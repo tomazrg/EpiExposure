@@ -22,7 +22,7 @@
 #'   - info
 #'
 #' @export
-simulate_range <- function(
+simulate_ranges <- function(
     periods,
     vary = list(),
     fixed = list(),

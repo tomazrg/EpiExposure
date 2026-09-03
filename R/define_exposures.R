@@ -24,7 +24,7 @@
 #' @return A named list of crossbasis templates with attribute `"spec"`.
 #'
 #' @export
-define_exposure <- function(data, vars,
+define_exposures <- function(data, vars,
                             max_lag,
                             df_var = 4,
                             df_lag = 4,
