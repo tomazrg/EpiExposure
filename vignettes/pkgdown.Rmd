@@ -18,7 +18,16 @@ vignette: >
 
 ```{r}
 sim_data = readxl::read_xlsx("sim_data.xlsx")
+
 ```
+
+```{r}
+epi_data = readxl::read_xlsx("sim_data.xlsx")
+
+usethis::use_data(epi_data, overwrite = TRUE)
+```
+
+
 ```{r}
 head(sim_data)
 ```
@@ -1421,7 +1430,7 @@ ggsave("simu_plot2.png", dpi = 600, height = 6, width = 12)
 
 ```{r}
 
-range <- simulate_range(
+range <- simulate_ranges(
   periods = period,
   vary = list(
     #tmean = seq(18,34, by = 1),
@@ -2077,7 +2086,7 @@ ggsave("best_ensemble.png", dpi = 600, bg = "white", height = 6, width = 10)
 
 # Sensitivity
 ```{r}
-range_rain = simulate_range(
+range_rain = simulate_ranges(
      periods = period,
      vary = list(
        tmean = 25,
@@ -2089,7 +2098,7 @@ range_rain = simulate_range(
      scenario_var = "rain"
 )
 
-range_tmean = simulate_range(
+range_tmean = simulate_ranges(
      periods = period,
      vary = list(
        rain = 5,
@@ -2102,7 +2111,7 @@ range_tmean = simulate_range(
 )
 
 
-range_wetness = simulate_range(
+range_wetness = simulate_ranges(
      periods = period,
      vary = list(
        rain = 5,
@@ -2176,7 +2185,7 @@ unique(epi_p$period)
 
 ```{r}
 
-range_losses <- simulate_range(
+range_losses <- simulate_ranges(
   periods = period,
   vary = list(
     tmean = c(20,34),
