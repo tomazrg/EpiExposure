@@ -53,8 +53,15 @@
 #'   The list may be partial: variables omitted from `at` continue to use the
 #'   quantile-based grid defined by `probs`. To evaluate effects at the unique
 #'   observed values, supply `sort(unique(data[[variable]]))` for that variable.
-#' @param ref List with `method = "median"`, `"percentile"`, or `"fixed"`, and
-#'   an optional `value`.
+#' @param ref Reference exposure specification. The original method-based form is
+#'   retained: `list(method = "median", value = NULL)`,
+#'   `list(method = "percentile", value = p)`, or
+#'   `list(method = "fixed", value = x)`. Alternatively, supply a named list
+#'   with one finite numeric reference value for every fitted exposure, for
+#'   example `list(tmean = 25, rain = 0, wetness = 10)`. In this variable-specific
+#'   form, each exposure is centered on its own reference value and the same
+#'   values define the joint baseline profile used for `baseline`, `predicted`,
+#'   and `delta`.
 #' @param effect_measure Character. `"linear"`, `"exponentiated"`, or
 #'   `"percent"`.
 #' @param incremental Logical. For `scale = "period"`, calculate
@@ -145,12 +152,45 @@ summarise_effects <- function(
   if (!is.null(at) && !is.numeric(at) && !is.list(at)) {
     stop("`at` must be NULL, a numeric vector, or a named list.")
   }
-  if (!is.list(ref) || is.null(ref$method) ||
-      !is.character(ref$method) || length(ref$method) != 1L ||
-      is.na(ref$method) || !nzchar(ref$method)) {
-    stop("`ref` must contain one valid character `method`.")
+  # `ref` supports two backward-compatible forms:
+  #   1) method-based: list(method = "median"/"percentile"/"fixed", value = ...)
+  #   2) variable-specific: list(tmean = 25, rain = 0, wetness = 10)
+  if (!is.list(ref) || !length(ref)) {
+    stop("`ref` must be a non-empty list.")
   }
-  ref_method <- match.arg(ref$method, c("median", "percentile", "fixed"))
+
+  ref_is_method <- "method" %in% names(ref)
+
+  if (ref_is_method) {
+    if (is.null(ref$method) || !is.character(ref$method) ||
+        length(ref$method) != 1L || is.na(ref$method) ||
+        !nzchar(ref$method)) {
+      stop("`ref` must contain one valid character `method`.")
+    }
+    ref_method <- match.arg(ref$method, c("median", "percentile", "fixed"))
+  } else {
+    ref_method <- NULL
+
+    if (is.null(names(ref)) || anyNA(names(ref)) ||
+        any(names(ref) == "") || anyDuplicated(names(ref))) {
+      stop(
+        "When `ref` is supplied as exposure-specific values, it must be a ",
+        "named list with unique, non-empty exposure names."
+      )
+    }
+
+    valid_ref_value <- vapply(
+      ref,
+      function(x) is.numeric(x) && length(x) == 1L && is.finite(x),
+      logical(1)
+    )
+
+    if (any(!valid_ref_value)) {
+      stop(
+        "Each exposure-specific value in `ref` must be one finite numeric value."
+      )
+    }
+  }
   if (scale == "period" && !incremental && is.null(lag_periods)) {
     stop("`lag_periods` is required when scale = 'period' and incremental = FALSE.")
   }
@@ -604,6 +644,77 @@ summarise_effects <- function(
          paste(missing_data_vars, collapse = ", "), ".")
   }
 
+  # Validate exposure-specific reference values only after the fitted exposure
+  # names are known. A complete list is required because these values also
+  # define the joint baseline profile for response-scale predictions.
+  if (!ref_is_method) {
+    unknown_ref_variables <- setdiff(names(ref), fit_vars)
+    missing_ref_variables <- setdiff(fit_vars, names(ref))
+
+    if (length(unknown_ref_variables)) {
+      stop(
+        "`ref` contains variables not found in the fitted model: ",
+        paste(unknown_ref_variables, collapse = ", "), "."
+      )
+    }
+
+    if (length(missing_ref_variables)) {
+      stop(
+        "Exposure-specific `ref` must contain one value for every fitted ",
+        "exposure. Missing: ",
+        paste(missing_ref_variables, collapse = ", "), "."
+      )
+    }
+  }
+
+  # Resolve the reference used to center the focal exposure. Method-based
+  # behavior is unchanged. In the new exposure-specific form, each variable
+  # uses its own supplied value.
+  get_effect_reference <- function(variable, x) {
+    if (!ref_is_method) {
+      return(as.numeric(ref[[variable]]))
+    }
+
+    switch(
+      ref_method,
+      median = stats::median(x, na.rm = TRUE),
+      percentile = {
+        if (is.null(ref$value) || length(ref$value) != 1L ||
+            !is.numeric(ref$value) || ref$value < 0 || ref$value > 1) {
+          stop("For ref$method = 'percentile', `ref$value` must be one probability.")
+        }
+        stats::quantile(x, ref$value, na.rm = TRUE)
+      },
+      fixed = {
+        if (is.null(ref$value) || length(ref$value) != 1L ||
+            !is.numeric(ref$value) || !is.finite(ref$value)) {
+          stop("For ref$method = 'fixed', `ref$value` must be one finite number.")
+        }
+        ref$value
+      },
+      stop("Invalid ref$method. Use 'median', 'percentile', or 'fixed'.")
+    )
+  }
+
+  # Preserve the previous baseline behavior for the original method-based
+  # interface: the response-scale baseline uses the median of every fitted
+  # exposure. For exposure-specific `ref`, the supplied values define the
+  # complete baseline profile.
+  get_baseline_reference <- function(variable) {
+    if (!ref_is_method) {
+      return(as.numeric(ref[[variable]]))
+    }
+
+    if (!variable %in% names(data)) {
+      stop(
+        "Cannot construct the baseline because exposure '", variable,
+        "' is absent from `data`."
+      )
+    }
+
+    stats::median(data[[variable]], na.rm = TRUE)
+  }
+
   # Validate and standardise optional exposure-specific evaluation grids.
   # `at = NULL` preserves the original quantile-based behaviour. A partial
   # named list overrides only the listed variables; all others use `probs`.
@@ -670,7 +781,8 @@ summarise_effects <- function(
     make_reference_profiles <- function() {
       profiles <- lapply(fit_vars, function(v) {
         lv <- as.integer(max(fit_spec[[v]]$max_lag))
-        rep(stats::median(data[[v]], na.rm = TRUE), lv + 1L)
+        reference_value <- get_baseline_reference(v)
+        rep(reference_value, lv + 1L)
       })
       names(profiles) <- fit_vars
       profiles
@@ -840,26 +952,9 @@ summarise_effects <- function(
       )
     }
 
-    center_value <- switch(
-      ref_method,
-      median = stats::median(x_all, na.rm = TRUE),
-      percentile = {
-        if (is.null(ref$value) || length(ref$value) != 1L ||
-            !is.numeric(ref$value) || ref$value < 0 || ref$value > 1) {
-          stop("For ref$method = 'percentile', `ref$value` must be one probability.")
-        }
-        stats::quantile(x_all, ref$value, na.rm = TRUE)
-      },
-      fixed = {
-        if (is.null(ref$value) || length(ref$value) != 1L ||
-            !is.numeric(ref$value) || !is.finite(ref$value)) {
-          stop("For ref$method = 'fixed', `ref$value` must be one finite number.")
-        }
-        ref$value
-      },
-      stop("Invalid ref$method. Use 'median', 'percentile', or 'fixed'.")
+    center_value <- as.numeric(
+      get_effect_reference(variable, x_all)
     )
-    center_value <- as.numeric(center_value)
 
     if (family_name == "ordinal") {
       return(summarise_ordinal_variable(variable, variable_spec, at_values, center_value))
@@ -883,12 +978,14 @@ summarise_effects <- function(
     linkfun <- get_linkfun(link_name)
     linkinv <- get_linkinv(link_name)
     baseline_response <- NA_real_
-    if (!is.null(fit_vars) && !is.null(fit_spec) &&
-        all(fit_vars %in% names(data))) {
+    can_build_baseline <- !is.null(fit_vars) && !is.null(fit_spec) &&
+      (!ref_is_method || all(fit_vars %in% names(data)))
+
+    if (can_build_baseline) {
       reference_profiles <- lapply(fit_vars, function(current_variable) {
         current_spec <- fit_spec[[current_variable]]
         current_lag <- as.integer(max(current_spec$max_lag))
-        reference_value <- stats::median(data[[current_variable]], na.rm = TRUE)
+        reference_value <- get_baseline_reference(current_variable)
         rep(reference_value, current_lag + 1L)
       })
       names(reference_profiles) <- fit_vars

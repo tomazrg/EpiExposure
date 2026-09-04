@@ -13,7 +13,7 @@ simulate_losses(
   intercept = 11142.94,
   attainable_yield = seq(4000, 12000, by = 50),
   price = seq(100, 300, by = 10),
-  n_sim = 1L,
+  n = 1,
   random_sd = 0,
   y_multiplier = 1,
   seed = NULL
@@ -35,18 +35,18 @@ upper bound of `y`. If supplied, `lower` must also be supplied.}
 \item{slope}{Numeric. Regression slope relating `y` to yield loss.
 A single value uses a fixed slope. Two values are interpreted as the
 minimum and maximum of a uniform distribution. Alternatively, a vector
-of length `n_sim` can contain user-supplied parameter draws.}
+of length `n` can contain user-supplied parameter draws.}
 
 \item{intercept}{Numeric. Yield-model intercept. A single value uses a
 fixed intercept. Two values are interpreted as the minimum and maximum
-of a uniform distribution. Alternatively, a vector of length `n_sim`
+of a uniform distribution. Alternatively, a vector of length `n`
 can contain user-supplied parameter draws.}
 
 \item{attainable_yield}{Numeric vector of attainable yield values.}
 
 \item{price}{Numeric vector of commodity prices.}
 
-\item{n_sim}{Number of parameter simulations. Default is 1.}
+\item{n}{Number of parameter simulations. Default is 1.}
 
 \item{random_sd}{Standard deviation of the normally distributed random
 effect used in the yield model. Default is 0 (no random effect).}

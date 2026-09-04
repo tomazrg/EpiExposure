@@ -49,8 +49,15 @@ The list may be partial: variables omitted from `at` continue to use the
 quantile-based grid defined by `probs`. To evaluate effects at the unique
 observed values, supply `sort(unique(data[[variable]]))` for that variable.}
 
-\item{ref}{List with `method = "median"`, `"percentile"`, or `"fixed"`, and
-an optional `value`.}
+\item{ref}{Reference exposure specification. The original method-based form is
+retained: `list(method = "median", value = NULL)`,
+`list(method = "percentile", value = p)`, or
+`list(method = "fixed", value = x)`. Alternatively, supply a named list
+with one finite numeric reference value for every fitted exposure, for
+example `list(tmean = 25, rain = 0, wetness = 10)`. In this variable-specific
+form, each exposure is centered on its own reference value and the same
+values define the joint baseline profile used for `baseline`, `predicted`,
+and `delta`.}
 
 \item{effect_measure}{Character. `"linear"`, `"exponentiated"`, or
 `"percent"`.}

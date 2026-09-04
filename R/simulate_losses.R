@@ -18,14 +18,14 @@
 #' @param slope Numeric. Regression slope relating `y` to yield loss.
 #'   A single value uses a fixed slope. Two values are interpreted as the
 #'   minimum and maximum of a uniform distribution. Alternatively, a vector
-#'   of length `n_sim` can contain user-supplied parameter draws.
+#'   of length `n` can contain user-supplied parameter draws.
 #' @param intercept Numeric. Yield-model intercept. A single value uses a
 #'   fixed intercept. Two values are interpreted as the minimum and maximum
-#'   of a uniform distribution. Alternatively, a vector of length `n_sim`
+#'   of a uniform distribution. Alternatively, a vector of length `n`
 #'   can contain user-supplied parameter draws.
 #' @param attainable_yield Numeric vector of attainable yield values.
 #' @param price Numeric vector of commodity prices.
-#' @param n_sim Number of parameter simulations. Default is 1.
+#' @param n Number of parameter simulations. Default is 1.
 #' @param random_sd Standard deviation of the normally distributed random
 #'   effect used in the yield model. Default is 0 (no random effect).
 #' @param y_multiplier Numeric multiplier applied internally to `y`, `lower`,
@@ -95,7 +95,7 @@ simulate_losses <- function(
     intercept = 11142.94,
     attainable_yield = seq(4000, 12000, by = 50),
     price = seq(100, 300, by = 10),
-    n_sim = 1L,
+    n = 1,
     random_sd = 0,
     y_multiplier = 1,
     seed = NULL
@@ -218,15 +218,15 @@ simulate_losses <- function(
     stop("`price` cannot contain negative values.")
   }
 
-  if (length(n_sim) != 1L ||
-      !is.numeric(n_sim) ||
-      !is.finite(n_sim) ||
-      n_sim < 1 ||
-      n_sim != as.integer(n_sim)) {
-    stop("`n_sim` must be a positive integer.")
+  if (length(n) != 1L ||
+      !is.numeric(n) ||
+      !is.finite(n) ||
+      n < 1 ||
+      n != as.integer(n)) {
+    stop("`n` must be a positive integer.")
   }
 
-  n_sim <- as.integer(n_sim)
+  n <- as.integer(n)
 
   if (length(random_sd) != 1L ||
       !is.numeric(random_sd) ||
@@ -332,7 +332,7 @@ simulate_losses <- function(
     }
 
     stop(
-      "`", name, "` must have length 1, 2, or `n_sim` (",
+      "`", name, "` must have length 1, 2, or `n` (",
       n, ")."
     )
   }
@@ -398,13 +398,13 @@ simulate_losses <- function(
 
   slope_sim <- draw_parameter(
     slope,
-    n_sim,
+    n,
     "slope"
   )
 
   intercept_sim <- draw_parameter(
     intercept,
-    n_sim,
+    n,
     "intercept"
   )
 
@@ -415,7 +415,7 @@ simulate_losses <- function(
   if (random_sd > 0) {
 
     random_effect <- stats::rnorm(
-      n_sim,
+      n,
       mean = 0,
       sd = random_sd
     )
@@ -424,7 +424,7 @@ simulate_losses <- function(
 
     random_effect <- rep(
       0,
-      n_sim
+      n
     )
   }
 
@@ -436,7 +436,7 @@ simulate_losses <- function(
   simulation_grid <- expand.grid(
     attainable_yield = attainable_yield,
     price = price,
-    .sim = seq_len(n_sim),
+    .sim = seq_len(n),
     KEEP.OUT.ATTRS = FALSE,
     stringsAsFactors = FALSE
   )
@@ -761,7 +761,7 @@ simulate_losses <- function(
     lower = lower,
     upper = upper,
     y_multiplier = y_multiplier,
-    n_sim = n_sim,
+    n = n,
     slope = slope,
     intercept = intercept,
     random_sd = random_sd,

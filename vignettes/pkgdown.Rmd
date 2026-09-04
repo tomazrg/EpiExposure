@@ -2233,7 +2233,8 @@ yld_losses = losses %>%
   labs(
     y = "Attainable yield (kg/ha)",
     x = "",
-    fill = "(kg/ha)"
+   # fill = "(kg/ha)"
+    fill = expression(bold("(" * bold(kg~ha^{-1} * ")")))
   )+
   theme(text = element_text(size = 10, face = "bold"))+
   theme(
@@ -2260,7 +2261,8 @@ ec_losses = losses %>%
   labs(
     y = "Attainable yield (kg/ha)",
     x = "Daily precipitation (mm)",
-    fill = "(USD/ha)"
+    #fill = "(USD/ha)"
+    fill = expression(bold("(" * bold(USD~ha^{-1} * ")")))
   )+
   theme(text = element_text(size = 10, face = "bold"))+
   theme(
