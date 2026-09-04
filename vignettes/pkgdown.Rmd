@@ -184,7 +184,7 @@ check_identifiability(data = sim_data,
 
 ## Lag-specific
 ```{r}
-#surface = predict_surface(fit = fit, wx_long = sim_data, var = "tmean", lag_max = 85,
+#surface = predict_surface(fit = fit, wx_long = sim_data, var = "tmean", max_lag = 85,
  #                   uncertainty = TRUE, output = "summary", n_samples = 10)
 
 epi_l = summarise_effects(fit = fit, data = sim_data,
@@ -908,7 +908,7 @@ period_plot
 
 ```{r}
 
-period  = define_periods(lag_max = 85, cuts = c(20,40,60,85), prefix = "Period")
+period  = define_periods(max_lag = 85, cuts = c(20,40,60,85), prefix = "Period")
 
 period
 ```
@@ -1092,7 +1092,7 @@ ct_tmean |>
 ## Scenario 01
 
 ```{r}
-exposure_tmean_01 <- simulate_exposures(lag_max = 85,
+exposure_tmean_01 <- simulate_exposures(max_lag = 85,
                   mode = "profile", seed = 123,
                   #pattern = "alternating_times",
                   #alternating_values = c(20,24),
@@ -1100,7 +1100,7 @@ exposure_tmean_01 <- simulate_exposures(lag_max = 85,
                   background = list(dist = "ar1", mean = 25, sd = 4, phi = 0.90),
                   n = 1)
 
-exposure_rain_01 <- simulate_exposures(lag_max = 85,
+exposure_rain_01 <- simulate_exposures(max_lag = 85,
                   mode = "pattern", seed = 123,
                   pattern = "block_times",
                   block_times = c(0,40),
@@ -1108,7 +1108,7 @@ exposure_rain_01 <- simulate_exposures(lag_max = 85,
                   background = list(dist = "fixed", value = 0),
                   n = 1)
 
-exposure_wetness_01 <- simulate_exposures(lag_max = 85,
+exposure_wetness_01 <- simulate_exposures(max_lag = 85,
                   mode = "profile", seed = 123,
                   #alternating_values = c(5,15),
                   background = list(dist = "AR1", mean = 15, sd = 4, phi = 0.10),
@@ -1238,7 +1238,7 @@ sev_01  = pred_01 |>
 ## Scenario 02
 
 ```{r}
-exposure_tmean_02 <- simulate_exposures(lag_max = 85,
+exposure_tmean_02 <- simulate_exposures(max_lag = 85,
                   mode = "profile", seed = 123,
                   #pattern = "alternating_times",
                   #alternating_values = c(20,24),
@@ -1246,7 +1246,7 @@ exposure_tmean_02 <- simulate_exposures(lag_max = 85,
                   background = list(dist = "ar1", mean = 25, sd = 4, phi = 0.90),
                   n = 1)
 
-exposure_rain_02 <- simulate_exposures(lag_max = 85,
+exposure_rain_02 <- simulate_exposures(max_lag = 85,
                   mode = "pattern", seed = 123,
                   pattern = "block_times",
                   block_times = c(40,85),
@@ -1254,7 +1254,7 @@ exposure_rain_02 <- simulate_exposures(lag_max = 85,
                   background = list(dist = "fixed", value = 0),
                   n = 1)
 
-exposure_wetness_02 <- simulate_exposures(lag_max = 85,
+exposure_wetness_02 <- simulate_exposures(max_lag = 85,
                   mode = "profile", seed = 123,
                   #alternating_values = c(5,15),
                   background = list(dist = "ar1", mean = 20, sd = 4, phi = 0.90),
@@ -1264,7 +1264,7 @@ exposure_wetness_02 <- simulate_exposures(lag_max = 85,
 ```
 
 ```{r}
-exposure_tmean_02 <- simulate_exposures(lag_max = 85,
+exposure_tmean_02 <- simulate_exposures(max_lag = 85,
                   mode = "profile", seed = 123,
                   #pattern = "alternating_times",
                   #alternating_values = c(20,24),
@@ -1272,7 +1272,7 @@ exposure_tmean_02 <- simulate_exposures(lag_max = 85,
                   n = 1)
 
 
-exposure_rain_02 <- simulate_exposures(lag_max = 85,
+exposure_rain_02 <- simulate_exposures(max_lag = 85,
                   mode = "pattern", seed = 123,
                   pattern = "block_times",
                   block_times = c(40,85),
@@ -1281,7 +1281,7 @@ exposure_rain_02 <- simulate_exposures(lag_max = 85,
                   n = 1)
 
 
-exposure_wetness_02 <- simulate_exposures(lag_max = 85,
+exposure_wetness_02 <- simulate_exposures(max_lag = 85,
                   mode = "profile", seed = 123,
                   #pattern = "alternating_times",
                   #alternating_values = c(20,24),
@@ -1628,7 +1628,7 @@ scenario_D <- list(
 )
 
 
-exp01 <- simulate_exposures(lag_max = 85,
+exp01 <- simulate_exposures(max_lag = 85,
                   mode = "profile", seed = 123,
                   #pattern = "alternating_times",
                   #alternating_values = c(20,24),
@@ -1744,7 +1744,7 @@ best_models <- find_bestfit(
     "rain",
     "wetness"
   ),
-  lag_max = 85,
+  max_lag = 85,
   df_var_grid = c(2,3,4),
   df_lag_grid = c(2,3,4),
   min_vars = 1,
