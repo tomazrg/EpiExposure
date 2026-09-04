@@ -12,22 +12,51 @@ vignette: >
      class="pkg-page-logo"
      alt="EpiExposure logo">
      
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(cowplot)
+library(dplyr)
+library(EpiExposure)
+```
+
 # What EpiExposure does?
 
-`EpiExposure`...
+`EpiExposure`provides a standardized R workflow for constructing, fitting, interpreting, and simulating distributed exposure–lag models in plant disease epidemiology. 
+
+<div class="tutorial-note">
+<strong>What you will learn.</strong> This tutorial shows how to organize your
+own data for `EpiExposure`, how to check the DLNM structure, and how to turn
+exposure-lag into mathematical models.
+</div>
 
 ```{r}
-sim_data = readxl::read_xlsx("sim_data.xlsx")
+#sim_data = readxl::read_xlsx("sim_data.xlsx")
+data("epi_data")
 
 ```
 
+A structured input dataset is required to initiate the epidemiological analysis in EpiExposure. The framework assumes a tabular data structure in which each row represents a temporal observation within an epidemic, and columns correspond to variables of interest, including environmental exposures (independent variables), and outcomes (dependent variable). At minimum, the dataset should include: (i) an epidemic identifier (`epi_id`) defining independent histories; (ii) a temporal index variable (`time`), which orders chronological observations from the beginning of the exposure history (time 0; maximum lag) to the disease assessment time (maximum time; lag 0) and with the same duration of time across the `epi_id`; and (iii) one or more exposure variables describing environmental, biological or chemical drivers.
+
 ```{r}
-head(sim_data)
+epi_data
+```
+
+# Check your lag
+
+When import your dataframe, check if the `epi_data` has the same time duration.
+
+```{r}
+
 ```
 
 
+# Exposure-lag profiles
+
+Initially, we can visualize the exposure-lag profiles of the weather factors before the disease assessment that it will be used on the modeling framework with the following code
+
 ```{r}
-wetness_plot = sim_data%>% 
+wetness_plot = epi_data%>% 
   ggplot(aes(time,wetness, group = epi_id))+
   geom_smooth(se = F, color = "#55A868",linewidth = 0.3)+
   theme_bw()+
@@ -40,7 +69,7 @@ wetness_plot = sim_data%>%
 wetness_plot
 ```
 ```{r}
-rain_plot = sim_data%>% 
+rain_plot = epi_data%>% 
   ggplot(aes(time,rain, group = epi_id))+
   geom_smooth(se = F, color = "#4C72B0",linewidth = 0.3)+
   theme_bw()+
@@ -55,14 +84,14 @@ rain_plot
 ```
 
 ```{r}
-tmean_plot = sim_data%>% 
+tmean_plot = epi_data%>% 
   ggplot(aes(time,tmean, group = epi_id))+
   geom_smooth(se = F, color = "#C44E52",linewidth = 0.3)+
   theme_bw()+
   labs(x = "",
        y = "Mean temperature (°C)")+
   scale_x_continuous(limits = c(0,85), expand = c(0,0),
-                     breaks = pretty(sim_data$dpp, n = 8))+
+                     breaks = pretty(sim_data$time, n = 8))+
   theme(axis.text.x = element_blank(),
         text = element_text(size = 10))
 
@@ -77,6 +106,33 @@ plot_grid(tmean_plot,rain_plot,wetness_plot, ncol = 1)
 ggsave("exposure_lag.png", dpi = 600, bg = "white", height = 6, width = 8)
 ```
 
+```{r}
+cb2 <- define_exposures(
+  data = epi_data,
+  vars = c("wetness","tmean","rain"),
+  max_lag = 85,
+  df_var = 3,
+  df_lag = 2
+)
+
+dat2 <- build_design(
+  data = epi_data,
+  cb_templates = cb2,
+  max_lag = 85
+)
+
+dat2 <- prepare_response(data = dat2, response = "y", family = "beta")
+
+
+fit2 <- fit_epidlnm(
+  data = dat2,
+  model_engine = "glmmTMB",
+  family = "beta",
+  random_effect = NULL,
+  epiexposure_spec = attr(cb, "spec")
+)
+summary(fit2)
+```
 
 ```{r}
 
@@ -2149,7 +2205,7 @@ sens_rain = df_sensitivity(
   k = 3)
 
 sens_rain |> 
-  ggplot(aes(value, elasticity, group = sample))+
+  ggplot(aes(value, sensitivity))+ #, group = sample
   geom_smooth(se = F, color = "black")+
   theme_bw()
 
