@@ -1,0 +1,29 @@
+---
+title: "Simulation and Prediction with EpiExposure"
+description: "Simulating exposure histories and predicting disease outcomes"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Simulation and Prediction}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+<img src="../reference/figures/sticker.png"
+     class="pkg-page-logo"
+     alt="EpiExposure logo">
+     
+     
+# Introduction
+
+Understanding historical exposure-lag relationships is important for epidemiological inference, but researchers are often interested in a different question:
+
+> What would happen under alternative environmental conditions?
+
+EpiExposure provides a simulation and prediction framework that allows researchers to:
+
+- generate synthetic exposure histories;
+- construct hypothetical epidemiological scenarios;
+- compare alternative environmental conditions;
+- quantify expected disease outcomes.
+
+Unlike effect summaries, which evaluate isolated exposure-lag contributions, simulation tools operate on complete exposure histories and therefore allow epidemiological hypotheses to be tested directly.

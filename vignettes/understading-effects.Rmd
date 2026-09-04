@@ -1,0 +1,291 @@
+---
+title: "Understanding Effects in EpiExposure"
+description: "Lag-specific, period-specific, and cumulative exposure impacts"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Understanding Effects}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+<img src="../reference/figures/sticker.png"
+     class="pkg-page-logo"
+     alt="EpiExposure logo">
+     
+     
+# Introduction
+
+The primary goal of `EpiExposure` is not only to fit distributed lag nonlinear models (DLNMs), but also to translate exposure-lag-response surfaces into biologically meaningful epidemiological interpretations.
+
+This section introduces the main effect interpretation tools available in `EpiExposure`:
+
+- Lag-specific effects
+- Period-specific effects
+- Exposure Cumulative Impact (ECI)
+- Lag decomposition of ECI
+
+Together, these approaches allow researchers to identify critical exposure periods, compare epidemiological phases, and summarize complete exposure histories.
+
+# load example data
+```{r}
+library(EpiExposure)
+library(dplyr)
+
+data("epi_data")
+```
+
+# Fit a DLNM model
+
+```{r}
+cb <- define_exposures(
+  data = epi_data,
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  max_lag = 85,
+  df_var = 3,
+  df_lag = 2
+)
+
+dat <- build_design(
+  data = epi_data,
+  cb_templates = cb,
+  max_lag = 85
+)
+
+dat <- prepare_response(
+  data = dat,
+  response = "y",
+  family = "beta"
+)
+
+fit <- fit_epidlnm(
+  data = dat,
+  model_engine = "glmmTMB",
+  family = "beta",
+  epiexposure_spec = attr(cb, "spec")
+)
+```
+
+# Lag-specific effects
+
+## What are lag-specific effects?
+
+Lag-specific effects quantify how an exposure value influences disease severity at a particular lag while all remaining lags are held at their selected reference conditions.
+
+This approach allows investigators to identify when exposures exert their strongest influence on disease development.
+
+## Estimate lag-specific effects
+
+```{r}
+epi_l <- summarise_effects(
+  fit = fit,
+  data = epi_data,
+  scale = "lag",
+  effect_measure = "percent",
+  at = list(
+    tmean = seq(15,35,length.out = 100),
+    rain = seq(0,15,length.out = 100),
+    wetness = seq(0,24,length.out = 100)
+  )
+)
+```
+
+## Visualize effects
+
+```{r}
+plot_effects(
+  data = epi_l,
+  scale = "lag",
+  var = c(
+    "tmean",
+    "rain",
+    "wetness"
+  )
+)
+```
+
+## Delta effects
+
+In addition to effect estimates, EpiExposure can calculate local sensitivity measures (Δ), which describe how quickly the outcome changes in response to increasing exposure levels.
+
+Positive values indicate increasing disease risk, whereas negative values indicate decreasing disease risk.
+
+```{r}
+plot_effects(
+  data = epi_l,
+  scale = "lag",
+  metric = "delta",
+  delta_multiplier = 100
+)
+```
+
+# Period-specific effects
+
+## Why summarize periods?
+
+Many epidemiological mechanisms act over broader temporal phases rather than individual lags.
+
+Period-specific effects summarize the cumulative contribution of exposure conditions across biologically meaningful lag intervals.
+
+## Define epidemiological periods
+
+```{r}
+periods <- define_periods(
+  max_lag = 85,
+  cuts = c(
+    20,
+    40,
+    60,
+    85
+  ),
+  prefix = "Period"
+)
+
+periods
+```
+
+## Estimate period effects
+
+```{r}
+epi_p <- summarise_effects(
+  fit = fit,
+  data = epi_data,
+  scale = "period",
+  lag_periods = periods,
+  effect_measure = "percent"
+)
+```
+
+## Visualize period affects
+
+```{r}
+plot_effects(
+  data = epi_p,
+  scale = "period"
+)
+```
+
+# Exposure Cumulative Impact (ECI)
+
+## Why ECI?
+
+Disease responses depend on complete exposure histories rather than isolated observations.
+
+Two exposure profiles may contain similar amounts of rainfall or temperature, yet produce very different disease outcomes because exposures occur at different times.
+
+Exposure Cumulative Impact (ECI) was developed to summarize complete exposure histories while accounting for the exposure-lag-response relationship estimated by the DLNM.
+
+# Overall ECI
+
+## Calculate ECI
+
+```{r}
+eci <- compute_eci(
+  data = epi_data,
+  group = "epi_id",
+  fit = fit,
+  var = c(
+    "tmean",
+    "rain",
+    "wetness"
+  )
+)
+
+eci
+```
+
+## Interpreting ECI
+
+ECI is reported as two complementary measures:
+
+- ECI_raw
+  - accumulated exposure only
+
+- ECI_weighted
+  - accumulated exposure weighted by the exposure-lag-response association estimated by the DLNM
+
+ECI_weighted can be interpreted as the overall epidemiological influence of the entire exposure history.
+
+## Example
+
+```{r}
+eci %>%
+  filter(var == "rain") %>%
+  ggplot(
+    aes(
+      ECI_weighted,
+      ECI_raw
+    )
+  ) +
+  geom_point() +
+  theme_bw()
+```
+
+# Decomposing ECI by lag
+
+## Why decompose ECI?
+
+While ECI summarizes the overall impact of an exposure history, researchers often want to identify which lags contribute most strongly to the cumulative association.
+
+The compute_ecilag() function decomposes ECI into lag-specific contributions.
+
+## Compute lag contributions
+
+```{r}
+eci_lag <- compute_ecilag(
+  data = epi_data,
+  group = "epi_id",
+  group_level = 1,
+  fit = fit,
+  var = "rain"
+)
+```
+
+## Inspect lag contributions
+
+```{r}
+eci_lag$by_lag
+```
+
+## Plot contribution profile
+
+```{r}
+eci_lag$by_lag %>%
+  ggplot(
+    aes(
+      lag,
+      abs_contribution
+    )
+  ) +
+  geom_col(fill = "#4C72B0") +
+  theme_bw() +
+  labs(
+    x = "Lag",
+    y = "Absolute contribution"
+  )
+```
+
+# Linking lag effects and ECI
+
+Lag-specific effects, period-specific effects, and ECI provide complementary perspectives of the same exposure-lag-response surface.
+
+- Lag-specific effects identify critical lags.
+- Period-specific effects identify influential epidemiological phases.
+- ECI summarizes the overall impact of complete exposure histories.
+- ECI lag decomposition identifies which lags contribute most strongly to cumulative impact.
+
+Together, these tools provide a comprehensive framework for interpreting distributed lag nonlinear models in epidemiological research.
+
+# Next steps 
+
+The next section introduces simulation and prediction tools:
+
+- simulate_exposure()
+- simulate_range()
+- simulate_scenarios()
+- predict_outcome()
+
+These functions allow researchers to evaluate hypothetical exposure histories and quantify their expected disease consequences.

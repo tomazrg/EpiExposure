@@ -8,10 +8,12 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+```{=html}
 <img src="../reference/figures/sticker.png"
      class="pkg-page-logo"
      alt="EpiExposure logo">
-     
+```
+
 ```{r}
 library(tidyverse)
 library(ggplot2)
@@ -22,19 +24,25 @@ library(EpiExposure)
 
 # What EpiExposure does?
 
-`EpiExposure`provides a standardized R workflow for constructing, fitting, interpreting, and simulating distributed exposure–lag models in plant disease epidemiology. 
+`EpiExposure`provides a standardized R workflow for constructing, fitting, interpreting, and simulating distributed exposure–lag models in plant disease epidemiology.
 
-<div class="tutorial-note">
-<strong>What you will learn.</strong> This tutorial shows how to organize your
-own data for `EpiExposure`, how to check the DLNM structure, and how to turn
-exposure-lag into mathematical models.
-</div>
+The package allows users to:
 
-```{r}
-#sim_data = readxl::read_xlsx("sim_data.xlsx")
-data("epi_data")
+• Define exposure-lag structures;
+• Fit DLNM-based models;
+• Quantify lag-specific and period-specific effects;
+• Summarize complete exposure histories;
+• Simulate alternative exposure scenarios;
+• Predict disease outcomes;
+• Estimate yield and economic losses.
 
-```
+Unlike traditional window-based approaches, `EpiExposure` treats the complete exposure history preceding disease assessment as the primary epidemiological unit of analysis.
+
+::: tutorial-note
+<strong>What you will learn.</strong> This tutorial shows how to organize your own data for `EpiExposure`, how to check the DLNM structure, and how to turn exposure-lag into mathematical models.
+:::
+
+# Organizing exposure histories
 
 A structured input dataset is required to initiate the epidemiological analysis in EpiExposure.
 
@@ -42,28 +50,30 @@ The framework assumes a tabular data structure in which each row represents a te
 
 At minimum, the dataset should include:
 
-(i) an epidemic identifier (`epi_id`) defining independent histories;
+1.  an epidemic identifier (`epi_id`) defining independent histories;
+2.  a temporal index variable (`time`), which orders chronological observations from the beginning of the exposure history (time 0; maximum lag) to the disease assessment time (maximum time; lag 0) and with the same duration of time across the `epi_id`;
+3.  one or more exposure variables describing environmental, biological or chemical drivers.
 
-(ii) a temporal index variable (`time`), which orders chronological observations from the beginning of the exposure history (time 0; maximum lag) to the disease assessment time (maximum time; lag 0) and with the same duration of time across the `epi_id`;
+```{r}
+#sim_data = readxl::read_xlsx("sim_data.xlsx")
+data("epi_data")
 
-(iii) one or more exposure variables describing environmental, biological or chemical drivers.
+```
 
 ```{r}
 epi_data
 ```
 
-We can check the basic requirements 
+In `EpiExposure`, exposure profiles are always supplied in chronological order:
 
-When import your dataset, check if the `epi_data` has the same time duration.
+Time_0 -> earliest observation
+Time_max -> disease assessment time
 
-```{r}
+Internally, the package maps these observations into retrospective lags during model construction.
 
-```
+# Visualizing exposure histories
 
-
-# Exposure-lag profiles
-
-Initially, we can visualize the exposure-lag profiles of the weather factors before the disease assessment that it will be used on the modeling framework with the following code
+Before fitting any model, it is useful to inspect the exposure histories.
 
 ```{r}
 wetness_plot = epi_data%>% 
@@ -78,6 +88,7 @@ wetness_plot = epi_data%>%
 
 wetness_plot
 ```
+
 ```{r}
 rain_plot = epi_data%>% 
   ggplot(aes(time,rain, group = epi_id))+
@@ -115,6 +126,191 @@ plot_grid(tmean_plot,rain_plot,wetness_plot, ncol = 1)
 
 ggsave("exposure_lag.png", dpi = 600, bg = "white", height = 6, width = 8)
 ```
+
+Visual inspection often helps identify:
+
+• Temporal trends;
+• Exposure variability;
+• Unusual exposure histories;
+• Missing observations
+
+# Defining exposure-lag structures
+
+The first modeling step consists of creating the DLNM exposure specification.
+
+```{r}
+cb <- define_exposures(
+  data = epi_data,
+  vars = c("tmean","rain","wetness"),
+  max_lag = 85,
+  df_var = 3,
+  df_lag = 2
+)
+```
+
+This object stores the exposure-response and lag-resposne basis function required for DLNM estimation.
+
+Next, construct the model design matrix:
+
+```{r}
+dat <- build_design(
+  data = epi_data,
+  cb_templates = cb,
+  max_lag = 85
+)
+```
+
+Prepare the response variable:
+
+```{r}
+dat <- prepare_response(
+  data = dat,
+  response = "y",
+  family = "beta"
+)
+```
+
+
+# Fitting a DLNM model
+
+Fit the epidemiological model using one of the supported regression engines.
+
+```{r}
+fit <- fit_epidlnm(
+  data = dat,
+  model_engine = "glmmTMB",
+  family = "beta",
+  random_effect = NULL,
+  epiexposure_spec = attr(cb, "spec")
+)
+```
+
+Inspect the fitted model:
+
+```{r}
+summary(fit)
+```
+
+The fitted model contains the complete exposure-lag-response surface required for interpretation, simulation, and prediction.
+
+# Summarizing exposure-lag effects
+
+A central goal of `EpiExposure` is translating DLNM surfaces into epidemioligcally interpretable quantities.
+
+Lag-specific effects are obtained with:
+
+```{r}
+epi_l <- summarise_effects(
+  fit = fit,
+  data = epi_data,
+  scale = "lag",
+  effect_measure = "percent"
+)
+```
+
+Visualize the results:
+
+```{r}
+plot_effects(
+  data = epi_l,
+  scale = "lag"
+)
+```
+
+Lag-specific effects described how exposure values influence disease severity at individual lags while holding the remaining exposure history at reference conditions.
+
+# Defining epidemiological periods
+
+Many epidemiological processes operate over broader biological phases rather than individual lags.
+
+Define epidemiological periods:
+
+```{r}
+periods <- define_periods(
+  max_lag = 85,
+  cuts = c(20,40,60,85)
+)
+```
+
+Calculate period-specific effects:
+
+```{r}
+epi_p <- summarise_effects(
+  fit = fit,
+  data = epi_data,
+  scale = "period",
+  lag_periods = periods
+)
+```
+
+Visualize:
+
+```{r}
+plot_effects(
+  data = epi_p,
+  scale = "period"
+)
+```
+
+This approach allows cumulative exposure effects to be examined within biologically meaningful epidemiological phases.
+
+# Predicting disease outcomes
+
+While effect summaries focus on individual exposure components, disease prediction uses the complete exposure history.
+
+```{r}
+prediction <- predict_outcome(
+  fit = fit,
+  profiles = list(
+    tmean = rep(25,86),
+    rain = rep(5,86),
+    wetness = rep(15,86)
+  )
+)
+```
+
+Predictions represent the expected disease outcome associated with the entire exposure history.
+
+# Simulating exposure histories
+
+Alternative exposure trajectories can be generated directly within `EpiExposure`.
+
+```{r}
+rain_profile <- simulate_exposures(
+  max_lag = 85,
+  mode = "pattern",
+  pattern = "block_times",
+  block_times = c(0,40),
+  fixed_value = 15,
+  background = list(
+    dist = "fixed",
+    value = 0
+  )
+)
+```
+
+These profiles can be evaluated immediately:
+
+```{r}
+predict_outcome(
+  fit = fit,
+  profiles = list(
+    tmean = rep(25,86),
+    rain = rain_profile$profile,
+    wetness = rep(15,86)
+  )
+)
+```
+
+This framework enables hypothetical epidemiological questions such as:
+
+• What would happen if rainfall increased?
+• What would happen if favorable conditions occured earlier or later in the lag structures?
+• How sensitive is disease severity to different exposure histories?
+
+
+
+#######################################################
 
 ```{r}
 cb2 <- define_exposures(
@@ -233,7 +429,6 @@ dat3 %>%
 
 ```
 
-
 ```{r}
 library(DescTools)
 CCC(dat3$y, dat3$t, ci = "z-transform", conf.level = 0.95, na.rm = FALSE)
@@ -249,6 +444,7 @@ check_identifiability(data = sim_data,
 # Effect summarization
 
 ## Lag-specific
+
 ```{r}
 #surface = predict_surface(fit = fit, wx_long = sim_data, var = "tmean", max_lag = 85,
  #                   uncertainty = TRUE, output = "summary", n_samples = 10)
@@ -384,6 +580,7 @@ tmean_contour <- ggplot(
 
 tmean_contour
 ```
+
 ```{r}
 library(ggplot2)
 library(dplyr)
@@ -490,6 +687,7 @@ scale_fill_viridis_c(name = "Δ") +
 tmean_delta
 
 ```
+
 ```{r}
 epi_plot <- epi_l %>%
   filter(var == "rain")
@@ -814,6 +1012,7 @@ wetness_contour <- ggplot(
 
 wetness_contour
 ```
+
 ```{r}
 library(ggplot2)
 library(dplyr)
@@ -969,7 +1168,6 @@ period_plot
 
 ```
 
-
 ## Phase-specific
 
 ```{r}
@@ -978,6 +1176,7 @@ period  = define_periods(max_lag = 85, cuts = c(20,40,60,85), prefix = "Period")
 
 period
 ```
+
 ```{r}
 epi_p = summarise_effects(fit = fit, data = sim_data,
                   scale = "accumulated", effect_measure = "percent",
@@ -988,7 +1187,6 @@ epi_p = summarise_effects(fit = fit, data = sim_data,
 epi_p
 ```
 
-
 ```{r}
 epi_p1 = summarise_effects(fit = fit, data = sim_data,
                   scale = "accumulated", effect_measure = "percent",
@@ -998,6 +1196,7 @@ epi_p1 = summarise_effects(fit = fit, data = sim_data,
 
 epi_p1
 ```
+
 ```{r}
 epi_p2 = summarise_effects(fit = fit, data = sim_data,
                   scale = "accumulated", effect_measure = "percent",
@@ -1040,7 +1239,6 @@ epi_p11 |>
 ggsave("phase_effect2.png",dpi = 600, width = 8, height = 6)
 
 ```
-
 
 # ECI
 
@@ -1106,6 +1304,7 @@ median(ctt$y)
 ```
 
 ## Lag
+
 ```{r}
 ct2  = compute_ecilag(
   data = sim_data,
@@ -1274,7 +1473,6 @@ plot_wetness_simu_01  = df_wetness_01%>%
   theme(text = element_text(size = 10, face = "bold"))
 ```
 
-
 ```{r}
 pred_01 <- predict_outcomes(
   fit = fit,
@@ -1354,7 +1552,6 @@ exposure_wetness_02 <- simulate_exposures(max_lag = 85,
                   background = list(dist = "normal", mean = 10, sd = 4),
                   n = 1)
 ```
-
 
 ```{r}
 library(dplyr)
@@ -1449,7 +1646,6 @@ plot_wetness_simu_02  = df_wetness_02%>%
   theme(text = element_text(size = 10, face = "bold"))
 ```
 
-
 ```{r}
 pred_02 <- predict_outcomes(
   fit = fit,
@@ -1477,7 +1673,6 @@ sev_02  = pred_02 |>
 
 sev_02
 ```
-
 
 ```{r}
 plot_grid(plot_tmean_simu_01,plot_rain_simu_01,plot_wetness_simu_01,sev_01,
@@ -1620,7 +1815,6 @@ exp_rain_ratio = compare_exp_rain |>
   theme(text = element_text(size = 10, face = "bold"))+
   theme_bw()
 ```
-
 
 ```{r}
 
@@ -1783,9 +1977,11 @@ ggplot(compare_pred,
 
 ggsave("compare_predictions.png", dpi = 600, height = 4, width = 6)
 ```
-# Prediction 
+
+# Prediction
 
 ## Best fit
+
 ```{r}
 library(future)
 
@@ -1850,7 +2046,6 @@ ws[
 
 ```
 
-
 ```{r}
 best_m = readxl::read_xlsx("best_models.xlsx")
 best_pred = readxl::read_xlsx("prediction_data.xlsx")
@@ -1898,6 +2093,7 @@ best_pred |>
 ```{r}
 ggsave("find_bestfit.png", dpi = 600, height = 6, width = 8)
 ```
+
 ```{r}
 best_models_plot <- best_models %>%
   dplyr::mutate(
@@ -1963,6 +2159,7 @@ ggsave("bestmodels.png", dpi = 600, bg = "white", height = 6, width = 10)
 ```
 
 ## Ensemble
+
 ```{r}
 ens_mean <- ensemble_bestfit(
   bestfit = best_models,
@@ -2011,7 +2208,6 @@ CCC_ensemble = rbind(
 
 CCC_ensemble$method = c("unweighted","weighted","stacked")
 ```
-
 
 ```{r}
 
@@ -2144,6 +2340,7 @@ ggsave("best_ensemble.png", dpi = 600, bg = "white", height = 6, width = 10)
 ```
 
 # Sensitivity
+
 ```{r}
 range_rain = simulate_ranges(
      periods = period,
@@ -2280,7 +2477,6 @@ losses = simulate_losses(
 losses
 ```
 
-
 ```{r}
 yld_losses = losses %>%
   ggplot(aes(rain, attainable_yield, fill = yield_loss)) +
@@ -2357,7 +2553,6 @@ losses_plot
 ggsave("simulation_yld_ec_losses.png", dpi = 600, bg = "white", height = 6, width = 10)
 ```
 
-
 ```{r}
 #' @details
 #' For predictors with highly skewed distributions or many repeated values,
@@ -2365,4 +2560,3 @@ ggsave("simulation_yld_ec_losses.png", dpi = 600, bg = "white", height = 6, widt
 #' coincide with boundary values. This adjustment is handled automatically
 #' and does not prevent model fitting.
 ```
-
