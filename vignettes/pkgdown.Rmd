@@ -36,15 +36,25 @@ data("epi_data")
 
 ```
 
-A structured input dataset is required to initiate the epidemiological analysis in EpiExposure. The framework assumes a tabular data structure in which each row represents a temporal observation within an epidemic, and columns correspond to variables of interest, including environmental exposures (independent variables), and outcomes (dependent variable). At minimum, the dataset should include: (i) an epidemic identifier (`epi_id`) defining independent histories; (ii) a temporal index variable (`time`), which orders chronological observations from the beginning of the exposure history (time 0; maximum lag) to the disease assessment time (maximum time; lag 0) and with the same duration of time across the `epi_id`; and (iii) one or more exposure variables describing environmental, biological or chemical drivers.
+A structured input dataset is required to initiate the epidemiological analysis in EpiExposure.
+
+The framework assumes a tabular data structure in which each row represents a temporal observation within an epidemic, and columns correspond to variables of interest, including environmental exposures (independent variables; e.g. `tmean`, `rain`,`wetness`), and outcomes (dependent variable; `y`).
+
+At minimum, the dataset should include:
+
+(i) an epidemic identifier (`epi_id`) defining independent histories;
+
+(ii) a temporal index variable (`time`), which orders chronological observations from the beginning of the exposure history (time 0; maximum lag) to the disease assessment time (maximum time; lag 0) and with the same duration of time across the `epi_id`;
+
+(iii) one or more exposure variables describing environmental, biological or chemical drivers.
 
 ```{r}
 epi_data
 ```
 
-# Check your lag
+We can check the basic requirements 
 
-When import your dataframe, check if the `epi_data` has the same time duration.
+When import your dataset, check if the `epi_data` has the same time duration.
 
 ```{r}
 
