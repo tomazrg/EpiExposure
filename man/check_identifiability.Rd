@@ -2,7 +2,7 @@
 % Please edit documentation in R/check_identifiability.R
 \name{check_identifiability}
 \alias{check_identifiability}
-\title{Check DLNM cross-basis identifiability}
+\title{Diagnose identifiability and numerical stability of DLNM cross-basis designs}
 \usage{
 check_identifiability(
   data,
@@ -11,34 +11,82 @@ check_identifiability(
   df_var = 4,
   df_lag = 4,
   fun_var = "ns",
-  fun_lag = "ns"
+  fun_lag = "ns",
+  include_intercept = TRUE,
+  corr_threshold = 0.9,
+  condition_warn = 30,
+  condition_severe = 100,
+  vif_threshold = 10,
+  n_per_parameter_warn = 10,
+  tol = 1e-07,
+  keep_design = FALSE
 )
 }
 \arguments{
-\item{data}{Long-format exposure data.
+\item{data}{Long-format exposure data containing `epi_id`, `time`, and the
+exposure variables.}
 
-Must contain:
-- epi_id
-- time
+\item{var}{Character vector with one or more exposure-variable names.}
 
-Observations must be supplied in chronological order
-(earliest observation → most recent observation).}
+\item{max_lag}{Maximum retrospective lag. A vector such as `c(0, 85)` is
+accepted and reduced to its maximum value for backward compatibility.}
 
-\item{var}{Exposure variable (e.g. "tmax")}
+\item{df_var}{Positive integer degrees of freedom for the exposure basis.}
 
-\item{max_lag}{Maximum lag}
+\item{df_lag}{Positive integer degrees of freedom for the lag basis.}
 
-\item{df_var}{Degrees of freedom (exposure)}
+\item{fun_var}{Exposure-basis function: `"ns"`, `"bs"`, `"poly"`, or `"lin"`.}
 
-\item{df_lag}{Degrees of freedom (lag)}
+\item{fun_lag}{Lag-basis function: `"ns"`, `"ps"`, or `"lin"`.}
 
-\item{fun_var}{Basis ("ns","bs","poly","lin")}
+\item{include_intercept}{Logical. Include a model intercept when checking the
+rank of the combined design matrix. Default is `TRUE`.}
 
-\item{fun_lag}{Basis ("ns","ps","lin")}
+\item{corr_threshold}{Heuristic absolute-correlation threshold used to flag
+potentially important collinearity. Default is 0.90.}
+
+\item{condition_warn}{Heuristic scaled condition-number threshold for a
+warning. Default is 30.}
+
+\item{condition_severe}{Heuristic scaled condition-number threshold for a
+severe numerical-stability warning. Default is 100.}
+
+\item{vif_threshold}{Heuristic VIF threshold used only as a supplementary
+diagnostic. Spline-basis columns are often correlated by construction.}
+
+\item{n_per_parameter_warn}{Heuristic minimum ratio of complete epidemics to
+design columns. Default is 10.}
+
+\item{tol}{Numerical tolerance used in QR-rank and near-zero-variance checks.}
+
+\item{keep_design}{Logical. If `TRUE`, include the complete epidemic-level
+cross-basis design matrix in the returned object.}
 }
 \value{
-TRUE/FALSE
+An object of class `epiexposure_identifiability` containing:
+  `identifiable`, `numerically_stable`, `status`, `overall`, `by_variable`,
+  `pairwise_exposure_correlation`, `pairwise_crossbasis_correlation`, `vif`,
+  `dependent_columns`, `recommendations`, and optionally `design_matrix`.
 }
 \description{
-Evaluates whether a DLNM cross-basis matrix is full rank.
+Evaluates the epidemic-level DLNM design matrix that would be used for model
+fitting. One or more exposure variables can be assessed simultaneously.
+}
+\details{
+The function reports exact rank, rank deficiency, scaled condition number,
+singular values, near-zero-variance columns, cross-basis correlations,
+descriptive VIFs, pairwise raw-exposure correlations, pairwise correlation
+between cross-basis blocks, and the ratio between complete epidemics and
+model columns. It also returns concise recommendations.
+
+
+Mathematical identifiability is defined here by full column rank of the
+epidemic-level design matrix. Numerical stability is evaluated separately.
+The condition-number, correlation, VIF, and observations-per-column cutoffs
+are practical diagnostics rather than universal inferential thresholds.
+
+Individual VIFs should be interpreted cautiously for spline-expanded terms,
+because correlations among columns belonging to the same basis can be
+expected. The combined rank and scaled condition number are the primary
+numerical diagnostics.
 }
