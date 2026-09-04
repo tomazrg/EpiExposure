@@ -1049,7 +1049,7 @@ ct2  = compute_ecilag(
   var = c("tmean", "rain","wetness"),
   uncertainty = FALSE,
   n_samples = 10,
- output = "summary")
+  output = "summary")
 
 ct3 = ct2$by_lag
 
