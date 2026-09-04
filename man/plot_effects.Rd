@@ -34,7 +34,7 @@ plot_effects(
   delta_zero_text_size = 3,
   interpolate = TRUE,
   period_order = NULL,
-  period_var_order = NULL,
+  var_order = NULL,
   period_response = "eta",
   period_exclude_samples = 10,
   period_palette = NULL,
@@ -109,7 +109,7 @@ selected variables in one row.}
 
 \item{period_order}{Period facet order. NULL reproduces reversed PeriodN order.}
 
-\item{period_var_order}{Period variable order. NULL follows `var`.}
+\item{var_order}{Period variable order. NULL follows `var`.}
 
 \item{period_response}{Response column for period plots; default "eta".}
 

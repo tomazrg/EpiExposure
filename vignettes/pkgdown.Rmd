@@ -105,7 +105,7 @@ dat <- build_design(
   max_lag = 85
 )
 
-dat <- prepare_response(data = dat, y_var = "y", family = "beta")
+dat <- prepare_response(data = dat, response = "y", family = "beta")
 
 fit <- fit_epidlnm(
   data = dat,
@@ -141,7 +141,7 @@ dat2 <- build_design(
   max_lag = 85
 )
 
-dat2 <- prepare_response(data = dat2, y_var = "y", family = "beta")
+dat2 <- prepare_response(data = dat2, response = "y", family = "beta")
 
 
 summary(fit)
@@ -1433,7 +1433,6 @@ range <- simulate_ranges(
     wetness = c(2,10)
   ),
   scenario_type = "grid",
-  mode = "scenario",
   scenario_var = "rain"
 )
 
@@ -2087,7 +2086,6 @@ range_rain = simulate_ranges(
        wetness = 10
      ),
      scenario_type = "grid",
-     mode = "scenario",
      scenario_var = "rain"
 )
 
@@ -2099,7 +2097,6 @@ range_tmean = simulate_ranges(
        wetness = 2
      ),
      scenario_type = "grid",
-     mode = "scenario",
      scenario_var = "tmean"
 )
 
@@ -2112,7 +2109,6 @@ range_wetness = simulate_ranges(
        tmean = 25
      ),
      scenario_type = "grid",
-     mode = "scenario",
      scenario_var = "wetness"
 )
 
@@ -2186,7 +2182,6 @@ range_losses <- simulate_ranges(
     wetness = c(2,10)
   ),
   scenario_type = "grid",
-  mode = "scenario",
   scenario_var = "rain"
 )
 

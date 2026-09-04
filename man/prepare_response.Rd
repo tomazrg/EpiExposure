@@ -4,12 +4,12 @@
 \alias{prepare_response}
 \title{Prepare response variable for modeling}
 \usage{
-prepare_response(data, y_var, family)
+prepare_response(data, response, family)
 }
 \arguments{
 \item{data}{A data.frame containing the response variable.}
 
-\item{y_var}{Character scalar naming the response variable in `data`.}
+\item{response}{Character scalar naming the response variable in `data`.}
 
 \item{family}{Distribution family supplied as a supported character name or
   family object. Canonical family names are:

@@ -10,7 +10,7 @@
 #' normalized internally to a canonical name.
 #'
 #' @param data A data.frame containing the response variable.
-#' @param y_var Character scalar naming the response variable in `data`.
+#' @param response Character scalar naming the response variable in `data`.
 #' @param family Distribution family supplied as a supported character name or
 #'   family object. Canonical family names are:
 #'   - `"beta"`: proportions in the open interval (0, 1)
@@ -49,7 +49,7 @@
 #' No unsupported family is silently converted to Gaussian.
 #'
 #' @export
-prepare_response <- function(data, y_var, family) {
+prepare_response <- function(data, response, family) {
 
   # =========================================================
   # BASIC VALIDATION
@@ -59,13 +59,13 @@ prepare_response <- function(data, y_var, family) {
     stop("`data` must be a data.frame.")
   }
 
-  if (!is.character(y_var) || length(y_var) != 1L ||
-      is.na(y_var) || !nzchar(y_var)) {
-    stop("`y_var` must be one non-empty column name.")
+  if (!is.character(response) || length(response) != 1L ||
+      is.na(response) || !nzchar(response)) {
+    stop("`response` must be one non-empty column name.")
   }
 
-  if (!y_var %in% names(data)) {
-    stop("Column '", y_var, "' was not found in `data`.")
+  if (!response %in% names(data)) {
+    stop("Column '", response, "' was not found in `data`.")
   }
 
   # =========================================================
@@ -142,7 +142,7 @@ prepare_response <- function(data, y_var, family) {
   # RESPONSE VALIDATION
   # =========================================================
 
-  original_y <- data[[y_var]]
+  original_y <- data[[response]]
 
   if (is.factor(original_y)) {
     if (family_name != "ordinal") {

@@ -2,46 +2,55 @@
 % Please edit documentation in R/simulate_ranges.R
 \name{simulate_ranges}
 \alias{simulate_ranges}
-\title{Generate DLNM simulation scenarios (scenario or profile mode)}
+\title{Generate DLNM simulation scenarios across lag periods}
 \usage{
 simulate_ranges(
   periods,
   vary = list(),
   fixed = list(),
   scenario_type = c("grid", "paired"),
-  mode = c("scenario", "profile"),
   scenario_names = NULL,
   scenario_var = NULL
 )
 }
 \arguments{
-\item{periods}{Output from define_periods(). Must contain columns
+\item{periods}{Output from `define_periods()`. Must be a data.frame containing
 `period`, `lag_start`, and `lag_end`.}
 
-\item{vary}{Named list of variables to vary.}
+\item{vary}{Named list of exposure variables and the finite numeric values to
+evaluate. Under `scenario_type = "grid"`, all combinations are generated.
+Under `scenario_type = "paired"`, values are matched by position and all
+vectors must have the same length.}
 
-\item{fixed}{Named list of variables to keep fixed.}
+\item{fixed}{Named list of exposure variables to keep fixed. Each fixed
+variable must contain exactly one finite numeric value. Use `list()` when
+no fixed variables are required.}
 
-\item{scenario_type}{Character. `"grid"` or `"paired"`.}
+\item{scenario_type}{Character. Either `"grid"` or `"paired"`.}
 
-\item{mode}{Character. `"scenario"` or `"profile"`.}
+\item{scenario_names}{Optional character vector with one unique name for each
+generated scenario.}
 
-\item{scenario_names}{Optional scenario names.}
-
-\item{scenario_var}{Optional variable used to define automatic scenario names.}
+\item{scenario_var}{Optional name of a variable in `vary` used to construct
+automatic scenario names. If `NULL`, the first variable in `vary` is used.}
 }
 \value{
 A list containing:
-  - scenarios
-  - periods
-  - info
+  - `scenarios`: named scenario definitions indexed by lag period;
+  - `periods`: the supplied lag-period definitions;
+  - `info`: a data.frame describing the exposure combination in each scenario.
 }
 \description{
-Creates structured input for `simulate_scenarios()`, supporting both
-discrete scenarios and chronological exposure profiles.
+Creates structured scenario input for `simulate_scenarios()` by combining
+user-defined exposure levels and assigning each resulting combination as a
+constant condition within every supplied lag period.
 }
 \details{
-In `mode = "profile"`, supplied vectors must be chronological exposure
-profiles ordered from the earliest observation to the most recent
-observation. Internal lag mapping is handled by downstream functions.
+`periods` is interpreted on the retrospective lag scale. For example,
+`lag_start = 0` and `lag_end = 20` represent lags 0 through 20, i.e. the
+portion of the exposure history closest to the outcome assessment.
+
+The function generates scenario definitions only. Conversion from lag-period
+definitions to complete chronological exposure histories is performed later
+by `simulate_scenarios()` before prediction with `predict_outcome()`.
 }
