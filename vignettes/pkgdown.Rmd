@@ -22,13 +22,6 @@ sim_data = readxl::read_xlsx("sim_data.xlsx")
 ```
 
 ```{r}
-epi_data = readxl::read_xlsx("sim_data.xlsx")
-
-usethis::use_data(epi_data, overwrite = TRUE)
-```
-
-
-```{r}
 head(sim_data)
 ```
 
