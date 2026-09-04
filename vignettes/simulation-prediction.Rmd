@@ -27,3 +27,347 @@ EpiExposure provides a simulation and prediction framework that allows researche
 - quantify expected disease outcomes.
 
 Unlike effect summaries, which evaluate isolated exposure-lag contributions, simulation tools operate on complete exposure histories and therefore allow epidemiological hypotheses to be tested directly.
+
+# Load data and fit a model
+
+```{r}
+library(EpiExposure)
+
+data("epi_data")
+```
+
+```{r}
+cb <- define_exposures(
+  data = epi_data,
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  max_lag = 85,
+  df_var = 3,
+  df_lag = 2
+)
+
+dat <- build_design(
+  data = epi_data,
+  cb_templates = cb,
+  max_lag = 85
+)
+
+dat <- prepare_response(
+  data = dat,
+  response = "y",
+  family = "beta"
+)
+
+fit <- fit_epidlnm(
+  data = dat,
+  model_engine = "glmmTMB",
+  family = "beta",
+  epiexposure_spec = attr(cb,"spec")
+)
+```
+
+# Simulating exposure histories
+
+## Why simulate exposures?
+
+Environmental conditions rarely occur as isolated observations.
+
+Instead, disease outcomes emerge from complete exposure histories containing temperature, rainfall, humidity, leaf wetness, and many other interacting variables.
+
+The simulate_exposures() function generates realistic chronological exposure profiles that can subsequently be used for prediction and scenario analysis.
+
+# Simulating a background process
+
+```{r}
+temperature_profile <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 123,
+  background = list(
+    dist = "ar1",
+    mean = 25,
+    sd = 4,
+    phi = 0.90
+  )
+)
+```
+
+Inspect the simulated profile:
+
+```{r}
+plot(
+  temperature_profile$profile,
+  type = "l",
+  xlab = "Time",
+  ylab = "Mean temperature (°C)"
+)
+```
+
+# Simulating structured exposure events
+
+Specific epidemiological events can be superimposed onto the background process.
+
+For example:
+
+```{r}
+rain_profile <- simulate_exposures(
+  max_lag = 85,
+  mode = "pattern",
+  pattern = "block_times",
+  block_times = c(0,40),
+  fixed_value = 15,
+  background = list(
+    dist = "fixed",
+    value = 0
+  )
+)
+```
+
+This creates a prolonged rainfall event within a selected epidemiological period.
+
+# Predicting disease outcomes
+
+## Prediction from complete exposure histories
+
+Unlike lag-specific or period-specific effects, outcome prediction evaluates the complete exposure history.
+
+Predictions therefore represent the cumulative consequence of all environmental conditions preceding disease assessment.
+
+```{r}
+prediction <- predict_outcome(
+  fit = fit,
+  profiles = list(
+    tmean = temperature_profile$profile,
+    rain = rain_profile$profile,
+    wetness = rep(10,86)
+  )
+)
+
+prediction
+```
+
+# Prediction uncertainty
+
+```{r}
+prediction <- predict_outcome(
+  fit = fit,
+  profiles = list(
+    tmean = temperature_profile$profile,
+    rain = rain_profile$profile,
+    wetness = rep(10,86)
+  ),
+  uncertainty = TRUE,
+  n_samples = 100
+)
+```
+
+Visualize uncertainty:
+
+```{r}
+ggplot(
+  prediction,
+  aes(prediction*100)
+) +
+  geom_histogram(
+    bins = 20,
+    fill = "steelblue"
+  ) +
+  theme_bw()
+```
+
+# Scenario simulation
+
+## Why scenarios?
+
+Researchers often wish to evaluate hypothetical epidemiological conditions.
+
+Examples include:
+
+- increased rainfall;
+- elevated temperatures;
+- prolonged leaf wetness periods;
+- combinations of multiple environmental drivers.
+
+Scenario simulation provides a systematic framework for evaluating these questions.
+
+## Generating candidate scenarios
+
+```{r}
+scenarios <- simulate_ranges(
+  periods = periods,
+  vary = list(
+    tmean = c(20,34),
+    rain = seq(0,15,1),
+    wetness = c(2,10)
+  ),
+  scenario_type = "grid",
+  scenario_var = "rain"
+)
+```
+
+## Predicting scenarios
+
+```{r}
+pred_scenarios <- simulate_scenarios(
+  fit = fit,
+  scenarios = scenarios,
+  data = epi_data,
+  uncertainty = TRUE,
+  output = "summary",
+  n_samples = 50
+)
+```
+
+## Visualizing scenario outcomes
+
+```{r}
+pred_scenarios %>%
+  ggplot(
+    aes(
+      rain,
+      prediction*100
+    )
+  ) +
+  geom_line() +
+  facet_wrap(
+    ~ wetness + tmean
+  ) +
+  theme_bw()
+```
+
+# Scenario surfaces
+
+```{r}
+pred_scenarios %>%
+  ggplot(
+    aes(
+      rain,
+      tmean,
+      fill = prediction*100
+    )
+  ) +
+  geom_tile() +
+  facet_wrap(
+    ~ wetness
+  ) +
+  scale_fill_viridis_c() +
+  theme_bw()
+```
+
+# Comparing exposure histories
+
+## Why compare exposures?
+
+Two exposure histories may differ substantially even when their average conditions appear similar.
+
+The compare_exposures() function quantifies these differences directly.
+
+```{r}
+comparison <- compare_exposures(
+  exposure1 = temperature_profile$profile,
+  exposure2 = rep(25,86),
+  mode = "timewise"
+)
+```
+
+Visualize differences:
+
+```{r}
+comparison %>%
+  ggplot(
+    aes(
+      time,
+      diff
+    )
+  ) +
+  geom_line() +
+  theme_bw()
+```
+
+# Compare predictions
+
+## Epidemiological comparison
+
+Prediction comparisons evaluate whether alternative exposure histories result in different expected disease outcomes.
+
+Define candidate scenarios:
+
+```{r}
+scenario_A <- list(
+  tmean = rep(25,86),
+  rain = rep(5,86),
+  wetness = rep(10,86)
+)
+
+scenario_B <- list(
+  tmean = rep(34,86),
+  rain = rep(15,86),
+  wetness = rep(20,86)
+)
+```
+
+Compare predictions:
+
+```{r}
+comparison <- compare_predictions(
+  fit = fit,
+  profiles = list(
+    A = scenario_A,
+    B = scenario_B
+  ),
+  uncertainty = TRUE,
+  n_samples = 100
+)
+
+comparison
+```
+
+Visualize differences:
+
+```{r}
+comparison %>%
+  ggplot(
+    aes(
+      scenario1,
+      diff*100
+    )
+  ) +
+  geom_point(size = 3) +
+  theme_bw()
+```
+
+# Interpreting simulation outputs
+
+The simulation framework can be used to address a wide variety of epidemiological questions:
+
+- Which environmental variable exerts the strongest influence on disease risk?
+- Which lag periods are most sensitive to changes in exposure?
+- How large is the expected disease response under extreme environmental conditions?
+- Which combinations of temperature, rainfall, and wetness generate the greatest disease pressure?
+
+# Summary
+
+This section demonstrated how `EpiExposure` transforms fitted DLNMs into scenario-testing tools.
+
+The simulation framework allows users to:
+
+- generate realistic exposure histories;
+- construct hypothetical epidemiological scenarios;
+- predict disease outcomes;
+- compare competing environmental hypotheses.
+
+Together, these tools extend DLNMs beyond statistical estimation and enable direct epidemiological experimentation.
+
+# Next steps
+
+The next vignette focuses on translating disease predictions into practical outcomes:
+
+- simulate_losses()
+- yield loss estimation
+- economic loss estimation
+- management scenario evaluation
+
+These tools connect exposure-lag-response relationships with agronomic and economic consequences.
