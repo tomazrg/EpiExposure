@@ -1,0 +1,431 @@
+---
+title: "Sensitivity Analysis and Decision Support"
+description: "Identifying critical environmental thresholds and sensitive exposure regions"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Sensitivity Analysis and Decision Support}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+<img src="../reference/figures/sticker.png"
+     class="pkg-page-logo"
+     alt="EpiExposure logo">
+     
+# Introduction
+
+Disease responses are often nonlinear.
+
+A small increase in temperature may have little effect at one point of the exposure-response curve but a very large effect at another.
+
+Consequently, researchers are frequently interested not only in predicting disease outcomes but also in understanding where systems are most sensitive to environmental change.
+
+`EpiExposure` provides sensitivity analysis tools that identify:
+
+- critical exposure regions;
+- exposure thresholds;
+- elasticity patterns;
+- management-relevant intervention zones.
+
+These analyses transform predictive models into decision-support tools.
+
+# Load data
+
+```{r}
+library(EpiExposure)
+library(dplyr)
+library(ggplot2)
+
+data("epi_data")
+```
+
+# Fit a DLNM model
+
+```{r}
+cb <- define_exposures(
+  data = epi_data,
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  max_lag = 85,
+  df_var = 3,
+  df_lag = 2
+)
+
+dat <- build_design(
+  data = epi_data,
+  cb_templates = cb,
+  max_lag = 85
+)
+
+dat <- prepare_response(
+  data = dat,
+  response = "y",
+  family = "beta"
+)
+
+fit <- fit_epidlnm(
+  data = dat,
+  model_engine = "glmmTMB",
+  family = "beta",
+  epiexposure_spec = attr(cb,"spec")
+)
+```
+
+# Generating exposure gradients
+
+Sensitivity analyses begin by generating controlled gradients of environmental conditions
+
+```{r}
+periods <- define_periods(
+  max_lag = 85,
+  cuts = c(
+    20,
+    40,
+    60,
+    85
+  )
+)
+```
+
+## Temperature gradient
+
+```{r}
+temp_range <- simulate_ranges(
+  periods = periods,
+
+  vary = list(
+    rain = 5,
+    wetness = 10,
+    tmean = seq(
+      18,
+      34,
+      by = 0.5
+    )
+  ),
+
+  scenario_type = "grid",
+  scenario_var = "tmean"
+)
+```
+
+## Predicting responses
+
+```{r}
+temp_predictions <- simulate_scenarios(
+  fit = fit,
+  scenarios = temp_range,
+  data = epi_data,
+  uncertainty = TRUE,
+  output = "summary",
+  n_samples = 50
+)
+```
+
+# Inspecting the response curve
+
+```{r}
+response_curve <- temp_predictions %>%
+  transmute(
+    value = tmean,
+    prediction = prediction * 100,
+    lower = lower * 100,
+    upper = upper * 100
+  ) %>%
+  arrange(value)
+```
+
+Visualize:
+
+```{r}
+
+ggplot(
+  response_curve,
+  aes(
+    value,
+    prediction
+  )
+) +
+  geom_line(
+    linewidth = 1
+  ) +
+  theme_bw() +
+  labs(
+    x = "Mean temperature (°C)",
+    y = "Predicted disease (%)"
+  )
+
+```
+
+# Why sensitivity analysis?
+
+Prediction curves describe expected disease levels.
+
+Sensitivity curves describe how rapidly disease changes along those prediction curves.
+
+Consequently, sensitivity analyses often reveal critical epidemiological regions that are not obvious from predictions alone.
+
+# Computing sensitivity
+
+```{r}
+temp_sensitivity <- df_sensitivity(
+  data = response_curve,
+  x = "value",
+  y = "prediction",
+
+  elasticity = TRUE,
+  critical = TRUE,
+
+  k = 3
+)
+```
+
+Inspect results:
+
+```{r}
+
+head(temp_sensitivity)
+
+```
+
+## Visualizing sensitivity
+
+```{r}
+ggplot(
+  temp_sensitivity,
+  aes(
+    value,
+    sensitivity
+  )
+) +
+  geom_line(
+    linewidth = 1
+  ) +
+  theme_bw() +
+  labs(
+    x = "Mean temperature (°C)",
+    y = "Sensitivity"
+  )
+```
+
+# Interpreting sensitivity
+
+Positive sensitivity values indicate increasing disease risk.
+
+Negative values indicate decreasing disease risk.
+
+Values near zero suggest relatively stable disease responses within that exposure region.
+
+# Elasticity analysis
+
+## What is elasticity?
+
+Sensitivity measures the absolute rate of change.
+
+Elasticity measures the proportional rate of change.
+
+Elasticity therefore answers:
+
+> "How much does disease change (%) when exposure changes by 1%?"
+
+Plot elasticity:
+
+```{r}
+ggplot(
+  temp_sensitivity,
+  aes(
+    value,
+    elasticity
+  )
+) +
+  geom_line(
+    linewidth = 1
+  ) +
+  theme_bw() +
+  labs(
+    x = "Mean temperature (°C)",
+    y = "Elasticity"
+  )
+```
+
+# Identifying critical regions
+
+The critical option in `df_sensitivity()` automatically identifies regions where disease responses change most strongly.
+
+These regions often correspond to biologically important epidemiological thresholds.
+
+Extract critical points:
+
+```{r}
+temp_sensitivity %>%
+  filter(critical)
+```
+
+Visualize:
+
+```{r}
+ggplot(
+  temp_sensitivity,
+  aes(
+    value,
+    sensitivity
+  )
+) +
+
+  geom_line() +
+
+  geom_point(
+    data = subset(
+      temp_sensitivity,
+      critical
+    ),
+    color = "red",
+    size = 3
+  ) +
+
+  theme_bw()
+```
+
+# Comparing environmental drivers
+
+Sensitivity can be compared across multiple variables
+
+## Rainfall
+
+```{r}
+rain_range <- simulate_ranges(
+  periods = periods,
+
+  vary = list(
+    tmean = 25,
+    wetness = 10,
+    rain = seq(
+      0,
+      15,
+      by = 0.5
+    )
+  ),
+
+  scenario_type = "grid",
+  scenario_var = "rain"
+)
+```
+
+## Leaf wetness
+
+```{r}
+wetness_range <- simulate_ranges(
+  periods = periods,
+
+  vary = list(
+    tmean = 25,
+    rain = 5,
+    wetness = seq(
+      0,
+      24,
+      by = 0.5
+    )
+  ),
+
+  scenario_type = "grid",
+  scenario_var = "wetness"
+)
+```
+
+Simulate:
+
+```{r}
+rain_predictions <- simulate_scenarios(
+  fit = fit,
+  scenarios = rain_range,
+  data = epi_data
+)
+
+wetness_predictions <- simulate_scenarios(
+  fit = fit,
+  scenarios = wetness_range,
+  data = epi_data
+)
+```
+
+Compute sensitivities
+
+```{r}
+sens_rain <- df_sensitivity(
+  data = rain_predictions,
+  x = "rain",
+  y = "prediction"
+)
+
+sens_wetness <- df_sensitivity(
+  data = wetness_predictions,
+  x = "wetness",
+  y = "prediction"
+)
+```
+
+Combine:
+
+```{r}
+sens_rain$variable <- "Rain"
+
+sens_wetness$variable <- "Wetness"
+
+combined <- bind_rows(
+  sens_rain,
+  sens_wetness
+)
+```
+
+Plot:
+
+```{r}
+ggplot(
+  combined,
+  aes(
+    value,
+    sensitivity,
+    color = variable
+  )
+) +
+  geom_line(
+    linewidth = 1
+  ) +
+  theme_bw()
+```
+
+# Decision-support applications
+
+Sensitivity analyses are particularly useful for:
+
+- identifying risk thresholds;
+- prioritizing environmental monitoring;
+- defining warning criteria;
+- selecting management intervention points;
+- evaluating climate-change scenarios;
+- improving disease forecasting systems.
+
+
+# Example interpretation
+
+Suppose sensitivity analysis indicates:
+
+- low sensitivity below 20 °C;
+- maximum sensitivity between 24 and 28 °C;
+- decreasing sensitivity above 30 °C.
+
+In this situation, management efforts would be most valuable when environmental conditions approach the 24–28 °C interval, because small weather changes within that region are expected to generate the largest epidemiological responses.
+
+# Summary
+
+This section demonstrated how `EpiExposure` can be used to quantify response sensitivity and identify critical environmental thresholds.
+
+Key tools include:
+
+- simulate_ranges()
+- simulate_scenarios()
+- df_sensitivity()
+
+Together, these functions help transform predictive models into practical decision-support frameworks capable of identifying the environmental conditions most strongly associated with disease development.

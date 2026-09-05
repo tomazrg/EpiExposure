@@ -8,6 +8,10 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+::: {style="text-align:center;"}
+\<img src="../assets/animated_curves.svg"nce/figures/sticker.png
+:::
+
 ```{=html}
 <img src="../reference/figures/sticker.png"
      class="pkg-page-logo"
@@ -28,13 +32,7 @@ library(EpiExposure)
 
 The package allows users to:
 
-• Define exposure-lag structures;
-• Fit DLNM-based models;
-• Quantify lag-specific and period-specific effects;
-• Summarize complete exposure histories;
-• Simulate alternative exposure scenarios;
-• Predict disease outcomes;
-• Estimate yield and economic losses.
+• Define exposure-lag structures; • Fit DLNM-based models; • Quantify lag-specific and period-specific effects; • Summarize complete exposure histories; • Simulate alternative exposure scenarios; • Predict disease outcomes; • Estimate yield and economic losses.
 
 Unlike traditional window-based approaches, `EpiExposure` treats the complete exposure history preceding disease assessment as the primary epidemiological unit of analysis.
 
@@ -66,8 +64,7 @@ epi_data
 
 In `EpiExposure`, exposure profiles are always supplied in chronological order:
 
-Time_0 -> earliest observation
-Time_max -> disease assessment time
+Time_0 -\> earliest observation Time_max -\> disease assessment time
 
 Internally, the package maps these observations into retrospective lags during model construction.
 
@@ -129,10 +126,7 @@ ggsave("exposure_lag.png", dpi = 600, bg = "white", height = 6, width = 8)
 
 Visual inspection often helps identify:
 
-• Temporal trends;
-• Exposure variability;
-• Unusual exposure histories;
-• Missing observations
+• Temporal trends; • Exposure variability; • Unusual exposure histories; • Missing observations
 
 # Defining exposure-lag structures
 
@@ -169,7 +163,6 @@ dat <- prepare_response(
   family = "beta"
 )
 ```
-
 
 # Fitting a DLNM model
 
@@ -304,13 +297,9 @@ predict_outcome(
 
 This framework enables hypothetical epidemiological questions such as:
 
-• What would happen if rainfall increased?
-• What would happen if favorable conditions occured earlier or later in the lag structures?
-• How sensitive is disease severity to different exposure histories?
+• What would happen if rainfall increased? • What would happen if favorable conditions occured earlier or later in the lag structures? • How sensitive is disease severity to different exposure histories?
 
-
-
-#######################################################
+####################################################### 
 
 ```{r}
 cb2 <- define_exposures(
@@ -2559,4 +2548,34 @@ ggsave("simulation_yld_ec_losses.png", dpi = 600, bg = "white", height = 6, widt
 #' `splines::ns()` may issue a knot-placement warning when interior knots
 #' coincide with boundary values. This adjustment is handled automatically
 #' and does not prevent model fitting.
+```
+
+```{r}
+library(ggplot2)
+library(gganimate)
+library(dplyr)
+
+epi_plot <- epi_l |>
+  filter(var == "tmean")
+
+ggplot(
+  epi_plot,
+  aes(value, effect)
+) +
+  geom_line(
+    color = "#C44E52",
+    linewidth = 1.4
+  ) +
+  theme_bw() +
+  labs(
+    x = "Mean temperature (°C)",
+    y = "Effect (%)",
+    title = "Lag: {closest_state}"
+  ) +
+  transition_states(
+    lag,
+    transition_length = 1,
+    state_length = 1
+  ) +
+  ease_aes("linear")
 ```

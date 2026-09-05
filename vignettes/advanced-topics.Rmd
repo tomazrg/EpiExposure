@@ -1,0 +1,395 @@
+---
+title: "Advanced Topics in EpiExposure"
+description: "Advanced model specification, uncertainty, diagnostics, and computational considerations"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Advanced Topics}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+<img src="../reference/figures/sticker.png"
+     class="pkg-page-logo"
+     alt="EpiExposure logo">
+     
+     
+# Introduction
+
+Most `EpiExposure` workflows can be completed using the default model specification introduced in previous vignettes.
+
+However, advanced applications often require additional flexibility regarding:
+
+- model engines;
+- uncertainty estimation;
+- spline specification;
+- identifiability diagnostics;
+- computational performance.
+
+This vignette discusses these advanced topics and provides recommendations for robust DLNM analyses.
+
+# Alternative model engines
+
+EpiExposure separates exposure-lag specification from model estimation.
+
+Consequently, the same DLNM structure can be fitted using different regression engines.
+
+## glmmTMB
+
+glmmTMB is the default engine and is recommended for most analyses.
+
+Advantages:
+
+- fast estimation;
+- mixed-effects support;
+- beta models;
+- negative binomial models;
+- good numerical stability.
+
+```{r}
+fit_glmmTMB <- fit_epidlnm(
+  data = dat,
+  model_engine = "glmmTMB",
+  family = "beta",
+  epiexposure_spec = attr(cb,"spec")
+)
+```
+
+
+## GAM models
+
+Generalized Additive Models (GAMs) can also be used for estimation.
+
+When DLNM predictors are fitted within a GAM framework, the DLNM basis functions should be interpreted as the exposure-lag representation, while GAM smoothing primarily acts as a penalization mechanism.
+
+```{r}
+fit_gam <- fit_epidlnm(
+  data = dat,
+  model_engine = "gam",
+  family = "beta",
+  epiexposure_spec = attr(cb,"spec")
+)
+```
+
+# Bayesian models
+
+## brms
+
+The brms engine provides fully Bayesian estimation.
+
+Advantages include:
+
+- posterior distributions;
+- hierarchical structures;
+- uncertainty propagation;
+- probabilistic inference.
+
+```{r}
+fit_brms <- fit_epidlnm(
+  data = dat,
+  model_engine = "brms",
+  family = "beta",
+  epiexposure_spec = attr(cb, "spec"))
+```
+
+## INLA
+
+INLA provides approximate Bayesian inference with substantially lower computational costs than MCMC approaches.
+
+For large exposure-lag datasets, INLA often offers an attractive compromise between speed and Bayesian inference.
+
+```{r}
+fit_inla <- fit_epidlnm(
+  data = dat,
+  model_engine = "INLA",
+  family = "beta",
+  epiexposure_spec = attr(cb, "spec"))
+```
+
+# Uncertainty propagation
+
+Every DLNM estimate contains uncertainty.
+
+Ignoring uncertainty can lead to overconfident epidemiological conclusions.
+
+`EpiExposure` allows uncertainty to be propagated throughout effect estimation, prediction, simulation, and loss calculations.
+
+
+# Summary versus samples
+
+Most functions allow:
+
+```{r}
+output = "summary"
+```
+
+or
+
+```{r}
+output = "samples"
+```
+
+## Summary output
+
+```{r}
+epi_l <- summarise_effects(
+  fit = fit,
+  data = epi_data,
+  uncertainty = TRUE,
+  output = "summary"
+)
+```
+
+This returns:
+
+• estimate;
+• lower interval;
+• upper interval.
+
+## Sample output
+
+```{r}
+epi_l_samples <- summarise_effects(
+  fit = fit,
+  data = epi_data,
+  uncertainty = TRUE,
+  n_samples = 100,
+  output = "samples"
+)
+```
+
+This return individual uncertainty realizations
+
+These samples may subsequently be used for:
+
+• sensitivity analysis;
+• scenario simulations;
+• custom uncertainty visualization.
+
+# Uncertainty in predictions
+
+```{r}
+pred <- predict_outcome(
+  fit = fit,
+  profiles = scenario,
+  uncertainty = TRUE,
+  n_samples = 100,
+  output = "samples"
+)
+```
+
+Visualizing uncertainty:
+
+```{r}
+ggplot(
+  pred,
+  aes(prediction)
+) +
+  geom_histogram(
+    bins = 20
+  ) +
+  theme_bw()
+```
+
+# Identifiability diagnostics
+
+Large lag dimensions and complex spline structures may occasionally produce unstable estimates.
+
+The `check_identifiability()` function evaluates whether the selected DLNM specification is likely to generate numerical problems.
+
+Example:
+
+```{r}
+check_identifiability(
+  data = epi_data,
+
+  var = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+
+  df_var = 3,
+  df_lag = 2,
+
+  max_lag = 85
+)
+```
+
+# Why identifiability matters
+
+Poor identifiability can arise from:
+
+• highly correlated exposures;
+• excessive spline flexibility;
+• insufficient sample size;
+• extremely long lag periods.
+
+Symptoms include:
+
+• non-convergence;
+• inflated confidence intervals;
+• unstable predictions;
+
+# Choosing lag duration
+
+The lag duration should be guided by biological knowledge whenever possible.
+
+Excessively short lags may exclude relevant exposure information.
+
+Excessively long lags may introduce noise and reduce numerical stability.
+
+Recommended strategy:
+
+Known latent period
+       ↓
+Known incubation period
+       ↓
+Known epidemic duration
+       ↓
+Maximum lag
+
+# Choosing spline complexity
+
+Spline complexity determines the flexibility of exposure-response and lag-response functions.
+
+Typical starting point:
+
+```{r}
+df_var = 3
+df_lag = 2
+```
+
+Higher flexibility:
+
+```{r}
+df_var = 4
+df_lag = 4
+```
+
+Lower flexibility:
+
+```{r}
+df_var = 2
+df_lag = 2
+```
+
+
+# Practical recommendations
+
+Small datasets:
+
+- use lower spline complexity.
+
+Large datasets:
+
+- greater flexibility may be appropriate.
+
+Always evaluate predictive performance rather than relying only on model fit.
+
+# Computational performance
+
+Model fitting time increases as:
+
+- sample size increases;
+- maximum lag increases;
+- spline complexity increases;
+- uncertainty sampling increases.
+
+Example:
+
+Low complexity
+↓
+faster estimation
+
+High complexity
+↓
+slower estimation
+↓
+greater overfitting risk
+
+# Common warnings
+
+## Knot-placement warning
+
+Predictors with many repeated observations or highly skewed distributions may produce knot-placement warnings.
+
+`EpiExposure` automatically adjusts knot placement whenever possible.
+
+Typical warning:
+
+```{r}
+splines::ns()
+```
+
+This warning does not necessarily indicate model failure.
+
+## Convergence warnings
+
+Convergence warnings usually indicate:
+
+- excessive complexity;
+- insufficient observations;
+- identifiability issues.
+
+Possible solutions:
+
+Reduce df_var
+Reduce df_lag
+Reduce max_lag
+Increase sample size
+
+# Reproducibility
+
+For reproducible analyses:
+
+- store the exposure specification;
+- store fitted models;
+- set random seeds;
+- report spline settings;
+- report lag duration.
+
+Example:
+
+```{r}
+set.seed(123) # verificar se nao seria o "seed" usado nas funcoes ao inves de "set.seed(123")
+```
+
+# Best practices
+
+Recommended workflow:
+
+1. Begin with simple specifications
+
+df_var = 3
+df_lag = 2
+
+2. Evaluate identifiability
+
+check_identifiability()
+
+3. Compare alternative structures
+
+find_bestfit()
+
+4. Quantify uncertainty
+
+uncertainty = TRUE
+
+5. Perform simulation analyses
+
+simulate_scenarios()
+
+6. Report predictive validation metrics
+
+# Summary
+
+This section introduced advanced `EpiExposure` topics, including:
+
+- alternative estimation engines;
+- Bayesian inference;
+- uncertainty propagation;
+- identifiability diagnostics;
+- spline selection;
+- computational optimization.
+
+Together, these tools provide the flexibility required for rigorous exposure-lag-response analyses in both research and forecasting applications.

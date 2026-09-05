@@ -1,0 +1,427 @@
+---
+title: "Model Selection and Ensemble Forecasting"
+description: "Model ranking, validation, and ensemble forecasting in EpiExposure"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Model Selection and Ensemble Forecasting}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+<img src="../reference/figures/sticker.png"
+     class="pkg-page-logo"
+     alt="EpiExposure logo">
+
+
+# Introduction
+
+Distributed Lag Nonlinear Models (DLNMs) require several modeling decisions, including:
+
+- exposure variables;
+- lag duration;
+- exposure spline complexity;
+- lag spline complexity;
+- regression engine.
+
+Different specifications may lead to different predictive performance.
+
+`EpiExposure` provides tools for systematically exploring model configurations, ranking competing models, and combining predictions through ensemble forecasting.
+
+This section demonstrates:
+
+- automated DLNM model search;
+- predictive validation;
+- model ranking;
+- ensemble forecasting;
+- comparison of ensemble strategies.
+
+# Load example data
+
+```{r}
+library(EpiExposure)
+library(dplyr)
+
+data("epi_data")
+
+```
+
+# Why model selection matters
+
+Exposure-lag-response relationships are highly sensitive to model specification.
+
+For example, increasing lag flexibility may improve fit but increase overfitting.
+
+Likewise, adding additional predictors may improve prediction in some pathosystems while reducing generalizability in others.
+
+Rather than selecting models manually, EpiExposure can evaluate large combinations of candidate DLNM structures.
+
+# Searching candidate models
+
+```{r}
+library(future)
+
+future::plan(
+  future::multisession,
+  workers = 4
+)
+```
+
+## Run the model search
+
+```{r}
+best_models <- find_bestfit(
+  data = epi_data,
+  response = "y",
+  group = "epi_id",
+  time = "time",
+  vars = c("tmean","rain","wetness"),
+  max_lag = 85,
+  df_var_grid = c(2,3,4),
+  df_lag_grid = c(2,3,4),
+  model_engine = "glmmTMB",
+  family = "beta",
+  keep_fits = TRUE)
+```
+
+Inspect results
+
+```{r}
+head(best_models)
+```
+
+Typical output includes:
+
+• model identifier;
+• predictor combination;
+• spline configuration;
+• CCC
+• RMSE
+• MAE
+• bias metrics
+
+# Ranking models
+
+## Top-perfoming models
+
+```{r}
+best_models %>%
+  arrange(desc(CCC)) %>%
+  select(
+    model_id,
+    vars,
+    CCC,
+    RMSE,
+    MAE
+  ) %>%
+  head(10)
+```
+
+# Visualizing model performance
+
+```{r}
+best_models %>%
+  mutate(
+    splines = paste(
+      df_lag,
+      df_var,
+      sep = " × "
+    )
+  ) %>%
+  ggplot(
+    aes(
+      Cb,
+      CCC,
+      color = splines
+    )
+  ) +
+  geom_point(size = 3) +
+  theme_bw()
+```
+
+# Understanding validation metrics
+
+## Concordance Correlation Coefficient (CCC)
+
+CCC evaluates both precision and accuracy.
+
+Values close to 1 indicate strong agreement between observed and predicted outcomes.
+
+## Root Mean Square Error (RMSE)
+
+RMSE measures overall prediction error.
+
+Lower values indicate better 
+
+## Mean Absolute Error (MAE)
+
+MAE provides a scale-dependent measure of prediction error.
+
+It is often easier to interpret than RMSE because it is expressed in the original outcome units.
+
+# Inspecting specific models
+
+Suppose the best model is:
+
+```{r}
+top_model <- best_models %>%
+  arrange(desc())
+```
+
+Retrieve the fitted model:
+
+```{r}
+fit_best <- best_models$fit[[which.max(best_models$CCC)]]
+```
+
+Review model diagnostics:
+
+```{r}
+summary(fit_best)
+```
+
+# Why use ensembles?
+
+No single model is guaranteed to be optimal.
+
+Different DLNM structures frequently capture different aspects of the underlying epidemiological process.
+
+Combining predictions from multiple models often improves stability and predictive robustness.
+
+# Selecting ensemble candidates
+
+```{r}
+candidate_models <- c(
+  63,
+  23,
+  44
+)
+```
+
+Replace these identifiers with the best-performing models from your analysis
+
+# Unweighted ensemble
+
+```{r}
+ens_unweighted <- ensemble_bestfit(
+  bestfit = best_models,
+
+  ensemble_scope = "model",
+
+  method = "unweighted",
+
+  model_ids = candidate_models,
+
+  hb = TRUE
+)
+```
+
+## Inspect results
+
+```{r}
+ens_unweighted$ensemble_summary
+```
+
+# Weighted ensemble
+
+```{r}
+ens_weighted <- ensemble_bestfit(
+  bestfit = best_models,
+
+  ensemble_scope = "model",
+
+  method = "weighted",
+
+  model_ids = candidate_models,
+
+  weight_metric = "CCC",
+
+  weight_transform = "rank_inverse"
+)
+```
+
+## Inspect results
+
+```{r}
+ens_weighted$ensemble_summary
+```
+
+# Stacked ensemble
+
+```{r}
+ens_stacked <- ensemble_bestfit(
+  bestfit = best_models,
+
+  ensemble_scope = "model",
+
+  method = "stacked",
+
+  model_ids = candidate_models,
+
+  stacking_model = "ridge",
+
+  stack_objective = "regularized"
+)
+```
+
+## Inspect results
+
+```{r}
+ens_stacked$ensemble_summary
+```
+
+
+# Comparing ensemble strategies
+
+```{r}
+ensemble_metrics <- rbind(
+
+  unweighted =
+    ens_unweighted$ensemble_summary[
+      ,
+      c(
+        "CCC",
+        "RMSE",
+        "MAE"
+      )
+    ],
+
+  weighted =
+    ens_weighted$ensemble_summary[
+      ,
+      c(
+        "CCC",
+        "RMSE",
+        "MAE"
+      )
+    ],
+
+  stacked =
+    ens_stacked$ensemble_summary[
+      ,
+      c(
+        "CCC",
+        "RMSE",
+        "MAE"
+      )
+    ]
+)
+
+ensemble_metrics
+```
+
+# Visualizing ensemble predictions
+
+```{r}
+ensemble_all <- bind_rows(
+
+  mutate(
+    ens_unweighted$ensemble_predictions,
+    method = "Unweighted"
+  ),
+
+  mutate(
+    ens_weighted$ensemble_predictions,
+    method = "Weighted"
+  ),
+
+  mutate(
+    ens_stacked$ensemble_predictions,
+    method = "Stacked"
+  )
+)
+```
+
+```{r}
+ggplot(
+  ensemble_all,
+  aes(
+    observed * 100,
+    predicted_ensemble * 100
+  )
+) +
+
+  geom_point(alpha = 0.5) +
+
+  geom_abline(
+    slope = 1,
+    intercept = 0,
+    linetype = "dashed",
+    color = "red"
+  ) +
+
+  geom_smooth(
+    method = "lm",
+    se = FALSE,
+    color = "blue"
+  ) +
+
+  facet_wrap(
+    ~method
+  ) +
+
+  theme_bw() +
+
+  labs(
+    x = "Observed (%)",
+    y = "Predicted (%)"
+  )
+```
+
+# Choosing an ensemble strategy
+
+Each ensemble method has advantages.
+
+Unweighted:
+- simple;
+- robust;
+- easy to interpret.
+
+Weighted:
+- incorporates model quality;
+- usually improves performance.
+
+Stacked:
+- learns optimal prediction combinations;
+- often achieves the highest predictive accuracy;
+- may require larger datasets.
+
+# Best practices
+
+For exploratory studies:
+
+✓ weighted ensembles are often sufficient.
+
+For forecasting systems:
+
+✓ stacked ensembles usually provide the best performance.
+
+For small datasets:
+
+✓ unweighted and weighted ensembles may be more stable.
+
+# Summary
+
+This section introduced the `EpiExposure` model-selection framework.
+
+Key tools include:
+
+- find_bestfit()
+- model ranking
+- predictive validation
+- ensemble_bestfit()
+
+These functions help identify robust exposure-lag-response models and improve prediction reliability through ensemble forecasting.
+
+# Next steps
+
+The next section focuses on advanced sensitivity and scenario analyses.
+
+Topics include:
+
+- df_sensitivity()
+- elasticity analysis
+- critical thresholds
+- response gradients
+- management scenario evaluation
+
+These tools help identify which environmental factors exert the greatest influence on disease outcomes.
