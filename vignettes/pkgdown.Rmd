@@ -443,7 +443,7 @@ check_identifiability(data = sim_data,
  #                   uncertainty = TRUE, output = "summary", n_samples = 10)
 
 epi_l = summarise_effects(fit = fit, data = sim_data,
-                  scale = "daily", effect_measure = "percent",
+                  scale = "lag", effect_measure = "percent",
                   uncertainty = TRUE, n_samples = 20,
                   output = "summary",
                   at = list (
@@ -1268,10 +1268,10 @@ cor.test(ctt$ECI_weighted, ctt$y,
 
 ctt |> 
   ggplot()+
-  geom_point(aes(ECI_weighted,y))+
-  geom_smooth(aes(ECI_weighted,y),se = F)+
-  geom_smooth(aes(lower,y),se = F)+
-  geom_smooth(aes(upper,y),se = F)
+  geom_jitter(aes(ECI_weighted,predicted))+
+  geom_smooth(aes(ECI_weighted,predicted),se = F)+
+  geom_smooth(aes(ECI_weighted,predicted_lower),se = F)+
+  geom_smooth(aes(ECI_weighted,predicted_upper),se = F)
 
 ctt2 = ctt |> 
 mutate(pressure = case_when(y > 0.24 ~ "High severity",
@@ -1294,6 +1294,11 @@ ctt2 |>
   facet_wrap(~pressure)
 
 median(ctt$y)
+
+
+ct |> 
+  ggplot(aes(ECI_weighted,predicted))+
+  geom_point()
 ```
 
 ## Lag
@@ -1308,6 +1313,8 @@ ct2  = compute_ecilag(
   uncertainty = FALSE,
   n_samples = 10,
   output = "summary")
+
+
 
 ct3 = ct2$by_lag
 
@@ -2042,6 +2049,7 @@ best_models <- find_bestfit(
   verbose = TRUE,
   keep_fits = TRUE
 )
+
 ```
 
 ```{r}

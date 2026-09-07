@@ -188,6 +188,13 @@ when requested here, but group-specific random effects are not included in
 downstream predictions. This function itself only fits the model and does
 not create outcome predictions or uncertainty summaries.
 
+For `glmmTMB`, the model is fitted with the fully evaluated EpiExposure
+design, but the stored model call is compacted after fitting so that the
+original `data` expression is displayed instead of printing the complete
+evaluated data.frame and its EpiExposure attributes. This affects only the
+stored call used for display/re-evaluation; it does not alter the fitted
+coefficients, likelihood, covariance matrix, predictions, or metadata.
+
 Bayesian engines may generate posterior coefficient draws as part of their
 native fitting procedure (notably `bdlnm`). Those stored coefficient draws
 are model output and are available for later draw-by-draw uncertainty

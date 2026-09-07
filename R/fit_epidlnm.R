@@ -165,6 +165,13 @@
 #' downstream predictions. This function itself only fits the model and does
 #' not create outcome predictions or uncertainty summaries.
 #'
+#' For `glmmTMB`, the model is fitted with the fully evaluated EpiExposure
+#' design, but the stored model call is compacted after fitting so that the
+#' original `data` expression is displayed instead of printing the complete
+#' evaluated data.frame and its EpiExposure attributes. This affects only the
+#' stored call used for display/re-evaluation; it does not alter the fitted
+#' coefficients, likelihood, covariance matrix, predictions, or metadata.
+#'
 #' Bayesian engines may generate posterior coefficient draws as part of their
 #' native fitting procedure (notably `bdlnm`). Those stored coefficient draws
 #' are model output and are available for later draw-by-draw uncertainty
@@ -328,6 +335,12 @@ fit_epidlnm <- function(
   # =========================================================
   # BASIC VALIDATION
   # =========================================================
+
+  # Preserve the caller's original data expression for compact model calls.
+  # This prevents `do.call()` from leaving the fully evaluated data.frame
+  # embedded in engine call objects (notably `glmmTMB`), which would otherwise
+  # make `summary()` print the complete design and all EpiExposure attributes.
+  data_call <- substitute(data)
 
   if (!is.data.frame(data)) stopf("`data` must be a data.frame.")
   if (!nrow(data)) stopf("`data` must contain at least one row.")
@@ -1030,7 +1043,28 @@ fit_epidlnm <- function(
       list(formula = mixed_formula, data = fit_data, family = engine_family),
       dots
     )
-    return(attach_epiexposure_meta(do.call(glmmTMB::glmmTMB, args)))
+
+    model_obj <- do.call(glmmTMB::glmmTMB, args)
+
+    # `do.call()` evaluates `fit_data` before calling glmmTMB. Consequently,
+    # glmmTMB may store the entire evaluated data.frame inside `model_obj$call`.
+    # That makes `summary(model_obj)` print hundreds/thousands of lines of
+    # design values and attributes before the ordinary model summary.
+    #
+    # Replace only the stored `data` component of the call with the expression
+    # originally supplied by the user (for example, `dat`). The fitted object
+    # itself, its TMB structures, estimates, likelihood, vcov, and EpiExposure
+    # metadata are untouched.
+    if (!is.null(model_obj$call) && is.call(model_obj$call)) {
+      call_parts <- as.list(model_obj$call)
+
+      if ("data" %in% names(call_parts)) {
+        call_parts[["data"]] <- data_call
+        model_obj$call <- as.call(call_parts)
+      }
+    }
+
+    return(attach_epiexposure_meta(model_obj))
   }
 
   # =========================================================
