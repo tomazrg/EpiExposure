@@ -2,7 +2,7 @@
 % Please edit documentation in R/reduce_effects.R
 \name{reduce_effects}
 \alias{reduce_effects}
-\title{Reduce DLNM effects to one dimension}
+\title{Reduce a fitted DLNM to a one-dimensional association}
 \usage{
 reduce_effects(
   fit,
@@ -16,55 +16,273 @@ reduce_effects(
   uncertainty = FALSE,
   output = c("summary", "samples"),
   n_samples = 1000,
-  seed = NULL
+  seed = NULL,
+  ref = list(method = "median", value = NULL),
+  at = NULL,
+  interval_probs = c(0.025, 0.975),
+  extrapolation = c("error", "warn", "allow")
 )
 }
 \arguments{
-\item{fit}{Fitted model returned by `fit_epidlnm()`.}
+\item{fit}{Fitted model returned by the current `fit_epidlnm()`.}
 
-\item{data}{Long-format exposure data containing `group`, `time`, and `var`.}
+\item{data}{Non-empty long-format exposure data containing `group`, `time`,
+  and **every exposure variable fitted in `fit`**.
 
-\item{var}{Character scalar naming one fitted exposure variable.}
+  `data` is used only to:
 
-\item{group}{Character scalar naming the grouping column.}
+  - validate the exact EpiExposure temporal-history contract;
+  - calculate a method-based reference value when requested;
+  - validate exposure support for `value`, `at`, and the reference.
 
-\item{time}{Character scalar naming the chronological time column.}
+  It is **not** used to reconstruct or re-estimate the fitted cross-basis.
 
-\item{type}{Reduction type: `"overall"`, `"lag"`, or `"var"`.}
+  Every group must contain exactly
 
-\item{value}{Finite numeric value required for `type = "lag"` or
-`type = "var"`.}
+  \deqn{
+    history\_length = max\_lag + 1
+  }
 
-\item{scale}{Output scale: `"link"`, `"response"`, or `"percent"`.}
+  rows, with finite complete exposure histories, unique chronological times,
+  regular spacing within groups, and the same spacing across groups.}
 
-\item{uncertainty}{Logical. Propagate coefficient uncertainty.}
+\item{var}{Character scalar naming one exposure variable that was fitted in
+`fit`.}
 
-\item{output}{Character. `"summary"` or `"samples"`.}
+\item{group}{Character scalar naming the grouping column in `data`. Default
+is `"epi_id"`.}
 
-\item{n_samples}{Positive integer number of draws. At least two are required
-when `uncertainty = TRUE`.}
+\item{time}{Character scalar naming the chronological time column in `data`.
+Default is `"time"`. The column must be finite numeric.}
 
-\item{seed}{Optional finite integer used for reproducible sampling.}
+\item{type}{Reduction type:
+
+  - `"overall"`: overall cumulative exposure-response association across the
+    complete fitted lag window;
+  - `"lag"`: exposure-response association at one specified lag;
+  - `"var"`: lag-response association at one specified exposure value.
+
+  These meanings follow `dlnm::crossreduce()`.}
+
+\item{value}{`NULL` for `type = "overall"`. For `type = "lag"`, one finite
+numeric lag coordinate within `0:max_lag`. For `type = "var"`, one finite
+numeric exposure value at which the lag-response association is reduced.}
+
+\item{scale}{Character. One of `"percent"`, `"response"`, or `"link"`.
+
+  This argument is retained for backward compatibility with the original
+  EpiExposure API:
+
+  - `"link"` returns the centered DLNM association contrast `eta` unchanged;
+  - `"response"` is a historical label for the directly transformed
+    **association measure**, not an absolute expected response. For a log
+    link it returns `exp(eta)`, a response ratio; for a logit link it returns
+    `exp(eta)`, an odds ratio; for an identity link it returns the additive
+    response-scale difference `eta`;
+  - `"percent"` returns `100 * (exp(eta) - 1)` for log and logit links.
+
+  For a log link, `"percent"` is the percent relative change in the expected
+  response. For a logit link, it is the percent change in **odds**, not a
+  percentage-point change in probability.
+
+  A centered DLNM contrast alone does not identify an absolute response
+  probability/mean because the model intercept and the complete joint
+  reference profile are not part of the reduced contrast. Therefore
+  `"response"` is unavailable for probit, complementary-log-log, inverse, or
+  other links for which no direct association-scale transformation is
+  defined here. Use `summarise_effects()` when absolute response-scale
+  `baseline`, `predicted`, and `delta` quantities are required.}
+
+\item{uncertainty}{Logical scalar. If `FALSE`, use the central
+fixed/population parameter estimate. If `TRUE`, propagate joint
+fixed/population parameter uncertainty draw by draw.}
+
+\item{output}{Character. `"summary"` or `"samples"`.
+
+  `"samples"` requires `uncertainty = TRUE` and returns one row per
+  parameter draw and reduction coordinate. `"summary"` returns deterministic
+  central-parameter values when `uncertainty = FALSE`, or median, standard
+  deviation, and empirical quantiles when `uncertainty = TRUE`.}
+
+\item{n_samples}{Positive integer number of parameter draws when
+`uncertainty = TRUE`. Default is `1000`; at least two draws are required.}
+
+\item{seed}{`NULL` or one non-negative finite integer controlling parameter
+sampling when `uncertainty = TRUE`. The caller's previous random-number
+state is restored when the function exits.}
+
+\item{ref}{Reference exposure specification used as `cen` in
+  `dlnm::crossreduce()`. Default is
+  `list(method = "median", value = NULL)`.
+
+  Supported method-based forms are:
+
+  - `list(method = "median", value = NULL)`;
+  - `list(method = "percentile", value = p)`, with `0 <= p <= 1`;
+  - `list(method = "fixed", value = x)`, with finite numeric `x`.
+
+  Unlike `summarise_effects()`, this function reduces only one focal
+  exposure at a time, so a joint multi-exposure reference profile is not
+  required. The selected scalar reference is passed explicitly to
+  `crossreduce(cen = ...)`; the function never relies on the implicit
+  mid-range centering defaults of `dlnm`.}
+
+\item{at}{Optional finite numeric vector of exposure values at which the
+  reduced exposure-response association is evaluated for
+  `type = "overall"` or `type = "lag"`.
+
+  If `NULL`, the prediction grid is selected by `dlnm::crossreduce()` from
+  the stored fitted basis range. `at` is not applicable to `type = "var"`
+  because that reduction is evaluated over lag coordinates.}
+
+\item{interval_probs}{Numeric vector of length two defining the empirical
+uncertainty interval. Default is `c(0.025, 0.975)`.}
+
+\item{extrapolation}{Character controlling exposure values outside the
+  range stored with the fitted cross-basis: `"error"` (default), `"warn"`,
+  or `"allow"`.
+
+  The setting applies to the reference value, `value` when
+  `type = "var"`, and user-supplied `at`. It never re-estimates the basis.}
 }
 \value{
-A data.frame containing the reduction coordinate `x`, the reduced
-  linear-predictor effect `eta`, transformed `effect`, and reduction metadata.
-  Uncertainty summaries additionally contain `eta_sd`, `low`, `high`,
-  `low_eff`, and `high_eff`. Sample output contains `sample`.
+A data frame.
+
+  The reduction coordinate is stored in `x`:
+
+  - for `type = "overall"` and `type = "lag"`, `x` is exposure;
+  - for `type = "var"`, `x` is lag.
+
+  Every output contains:
+
+  - `x`: reduction coordinate;
+  - `eta`: centered reduced association on the fitted link/linear-predictor
+    scale;
+  - `effect`: requested representation of that association;
+  - `type`, `value`, `reference`, `scale`, and `var`.
+
+  With `uncertainty = TRUE, output = "summary"`, the result additionally
+  contains:
+
+  - `eta_sd`, `low`, `high`: SD and empirical interval for `eta`;
+  - `effect_sd`, `low_eff`, `high_eff`: SD and empirical interval for the
+    draw-by-draw transformed effect.
+
+  With `output = "samples"`, `sample` identifies the joint parameter draw.
+
+  Attributes store the central reduced one-dimensional coefficients and
+  basis returned by `dlnm::crossreduce()`, the reference and transformation
+  contracts, and the inherited EpiExposure temporal metadata.
 }
 \description{
-Reduces a fitted DLNM exposure-lag-response association using
-`dlnm::crossreduce()`. The cross-basis is reconstructed exclusively from the
-exposure specification stored by `fit_epidlnm()`.
+Reduces one fitted EpiExposure distributed lag non-linear model (DLNM)
+exposure-lag association using `dlnm::crossreduce()`.
 }
 \details{
-When `uncertainty = FALSE`, effects are calculated from the central
-coefficient estimates supplied by the fitted engine. When
-`uncertainty = TRUE`, effects are calculated for every coefficient draw and
-summarized using the median and empirical 2.5% and 97.5% quantiles.
+The function is a **reduction/reparameterization** of the fitted DLNM, not a
+new model fit. The fitted two-dimensional exposure-by-lag association is
+re-expressed using the one-dimensional basis for either the exposure
+dimension or the lag dimension.
 
-For log-link models, `scale = "percent"` is a relative percentage change in
-the expected outcome. For logit-link models, it is a relative exposure effect
-on the linear-predictor scale and is not a direct percentage change in the
-response. Percent scale is unavailable for other links.
+Critically, `reduce_effects()` uses the exact `crossbasis` object and
+coefficient mapping stored by the current `fit_epidlnm()` implementation.
+It never re-estimates knots, boundary knots, basis dimensions, lag
+parameterization, or coefficient alignment from the supplied `data`.
+
+
+## What `crossreduce()` does
+
+A fitted DLNM is parameterized by a two-dimensional cross-basis. The
+`dlnm::crossreduce()` operation re-expresses that fit using modified
+coefficients for a one-dimensional basis. It can produce:
+
+- an overall cumulative exposure-response summary (`type = "overall"`);
+- an exposure-response summary at one lag (`type = "lag"`);
+- a lag-response summary at one exposure value (`type = "var"`).
+
+The reduction is algebraic: it does not refit the epidemiological model.
+
+## Stored fitted basis is authoritative
+
+The `crossbasis` used here is the object stored in
+`attr(fit, "epiexposure_basis_objects")`. Canonical EpiExposure cross-basis
+coefficient names are mapped to the stored native basis order through the
+metadata created by `define_exposures()`, `build_design()`, and
+`fit_epidlnm()`.
+
+`data` is never pooled to create another `crossbasis`. This prevents
+prediction/reduction data from redefining data-dependent spline knots,
+boundary knots, ranges, or column order.
+
+## Exact common-history contract
+
+Current EpiExposure fits satisfy:
+
+\deqn{
+  history\_length = max\_lag + 1
+}
+
+and every fitted exposure uses the same `max_lag`.
+
+`reduce_effects()` validates this metadata and requires every supplied group
+to contain exactly that many rows. Longer histories are not truncated and
+shorter histories are not padded. Every fitted exposure must be present in
+`data` on the same rows, so the function cannot silently compare or derive
+references from histories with different temporal support.
+
+For `max_lag = 0`, `history_length = 1`; no temporal step can be inferred
+from a one-row history and the stored time step is expected to be `NA`.
+
+## Centering and reference
+
+`dlnm::crossreduce()` has its own default centering rules when `cen` is not
+supplied. EpiExposure deliberately does not use those implicit defaults.
+The `ref` argument resolves one explicit focal-exposure reference value and
+passes it as `cen`.
+
+Consequently, `eta = 0` is the neutral centered association and, for log or
+logit links, `exp(eta) = 1` is the neutral exponentiated association.
+
+## Link scale versus transformed association
+
+`eta` is a contrast on the model's additive linear-predictor scale. Applying
+an inverse link directly to a contrast is generally **not** the same as
+calculating an expected response.
+
+In particular, for a logit model:
+
+\deqn{
+  exp(eta)
+}
+
+is an odds ratio, whereas
+
+\deqn{
+  plogis(eta)
+}
+
+is not the response probability associated with the fitted model unless the
+omitted baseline linear predictor were exactly zero. Therefore this function
+never applies `plogis()` directly to the reduced contrast.
+
+## Uncertainty contract
+
+When `uncertainty = FALSE`, the reduction uses the central parameter estimate:
+
+- fitted fixed coefficients for frequentist engines;
+- posterior-mean fixed/population coefficients for Bayesian engines.
+
+When `uncertainty = TRUE`, EpiExposure obtains one joint
+fixed/population-parameter draw matrix from the shared engine helpers. The
+same row of that matrix defines one coherent draw. The focal cross-basis
+coefficients are then reduced by `crossreduce()` draw by draw.
+
+All transformations are performed **before** uncertainty summaries are
+calculated. Summary output therefore reports the median, SD, and empirical
+interval of the transformed draw distribution itself.
+
+Fitted random effects are excluded. Residual, observation, process,
+dispersion, and posterior-predictive noise are not added. Uncertainty
+therefore refers to the fitted association/expected-response parameter
+structure, not to a future noisy observation.
 }

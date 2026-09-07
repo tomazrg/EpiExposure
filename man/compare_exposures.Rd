@@ -2,7 +2,7 @@
 % Please edit documentation in R/compare_exposures.R
 \name{compare_exposures}
 \alias{compare_exposures}
-\title{Compare exposure profiles through time}
+\title{Compare chronological exposure profiles}
 \usage{
 compare_exposures(
   exposures = NULL,
@@ -12,129 +12,259 @@ compare_exposures(
   group = NULL,
   agg_fun = c("median", "mean"),
   mode = c("global", "timewise"),
+  cor_method = c("pearson", "spearman", "kendall"),
   q = 0.8,
   eps = 1e-12
 )
 }
 \arguments{
-\item{exposures}{Named list of numeric vectors. Each element represents
-an exposure profile supplied in chronological order, from the earliest
-to the most recent observation. All vectors must have the same length.
-Alternatively, a single numeric vector is accepted and converted to
-a named list.}
+\item{exposures}{Named list of numeric exposure profiles. Every element must
+  represent the same exposure variable, in the same units, over the same
+  chronological positions, and all profiles must have equal length.
 
-\item{exposure1}{Legacy numeric vector used for backward compatibility.
-Must be supplied together with `exposure2` when `exposures` is `NULL`.}
+  Profiles must be stored from the earliest/oldest observation to the most
+  recent observation. A single numeric vector is still accepted for backward
+  compatibility, but at least two profiles or aggregated groups are required
+  for an actual comparison.}
 
-\item{exposure2}{Legacy numeric vector used for backward compatibility.
-Must be supplied together with `exposure1` when `exposures` is `NULL`.}
+\item{exposure1}{Legacy numeric exposure vector. It must be supplied together
+with `exposure2` when `exposures = NULL`.}
 
-\item{time}{Optional numeric vector defining chronological time positions.
-The vector must have the same length as each exposure profile and must
-be ordered from the earliest to the most recent observation. If `NULL`,
-the sequence `0:(n - 1)` is used.}
+\item{exposure2}{Legacy numeric exposure vector. It must be supplied together
+  with `exposure1` when `exposures = NULL`.
 
-\item{group}{Optional vector defining group membership for each exposure
-profile. Its length must equal the number of profiles in `exposures`.
-When provided, profiles are first aggregated within each group and
-comparisons are performed between the resulting group-level profiles.}
+  If `exposures` is supplied, `exposure1` and `exposure2` must both be
+  `NULL`; legacy arguments are not silently ignored.}
 
-\item{agg_fun}{Aggregation function used when `group` is provided.
-Available options are `"median"` and `"mean"`. The median is the default
-and is generally more robust to extreme exposure profiles.}
+\item{time}{Optional numeric vector of chronological time positions. It must
+  have the same length as every exposure profile, contain unique finite
+  values, be strictly increasing, and be equally spaced.
 
-\item{mode}{Type of comparison:
-\describe{
-  \item{"global"}{
-    Returns one row per pairwise comparison, including distance,
-    correlation, magnitude, timing, center-of-mass, and overlap metrics.
-  }
-  \item{"timewise"}{
-    Returns one row per chronological time position and pairwise
-    comparison, retaining the full temporal resolution of the profiles.
-  }
-}}
+  Equal spacing is required because EpiExposure profiles represent complete
+  regular exposure histories and several global metrics treat each temporal
+  position equally.
 
-\item{q}{Numeric scalar between 0 and 1. Quantile threshold used to define
-high-exposure time positions when calculating overlap. The default is
-`0.8`.}
+  If `NULL`, `0:(n - 1)` is used.}
 
-\item{eps}{Positive numeric scalar used to avoid division by zero in ratio
-and center-of-mass calculations. The default is `1e-12`.}
+\item{group}{Optional group membership for the supplied profiles. When
+  provided, profiles are first aggregated within each group at every time
+  position using `agg_fun`, and pairwise comparisons are made between the
+  resulting group-level profiles.
+
+  An unnamed vector is matched by profile position. A named vector is safer:
+  its names must match `names(exposures)` exactly and are used to align group
+  membership to profiles before aggregation.}
+
+\item{agg_fun}{Character. `"median"` or `"mean"`. Used only when `group` is
+supplied. The default is `"median"`.}
+
+\item{mode}{Character. `"global"` or `"timewise"`.
+
+  \describe{
+    \item{`"global"`}{Returns one row per pairwise profile comparison with
+      distance, magnitude, correlation, peak-timing, center-of-mass, and
+      high-exposure overlap summaries.}
+    \item{`"timewise"`}{Returns one row per chronological position and
+      pairwise comparison, retaining the complete exposure histories.}
+  }}
+
+\item{cor_method}{Character correlation method used in `mode = "global"`.
+  Available options are:
+
+  - `"pearson"` (default): linear association between the original exposure
+    values;
+  - `"spearman"`: monotonic association calculated from exposure ranks;
+  - `"kendall"`: Kendall's rank correlation (tau), also measuring monotonic
+    association and often useful for small samples or many non-linear
+    monotonic relationships.
+
+  The selected method changes only the `corr` summary. All distance,
+  magnitude, timing, center-of-mass, and overlap metrics are unchanged.
+
+  Correlation is returned as `NA` when either profile is constant because
+  none of the supported correlation coefficients is defined in that case.}
+
+\item{q}{Finite numeric scalar between 0 and 1. Each profile's own `q`
+quantile defines its high-exposure positions for the Jaccard-style
+`overlap_above_q` metric. The default is `0.8`.}
+
+\item{eps}{Positive finite numeric tolerance. It is used only to decide when
+  a time-wise ratio denominator or a non-negative profile's total
+  center-of-mass weight is numerically indistinguishable from zero.
+
+  `eps` is **not added to exposure values** and therefore never modifies a
+  profile before comparison.}
 }
 \value{
-A data.frame.
+A data frame.
 
-If `mode = "global"`, the output contains one row per pairwise comparison
-with:
-\itemize{
-  \item `exposure1` and `exposure2`: names of the compared profiles;
-  \item `n_time`: number of time positions;
-  \item `L1`, `L2`, and `Linf`: distance metrics;
-  \item `diff_sum`, `diff_mean`, and `diff_sd`: differences in profile
-    summary statistics;
-  \item `corr`: Pearson correlation between profiles;
-  \item `peak_time1` and `peak_time2`: chronological positions of maximum
-    exposure;
-  \item `timing_shift_peak`: difference between peak times;
-  \item `com1` and `com2`: temporal centers of mass;
-  \item `center_of_mass_shift`: difference between centers of mass;
-  \item `overlap_above_q`: overlap between high-exposure time positions;
-  \item `q`: quantile used to define high exposure.
-}
+  With `mode = "timewise"`, the output contains:
 
-If `mode = "timewise"`, the output contains one row per time position
-and pairwise comparison with:
-\itemize{
-  \item `exposure1` and `exposure2`;
-  \item `time`;
-  \item `value1` and `value2`;
-  \item `diff`;
-  \item `abs_diff`;
-  \item `ratio`.
-}
+  - `exposure1`, `exposure2`: compared profile/group names;
+  - `position`: chronological position `1, ..., n`;
+  - `time`: chronological time supplied by the user;
+  - `lag`: positional retrospective lag, with lag 0 at the most recent
+    observation;
+  - `value1`, `value2`;
+  - `diff = value1 - value2`;
+  - `abs_diff = abs(diff)`;
+  - `ratio = value1 / value2` when `abs(value2) > eps`, otherwise `NA`;
+  - `ratio_defined`: whether that numerical ratio was computed.
+
+  With `mode = "global"`, the output contains one row per pair and includes:
+
+  - discrete distances `L1`, `L2`, and `Linf`;
+  - `MAE` and `RMSE`, which are length-normalized profile discrepancies;
+  - individual and between-profile sums, means, and SDs;
+  - the selected Pearson, Spearman, or Kendall correlation when both
+    profiles vary;
+  - peak values and peak timing;
+  - explicit information about tied maxima;
+  - temporal centers of mass when the corresponding profile is non-negative
+    and has positive total mass;
+  - profile-specific high-exposure thresholds and Jaccard overlap.
+
+  Output attributes record chronological order, common time step, comparison
+  direction, grouping information, and the ratio/center-of-mass contracts.
 }
 \description{
-Compares exposure profiles between two or more scenarios, epidemics,
-or simulated exposure histories. The function supports both global
-aggregated comparisons and time-wise comparisons, enabling detailed
-temporal analysis of exposure differences.
+Compares two or more exposure histories, simulated scenarios, or
+epidemic-specific exposure profiles while preserving the EpiExposure
+chronological profile convention.
 }
 \details{
-Exposure profiles must be supplied in chronological order, from the
-earliest observation to the most recent observation. The first element
-of each exposure vector therefore corresponds to the earliest time
-position, and the last element corresponds to the most recent time
-position.
+Each profile must be ordered from the **oldest/earliest** exposure
+observation to the **most recent** observation. Consequently, for a profile
+of length `n`, the final element corresponds to retrospective lag 0 and the
+first element corresponds to positional lag `n - 1`.
 
-The function also supports grouping of exposure profiles, such as multiple
-epidemics belonging to the same treatment or scenario. When grouping is
-requested, profiles are aggregated at each time position using either
-the median or mean before pairwise comparisons are performed.
+`compare_exposures()` is descriptive. It compares exposure histories
+themselves and does not estimate DLNM effects, disease risks, or model
+predictions.
 
 
-This function operates exclusively on chronological exposure profiles.
-No reversal is applied internally. Users must supply each profile from
-the earliest observation to the most recent observation.
+## Comparison direction
 
-Global comparisons summarize overall differences and similarities across
-the complete exposure history. Time-wise comparisons preserve the full
-chronological resolution and are suitable for identifying and plotting
-when differences occurred.
+Pairwise differences are directional:
 
-When observational datasets contain many epidemic-specific profiles,
-`group` can be used to create representative group-level profiles before
-comparison. Aggregation is performed independently at each time position.
+\deqn{difference = exposure1 - exposure2.}
 
-The ratio at each time position is calculated as:
+Therefore positive `diff`, `diff_sum`, or `diff_mean` values indicate larger
+exposure in the first named profile than in the second.
+
+`timing_shift_peak` and `center_of_mass_shift` follow the same direction:
+
+\deqn{time_1 - time_2.}
+
+Positive values therefore mean that the corresponding timing summary occurs
+later in `exposure1`.
+
+## Discrete distance metrics
+
+For paired profile values \eqn{x_{1t}} and \eqn{x_{2t}},
+
+\deqn{L1 = \sum_t |x_{1t} - x_{2t}|,}
+
+\deqn{L2 = \sqrt{\sum_t (x_{1t} - x_{2t})^2},}
+
+and
+
+\deqn{Linf = \max_t |x_{1t} - x_{2t}|.}
+
+`L1` and `L2` increase with the number of represented time positions. `MAE`
+and `RMSE` are therefore also returned when comparisons across equal-unit
+histories of different lengths are needed.
+
+These distances retain the units/scaling of the exposure profile and should
+only be compared across profiles of the same exposure variable and units.
+
+## Time-wise ratios
+
+Earlier EpiExposure code calculated
+
+\deqn{x_1 / (x_2 + eps),}
+
+which changed every denominator, including perfectly valid non-zero values.
+The current implementation never alters observed exposure values. It returns
+
+\deqn{x_1/x_2}
+
+only when `abs(x2) > eps`; otherwise the ratio is `NA`.
+
+A numerical ratio is not automatically scientifically meaningful. It should
+only be interpreted as a relative exposure contrast when the exposure is
+measured on a ratio scale with a meaningful zero. For example, ratios of
+temperatures expressed in degrees Celsius generally should not be interpreted
+as relative temperature effects.
+
+## Correlation method
+
+`cor_method` controls only the global `corr` column:
+
+- Pearson measures linear co-variation of the original profile values;
+- Spearman is Pearson correlation of the ranks and measures monotonic
+  association;
+- Kendall returns Kendall's tau, based on concordant and discordant pairs.
+
+Correlation describes similarity in temporal pattern, not similarity in
+absolute exposure magnitude. For example, two profiles can have correlation
+close to 1 while one is systematically much larger than the other. Distance
+and magnitude metrics should therefore be interpreted alongside `corr`.
+
+No correlation is causal and no p-value is computed by this descriptive
+function.
+
+## Peak timing and ties
+
+`peak_time1` and `peak_time2` retain the first chronological occurrence of
+the maximum for backward compatibility. The function additionally returns
+first and last peak times, the midpoint of their temporal range, the number
+of maximum positions, and indicators of tied maxima. Thus a plateau or
+repeated equal maximum is never hidden by `which.max()`.
+
+`timing_shift_peak` uses the first peak times for backward compatibility.
+`timing_shift_peak_midpoint` compares the midpoints of the full peak-time
+ranges and is usually more informative when maxima are tied.
+
+## Temporal center of mass
+
+For a non-negative profile with positive total exposure, the temporal center
+of mass is
+
+\deqn{COM = \frac{\sum_t time_t x_t}{\sum_t x_t}.}
+
+Earlier versions silently replaced negative exposure values by zero before
+computing COM. That changes the supplied profile and is no longer done.
+
+If a profile contains any negative value, or its non-negative total mass is
+not greater than `eps`, its COM is returned as `NA` and `com_defined` is
+`FALSE`. Even for non-negative data, COM is scientifically interpretable only
+when zero and exposure magnitude have a meaningful weighting interpretation.
+
+## High-exposure overlap
+
+Each profile obtains its own threshold:
+
+\deqn{Q_j(q) = quantile(x_j, q).}
+
+High-exposure positions satisfy \eqn{x_{jt} >= Q_j(q)}. The returned
+`overlap_above_q` is the Jaccard index
 
 \deqn{
-  \frac{x_1}{x_2 + \epsilon}
+  \frac{|H_1 \cap H_2|}{|H_1 \cup H_2|}.
 }
 
-where \eqn{\epsilon} is controlled by `eps`.
+This measures whether the two profiles experience their **own relatively high
+exposure** at the same times. It is not an overlap above one common absolute
+exposure threshold. Ties at the quantile threshold can make the number of
+high positions larger than exactly `(1 - q) * n`; counts and thresholds are
+returned explicitly.
 
-The temporal center of mass is calculated after replacing negative
-exposure values with zero. Consequently, this metric is primarily
-meaningful for non-negative exposure variables.
+## Group aggregation
+
+With `group`, aggregation occurs independently at every chronological
+position before any pairwise metric is calculated. The resulting comparison
+therefore describes representative group-level profiles, not a distribution
+of pairwise epidemic-level differences. No uncertainty interval or
+inferential test is produced by this function.
 }

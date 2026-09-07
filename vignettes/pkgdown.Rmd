@@ -60,6 +60,7 @@ data("epi_data")
 
 ```{r}
 epi_data
+
 ```
 
 In `EpiExposure`, exposure profiles are always supplied in chronological order:
@@ -297,8 +298,11 @@ predict_outcome(
 
 This framework enables hypothetical epidemiological questions such as:
 
-• What would happen if rainfall increased? • What would happen if favorable conditions occured earlier or later in the lag structures? • How sensitive is disease severity to different exposure histories?
+• What would happen if rainfall increased?
+• What would happen if favorable conditions occured earlier or later in the lag structures? 
+• How sensitive is disease severity to different exposure histories?
 
+####################################################### 
 ####################################################### 
 
 ```{r}
@@ -1397,13 +1401,14 @@ plot_tmean_simu_01  = df_tmean_01%>%
   #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
   geom_line(color = "#C44E52", size = 1.4)+
   theme_bw()+
-  labs(x = "Time",
+  labs(x = "",
        y = "Exposure")+
   scale_x_continuous(
   limits = c(0, 85),
   breaks = seq(0, 85, by = 10)
 )+
-  theme(text = element_text(size = 10, face = "bold"))
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.text.x = element_blank())
 ```
 
 ```{r}
@@ -1426,12 +1431,13 @@ plot_rain_simu_01  = df_rain_01%>%
   #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
   geom_line(color = "#4C72B0", size = 1.4)+
   theme_bw()+
-  labs(x = "Time",
+  labs(x = "",
        y = "Exposure")+
   scale_x_continuous(
   limits = c(0, 85),
   breaks = seq(0, 85, by = 10))+
-  theme(text = element_text(size = 10, face = "bold"))
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.text.x = element_blank())
 ```
 
 ```{r}
@@ -1454,12 +1460,13 @@ plot_wetness_simu_01  = df_wetness_01%>%
   #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
   geom_line(color = "#55A868", size = 1.4)+
   theme_bw()+
-  labs(x = "Time",
+  labs(x = "",
        y = "Exposure")+
   scale_x_continuous(
   limits = c(0, 85),
   breaks = seq(0, 85, by = 10))+
-  theme(text = element_text(size = 10, face = "bold"))
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.text.x = element_blank())
 ```
 
 ```{r}
@@ -1479,13 +1486,25 @@ pred_01
 ```
 
 ```{r}
+
+pred_011 = pred_01 |> 
+  summarise(
+    mean = mean(prediction*100),
+    median = median(prediction*100)
+  )
+
 sev_01  = pred_01 |> 
   ggplot(aes(prediction*100))+
   geom_histogram(color = "white", fill = "black", bins = 10)+
+    geom_vline(data = pred_011, aes(xintercept = mean), color = "orange",size =1)+
+  geom_vline(data = pred_011, aes(xintercept = median), color = "red",size =1)+
   theme_bw()+
-  labs(x = "Predicted",
+  labs(x = "",
        y = "Frequency")+
-  theme(text = element_text(size = 10, face = "bold"))
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.text.x = element_blank())
+
+sev_01
 ```
 
 ## Scenario 02
@@ -1568,7 +1587,7 @@ plot_tmean_simu_02  = df_tmean_02%>%
   #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
   geom_line(color = "#C44E52", size = 1.4)+
   theme_bw()+
-  labs(x = "Time",
+  labs(x = "Days after planting the rice",
        y = "Exposure")+
   scale_x_continuous(
   limits = c(0, 85),
@@ -1599,7 +1618,7 @@ plot_rain_simu_02  = df_rain_02%>%
   #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
   geom_line(color = "#4C72B0", size = 1.4)+
   theme_bw()+
-  labs(x = "Time",
+  labs(x = "Days after planting the rice",
        y = "Exposure")+
   scale_x_continuous(
   limits = c(0, 85),
@@ -1627,7 +1646,7 @@ plot_wetness_simu_02  = df_wetness_02%>%
   #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
   geom_line(color = "#55A868", size = 1.4)+
   theme_bw()+
-  labs(x = "Time",
+  labs(x = "Days after planting the rice",
        y = "Exposure")+
   scale_x_continuous(
   limits = c(0, 85),
@@ -1652,15 +1671,26 @@ pred_02
 ```
 
 ```{r}
+
+pred_022 = pred_02 |> 
+  summarise(
+    mean = mean(prediction*100),
+    median = median(prediction*100)
+  )
 sev_02  = pred_02 |> 
   ggplot(aes(prediction*100))+
   geom_histogram(color = "white", fill = "black", bins = 10)+
+  geom_vline(data = pred_022, aes(xintercept = mean), color = "orange",size =1)+
+  geom_vline(data = pred_022, aes(xintercept = median), color = "red",size =1)+
   theme_bw()+
   labs(x = "Predicted",
        y = "Frequency")+
   theme(text = element_text(size = 10, face = "bold"))
 
 sev_02
+
+median(pred_01$prediction)
+mean(pred_01$prediction)
 ```
 
 ```{r}
@@ -1669,6 +1699,7 @@ plot_grid(plot_tmean_simu_01,plot_rain_simu_01,plot_wetness_simu_01,sev_01,
 
 ggsave("simu_plot2.png", dpi = 600, height = 6, width = 12)
 ```
+
 
 # Scenarios simulation
 

@@ -1,94 +1,230 @@
-#' Summarises distributed lag nonlinear model effects
+#' Summarise DLNM exposure-lag effects on link and response scales
 #'
-#' Returns lag-specific or period-specific effect summaries based on the
-#' exposure specification stored by `fit_epidlnm()`. Exposure histories are
-#' interpreted chronologically: the first observation is the oldest exposure
-#' and the final observation is the most recent exposure, corresponding
+#' Summarises lag-specific or period-specific distributed lag nonlinear model
+#' (DLNM) associations for models fitted with `fit_epidlnm()`. The function
+#' preserves the centering logic of `dlnm::crosspred()`: each exposure-lag
+#' association is expressed relative to a reference exposure value (`cen`) for
+#' the focal exposure. EpiExposure then extends that DLNM contrast by anchoring
+#' it to a joint reference exposure profile, allowing the same association to
+#' be reported as `baseline`, `predicted`, and `delta` on the response scale.
+#'
+#' Exposure histories are interpreted chronologically. The oldest exposure is
+#' first and the most recent exposure is last; the final exposure corresponds
 #' internally to lag 0.
 #'
-#' For non-ordinal models, effects are calculated relative to a reference
-#' (baseline) exposure condition. The `"linear"` scale returns the contrast
-#' on the linear predictor scale (`eta`). The `"exponentiated"` scale returns
-#' `exp(eta)`, and the `"percent"` scale returns `(exp(eta) - 1) * 100`.
+#' @param fit Fitted model returned by the current `fit_epidlnm()`.
+#' @param data Long-format exposure data containing `epi_id`, `time`, and every
+#'   exposure variable used in the fitted model. `data` is used to define
+#'   default exposure grids and reference values and to validate temporal
+#'   coverage. Under the EpiExposure exact-history contract, every `epi_id`
+#'   must contain exactly the common fitted `max_lag + 1` time points, and all
+#'   fitted exposures therefore share the same temporal-history length. Longer
+#'   histories are not truncated and shorter histories are not padded. `data`
+#'   is **not** used to re-estimate spline knots, boundary knots, lag bases, or
+#'   any other fitted cross-basis component.
+#' @param var Exposure-variable name or names to summarise, or `NULL` to
+#'   summarise all fitted exposures.
+#' @param scale Character. `"lag"` returns lag-specific associations.
+#'   `"period"` aggregates lag-specific linear-predictor contrasts over
+#'   intervals.
+#' @param lag_periods Optional data frame containing `period`, `lag_start`, and
+#'   `lag_end`. Required when `scale = "period"` and `incremental = FALSE`.
+#'   Periods may be non-overlapping or overlapping; each period is interpreted
+#'   independently.
+#' @param probs Unique probabilities used only to construct the default exposure
+#'   evaluation grid when `at` is not supplied for a variable. Defaults to
+#'   `seq(0.05, 0.95, by = 0.01)`.
+#' @param at Optional exposure values at which associations are evaluated.
+#'   `NULL` uses the quantiles specified by `probs`. A numeric vector can be used
+#'   when exactly one exposure is requested. For multiple exposures, supply a
+#'   named list, for example
+#'   `list(tmean = seq(20, 35, by = 0.25), rain = seq(0, 40, by = 1))`.
+#'   A named list may be partial; omitted requested variables use `probs`.
+#' @param ref Reference exposure specification.
 #'
-#' Effects therefore describe how strongly a given exposure condition is
-#' associated with the outcome relative to the selected reference exposure.
-#' Values greater than zero indicate a greater relative effect than the
-#' reference condition, whereas values below zero indicate a smaller relative
-#' effect.
+#'   Two forms are supported:
 #'
-#' Under a log link, exponentiated and percent effects can be interpreted as
-#' relative changes in the expected outcome. Under a logit link, they represent
-#' relative exposure effects with respect to the reference condition and should
-#' not be interpreted as direct changes in the response variable.
+#'   \itemize{
+#'     \item Method-based: `list(method = "median", value = NULL)`,
+#'       `list(method = "percentile", value = p)`, or
+#'       `list(method = "fixed", value = x)`.
+#'     \item Exposure-specific: a named list with exactly one finite reference
+#'       value for every fitted exposure, for example
+#'       `list(tmean = 25, rain = 5, wetness = 10)`.
+#'   }
 #'
-#' For ordinal `brms` models, the function returns the predicted probability of
-#' every response category. `effect_measure` is not applied to ordinal category
-#' probabilities.
+#'   Method-based references are applied consistently to **every** fitted
+#'   exposure. Thus `method = "median"` uses each exposure's own median;
+#'   `method = "percentile"` uses the same percentile for each exposure; and
+#'   `method = "fixed"` applies the same numeric value to every exposure.
+#'   Because exposures often have different units, the exposure-specific form
+#'   is recommended for multivariable models when fixed reference values are
+#'   desired.
 #'
-#' The `delta` column is defined consistently for every non-ordinal family as
-#' `predicted - baseline` on the response scale. Its interpretation follows the
-#' response distribution: a difference in predicted means for Gaussian and
-#' Gamma models, a difference in expected counts for Poisson and Negative
-#' Binomial models, and a difference in predicted proportions or probabilities
-#' for Beta and Binomial models. For Beta and Binomial models, multiplying
-#' `delta` by 100 gives the difference in percentage points.
+#'   The focal exposure's reference value is passed to the DLNM centering
+#'   operation (`cen`). The complete set of reference values simultaneously
+#'   defines the joint reference profile used for `baseline`.
+#' @param effect_measure Character. `"linear"` returns the DLNM contrast on the
+#'   linear-predictor scale. `"exponentiated"` returns `exp(eta)` and `"percent"`
+#'   returns `100 * (exp(eta) - 1)`.
 #'
-#' @param fit Fitted model returned by `fit_epidlnm()`.
-#' @param data Long-format exposure data containing `epi_id`, `time`, and the
-#'   fitted exposure variables.
-#' @param var Exposure-variable name(s), or `NULL` for all fitted exposures.
-#' @param scale Character. `"lag"` for lag-specific effects or
-#'   `"period"` for cumulative effects aggregated across lag intervals.
-#' @param lag_periods Optional data.frame with `period`, `lag_start`,
-#'   and `lag_end`, required for user-defined period summaries.
-#' @param probs Unique probabilities used to generate the exposure grid for
-#'   variables without a custom `at` specification. The default preserves the
-#'   current quantile-based behavior.
-#' @param at Optional exposure values at which effects are evaluated. Use
-#'   `NULL` to generate quantile-based grids from `probs` for every variable.
-#'   A numeric vector is allowed when exactly one exposure variable is
-#'   requested. For multiple variables, use a named list, for example
-#'   `list(tmax = seq(29, 34, length.out = 1000), rain = seq(0, 50, by = 0.5))`.
-#'   The list may be partial: variables omitted from `at` continue to use the
-#'   quantile-based grid defined by `probs`. To evaluate effects at the unique
-#'   observed values, supply `sort(unique(data[[variable]]))` for that variable.
-#' @param ref Reference exposure specification. The original method-based form is
-#'   retained: `list(method = "median", value = NULL)`,
-#'   `list(method = "percentile", value = p)`, or
-#'   `list(method = "fixed", value = x)`. Alternatively, supply a named list
-#'   with one finite numeric reference value for every fitted exposure, for
-#'   example `list(tmean = 25, rain = 0, wetness = 10)`. In this variable-specific
-#'   form, each exposure is centered on its own reference value and the same
-#'   values define the joint baseline profile used for `baseline`, `predicted`,
-#'   and `delta`.
-#' @param effect_measure Character. `"linear"`, `"exponentiated"`, or
-#'   `"percent"`.
-#' @param incremental Logical. For `scale = "period"`, calculate
-#'   cumulative effects incrementally from lag 0 through each lag
-#'   instead of using user-defined periods.
-#' @param uncertainty Logical. Propagate coefficient uncertainty draw by draw.
-#' @param output Character. `"summary"` or `"samples"`.
-#' @param n_samples Positive integer number of draws. At least two are required
-#'   when `uncertainty = TRUE`.
-#' @param diagnostics Logical. Available only for lag-specific non-ordinal
-#'   effects. Returns integrated lag rankings and contribution metrics.
-#'   Rankings depend on `effect_measure`.
-#' @param seed Optional finite integer seed for reproducible sampling.
+#'   Exponentiation is allowed only for fitted `"log"` and `"logit"` links,
+#'   matching the convention used by `dlnm::crosspred()`. With a log link,
+#'   `exp(eta)` is a response-scale ratio and `"percent"` is the corresponding
+#'   percent relative change in the expected response. With a logit link,
+#'   `exp(eta)` is an odds ratio and `"percent"` is the percent change in odds;
+#'   neither is a percentage-point change in probability. For links such as
+#'   `"identity"`, `"probit"`, `"cloglog"`, or `"inverse"`, use
+#'   `effect_measure = "linear"`.
+#' @param incremental Logical. Used only with `scale = "period"`. If `TRUE`,
+#'   return cumulative effects from lag 0 through each successive lag. If
+#'   `FALSE`, aggregate over `lag_periods`.
+#' @param uncertainty Logical. If `FALSE`, use the harmonized central
+#'   fixed/population parameter estimate. If `TRUE`, propagate joint
+#'   fixed/population parameter uncertainty draw by draw.
+#' @param output Character. `"summary"` returns deterministic values when
+#'   `uncertainty = FALSE`, or median, SD, and empirical intervals when
+#'   `uncertainty = TRUE`. `"samples"` returns one row per parameter draw and
+#'   exposure-lag/period combination and therefore requires
+#'   `uncertainty = TRUE`.
+#' @param n_samples Positive integer number of parameter draws used when
+#'   `uncertainty = TRUE`. At least two are required.
+#' @param interval_probs Numeric vector of length two defining the empirical
+#'   uncertainty interval. The default `c(0.025, 0.975)` gives a 95 percent
+#'   interval.
+#' @param diagnostics Logical. If `TRUE`, additionally return lag-ranking and
+#'   lag-contribution diagnostics. Diagnostics are available only for
+#'   `scale = "lag"` and are always based on the additive linear-predictor
+#'   contrast `eta`, regardless of `effect_measure`. This avoids treating the
+#'   neutral value 1 of an exponentiated effect as if it were an additive
+#'   contribution.
+#' @param seed Optional finite integer used for parameter sampling. The caller's
+#'   global random-number state is restored when the function exits.
+#' @param extrapolation Character controlling values outside the exposure range
+#'   stored with the fitted cross-basis: `"error"` (default), `"warn"`, or
+#'   `"allow"`. This does not re-estimate the basis; it only controls whether
+#'   extrapolation is rejected, warned about, or allowed.
+#'
+#' @return A data frame, or when `diagnostics = TRUE`, an object of class
+#'   `"epiexposure_effects"` containing `effects` and `diagnostics`.
+#'
+#'   The principal columns have the following meanings:
+#'
+#'   \describe{
+#'     \item{`eta`}{DLNM association contrast on the fitted link/linear-predictor
+#'       scale, centered at the focal exposure reference. For
+#'       `scale = "lag"`, this is the contribution of the specified exposure
+#'       value at that lag relative to the same lag at the reference exposure.
+#'       For period summaries, lag-specific `eta` contrasts are summed on the
+#'       additive linear-predictor scale.}
+#'     \item{`effect`}{`eta` itself for `effect_measure = "linear"`, or its
+#'       permitted log/logit transformation for `"exponentiated"` or
+#'       `"percent"`.}
+#'     \item{`baseline`}{Population-level expected outcome under the **joint
+#'       reference exposure profile**: every fitted exposure is held at its own
+#'       reference value at every fitted lag and fitted random effects are set
+#'       to zero. This is an EpiExposure response-scale reference prediction; it
+#'       is not the DLNM contrast itself and should not be confused with the
+#'       neutral DLNM values `eta = 0` or `exp(eta) = 1`.}
+#'     \item{`predicted`}{Population-level expected outcome after applying the
+#'       focal DLNM contrast to that joint baseline. For a lag-specific row,
+#'       only the focal exposure at that lag is changed from its reference to
+#'       `value`; all other lags and all other fitted exposures remain at their
+#'       reference values. For a period row, the focal exposure is changed to
+#'       `value` throughout the specified lag interval while all remaining
+#'       exposure-lag positions remain at reference.}
+#'     \item{`delta`}{Absolute response-scale difference
+#'       `predicted - baseline`. For Gaussian/Gamma-type mean responses this is
+#'       a difference in expected means; for Poisson/negative-binomial outcomes
+#'       it is a difference in expected counts; and for Beta/Binomial outcomes
+#'       it is a difference in expected proportions/probabilities. Multiplying
+#'       `delta` by 100 for Beta or Binomial models gives percentage-point
+#'       differences.}
+#'   }
 #'
 #' @details
-#' The cross-basis is reconstructed exclusively from `epiexposure_spec`; basis
-#' arguments are not re-specified by the user. When `uncertainty = FALSE`, the
-#' central coefficients supplied by the fitted engine are used. When
-#' `uncertainty = TRUE`, every draw is transformed separately and summaries use
-#' the median and empirical 2.5% and 97.5% quantiles. The baseline response is
-#' intentionally held fixed, consistently with other EpiExposure functions.
+#' ## DLNM contrast and the EpiExposure response-scale extension
 #'
-#' @return A data.frame of effects or category probabilities. For non-ordinal
-#'   models, `predicted` is the response-scale prediction, `baseline` is the
-#'   response-scale reference prediction, and `delta` is their absolute
-#'   difference (`predicted - baseline`) in the natural units of the response.
-#'   With `diagnostics = TRUE`, a list with `effects` and `diagnostics`.
+#' `eta` is constructed using the centering mechanism of `dlnm::crosspred()`.
+#' The fitted cross-basis is never redefined from `data`: EpiExposure uses the
+#' stored `argvar`, `arglag`, maximum lag, and, when available, the original
+#' stored `crossbasis` object. Consequently, `eta` retains the standard DLNM
+#' interpretation as an association relative to `cen`.
+#'
+#' EpiExposure additionally defines a joint response-scale reference prediction
+#'
+#' \deqn{B = g^{-1}(X_{ref}\beta),}
+#'
+#' where every fitted exposure history is held at its selected reference value.
+#' A lag- or period-specific DLNM contrast \eqn{\Delta\eta_{x,l}} is then
+#' translated to the response scale as
+#'
+#' \deqn{P_{x,l} = g^{-1}\{g(B) + \Delta\eta_{x,l}\},}
+#'
+#' and
+#'
+#' \deqn{D_{x,l} = P_{x,l} - B.}
+#'
+#' Thus `baseline`, `predicted`, and `delta` do not replace the DLNM contrast;
+#' they provide an additional outcome-scale interpretation anchored to the same
+#' reference condition.
+#'
+#' ## Uncertainty
+#'
+#' With `uncertainty = TRUE`, one **joint** fixed/population coefficient draw is
+#' used consistently across the complete requested effect surface. For draw
+#' \eqn{s},
+#'
+#' \deqn{B^{(s)} = g^{-1}(X_{ref}\beta^{(s)}),}
+#'
+#' \deqn{P^{(s)}_{x,l} =
+#'   g^{-1}\{X_{ref}\beta^{(s)} + \Delta\eta^{(s)}_{x,l}\},}
+#'
+#' and
+#'
+#' \deqn{D^{(s)}_{x,l} = P^{(s)}_{x,l} - B^{(s)}.}
+#'
+#' The same draw therefore determines `baseline`, `eta`, `effect`, `predicted`,
+#' and `delta`, preserving their covariance. `baseline` changes across parameter
+#' draws because the fitted parameters are uncertain, but for a given draw it
+#' remains the same across all exposure-lag/period rows that use the same joint
+#' reference profile. In summary output, the same baseline uncertainty summary
+#' is therefore repeated across those rows.
+#'
+#' Parameter uncertainty includes the joint uncertainty of the fitted
+#' fixed/population coefficients. Fitted group-specific random effects are
+#' excluded because EpiExposure v1 reports population-level effects. Residual,
+#' observation, process, dispersion, and posterior-predictive noise are not
+#' added. The uncertainty interval therefore describes uncertainty in the
+#' expected response and in the exposure-lag association, not the dispersion of
+#' a future individual observation.
+#'
+#' For uncertainty summaries, all response-scale transformations are performed
+#' draw by draw before medians, SDs, and empirical quantiles are calculated.
+#'
+#' ## Exact common lag/history contract
+#'
+#' `summarise_effects()` requires the fitted model to use one common
+#' `max_lag` across all fitted exposure variables. If that common maximum lag
+#' is `L`, every epidemic history supplied in `data` must contain exactly
+#'
+#' \deqn{
+#'   L + 1
+#' }
+#'
+#' equally spaced observations. Histories with fewer or more observations are
+#' rejected explicitly. Because all exposure variables are columns of the same
+#' validated long-format history and missing/non-finite exposure values are not
+#' permitted, all fitted exposures necessarily use the same time support.
+#'
+#' ## Period effects
+#'
+#' DLNM contributions are additive on the linear-predictor scale. Period
+#' summaries therefore sum lag-specific `eta` contrasts first and only then
+#' transform the resulting contrast, if requested. With `incremental = TRUE`,
+#' periods are `0-0`, `0-1`, ..., `0-L`. Otherwise each row of `lag_periods`
+#' defines an independent lag interval.
+#'
 #' @export
 summarise_effects <- function(
     fit,
@@ -104,450 +240,1079 @@ summarise_effects <- function(
     uncertainty = FALSE,
     output = c("summary", "samples"),
     n_samples = 1000,
+    interval_probs = c(0.025, 0.975),
     diagnostics = FALSE,
-    seed = NULL
+    seed = NULL,
+    extrapolation = c("error", "warn", "allow")
 ) {
+
+  # ==========================================================================
+  # ARGUMENTS AND STRICT FIT CONTRACT
+  # ==========================================================================
+
   scale <- match.arg(scale)
   effect_measure <- match.arg(effect_measure)
   output <- match.arg(output)
+  extrapolation <- match.arg(extrapolation)
 
-  if (!is.data.frame(data)) stop("`data` must be a data.frame.")
-  if (!all(c("epi_id", "time") %in% names(data))) {
-    stop("`data` must contain at least 'epi_id' and 'time'.")
+  if (is.null(fit)) {
+    stop("`fit` cannot be NULL.", call. = FALSE)
   }
-  if (!is.logical(incremental) || length(incremental) != 1L || is.na(incremental)) {
-    stop("`incremental` must be TRUE or FALSE.")
+
+  metadata <- .get_epiexposure_metadata(fit)
+
+  if (!is.data.frame(data) || !nrow(data)) {
+    stop("`data` must be a non-empty data.frame.", call. = FALSE)
   }
-  if (!is.logical(uncertainty) || length(uncertainty) != 1L || is.na(uncertainty)) {
-    stop("`uncertainty` must be TRUE or FALSE.")
+
+  required_data <- unique(c("epi_id", "time", metadata$vars))
+  missing_data <- setdiff(required_data, names(data))
+  if (length(missing_data)) {
+    stop(
+      "`data` is missing required column(s): ",
+      paste(missing_data, collapse = ", "), ".",
+      call. = FALSE
+    )
   }
-  if (!is.logical(diagnostics) || length(diagnostics) != 1L || is.na(diagnostics)) {
-    stop("`diagnostics` must be TRUE or FALSE.")
+
+  if (anyNA(data$epi_id)) {
+    stop("`data$epi_id` cannot contain missing values.", call. = FALSE)
   }
-  if (diagnostics && scale != "lag") {
-    stop("`diagnostics = TRUE` is available only when `scale = 'lag'`.")
+
+  if (!is.numeric(data$time) || anyNA(data$time) ||
+      any(!is.finite(data$time))) {
+    stop("`data$time` must contain only finite numeric values.", call. = FALSE)
   }
-  if (!is.numeric(n_samples) || length(n_samples) != 1L ||
-      !is.finite(n_samples) || n_samples <= 0 ||
-      n_samples != as.integer(n_samples)) {
-    stop("`n_samples` must be a positive integer.")
-  }
-  n_samples <- as.integer(n_samples)
-  if (uncertainty && n_samples < 2L) {
-    stop("`n_samples` must be at least 2 when `uncertainty = TRUE`.")
-  }
-  if (!is.null(seed)) {
-    if (!is.numeric(seed) || length(seed) != 1L || !is.finite(seed) ||
-        seed != as.integer(seed)) {
-      stop("`seed` must be NULL or one finite integer.")
+
+  for (variable in metadata$vars) {
+    if (!is.numeric(data[[variable]]) || anyNA(data[[variable]]) ||
+        any(!is.finite(data[[variable]]))) {
+      stop(
+        "Exposure variable '", variable,
+        "' must contain only finite numeric values.",
+        call. = FALSE
+      )
     }
-    set.seed(as.integer(seed))
   }
-  if (!is.numeric(probs) || !length(probs) || any(!is.finite(probs)) ||
-      any(probs < 0 | probs > 1)) {
-    stop("`probs` must contain finite probabilities between 0 and 1.")
+
+  # The same temporal assumptions used by the prediction basis layer apply
+  # here. This validates spacing without re-estimating any basis component.
+  .epix_validate_regular_time(
+    data = data,
+    group_index = as.character(data$epi_id),
+    time_col = "time"
+  )
+
+  if (!identical(
+    metadata$history_contract,
+    "all_fitted_exposures_same_exact_max_lag_plus_one"
+  )) {
+    stop(
+      "`summarise_effects()` requires the EpiExposure exact-history contract.",
+      call. = FALSE
+    )
   }
-  if (anyDuplicated(probs)) stop("`probs` must contain unique probabilities.")
-  probs <- sort(probs)
+
+  required_history_length <- metadata$history_length
+
+  if (!is.numeric(required_history_length) ||
+      length(required_history_length) != 1L ||
+      is.na(required_history_length) ||
+      !is.finite(required_history_length) ||
+      required_history_length < 1L ||
+      required_history_length != as.integer(required_history_length) ||
+      !identical(
+        as.integer(required_history_length),
+        as.integer(metadata$max_lag + 1L)
+      )) {
+    stop(
+      "Stored EpiExposure history-length metadata are inconsistent with ",
+      "`max_lag + 1`.",
+      call. = FALSE
+    )
+  }
+
+  required_history_length <- as.integer(required_history_length)
+
+  group_counts <- table(as.character(data$epi_id))
+  invalid_groups <- names(group_counts)[
+    group_counts != required_history_length
+  ]
+
+  if (length(invalid_groups)) {
+    examples <- paste0(
+      invalid_groups,
+      "=",
+      as.integer(group_counts[invalid_groups])
+    )
+
+    stop(
+      "Every epidemic in `data` must contain exactly ",
+      required_history_length,
+      " observations for fitted max_lag = ",
+      metadata$max_lag,
+      ". Non-matching epi_id(s) include: ",
+      paste(utils::head(examples, 5L), collapse = ", "),
+      if (length(examples) > 5L) "; ..." else ".",
+      " Histories are not truncated, padded, or silently realigned.",
+      call. = FALSE
+    )
+  }
+
+  if (!is.logical(incremental) || length(incremental) != 1L ||
+      is.na(incremental)) {
+    stop("`incremental` must be TRUE or FALSE.", call. = FALSE)
+  }
+
+  if (!is.logical(uncertainty) || length(uncertainty) != 1L ||
+      is.na(uncertainty)) {
+    stop("`uncertainty` must be TRUE or FALSE.", call. = FALSE)
+  }
+
+  if (!is.logical(diagnostics) || length(diagnostics) != 1L ||
+      is.na(diagnostics)) {
+    stop("`diagnostics` must be TRUE or FALSE.", call. = FALSE)
+  }
+
+  if (diagnostics && !identical(scale, "lag")) {
+    stop(
+      "`diagnostics = TRUE` is available only when `scale = 'lag'`.",
+      call. = FALSE
+    )
+  }
+
+  if (!uncertainty && identical(output, "samples")) {
+    stop(
+      "`output = 'samples'` requires `uncertainty = TRUE`.",
+      call. = FALSE
+    )
+  }
+
+  if (uncertainty) {
+    n_samples <- .epix_validate_n_samples(n_samples)
+    if (n_samples < 2L) {
+      stop(
+        "`n_samples` must be at least 2 when `uncertainty = TRUE`.",
+        call. = FALSE
+      )
+    }
+  }
+
+  interval_probs <- .epix_validate_probs(interval_probs)
+
+  if (!is.numeric(probs) || !length(probs) || anyNA(probs) ||
+      any(!is.finite(probs)) || any(probs < 0 | probs > 1)) {
+    stop(
+      "`probs` must contain finite probabilities between 0 and 1.",
+      call. = FALSE
+    )
+  }
+  if (anyDuplicated(probs)) {
+    stop("`probs` must contain unique probabilities.", call. = FALSE)
+  }
+  probs <- sort(as.numeric(probs))
+
   if (!is.null(at) && !is.numeric(at) && !is.list(at)) {
-    stop("`at` must be NULL, a numeric vector, or a named list.")
+    stop(
+      "`at` must be NULL, a numeric vector, or a named list.",
+      call. = FALSE
+    )
   }
-  # `ref` supports two backward-compatible forms:
-  #   1) method-based: list(method = "median"/"percentile"/"fixed", value = ...)
-  #   2) variable-specific: list(tmean = 25, rain = 0, wetness = 10)
+
+  if (!is.null(seed)) {
+    if (!is.numeric(seed) || length(seed) != 1L || is.na(seed) ||
+        !is.finite(seed) || seed != as.integer(seed)) {
+      stop("`seed` must be NULL or one finite integer.", call. = FALSE)
+    }
+    seed <- as.integer(seed)
+  }
+
+  if (effect_measure %in% c("exponentiated", "percent") &&
+      !metadata$link %in% c("log", "logit")) {
+    stop(
+      "`effect_measure = '", effect_measure, "'` is not defined by ",
+      "`summarise_effects()` for the fitted link '", metadata$link, "'. ",
+      "Following the dlnm convention, exponentiated effects are supported ",
+      "only for log and logit links. Use `effect_measure = 'linear'` for ",
+      "identity, probit, cloglog, inverse, or other links.",
+      call. = FALSE
+    )
+  }
+
+  # ==========================================================================
+  # VARIABLE SELECTION
+  # ==========================================================================
+
+  if (is.null(var)) {
+    variables <- metadata$vars
+  } else {
+    if (!is.character(var) || !length(var) || anyNA(var) ||
+        any(!nzchar(var)) || anyDuplicated(var)) {
+      stop(
+        "`var` must be NULL or a character vector of unique non-empty ",
+        "fitted exposure names.",
+        call. = FALSE
+      )
+    }
+    unknown <- setdiff(var, metadata$vars)
+    if (length(unknown)) {
+      stop(
+        "Variable(s) not found in the fitted model: ",
+        paste(unknown, collapse = ", "), ".",
+        call. = FALSE
+      )
+    }
+    variables <- var
+  }
+
+  # ==========================================================================
+  # PERIOD VALIDATION
+  # ==========================================================================
+
+  if (identical(scale, "period") && !incremental && is.null(lag_periods)) {
+    stop(
+      "`lag_periods` is required when `scale = 'period'` and ",
+      "`incremental = FALSE`.",
+      call. = FALSE
+    )
+  }
+
+  if (!is.null(lag_periods)) {
+    required_period_columns <- c("period", "lag_start", "lag_end")
+
+    if (!is.data.frame(lag_periods) ||
+        !all(required_period_columns %in% names(lag_periods))) {
+      stop(
+        "`lag_periods` must be a data.frame containing `period`, ",
+        "`lag_start`, and `lag_end`.",
+        call. = FALSE
+      )
+    }
+
+    if (anyNA(lag_periods$period) ||
+        any(!nzchar(as.character(lag_periods$period))) ||
+        anyDuplicated(as.character(lag_periods$period))) {
+      stop(
+        "`lag_periods$period` must contain unique non-empty labels.",
+        call. = FALSE
+      )
+    }
+
+    lag_periods$period <- as.character(lag_periods$period)
+
+    for (nm in c("lag_start", "lag_end")) {
+      x <- lag_periods[[nm]]
+      if (!is.numeric(x) || anyNA(x) || any(!is.finite(x)) ||
+          any(x < 0) || any(x != as.integer(x))) {
+        stop(
+          "`lag_periods$", nm,
+          "` must contain non-negative finite integers.",
+          call. = FALSE
+        )
+      }
+      lag_periods[[nm]] <- as.integer(x)
+    }
+
+    if (any(lag_periods$lag_start > lag_periods$lag_end)) {
+      stop(
+        "Every lag period must satisfy `lag_start <= lag_end`.",
+        call. = FALSE
+      )
+    }
+  }
+
+  # ==========================================================================
+  # RNG: LOCAL AND REPRODUCIBLE
+  # ==========================================================================
+
+  if (!is.null(seed)) {
+    had_random_seed <- exists(
+      ".Random.seed",
+      envir = .GlobalEnv,
+      inherits = FALSE
+    )
+
+    if (had_random_seed) {
+      old_random_seed <- get(
+        ".Random.seed",
+        envir = .GlobalEnv,
+        inherits = FALSE
+      )
+    }
+
+    on.exit(
+      {
+        if (had_random_seed) {
+          assign(".Random.seed", old_random_seed, envir = .GlobalEnv)
+        } else if (exists(
+          ".Random.seed",
+          envir = .GlobalEnv,
+          inherits = FALSE
+        )) {
+          rm(".Random.seed", envir = .GlobalEnv)
+        }
+      },
+      add = TRUE
+    )
+
+    set.seed(seed)
+  }
+
+  # ==========================================================================
+  # SMALL LOCAL HELPERS
+  # ==========================================================================
+
+  safe_sd <- function(x) {
+    x <- x[is.finite(x)]
+    if (length(x) <= 1L) return(NA_real_)
+    stats::sd(x)
+  }
+
+  safe_quantile <- function(x) {
+    x <- x[is.finite(x)]
+    if (!length(x)) return(c(NA_real_, NA_real_))
+    as.numeric(stats::quantile(
+      x,
+      probs = interval_probs,
+      na.rm = TRUE,
+      names = FALSE
+    ))
+  }
+
+  transform_effect <- function(eta) {
+    if (identical(effect_measure, "linear")) {
+      return(eta)
+    }
+    if (identical(effect_measure, "exponentiated")) {
+      return(exp(eta))
+    }
+    100 * (exp(eta) - 1)
+  }
+
+  handle_extrapolation <- function(values, variable, label) {
+    definition <- .epix_basis_definition(metadata, variable)
+    fitted_range <- definition$exposure_range
+
+    if (is.null(fitted_range)) {
+      fitted_range <- range(data[[variable]], na.rm = TRUE)
+    }
+
+    outside <- values < fitted_range[1] | values > fitted_range[2]
+    if (!any(outside)) return(invisible(TRUE))
+
+    msg <- paste0(
+      "`", label, "` for variable '", variable,
+      "' contains value(s) outside the fitted exposure range [",
+      format(fitted_range[1]), ", ", format(fitted_range[2]), "]."
+    )
+
+    if (identical(extrapolation, "error")) {
+      stop(msg, call. = FALSE)
+    }
+    if (identical(extrapolation, "warn")) {
+      warning(msg, call. = FALSE)
+    }
+
+    invisible(TRUE)
+  }
+
+  # Reconstruct a crossbasis object only when the exact stored object is not
+  # available. The fitted argvar/arglag are reused; they are never estimated
+  # from `data`.
+  get_effect_basis <- function(variable) {
+    if (!is.null(metadata$basis_objects) &&
+        inherits(metadata$basis_objects[[variable]], "crossbasis")) {
+      return(metadata$basis_objects[[variable]])
+    }
+
+    if (!requireNamespace("dlnm", quietly = TRUE)) {
+      stop(
+        "Package 'dlnm' is required by `summarise_effects()`.",
+        call. = FALSE
+      )
+    }
+
+    definition <- .epix_basis_definition(metadata, variable)
+    ids <- unique(as.character(data$epi_id))
+    pieces <- vector("list", length(ids))
+
+    for (i in seq_along(ids)) {
+      idx <- which(as.character(data$epi_id) == ids[i])
+      idx <- idx[order(data$time[idx])]
+      values <- data[[variable]][idx]
+
+      # NA separation prevents an exposure history from one epidemic from
+      # contributing to the beginning of the next epidemic when a vector
+      # crossbasis is reconstructed only to recover the fitted basis object.
+      pieces[[i]] <- c(
+        values,
+        rep(NA_real_, definition$max_lag)
+      )
+    }
+
+    pooled <- unlist(pieces, use.names = FALSE)
+
+    dlnm::crossbasis(
+      pooled,
+      lag = definition$max_lag,
+      argvar = definition$argvar,
+      arglag = definition$arglag
+    )
+  }
+
+  get_at_values <- function(variable) {
+    custom <- NULL
+
+    if (is.numeric(at)) {
+      if (length(variables) != 1L) {
+        stop(
+          "A numeric `at` can be used only when exactly one exposure is ",
+          "requested. For multiple variables, use a named list.",
+          call. = FALSE
+        )
+      }
+      custom <- at
+    } else if (is.list(at) && variable %in% names(at)) {
+      custom <- at[[variable]]
+    }
+
+    if (is.null(custom)) {
+      values <- sort(unique(as.numeric(stats::quantile(
+        data[[variable]],
+        probs = probs,
+        na.rm = TRUE,
+        names = FALSE
+      ))))
+    } else {
+      if (!is.numeric(custom) || !length(custom) || anyNA(custom) ||
+          any(!is.finite(custom))) {
+        stop(
+          "`at[['", variable,
+          "']]` must contain finite numeric values.",
+          call. = FALSE
+        )
+      }
+      if (anyDuplicated(custom)) {
+        stop(
+          "`at[['", variable, "']]` must contain unique values.",
+          call. = FALSE
+        )
+      }
+      values <- sort(as.numeric(custom))
+    }
+
+    if (!length(values) || any(!is.finite(values))) {
+      stop(
+        "No valid exposure evaluation values are available for variable '",
+        variable, "'.",
+        call. = FALSE
+      )
+    }
+
+    handle_extrapolation(values, variable, "at")
+    values
+  }
+
+  # ==========================================================================
+  # VALIDATE `at`
+  # ==========================================================================
+
+  if (is.list(at)) {
+    if (!length(at) || is.null(names(at)) || anyNA(names(at)) ||
+        any(!nzchar(names(at))) || anyDuplicated(names(at))) {
+      stop(
+        "When supplied as a list, `at` must be a non-empty named list with ",
+        "unique, non-empty variable names.",
+        call. = FALSE
+      )
+    }
+
+    unknown_at <- setdiff(names(at), variables)
+    if (length(unknown_at)) {
+      stop(
+        "`at` contains variable(s) not requested in `var`: ",
+        paste(unknown_at, collapse = ", "), ".",
+        call. = FALSE
+      )
+    }
+  }
+
+  # ==========================================================================
+  # JOINT REFERENCE PROFILE
+  # ==========================================================================
+
   if (!is.list(ref) || !length(ref)) {
-    stop("`ref` must be a non-empty list.")
+    stop("`ref` must be a non-empty list.", call. = FALSE)
   }
 
   ref_is_method <- "method" %in% names(ref)
 
   if (ref_is_method) {
-    if (is.null(ref$method) || !is.character(ref$method) ||
-        length(ref$method) != 1L || is.na(ref$method) ||
-        !nzchar(ref$method)) {
-      stop("`ref` must contain one valid character `method`.")
-    }
-    ref_method <- match.arg(ref$method, c("median", "percentile", "fixed"))
-  } else {
-    ref_method <- NULL
-
-    if (is.null(names(ref)) || anyNA(names(ref)) ||
-        any(names(ref) == "") || anyDuplicated(names(ref))) {
+    if (!is.character(ref$method) || length(ref$method) != 1L ||
+        is.na(ref$method) || !nzchar(ref$method)) {
       stop(
-        "When `ref` is supplied as exposure-specific values, it must be a ",
-        "named list with unique, non-empty exposure names."
+        "Method-based `ref` must contain one valid character `method`.",
+        call. = FALSE
       )
     }
 
-    valid_ref_value <- vapply(
+    ref_method <- match.arg(
+      ref$method,
+      choices = c("median", "percentile", "fixed")
+    )
+
+    if (identical(ref_method, "percentile")) {
+      if (!is.numeric(ref$value) || length(ref$value) != 1L ||
+          is.na(ref$value) || !is.finite(ref$value) ||
+          ref$value < 0 || ref$value > 1) {
+        stop(
+          "For `ref$method = 'percentile'`, `ref$value` must be one ",
+          "probability between 0 and 1.",
+          call. = FALSE
+        )
+      }
+    }
+
+    if (identical(ref_method, "fixed")) {
+      if (!is.numeric(ref$value) || length(ref$value) != 1L ||
+          is.na(ref$value) || !is.finite(ref$value)) {
+        stop(
+          "For `ref$method = 'fixed'`, `ref$value` must be one finite ",
+          "numeric value.",
+          call. = FALSE
+        )
+      }
+
+      if (length(metadata$vars) > 1L) {
+        warning(
+          "Method-based `ref$method = 'fixed'` applies the same numeric ",
+          "reference to every fitted exposure. For multivariable models with ",
+          "different exposure units, a named exposure-specific `ref` list is ",
+          "usually preferable.",
+          call. = FALSE
+        )
+      }
+    }
+
+    reference_values <- vapply(
+      metadata$vars,
+      function(variable) {
+        x <- data[[variable]]
+
+        switch(
+          ref_method,
+          median = stats::median(x, na.rm = TRUE),
+          percentile = as.numeric(stats::quantile(
+            x,
+            probs = ref$value,
+            na.rm = TRUE,
+            names = FALSE
+          )),
+          fixed = as.numeric(ref$value)
+        )
+      },
+      numeric(1)
+    )
+  } else {
+    if (is.null(names(ref)) || anyNA(names(ref)) ||
+        any(!nzchar(names(ref))) || anyDuplicated(names(ref))) {
+      stop(
+        "Exposure-specific `ref` must be a named list with unique, ",
+        "non-empty fitted exposure names.",
+        call. = FALSE
+      )
+    }
+
+    unknown_ref <- setdiff(names(ref), metadata$vars)
+    missing_ref <- setdiff(metadata$vars, names(ref))
+
+    if (length(unknown_ref)) {
+      stop(
+        "`ref` contains variable(s) not found in the fitted model: ",
+        paste(unknown_ref, collapse = ", "), ".",
+        call. = FALSE
+      )
+    }
+
+    if (length(missing_ref)) {
+      stop(
+        "Exposure-specific `ref` must contain one value for every fitted ",
+        "exposure. Missing: ", paste(missing_ref, collapse = ", "), ".",
+        call. = FALSE
+      )
+    }
+
+    ref <- ref[metadata$vars]
+
+    valid <- vapply(
       ref,
-      function(x) is.numeric(x) && length(x) == 1L && is.finite(x),
+      function(x) {
+        is.numeric(x) && length(x) == 1L &&
+          !is.na(x) && is.finite(x)
+      },
       logical(1)
     )
 
-    if (any(!valid_ref_value)) {
+    if (any(!valid)) {
       stop(
-        "Each exposure-specific value in `ref` must be one finite numeric value."
+        "Each exposure-specific reference value must be one finite numeric ",
+        "value.",
+        call. = FALSE
       )
     }
-  }
-  if (scale == "period" && !incremental && is.null(lag_periods)) {
-    stop("`lag_periods` is required when scale = 'period' and incremental = FALSE.")
-  }
-  if (!is.null(lag_periods)) {
-    required <- c("period", "lag_start", "lag_end")
-    if (!is.data.frame(lag_periods) || !all(required %in% names(lag_periods))) {
-      stop("`lag_periods` must be a data.frame containing period, lag_start, and lag_end.")
-    }
-    if (anyNA(lag_periods$period) || any(lag_periods$period == "") ||
-        anyDuplicated(lag_periods$period)) {
-      stop("`lag_periods$period` must contain unique non-empty labels.")
-    }
-    for (column in c("lag_start", "lag_end")) {
-      x <- lag_periods[[column]]
-      if (!is.numeric(x) || any(!is.finite(x)) || any(x != as.integer(x)) || any(x < 0)) {
-        stop("`lag_periods$", column, "` must contain non-negative finite integers.")
-      }
-    }
-    if (any(lag_periods$lag_start > lag_periods$lag_end)) {
-      stop("Every lag period must satisfy `lag_start <= lag_end`.")
-    }
+
+    reference_values <- vapply(ref, as.numeric, numeric(1))
   }
 
-  `%||%` <- function(a, b) if (!is.null(a)) a else b
-  safe_quantile <- function(x, probs = c(0.025, 0.975)) {
-    x <- x[is.finite(x)]
-    if (!length(x)) return(rep(NA_real_, length(probs)))
-    stats::quantile(x, probs = probs, na.rm = TRUE, names = FALSE)
-  }
-  safe_sd <- function(x) {
-    x <- x[is.finite(x)]
-    if (length(x) <= 1L) return(0)
-    stats::sd(x)
-  }
-  sort_cb_names <- function(x) {
-    if (!length(x)) return(x)
-    idx <- suppressWarnings(as.integer(sub("^.*_([0-9]+)$", "\\1", x)))
-    missing_idx <- is.na(idx)
-    idx[missing_idx] <- seq_along(x)[missing_idx]
-    x[order(idx)]
-  }
-  match_brms_draw_names <- function(cb_names_ref, draw_names) {
-    prefixed <- paste0("b_", cb_names_ref)
-    if (all(prefixed %in% draw_names)) return(prefixed)
-    if (all(cb_names_ref %in% draw_names)) return(cb_names_ref)
-    stop("Could not match brms posterior draws to cross-basis coefficients.")
-  }
-  get_cb_names <- function(coefficient_names, variable, expected, stored = NULL) {
-    matched <- character(0)
-    if (!is.null(stored)) {
-      ordered <- sort_cb_names(grep(
-        paste0("^cb_", variable, "_"), stored, value = TRUE
-      ))
-      matched <- ordered[ordered %in% coefficient_names]
-    }
-    if (!length(matched)) {
-      matched <- sort_cb_names(grep(
-        paste0("^cb_", variable, "_"), coefficient_names, value = TRUE
-      ))
-    }
-    if (length(matched) != expected) {
-      stop(
-        "Could not align coefficients with the cross-basis for variable '",
-        variable, "'. Expected ", expected, " coefficients but found ",
-        length(matched), "."
-      )
-    }
-    matched
-  }
-  check_vcov_names <- function(V, coefficient_names) {
-    if (is.null(rownames(V)) || is.null(colnames(V))) {
-      stop("The coefficient covariance matrix has no row or column names.")
-    }
-    missing_names <- setdiff(
-      coefficient_names,
-      intersect(rownames(V), colnames(V))
+  names(reference_values) <- metadata$vars
+
+  for (variable in metadata$vars) {
+    handle_extrapolation(
+      reference_values[[variable]],
+      variable,
+      "reference"
     )
-    if (length(missing_names)) {
-      stop(
-        "Cross-basis coefficients missing from the covariance matrix: ",
-        paste(missing_names, collapse = ", "), "."
-      )
-    }
-    invisible(TRUE)
-  }
-  check_lag_coverage <- function(dat, maximum_lag) {
-    required_n <- maximum_lag + 1L
-    temporal_summary <- dat |>
-      dplyr::group_by(epi_id) |>
-      dplyr::summarise(
-        n_rows = dplyr::n(),
-        n_time = dplyr::n_distinct(time),
-        has_missing_time = any(is.na(time)),
-        .groups = "drop"
-      )
-    missing_time <- temporal_summary |> dplyr::filter(has_missing_time)
-    if (nrow(missing_time)) {
-      stop("Missing `time` values detected. Example epi_id: ",
-           paste(utils::head(missing_time$epi_id, 5), collapse = ", "), ".")
-    }
-    duplicate_time <- temporal_summary |> dplyr::filter(n_rows != n_time)
-    if (nrow(duplicate_time)) {
-      stop("Duplicated `time` values detected within epidemics. Example epi_id: ",
-           paste(utils::head(duplicate_time$epi_id, 5), collapse = ", "), ".")
-    }
-    insufficient <- temporal_summary |> dplyr::filter(n_time < required_n)
-    if (nrow(insufficient)) {
-      stop(
-        "Insufficient temporal coverage. Required observations per epi_id: ",
-        required_n, ". Example epi_id: ",
-        paste(utils::head(insufficient$epi_id, 5), collapse = ", "), "."
-      )
-    }
-    invisible(TRUE)
-  }
-  build_pooled_series <- function(dat, variable, separator_n) {
-    ids <- unique(dat$epi_id)
-    pooled <- vector("list", length(ids))
-    for (i in seq_along(ids)) {
-      values <- dat |>
-        dplyr::filter(epi_id == ids[i]) |>
-        dplyr::arrange(time) |>
-        dplyr::pull(.data[[variable]])
-      pooled[[i]] <- c(values, rep(NA_real_, separator_n))
-    }
-    unlist(pooled)
   }
 
-  extract_coef_vcov <- function(model) {
-    if (inherits(model, "glmmTMB")) return(list(
-      beta = glmmTMB::fixef(model)$cond,
-      vcov = as.matrix(stats::vcov(model)$cond)
-    ))
-    if (inherits(model, "merMod")) return(list(
-      beta = lme4::fixef(model), vcov = as.matrix(stats::vcov(model))
-    ))
-    if (inherits(model, "lme")) return(list(
-      beta = nlme::fixef(model), vcov = as.matrix(stats::vcov(model))
-    ))
-    if (inherits(model, "gls")) return(list(
-      beta = stats::coef(model), vcov = as.matrix(stats::vcov(model))
-    ))
-    if (is.list(model) && !is.null(model$gam) && inherits(model$gam, "gam")) {
+  reference_profiles <- lapply(
+    metadata$vars,
+    function(variable) {
+      rep(
+        reference_values[[variable]],
+        metadata$history_length
+      )
+    }
+  )
+  names(reference_profiles) <- metadata$vars
+
+  baseline_design <- .build_newdata_basis(
+    fit = fit,
+    profiles = reference_profiles,
+    extrapolation = extrapolation
+  )
+
+  link_object <- .epix_link_object(metadata$link)
+
+  central_parameters <- .extract_central_parameters(fit)
+
+  baseline_eta_point <- as.numeric(
+    .predict_point_population(
+      fit = fit,
+      newdata = baseline_design,
+      type = "link",
+      warn_fallback = FALSE
+    )
+  )[1L]
+
+  baseline_response_point <- as.numeric(
+    link_object$linkinv(baseline_eta_point)
+  )
+
+  if (!is.finite(baseline_response_point)) {
+    stop(
+      "The joint reference profile produced a non-finite baseline expected ",
+      "response.",
+      call. = FALSE
+    )
+  }
+
+  # One joint draw matrix is generated ONCE and reused for every requested
+  # variable. Thus sample s has the same meaning throughout the entire result.
+  parameter_draws <- NULL
+  baseline_eta_draws <- NULL
+  baseline_response_draws <- NULL
+  baseline_summary <- NULL
+
+  if (uncertainty) {
+    parameter_draws <- .extract_parameter_draws(
+      fit = fit,
+      n_samples = n_samples
+    )
+
+    baseline_eta_draws <- as.numeric(
+      .predict_draws_population(
+        fit = fit,
+        newdata = baseline_design,
+        n_samples = n_samples,
+        type = "link",
+        parameter_draws = parameter_draws
+      )[, 1L]
+    )
+
+    baseline_response_draws <- as.numeric(
+      link_object$linkinv(baseline_eta_draws)
+    )
+
+    if (any(!is.finite(baseline_response_draws))) {
+      stop(
+        "Draw-by-draw baseline prediction produced non-finite values.",
+        call. = FALSE
+      )
+    }
+
+    baseline_summary <- .summarise_prediction_draws(
+      draws = matrix(baseline_response_draws, ncol = 1L),
+      probs = interval_probs,
+      value_name = "baseline"
+    )
+  }
+
+  # ==========================================================================
+  # CROSSPRED-BASED EFFECT DESIGN
+  # ==========================================================================
+
+  crosspred_eta_matrix <- function(
+    basis,
+    coefficients,
+    at_values,
+    center_value
+  ) {
+    if (!requireNamespace("dlnm", quietly = TRUE)) {
+      stop(
+        "Package 'dlnm' is required by `summarise_effects()`.",
+        call. = FALSE
+      )
+    }
+
+    coefficients <- as.numeric(coefficients)
+    p <- ncol(basis)
+
+    if (length(coefficients) != p) {
+      stop(
+        "Cross-basis coefficient dimension mismatch: basis has ", p,
+        " column(s), but ", length(coefficients),
+        " coefficient(s) were supplied.",
+        call. = FALSE
+      )
+    }
+
+    V0 <- matrix(0, nrow = p, ncol = p)
+
+    prediction <- dlnm::crosspred(
+      basis = basis,
+      coef = coefficients,
+      vcov = V0,
+      model.link = metadata$link,
+      at = at_values,
+      cen = center_value,
+      bylag = 1,
+      cumul = FALSE
+    )
+
+    eta <- as.matrix(prediction$matfit)
+
+    if (!nrow(eta) || !ncol(eta) || any(!is.finite(eta))) {
+      stop(
+        "`dlnm::crosspred()` did not return a finite lag-specific association ",
+        "matrix.",
+        call. = FALSE
+      )
+    }
+
+    lag_index <- suppressWarnings(
+      as.integer(gsub("^lag", "", colnames(eta)))
+    )
+
+    if (is.null(colnames(eta)) || anyNA(lag_index)) {
+      lag_index <- seq.int(0L, ncol(eta) - 1L)
+    }
+
+    lag_order <- order(lag_index)
+    list(
+      eta = eta[, lag_order, drop = FALSE],
+      lag = lag_index[lag_order]
+    )
+  }
+
+  transform_lag_matrix <- function(
+    eta_matrix,
+    lag_index,
+    at_values,
+    variable
+  ) {
+    if (identical(scale, "lag")) {
+      grid <- expand.grid(
+        value = at_values,
+        lag = lag_index,
+        KEEP.OUT.ATTRS = FALSE,
+        stringsAsFactors = FALSE
+      )
+      grid$scale <- "lag"
+      grid <- grid[, c("lag", "scale", "value"), drop = FALSE]
+
       return(list(
-        beta = stats::coef(model$gam),
-        vcov = as.matrix(stats::vcov(model$gam))
+        matrix = eta_matrix,
+        grid = grid
       ))
     }
-    if (inherits(model, "glm") || inherits(model, "gam")) return(list(
-      beta = stats::coef(model), vcov = as.matrix(stats::vcov(model))
-    ))
-    if (inherits(model, "HLfit")) {
-      V <- tryCatch(as.matrix(stats::vcov(model)), error = function(e) NULL)
-      if (is.null(V)) stop("Could not extract vcov from the spaMM model.")
-      return(list(beta = spaMM::fixef(model), vcov = V))
-    }
-    if (inherits(model, "brmsfit")) {
-      fixed <- brms::fixef(model)
-      beta <- fixed[, "Estimate"]
-      names(beta) <- rownames(fixed)
-      return(list(beta = beta, vcov = as.matrix(stats::vcov(model))))
-    }
-    if (inherits(model, "inla")) {
-      beta <- model$summary.fixed$mean
-      if (is.null(names(beta))) names(beta) <- rownames(model$summary.fixed)
-      V <- diag(model$summary.fixed$sd^2)
-      dimnames(V) <- list(names(beta), names(beta))
-      return(list(beta = beta, vcov = V))
-    }
-    if (inherits(model, "bdlnm")) {
-      if (is.null(model$coefficients.summary) || is.null(model$coefficients)) {
-        stop("The bdlnm model lacks coefficient summaries or posterior draws.")
-      }
-      beta <- model$coefficients.summary[, "mean"]
-      if (is.null(names(beta))) names(beta) <- rownames(model$coefficients.summary)
-      V <- stats::cov(t(model$coefficients))
-      if (is.null(rownames(V)) && !is.null(names(beta))) dimnames(V) <- list(names(beta), names(beta))
-      return(list(beta = beta, vcov = V))
-    }
-    beta <- stats::coef(model)
-    if (!is.numeric(beta)) stop("Could not extract numeric model coefficients.")
-    V <- tryCatch(as.matrix(stats::vcov(model)), error = function(e) NULL)
-    if (is.null(V)) stop("Could not extract the coefficient covariance matrix.")
-    list(beta = beta, vcov = V)
-  }
 
-  extract_beta_draws <- function(model, names_ref, n, coefficient_info) {
-    if (inherits(model, "brmsfit")) {
-      if (!requireNamespace("posterior", quietly = TRUE)) {
-        stop("Package 'posterior' is required for brms uncertainty.")
-      }
-      draws <- posterior::as_draws_matrix(model)
-      draw_names <- match_brms_draw_names(names_ref, colnames(draws))
-      draws <- as.matrix(draws[, draw_names, drop = FALSE])
-      if (nrow(draws) > n) {
-        draws <- draws[sample(seq_len(nrow(draws)), n), , drop = FALSE]
-      }
-      colnames(draws) <- names_ref
-      return(draws)
-    }
-    if (inherits(model, "inla")) {
-      if (!requireNamespace("INLA", quietly = TRUE)) {
-        stop("Package 'INLA' is required for INLA uncertainty.")
-      }
-      posterior_samples <- tryCatch(
-        INLA::inla.posterior.sample(n = n, result = model),
-        error = function(e) NULL
+    if (incremental) {
+      cumulative <- t(apply(eta_matrix, 1L, cumsum))
+
+      grid <- expand.grid(
+        value = at_values,
+        lag = lag_index,
+        KEEP.OUT.ATTRS = FALSE,
+        stringsAsFactors = FALSE
       )
-      if (is.null(posterior_samples)) {
-        stop("Could not draw INLA posterior samples. Fit with `control.compute = list(config = TRUE)`.")
-      }
-      draws <- do.call(rbind, lapply(posterior_samples, function(sample_object) {
-        latent <- sample_object$latent
-        names(latent) <- gsub(":1$", "", names(latent))
-        values <- latent[names_ref]
-        if (anyNA(values)) {
-          stop("Could not match INLA draws to cross-basis coefficients.")
+      grid$period <- paste0("0-", grid$lag)
+      grid$scale <- "period"
+      grid <- grid[, c("lag", "period", "scale", "value"), drop = FALSE]
+
+      return(list(
+        matrix = cumulative,
+        grid = grid
+      ))
+    }
+
+    if (any(lag_periods$lag_end > max(lag_index))) {
+      stop(
+        "`lag_periods` exceeds the fitted maximum lag for variable '",
+        variable, "'. Maximum available lag: ", max(lag_index), ".",
+        call. = FALSE
+      )
+    }
+
+    period_matrix <- vapply(
+      seq_len(nrow(lag_periods)),
+      function(i) {
+        selected <- which(
+          lag_index >= lag_periods$lag_start[i] &
+            lag_index <= lag_periods$lag_end[i]
+        )
+
+        if (!length(selected)) {
+          stop(
+            "No fitted lags fall inside period '",
+            lag_periods$period[i], "'.",
+            call. = FALSE
+          )
         }
-        as.numeric(values)
-      }))
-      colnames(draws) <- names_ref
-      return(draws)
+
+        rowSums(eta_matrix[, selected, drop = FALSE])
+      },
+      numeric(nrow(eta_matrix))
+    )
+
+    if (is.null(dim(period_matrix))) {
+      period_matrix <- matrix(
+        period_matrix,
+        nrow = nrow(eta_matrix),
+        ncol = nrow(lag_periods)
+      )
     }
-    if (inherits(model, "bdlnm")) {
-      draws <- model$coefficients
-      if (is.null(dim(draws))) draws <- matrix(draws, ncol = 1L)
-      if (is.null(rownames(draws)) || !all(names_ref %in% rownames(draws))) {
-        stop("Could not match bdlnm draws to cross-basis coefficients.")
+
+    grid <- expand.grid(
+      value = at_values,
+      period = lag_periods$period,
+      KEEP.OUT.ATTRS = FALSE,
+      stringsAsFactors = FALSE
+    )
+    grid$scale <- "period"
+    grid <- grid[, c("period", "scale", "value"), drop = FALSE]
+
+    list(
+      matrix = period_matrix,
+      grid = grid
+    )
+  }
+
+  # Builds the exact centered prediction design used by dlnm::crosspred().
+  # Because matfit is linear in the supplied cross-basis coefficients, running
+  # crosspred with unit coefficient vectors recovers the columns of that design.
+  # Full parameter draws can then be propagated with one matrix multiplication.
+  build_effect_design <- function(
+    basis,
+    at_values,
+    center_value,
+    lag_index_reference,
+    transformed_grid,
+    variable
+  ) {
+    p <- ncol(basis)
+    design_columns <- vector("list", p)
+
+    for (j in seq_len(p)) {
+      unit <- numeric(p)
+      unit[j] <- 1
+
+      unit_result <- crosspred_eta_matrix(
+        basis = basis,
+        coefficients = unit,
+        at_values = at_values,
+        center_value = center_value
+      )
+
+      if (!identical(unit_result$lag, lag_index_reference)) {
+        stop(
+          "Internal lag-order mismatch while constructing the DLNM effect ",
+          "design for variable '", variable, "'.",
+          call. = FALSE
+        )
       }
-      draws <- draws[names_ref, , drop = FALSE]
-      if (ncol(draws) > n) {
-        draws <- draws[, sample(seq_len(ncol(draws)), n), drop = FALSE]
+
+      transformed <- transform_lag_matrix(
+        eta_matrix = unit_result$eta,
+        lag_index = unit_result$lag,
+        at_values = at_values,
+        variable = variable
+      )
+
+      if (nrow(transformed$grid) != nrow(transformed_grid) ||
+          !identical(names(transformed$grid), names(transformed_grid))) {
+        stop(
+          "Internal grid mismatch while constructing the DLNM effect design.",
+          call. = FALSE
+        )
       }
-      draws <- t(draws)
-      colnames(draws) <- names_ref
-      return(draws)
+
+      design_columns[[j]] <- as.vector(transformed$matrix)
     }
-    if (!requireNamespace("MASS", quietly = TRUE)) {
-      stop("Package 'MASS' is required for frequentist uncertainty.")
+
+    A <- do.call(cbind, design_columns)
+    storage.mode(A) <- "double"
+
+    if (any(!is.finite(A))) {
+      stop(
+        "The centered DLNM effect design contains non-finite values.",
+        call. = FALSE
+      )
     }
-    check_vcov_names(coefficient_info$vcov, names_ref)
-    draws <- MASS::mvrnorm(
-      n = n,
-      mu = coefficient_info$beta[names_ref],
-      Sigma = coefficient_info$vcov[names_ref, names_ref, drop = FALSE]
-    )
-    if (is.null(dim(draws))) draws <- matrix(draws, nrow = 1L)
-    colnames(draws) <- names_ref
-    draws
+
+    A
   }
 
-  get_linkfun <- function(link_name) {
-    switch(
-      tolower(link_name),
-      identity = identity,
-      log = log,
-      logit = stats::qlogis,
-      probit = stats::qnorm,
-      cloglog = function(mu) log(-log1p(-mu)),
-      inverse = function(mu) 1 / mu,
-      stop("Unsupported link function for link '", link_name, "'.")
+  # ==========================================================================
+  # DIAGNOSTICS
+  # ==========================================================================
+
+  compute_one_diagnostic <- function(df) {
+    lag_values <- sort(unique(df$lag))
+    rows <- vector("list", length(lag_values))
+
+    for (i in seq_along(lag_values)) {
+      current_lag <- lag_values[i]
+      values <- df$eta[df$lag == current_lag]
+      values <- values[is.finite(values)]
+
+      if (!length(values)) {
+        rows[[i]] <- data.frame(
+          lag = current_lag,
+          mean_effect = NA_real_,
+          max_effect = NA_real_,
+          max_abs_effect = NA_real_,
+          absmean_effect = NA_real_,
+          eta_lag = NA_real_,
+          stringsAsFactors = FALSE
+        )
+        next
+      }
+
+      max_pos <- which.max(abs(values))
+
+      rows[[i]] <- data.frame(
+        lag = current_lag,
+        mean_effect = mean(values),
+        max_effect = values[max_pos],
+        max_abs_effect = max(abs(values)),
+        absmean_effect = mean(abs(values)),
+        eta_lag = sum(values),
+        stringsAsFactors = FALSE
+      )
+    }
+
+    out <- do.call(rbind, rows)
+
+    out$score_max <- out$max_abs_effect
+    out$score_mean <- abs(out$mean_effect)
+    out$score_absmean <- out$absmean_effect
+
+    out$rank_max <- rank(-out$score_max, ties.method = "min", na.last = "keep")
+    out$rank_mean <- rank(-out$score_mean, ties.method = "min", na.last = "keep")
+    out$rank_absmean <- rank(
+      -out$score_absmean,
+      ties.method = "min",
+      na.last = "keep"
     )
+
+    absolute_denominator <- sum(abs(out$eta_lag), na.rm = TRUE)
+    signed_denominator <- sum(out$eta_lag, na.rm = TRUE)
+
+    tolerance <- sqrt(.Machine$double.eps) *
+      max(1, absolute_denominator)
+
+    signed_stable <- is.finite(signed_denominator) &&
+      abs(signed_denominator) > tolerance
+
+    out$contribution_absolute <- if (
+      is.finite(absolute_denominator) &&
+      absolute_denominator > 0
+    ) {
+      abs(out$eta_lag) / absolute_denominator
+    } else {
+      NA_real_
+    }
+
+    out$contribution_absolute_percent <- 100 * out$contribution_absolute
+
+    out$contribution_signed <- if (signed_stable) {
+      out$eta_lag / signed_denominator
+    } else {
+      NA_real_
+    }
+
+    out$contribution_signed_percent <- 100 * out$contribution_signed
+    out$signed_contribution_available <- signed_stable
+
+    out
   }
-  get_linkinv <- function(link_name) {
-    switch(
-      tolower(link_name),
-      identity = identity,
-      log = exp,
-      logit = stats::plogis,
-      probit = stats::pnorm,
-      cloglog = function(eta) 1 - exp(-exp(eta)),
-      inverse = function(eta) 1 / eta,
-      stop("Unsupported inverse-link function for link '", link_name, "'.")
-    )
-  }
 
-  # Integrated lag diagnostics -------------------------------------------
-  # The input must be deterministic lag effects or sample-level lag
-  # effects. A single diagnostics table combines lag ranking and contribution
-  # metrics, so the returned object has only two top-level components.
-  compute_lag_diagnostics <- function(lag_df) {
-    if (!all(c("var", "lag", "effect") %in% names(lag_df))) {
-      stop("Internal diagnostics require columns 'var', 'lag', and 'effect'.")
-    }
-    if (!is.numeric(lag_df$effect)) {
-      stop("The internal lag `effect` column must be numeric.")
+  compute_lag_diagnostics <- function(diag_data) {
+    if (!all(c("var", "lag", "eta") %in% names(diag_data))) {
+      stop(
+        "Internal diagnostics require `var`, `lag`, and `eta`.",
+        call. = FALSE
+      )
     }
 
-    compute_one_diagnostic <- function(df) {
-      lag_metrics <- df |>
-        dplyr::group_by(lag) |>
-        dplyr::summarise(
-          mean_effect = mean(effect, na.rm = TRUE),
-          max_effect = {
-            valid <- effect[is.finite(effect)]
-            if (!length(valid)) NA_real_ else valid[which.max(abs(valid))]
-          },
-          max_abs_effect = {
-            valid <- effect[is.finite(effect)]
-            if (!length(valid)) NA_real_ else max(abs(valid))
-          },
-          absmean_effect = mean(abs(effect), na.rm = TRUE),
-          eta_lag = sum(effect, na.rm = TRUE),
-          .groups = "drop"
-        )
-
-      lag_metrics <- lag_metrics |>
-        dplyr::mutate(
-          score_max = max_abs_effect,
-          score_mean = abs(mean_effect),
-          score_absmean = absmean_effect,
-          rank_max = dplyr::min_rank(dplyr::desc(score_max)),
-          rank_mean = dplyr::min_rank(dplyr::desc(score_mean)),
-          rank_absmean = dplyr::min_rank(dplyr::desc(score_absmean))
-        )
-
-      absolute_denominator <- sum(abs(lag_metrics$eta_lag), na.rm = TRUE)
-      signed_denominator <- sum(lag_metrics$eta_lag, na.rm = TRUE)
-      stability_tolerance <- sqrt(.Machine$double.eps) *
-        max(1, absolute_denominator)
-      signed_stable <- is.finite(signed_denominator) &&
-        abs(signed_denominator) > stability_tolerance
-
-      lag_metrics |>
-        dplyr::mutate(
-          contribution_absolute = if (is.finite(absolute_denominator) &&
-                                      absolute_denominator > 0) {
-            abs(eta_lag) / absolute_denominator
-          } else {
-            NA_real_
-          },
-          contribution_absolute_percent = 100 * contribution_absolute,
-          contribution_signed = if (signed_stable) {
-            eta_lag / signed_denominator
-          } else {
-            NA_real_
-          },
-          contribution_signed_percent = 100 * contribution_signed,
-          signed_contribution_available = signed_stable
-        )
-    }
-
-    has_samples <- "sample" %in% names(lag_df)
+    has_samples <- "sample" %in% names(diag_data)
 
     if (!has_samples) {
-      diagnostics_out <- lag_df |>
-        dplyr::group_by(var) |>
-        dplyr::group_modify(~compute_one_diagnostic(.x)) |>
-        dplyr::ungroup() |>
-        dplyr::arrange(var, rank_absmean, lag)
-      return(as.data.frame(diagnostics_out))
+      split_var <- split(diag_data, diag_data$var, drop = TRUE)
+      result <- lapply(names(split_var), function(variable) {
+        current <- compute_one_diagnostic(split_var[[variable]])
+        current$var <- variable
+        current[, c("var", setdiff(names(current), "var")), drop = FALSE]
+      })
+
+      out <- do.call(rbind, result)
+      rownames(out) <- NULL
+      out <- out[order(out$var, out$rank_absmean, out$lag), , drop = FALSE]
+      return(out)
     }
 
-    sample_diagnostics <- lag_df |>
-      dplyr::group_by(sample, var) |>
-      dplyr::group_modify(~compute_one_diagnostic(.x)) |>
-      dplyr::ungroup()
+    keys <- unique(diag_data[, c("sample", "var"), drop = FALSE])
+    per_sample <- vector("list", nrow(keys))
+
+    for (i in seq_len(nrow(keys))) {
+      current_data <- diag_data[
+        diag_data$sample == keys$sample[i] &
+          diag_data$var == keys$var[i],
+        ,
+        drop = FALSE
+      ]
+
+      current <- compute_one_diagnostic(current_data)
+      current$sample <- keys$sample[i]
+      current$var <- keys$var[i]
+      per_sample[[i]] <- current[, c(
+        "sample", "var",
+        setdiff(names(current), c("sample", "var"))
+      ), drop = FALSE]
+    }
+
+    samples <- do.call(rbind, per_sample)
+    rownames(samples) <- NULL
 
     numeric_metrics <- c(
       "mean_effect", "max_effect", "max_abs_effect", "absmean_effect",
@@ -557,638 +1322,409 @@ summarise_effects <- function(
       "contribution_signed", "contribution_signed_percent"
     )
 
-    diagnostics_out <- sample_diagnostics |>
-      dplyr::group_by(var, lag) |>
-      dplyr::summarise(
-        dplyr::across(
-          dplyr::all_of(numeric_metrics),
-          list(
-            estimate = ~stats::median(.x, na.rm = TRUE),
-            sd = ~safe_sd(.x),
-            lower = ~safe_quantile(.x)[1],
-            upper = ~safe_quantile(.x)[2]
-          ),
-          .names = "{.col}_{.fn}"
-        ),
-        signed_contribution_available = all(
-          signed_contribution_available,
-          na.rm = TRUE
-        ),
-        .groups = "drop"
+    groups <- unique(samples[, c("var", "lag"), drop = FALSE])
+    summary_rows <- vector("list", nrow(groups))
+
+    for (i in seq_len(nrow(groups))) {
+      current <- samples[
+        samples$var == groups$var[i] &
+          samples$lag == groups$lag[i],
+        ,
+        drop = FALSE
+      ]
+
+      row <- data.frame(
+        var = groups$var[i],
+        lag = groups$lag[i],
+        stringsAsFactors = FALSE
       )
 
-    for (metric in numeric_metrics) {
-      estimate_column <- paste0(metric, "_estimate")
-      names(diagnostics_out)[names(diagnostics_out) == estimate_column] <- metric
-    }
+      for (metric in numeric_metrics) {
+        x <- current[[metric]]
+        q <- safe_quantile(x)
 
-    diagnostics_out <- diagnostics_out |>
-      dplyr::arrange(var, rank_absmean, lag)
-    as.data.frame(diagnostics_out)
-  }
-
-  fit_spec <- attr(fit, "epiexposure_spec")
-  fit_vars <- attr(fit, "epiexposure_vars")
-  family_fit <- attr(fit, "epiexposure_family")
-  family_name <- attr(fit, "epiexposure_family_name")
-  link_name <- attr(fit, "epiexposure_link")
-  cb_cols_fit <- attr(fit, "epiexposure_cb_cols")
-  data_template <- attr(fit, "epiexposure_data_template")
-  basis_objects <- attr(fit, "epiexposure_basis_objects")
-
-  if (is.null(family_name) || !is.character(family_name) || length(family_name) != 1L) {
-    stop("`fit` does not contain valid `epiexposure_family_name` metadata.")
-  }
-  family_name <- tolower(family_name)
-  if (
-    family_name == "ordinal" &&
-    effect_measure != "linear"
-  ) {
-    warning(
-      "`effect_measure = '", effect_measure,
-      "' is ignored for ordinal models. ",
-      "Category probabilities are returned instead.",
-      call. = FALSE
-    )
-  }
-  if (is.null(link_name) || !is.character(link_name) || length(link_name) != 1L) {
-    stop("`fit` does not contain valid `epiexposure_link` metadata.")
-  }
-  link_name <- tolower(link_name)
-  if ((is.null(fit_vars) || !length(fit_vars)) && is.list(basis_objects) && length(basis_objects)) {
-    fit_vars <- names(basis_objects)
-  }
-  if (family_name == "ordinal" && diagnostics) {
-    stop("`diagnostics = TRUE` is not available for ordinal category probabilities.")
-  }
-  if (is.null(var)) {
-    variables <- fit_vars
-    if (is.null(variables) || !length(variables)) {
-      stop("`var` is NULL and no exposure variables were found in model metadata.")
-    }
-  } else {
-    if (!is.character(var) || !length(var) || anyNA(var) || any(var == "")) {
-      stop("`var` must be NULL or a non-empty character vector.")
-    }
-    variables <- var
-  }
-  if (anyDuplicated(variables)) stop("`var` must contain unique variable names.")
-  unknown_model_vars <- if (is.null(fit_vars)) character(0) else setdiff(variables, fit_vars)
-  if (length(unknown_model_vars)) {
-    stop("Variables not found in fitted-model metadata: ",
-         paste(unknown_model_vars, collapse = ", "), ".")
-  }
-  missing_data_vars <- setdiff(variables, names(data))
-  if (length(missing_data_vars)) {
-    stop("Variables not present in `data`: ",
-         paste(missing_data_vars, collapse = ", "), ".")
-  }
-
-  # Validate exposure-specific reference values only after the fitted exposure
-  # names are known. A complete list is required because these values also
-  # define the joint baseline profile for response-scale predictions.
-  if (!ref_is_method) {
-    unknown_ref_variables <- setdiff(names(ref), fit_vars)
-    missing_ref_variables <- setdiff(fit_vars, names(ref))
-
-    if (length(unknown_ref_variables)) {
-      stop(
-        "`ref` contains variables not found in the fitted model: ",
-        paste(unknown_ref_variables, collapse = ", "), "."
-      )
-    }
-
-    if (length(missing_ref_variables)) {
-      stop(
-        "Exposure-specific `ref` must contain one value for every fitted ",
-        "exposure. Missing: ",
-        paste(missing_ref_variables, collapse = ", "), "."
-      )
-    }
-  }
-
-  # Resolve the reference used to center the focal exposure. Method-based
-  # behavior is unchanged. In the new exposure-specific form, each variable
-  # uses its own supplied value.
-  get_effect_reference <- function(variable, x) {
-    if (!ref_is_method) {
-      return(as.numeric(ref[[variable]]))
-    }
-
-    switch(
-      ref_method,
-      median = stats::median(x, na.rm = TRUE),
-      percentile = {
-        if (is.null(ref$value) || length(ref$value) != 1L ||
-            !is.numeric(ref$value) || ref$value < 0 || ref$value > 1) {
-          stop("For ref$method = 'percentile', `ref$value` must be one probability.")
-        }
-        stats::quantile(x, ref$value, na.rm = TRUE)
-      },
-      fixed = {
-        if (is.null(ref$value) || length(ref$value) != 1L ||
-            !is.numeric(ref$value) || !is.finite(ref$value)) {
-          stop("For ref$method = 'fixed', `ref$value` must be one finite number.")
-        }
-        ref$value
-      },
-      stop("Invalid ref$method. Use 'median', 'percentile', or 'fixed'.")
-    )
-  }
-
-  # Preserve the previous baseline behavior for the original method-based
-  # interface: the response-scale baseline uses the median of every fitted
-  # exposure. For exposure-specific `ref`, the supplied values define the
-  # complete baseline profile.
-  get_baseline_reference <- function(variable) {
-    if (!ref_is_method) {
-      return(as.numeric(ref[[variable]]))
-    }
-
-    if (!variable %in% names(data)) {
-      stop(
-        "Cannot construct the baseline because exposure '", variable,
-        "' is absent from `data`."
-      )
-    }
-
-    stats::median(data[[variable]], na.rm = TRUE)
-  }
-
-  # Validate and standardise optional exposure-specific evaluation grids.
-  # `at = NULL` preserves the original quantile-based behaviour. A partial
-  # named list overrides only the listed variables; all others use `probs`.
-  if (is.numeric(at)) {
-    if (length(variables) != 1L) {
-      stop(
-        "A numeric `at` can be used only when exactly one exposure variable ",
-        "is requested. For multiple variables, supply `at` as a named list."
-      )
-    }
-    if (!length(at) || any(!is.finite(at))) {
-      stop("A numeric `at` must contain at least one finite value.")
-    }
-    if (anyDuplicated(at)) {
-      stop("A numeric `at` must contain unique values.")
-    }
-    at <- sort(as.numeric(at))
-  } else if (is.list(at)) {
-    if (!length(at) || is.null(names(at)) || anyNA(names(at)) ||
-        any(names(at) == "") || anyDuplicated(names(at))) {
-      stop(
-        "When supplied as a list, `at` must be a non-empty named list ",
-        "with unique, non-empty variable names."
-      )
-    }
-    unknown_at_variables <- setdiff(names(at), variables)
-    if (length(unknown_at_variables)) {
-      stop(
-        "`at` contains variables that were not requested: ",
-        paste(unknown_at_variables, collapse = ", "), "."
-      )
-    }
-    for (current_variable in names(at)) {
-      current_values <- at[[current_variable]]
-      if (!is.numeric(current_values) || !length(current_values) ||
-          any(!is.finite(current_values))) {
-        stop(
-          "`at[['", current_variable,
-          "']]` must contain at least one finite numeric value."
-        )
+        row[[metric]] <- stats::median(x, na.rm = TRUE)
+        row[[paste0(metric, "_sd")]] <- safe_sd(x)
+        row[[paste0(metric, "_lower")]] <- q[1]
+        row[[paste0(metric, "_upper")]] <- q[2]
       }
-      if (anyDuplicated(current_values)) {
-        stop(
-          "`at[['", current_variable,
-          "']]` must contain unique values."
-        )
-      }
-      at[[current_variable]] <- sort(as.numeric(current_values))
-    }
-  }
 
-  transform_effect <- function(eta) {
-    if (effect_measure == "linear") return(eta)
-    if (effect_measure == "exponentiated") return(exp(eta))
-    (exp(eta) - 1) * 100
-  }
-
-  summarise_ordinal_variable <- function(variable, variable_spec, at_values, center_value) {
-    if (!inherits(fit, "brmsfit")) {
-      stop("Ordinal category probabilities currently require a `brmsfit` model.")
-    }
-    if (!requireNamespace("brms", quietly = TRUE)) stop("Package 'brms' is required.")
-
-    make_reference_profiles <- function() {
-      profiles <- lapply(fit_vars, function(v) {
-        lv <- as.integer(max(fit_spec[[v]]$max_lag))
-        reference_value <- get_baseline_reference(v)
-        rep(reference_value, lv + 1L)
-      })
-      names(profiles) <- fit_vars
-      profiles
-    }
-    make_newdata <- function(profiles) {
-      nd <- data_template[1, , drop = FALSE]
-      for (v in fit_vars) {
-        sp <- fit_spec[[v]]
-        lv <- as.integer(max(sp$max_lag))
-        cbv <- dlnm::crossbasis(profiles[[v]], lag = lv, argvar = sp$argvar, arglag = sp$arglag)
-        row <- as.numeric(cbv[lv + 1L, , drop = TRUE])
-        stored <- sort_cb_names(grep(paste0("^cb_", v, "_"), cb_cols_fit, value = TRUE))
-        if (!length(stored)) stored <- sort_cb_names(grep(paste0("^cb_", v, "_"), names(data_template), value = TRUE))
-        if (length(stored) != length(row)) stop("Could not align ordinal cross-basis columns for '", v, "'.")
-        nd[stored] <- as.data.frame(as.list(stats::setNames(row, stored)))
-      }
-      nd
-    }
-    conditions <- list(); metadata <- list(); k <- 0L
-    lag_values <- 0:as.integer(max(variable_spec$max_lag))
-    refs <- make_reference_profiles()
-    if (scale == "lag") {
-      for (value in at_values) for (lag in lag_values) {
-        k <- k + 1L; pr <- refs
-        pos <- length(pr[[variable]]) - lag
-        pr[[variable]][pos] <- value
-        conditions[[k]] <- make_newdata(pr)
-        metadata[[k]] <- data.frame(var=variable, lag=lag, scale="lag", value=value)
-      }
-    } else if (incremental) {
-      for (value in at_values) for (lag in lag_values) {
-        k <- k + 1L; pr <- refs
-        positions <- length(pr[[variable]]) - (0:lag)
-        pr[[variable]][positions] <- value
-        conditions[[k]] <- make_newdata(pr)
-        metadata[[k]] <- data.frame(var=variable, lag=lag, period=paste0("0-",lag), scale="period", value=value)
-      }
-    } else {
-      for (value in at_values) for (i in seq_len(nrow(lag_periods))) {
-        k <- k + 1L; pr <- refs
-        lags <- lag_periods$lag_start[i]:lag_periods$lag_end[i]
-        positions <- length(pr[[variable]]) - lags
-        pr[[variable]][positions] <- value
-        conditions[[k]] <- make_newdata(pr)
-        metadata[[k]] <- data.frame(var=variable, period=lag_periods$period[i], scale="period", value=value)
-      }
-    }
-    nd <- do.call(rbind, conditions)
-    ep <- brms::posterior_epred(
-      fit, newdata = nd, re_formula = NA,
-      ndraws = if (uncertainty) n_samples else NULL
-    )
-    d <- dim(ep)
-    if (length(d) != 3L) stop("Expected ordinal probabilities with dimensions draws x observations x categories.")
-    category_names <- dimnames(ep)[[3]]
-    if (is.null(category_names)) category_names <- as.character(seq_len(d[3]))
-    meta <- do.call(rbind, metadata); rownames(meta) <- NULL
-    if (!uncertainty) {
-      probs_mean <- apply(ep, c(2,3), mean, na.rm=TRUE)
-      out <- do.call(rbind, lapply(seq_len(nrow(meta)), function(i) {
-        cbind(meta[i,,drop=FALSE], category=category_names, probability=as.numeric(probs_mean[i,]))
-      }))
-      return(list(effects=as.data.frame(out), diagnostics_source=NULL))
-    }
-    samples <- do.call(rbind, lapply(seq_len(d[1]), function(draw) {
-      do.call(rbind, lapply(seq_len(nrow(meta)), function(i) {
-        cbind(sample=draw, meta[i,,drop=FALSE], category=category_names, probability=as.numeric(ep[draw,i,]))
-      }))
-    }))
-    if (output == "samples") return(list(effects=as.data.frame(samples), diagnostics_source=NULL))
-    groups <- intersect(c("var","lag","period","scale","value","category"), names(samples))
-    summary <- samples |>
-      dplyr::group_by(dplyr::across(dplyr::all_of(groups))) |>
-      dplyr::summarise(
-        probability=stats::median(probability,na.rm=TRUE),
-        probability_sd=safe_sd(probability),
-        probability_lower=safe_quantile(probability)[1],
-        probability_upper=safe_quantile(probability)[2],
-        .groups="drop"
+      row$signed_contribution_available <- all(
+        current$signed_contribution_available,
+        na.rm = TRUE
       )
-    list(effects=as.data.frame(summary), diagnostics_source=NULL)
+
+      summary_rows[[i]] <- row
+    }
+
+    out <- do.call(rbind, summary_rows)
+    rownames(out) <- NULL
+    out <- out[order(out$var, out$rank_absmean, out$lag), , drop = FALSE]
+    out
   }
+
+  # ==========================================================================
+  # ONE VARIABLE
+  # ==========================================================================
 
   summarise_one_variable <- function(variable) {
-    if (is.null(fit_spec) || !is.list(fit_spec) || is.null(fit_spec[[variable]])) {
-      stop("No valid `epiexposure_spec` metadata for variable '", variable, "'.")
-    }
-    variable_spec <- fit_spec[[variable]]
-    if (is.null(variable_spec$max_lag) || is.null(variable_spec$argvar) ||
-        is.null(variable_spec$arglag)) {
-      stop("Incomplete exposure specification for variable '", variable, "'.")
-    }
-    max_lag_use <- as.integer(max(variable_spec$max_lag))
-    argvar <- variable_spec$argvar
-    arglag <- variable_spec$arglag
+    at_values <- get_at_values(variable)
+    center_value <- as.numeric(reference_values[[variable]])
+    basis <- get_effect_basis(variable)
 
-    if (!is.null(lag_periods) && any(lag_periods$lag_end > max_lag_use)) {
-      stop("`lag_periods` exceeds the maximum lag for variable '", variable, "'.")
-    }
-    check_lag_coverage(data, max_lag_use)
-    pooled <- build_pooled_series(data, variable, max_lag_use)
-    cb <- dlnm::crossbasis(
-      pooled,
-      lag = max_lag_use,
-      argvar = argvar,
-      arglag = arglag
-    )
+    cb_names <- .epix_cb_cols_for_var(metadata$cb_cols, variable)
 
-    coefficient_info <- extract_coef_vcov(fit)
-    coefficients <- coefficient_info$beta
-    covariance <- coefficient_info$vcov
-    if (is.null(names(coefficients))) {
-      stop("The fitted coefficient vector has no names.")
-    }
-
-    stored_columns <- cb_cols_fit
-    if (is.null(stored_columns) && !is.null(data_template)) {
-      stored_columns <- grep("^cb_", names(data_template), value = TRUE)
-    }
-    cb_names_ref <- get_cb_names(
-      coefficient_names = names(coefficients),
-      variable = variable,
-      expected = ncol(cb),
-      stored = stored_columns
-    )
-    check_vcov_names(covariance, cb_names_ref)
-    beta <- coefficients[cb_names_ref]
-    vcov_cb <- covariance[cb_names_ref, cb_names_ref, drop = FALSE]
-
-    x_all <- data[[variable]]
-    if (!is.numeric(x_all) || all(!is.finite(x_all))) {
-      stop("Exposure variable '", variable, "' must contain finite numeric values.")
-    }
-    variable_at <- NULL
-    if (is.numeric(at)) {
-      variable_at <- at
-    } else if (is.list(at) && variable %in% names(at)) {
-      variable_at <- at[[variable]]
-    }
-
-    if (is.null(variable_at)) {
-      at_values <- sort(unique(as.numeric(stats::quantile(
-        x_all,
-        probs = probs,
-        na.rm = TRUE,
-        names = FALSE
-      ))))
-    } else {
-      at_values <- sort(unique(as.numeric(variable_at)))
-    }
-
-    if (!length(at_values) || any(!is.finite(at_values))) {
+    if (length(cb_names) != ncol(basis)) {
       stop(
-        "No valid exposure evaluation values were available for variable '",
-        variable, "'."
+        "Cross-basis dimension mismatch for variable '", variable,
+        "': fitted metadata contain ", length(cb_names),
+        " coefficient(s), but the effect basis contains ",
+        ncol(basis), " column(s).",
+        call. = FALSE
       )
     }
 
-    observed_range <- range(x_all, na.rm = TRUE)
-    outside_observed_range <- at_values < observed_range[1] |
-      at_values > observed_range[2]
-    if (any(outside_observed_range)) {
+    missing_central <- setdiff(cb_names, names(central_parameters))
+    if (length(missing_central)) {
       stop(
-        "`at` contains values outside the observed range for variable '",
-        variable, "'. Observed range: [",
-        format(observed_range[1]), ", ", format(observed_range[2]), "]."
+        "Central parameter vector is missing cross-basis coefficient(s) for '",
+        variable, "': ", paste(missing_central, collapse = ", "), ".",
+        call. = FALSE
       )
     }
 
-    center_value <- as.numeric(
-      get_effect_reference(variable, x_all)
+    point_lag <- crosspred_eta_matrix(
+      basis = basis,
+      coefficients = central_parameters[cb_names],
+      at_values = at_values,
+      center_value = center_value
     )
 
-    if (family_name == "ordinal") {
-      return(summarise_ordinal_variable(variable, variable_spec, at_values, center_value))
-    }
-
-    point_prediction <- dlnm::crosspred(
-      cb,
-      coef = beta,
-      vcov = vcov_cb,
-      at = at_values,
-      cen = center_value,
-      bylag = 1
-    )
-    point_eta <- point_prediction$matfit
-    lag_index <- suppressWarnings(as.integer(gsub("lag", "", colnames(point_eta))))
-    if (anyNA(lag_index)) lag_index <- 0:(ncol(point_eta) - 1L)
-    lag_order <- order(lag_index)
-    lag_index <- lag_index[lag_order]
-    point_eta <- point_eta[, lag_order, drop = FALSE]
-
-    linkfun <- get_linkfun(link_name)
-    linkinv <- get_linkinv(link_name)
-    baseline_response <- NA_real_
-    can_build_baseline <- !is.null(fit_vars) && !is.null(fit_spec) &&
-      (!ref_is_method || all(fit_vars %in% names(data)))
-
-    if (can_build_baseline) {
-      reference_profiles <- lapply(fit_vars, function(current_variable) {
-        current_spec <- fit_spec[[current_variable]]
-        current_lag <- as.integer(max(current_spec$max_lag))
-        reference_value <- get_baseline_reference(current_variable)
-        rep(reference_value, current_lag + 1L)
-      })
-      names(reference_profiles) <- fit_vars
-      baseline_response <- tryCatch(
-        as.numeric(predict_outcomes(
-          fit = fit,
-          profiles = reference_profiles,
-          re = "population",
-          type = "response",
-          uncertainty = FALSE
-        )$prediction[1]),
-        error = function(e) {
-          warning("Baseline prediction failed: ", conditionMessage(e), call. = FALSE)
-          NA_real_
-        }
+    max_lag_expected <- metadata$max_lag
+    if (max(point_lag$lag) != max_lag_expected) {
+      stop(
+        "DLNM lag mismatch for variable '", variable,
+        "': crosspred returned maximum lag ", max(point_lag$lag),
+        " but fitted metadata specify ", max_lag_expected, ".",
+        call. = FALSE
       )
     }
 
-    build_output <- function(eta_matrix) {
-      if (scale == "lag") {
-        transformed_eta <- eta_matrix
-        grid <- expand.grid(
-          value = at_values,
-          lag = lag_index,
-          KEEP.OUT.ATTRS = FALSE,
-          stringsAsFactors = FALSE
-        )
-        result <- data.frame(
-          var = variable,
-          lag = grid$lag,
-          scale = "lag",
-          value = grid$value,
-          eta = as.vector(transformed_eta),
-          stringsAsFactors = FALSE
-        )
-      } else if (incremental) {
-        transformed_eta <- t(apply(eta_matrix, 1, cumsum))
-        grid <- expand.grid(
-          value = at_values,
-          lag = lag_index,
-          KEEP.OUT.ATTRS = FALSE,
-          stringsAsFactors = FALSE
-        )
-        result <- data.frame(
-          var = variable,
-          lag = grid$lag,
-          period = paste0("0-", grid$lag),
-          scale = "period",
-          value = grid$value,
-          eta = as.vector(transformed_eta),
-          stringsAsFactors = FALSE
-        )
-      } else {
-        required_period_columns <- c("period", "lag_start", "lag_end")
-        if (!all(required_period_columns %in% names(lag_periods))) {
-          stop("`lag_periods` must contain period, lag_start, and lag_end.")
-        }
-        return(purrr::map_dfr(seq_len(nrow(lag_periods)), function(i) {
-          selected_lags <- which(
-            lag_index >= lag_periods$lag_start[i] &
-              lag_index <= lag_periods$lag_end[i]
-          )
-          if (!length(selected_lags)) {
-            stop(
-              "No lags found for period '", lag_periods$period[i],
-              "' (", lag_periods$lag_start[i], "-", lag_periods$lag_end[i], ")."
-            )
-          }
-          period_eta <- rowSums(eta_matrix[, selected_lags, drop = FALSE])
-          period_result <- data.frame(
-            var = variable,
-            period = lag_periods$period[i],
-            scale = "period",
-            value = at_values,
-            eta = period_eta,
-            stringsAsFactors = FALSE
-          )
-          period_result$effect <- transform_effect(period_result$eta)
-          period_result$baseline <- baseline_response
-          if (is.na(baseline_response)) {
-            period_result$predicted <- NA_real_
-            period_result$delta <- NA_real_
-          } else {
-            period_result$predicted <- linkinv(
-              linkfun(baseline_response) + period_result$eta
-            )
-            period_result$delta <- period_result$predicted - baseline_response
-          }
-          period_result
-        }))
-      }
+    point_transformed <- transform_lag_matrix(
+      eta_matrix = point_lag$eta,
+      lag_index = point_lag$lag,
+      at_values = at_values,
+      variable = variable
+    )
 
-      result$effect <- transform_effect(result$eta)
-      result$baseline <- baseline_response
-      if (is.na(baseline_response)) {
-        result$predicted <- NA_real_
-        result$delta <- NA_real_
-      } else {
-        result$predicted <- linkinv(linkfun(baseline_response) + result$eta)
-        result$delta <- result$predicted - baseline_response
-      }
-      result
+    grid <- point_transformed$grid
+    grid$var <- variable
+    grid <- grid[, c(
+      "var",
+      setdiff(names(grid), "var")
+    ), drop = FALSE]
+
+    eta_point <- as.vector(point_transformed$matrix)
+    effect_point <- transform_effect(eta_point)
+
+    predicted_point <- as.numeric(
+      link_object$linkinv(baseline_eta_point + eta_point)
+    )
+    delta_point <- predicted_point - baseline_response_point
+
+    if (any(!is.finite(predicted_point)) || any(!is.finite(delta_point))) {
+      stop(
+        "Response-scale point effects produced non-finite values for variable '",
+        variable, "'.",
+        call. = FALSE
+      )
     }
 
-    point_output <- build_output(point_eta)
+    point_output <- grid
+    point_output$eta <- eta_point
+    point_output$effect <- as.numeric(effect_point)
+    point_output$baseline <- baseline_response_point
+    point_output$predicted <- predicted_point
+    point_output$delta <- delta_point
 
     if (!uncertainty) {
+      diagnostic_source <- if (diagnostics) {
+        point_output[, intersect(
+          c("var", "lag", "value", "eta"),
+          names(point_output)
+        ), drop = FALSE]
+      } else {
+        NULL
+      }
+
       return(list(
         effects = point_output,
-        diagnostics_source = if (diagnostics) point_output else NULL
+        diagnostics_source = diagnostic_source
       ))
     }
 
-    beta_draws <- extract_beta_draws(
-      model = fit,
-      names_ref = cb_names_ref,
-      n = n_samples,
-      coefficient_info = coefficient_info
-    )
-    draw_sd <- apply(beta_draws, 2, stats::sd)
-    if (all(!is.finite(draw_sd)) || all(draw_sd < 1e-12, na.rm = TRUE)) {
-      warning("Near-zero coefficient-draw variability for variable '",
-              variable, "'. Intervals may collapse.", call. = FALSE)
+    # ------------------------------------------------------------------------
+    # Full joint parameter uncertainty
+    # ------------------------------------------------------------------------
+
+    missing_draws <- setdiff(cb_names, colnames(parameter_draws))
+    if (length(missing_draws)) {
+      stop(
+        "Parameter-draw matrix is missing cross-basis coefficient(s) for '",
+        variable, "': ", paste(missing_draws, collapse = ", "), ".",
+        call. = FALSE
+      )
     }
 
-    eta_list <- lapply(seq_len(nrow(beta_draws)), function(i) {
-      draw_prediction <- dlnm::crosspred(
-        cb,
-        coef = beta_draws[i, ],
-        vcov = diag(0, ncol(beta_draws)),
-        at = at_values,
-        cen = center_value,
-        bylag = 1
-      )
-      draw_prediction$matfit[, lag_order, drop = FALSE]
-    })
-    sample_output <- dplyr::bind_rows(lapply(seq_along(eta_list), function(i) {
-      current <- build_output(eta_list[[i]])
-      current$sample <- i
-      current[, c("sample", setdiff(names(current), "sample")), drop = FALSE]
-    }))
+    A <- build_effect_design(
+      basis = basis,
+      at_values = at_values,
+      center_value = center_value,
+      lag_index_reference = point_lag$lag,
+      transformed_grid = point_transformed$grid,
+      variable = variable
+    )
 
-    if (output == "samples") {
+    colnames(A) <- cb_names
+
+    eta_draws <- parameter_draws[, cb_names, drop = FALSE] %*% t(A)
+    storage.mode(eta_draws) <- "double"
+
+    if (any(!is.finite(eta_draws))) {
+      stop(
+        "DLNM effect draws contain non-finite values for variable '",
+        variable, "'.",
+        call. = FALSE
+      )
+    }
+
+    effect_draws <- transform_effect(eta_draws)
+
+    target_eta_draws <- sweep(
+      eta_draws,
+      MARGIN = 1L,
+      STATS = baseline_eta_draws,
+      FUN = "+"
+    )
+
+    predicted_draws <- matrix(
+      as.numeric(link_object$linkinv(as.vector(target_eta_draws))),
+      nrow = nrow(target_eta_draws),
+      ncol = ncol(target_eta_draws),
+      byrow = FALSE
+    )
+
+    delta_draws <- sweep(
+      predicted_draws,
+      MARGIN = 1L,
+      STATS = baseline_response_draws,
+      FUN = "-"
+    )
+
+    if (any(!is.finite(effect_draws)) ||
+        any(!is.finite(predicted_draws)) ||
+        any(!is.finite(delta_draws))) {
+      stop(
+        "Draw-by-draw effect transformation produced non-finite values for ",
+        "variable '", variable, "'.",
+        call. = FALSE
+      )
+    }
+
+    diagnostic_source <- NULL
+
+    if (identical(output, "samples")) {
+      n_effect_rows <- nrow(grid)
+      n_draws <- nrow(eta_draws)
+
+      long_grid <- grid[
+        rep(seq_len(n_effect_rows), times = n_draws),
+        ,
+        drop = FALSE
+      ]
+      rownames(long_grid) <- NULL
+
+      sample_output <- long_grid
+      sample_output$sample <- rep(seq_len(n_draws), each = n_effect_rows)
+      sample_output <- sample_output[, c(
+        "sample",
+        setdiff(names(sample_output), "sample")
+      ), drop = FALSE]
+
+      sample_output$eta <- as.vector(t(eta_draws))
+      sample_output$effect <- as.vector(t(effect_draws))
+      sample_output$baseline <- rep(
+        baseline_response_draws,
+        each = n_effect_rows
+      )
+      sample_output$predicted <- as.vector(t(predicted_draws))
+      sample_output$delta <- as.vector(t(delta_draws))
+
+      if (diagnostics) {
+        diagnostic_source <- sample_output[, intersect(
+          c("sample", "var", "lag", "value", "eta"),
+          names(sample_output)
+        ), drop = FALSE]
+      }
+
       return(list(
         effects = sample_output,
-        diagnostics_source = if (diagnostics) sample_output else NULL
+        diagnostics_source = diagnostic_source
       ))
     }
 
-    grouping_columns <- intersect(
-      c("var", "lag", "period", "scale", "value"),
-      names(sample_output)
+    # Summary output is calculated directly from the draw matrices after all
+    # transformations. No fixed baseline is inserted.
+    eta_summary <- .summarise_prediction_draws(
+      draws = eta_draws,
+      probs = interval_probs,
+      value_name = "eta"
     )
-    metric_columns <- intersect(
-      c("eta", "effect", "delta", "predicted"),
-      names(sample_output)
+    effect_summary <- .summarise_prediction_draws(
+      draws = effect_draws,
+      probs = interval_probs,
+      value_name = "effect"
     )
-    summary_output <- sample_output |>
-      dplyr::group_by(dplyr::across(dplyr::all_of(grouping_columns))) |>
-      dplyr::summarise(
-        dplyr::across(
-          dplyr::all_of(metric_columns),
-          list(
-            estimate = ~stats::median(.x, na.rm = TRUE),
-            sd = ~safe_sd(.x),
-            lower = ~safe_quantile(.x)[1],
-            upper = ~safe_quantile(.x)[2]
-          ),
-          .names = "{.col}_{.fn}"
-        ),
-        baseline = dplyr::first(.data$baseline),
-        .groups = "drop"
+    predicted_summary <- .summarise_prediction_draws(
+      draws = predicted_draws,
+      probs = interval_probs,
+      value_name = "predicted"
+    )
+    delta_summary <- .summarise_prediction_draws(
+      draws = delta_draws,
+      probs = interval_probs,
+      value_name = "delta"
+    )
+
+    summary_output <- grid
+
+    summary_output <- cbind(
+      summary_output,
+      eta_summary[, setdiff(names(eta_summary), "row_id"), drop = FALSE],
+      effect_summary[, setdiff(names(effect_summary), "row_id"), drop = FALSE]
+    )
+
+    baseline_values <- baseline_summary[
+      rep(1L, nrow(summary_output)),
+      setdiff(names(baseline_summary), "row_id"),
+      drop = FALSE
+    ]
+    rownames(baseline_values) <- NULL
+
+    summary_output <- cbind(
+      summary_output,
+      baseline_values,
+      predicted_summary[
+        ,
+        setdiff(names(predicted_summary), "row_id"),
+        drop = FALSE
+      ],
+      delta_summary[
+        ,
+        setdiff(names(delta_summary), "row_id"),
+        drop = FALSE
+      ]
+    )
+
+    if (diagnostics) {
+      n_effect_rows <- nrow(grid)
+      n_draws <- nrow(eta_draws)
+
+      diagnostic_source <- grid[
+        rep(seq_len(n_effect_rows), times = n_draws),
+        ,
+        drop = FALSE
+      ]
+      rownames(diagnostic_source) <- NULL
+
+      diagnostic_source$sample <- rep(
+        seq_len(n_draws),
+        each = n_effect_rows
       )
-    for (metric in metric_columns) {
-      estimate_column <- paste0(metric, "_estimate")
-      names(summary_output)[names(summary_output) == estimate_column] <- metric
+      diagnostic_source$eta <- as.vector(t(eta_draws))
+
+      diagnostic_source <- diagnostic_source[, intersect(
+        c("sample", "var", "lag", "value", "eta"),
+        names(diagnostic_source)
+      ), drop = FALSE]
     }
 
     list(
       effects = as.data.frame(summary_output),
-      diagnostics_source = if (diagnostics) sample_output else NULL
+      diagnostics_source = diagnostic_source
     )
   }
 
+  # ==========================================================================
+  # RUN REQUESTED VARIABLES
+  # ==========================================================================
+
   variable_results <- lapply(variables, summarise_one_variable)
-  output_data <- dplyr::bind_rows(lapply(variable_results, `[[`, "effects"))
+
+  output_data <- do.call(
+    rbind,
+    lapply(variable_results, `[[`, "effects")
+  )
   rownames(output_data) <- NULL
 
-  # Preserve the original return type and structure unless diagnostics are
-  # explicitly requested.
-  if (!diagnostics) return(output_data)
+  # Metadata on the output make the interpretation recoverable downstream.
+  attr(output_data, "epiexposure_reference") <- reference_values
+  attr(output_data, "epiexposure_reference_type") <- if (ref_is_method) {
+    paste0("method:", ref_method)
+  } else {
+    "exposure_specific"
+  }
+  attr(output_data, "epiexposure_effect_measure") <- effect_measure
+  attr(output_data, "epiexposure_link") <- metadata$link
+  attr(output_data, "epiexposure_prediction_level") <- "population"
+  attr(output_data, "epiexposure_prediction_estimand") <- "expected_response"
+  attr(output_data, "epiexposure_uncertainty") <- uncertainty
+  attr(output_data, "epiexposure_scale") <- scale
+  attr(output_data, "epiexposure_max_lag") <- metadata$max_lag
+  attr(output_data, "epiexposure_history_length") <- metadata$history_length
+  attr(output_data, "epiexposure_history_contract") <- metadata$history_contract
 
-  diagnostics_source <- dplyr::bind_rows(
+  if (uncertainty) {
+    attr(output_data, "epiexposure_n_samples") <- n_samples
+    attr(output_data, "epiexposure_interval_probs") <- interval_probs
+    attr(output_data, "epiexposure_summary_center") <- if (
+      identical(output, "summary")
+    ) {
+      "median"
+    } else {
+      "samples"
+    }
+  }
+
+  if (!diagnostics) {
+    return(output_data)
+  }
+
+  diagnostics_source <- do.call(
+    rbind,
     lapply(variable_results, `[[`, "diagnostics_source")
   )
-  diagnostics_data <- compute_lag_diagnostics(diagnostics_source)
-  rownames(diagnostics_data) <- NULL
+  rownames(diagnostics_source) <- NULL
 
-  structure(
+  diagnostics_data <- compute_lag_diagnostics(diagnostics_source)
+
+  result <- structure(
     list(
       effects = output_data,
       diagnostics = diagnostics_data
     ),
     class = c("epiexposure_effects", "list")
   )
+
+  attr(result, "epiexposure_reference") <- reference_values
+  attr(result, "epiexposure_effect_measure") <- effect_measure
+  attr(result, "epiexposure_link") <- metadata$link
+  attr(result, "epiexposure_prediction_level") <- "population"
+  attr(result, "epiexposure_prediction_estimand") <- "expected_response"
+  attr(result, "epiexposure_uncertainty") <- uncertainty
+  attr(result, "epiexposure_max_lag") <- metadata$max_lag
+  attr(result, "epiexposure_history_length") <- metadata$history_length
+  attr(result, "epiexposure_history_contract") <- metadata$history_contract
+
+  result
 }

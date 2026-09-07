@@ -8,11 +8,12 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+```{=html}
 <img src="../reference/figures/sticker.png"
      class="pkg-page-logo"
      alt="EpiExposure logo">
-     
-     
+```
+
 # Introduction
 
 The primary goal of `EpiExposure` is not only to fit distributed lag nonlinear models (DLNMs), but also to translate exposure-lag-response surfaces into biologically meaningful epidemiological interpretations.
@@ -24,9 +25,10 @@ This section introduces the main effect interpretation tools available in `EpiEx
 - Exposure Cumulative Impact (ECI)
 - Lag decomposition of ECI
 
-Together, these approaches allow researchers to identify critical exposure periods, compare epidemiological phases, and summarize complete exposure histories.
+These approaches allow researchers to identify critical exposure periods, compare epidemiological phases, and summarize complete exposure histories.
 
-# load example data
+# Load data
+
 ```{r}
 library(EpiExposure)
 library(dplyr)
@@ -203,7 +205,6 @@ ECI is reported as two complementary measures:
 
 - ECI_raw
   - accumulated exposure only
-
 - ECI_weighted
   - accumulated exposure weighted by the exposure-lag-response association estimated by the DLNM
 
@@ -279,7 +280,7 @@ Lag-specific effects, period-specific effects, and ECI provide complementary per
 
 Together, these tools provide a comprehensive framework for interpreting distributed lag nonlinear models in epidemiological research.
 
-# Next steps 
+# Next steps
 
 The next section introduces simulation and prediction tools:
 

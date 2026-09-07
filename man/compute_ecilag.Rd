@@ -8,99 +8,332 @@ compute_ecilag(
   profile = NULL,
   data = NULL,
   group = NULL,
+  time = "time",
   group_level = NULL,
   fit,
   var = NULL,
-  eps = 1e-06,
-  center = TRUE,
+  ref = list(method = "median", value = NULL),
   absolute = TRUE,
   uncertainty = FALSE,
   output = c("summary", "samples"),
-  n_samples = 1000
+  n_samples = 1000,
+  interval_probs = c(0.025, 0.975),
+  seed = NULL,
+  extrapolation = c("error", "warn", "allow")
 )
 }
 \arguments{
-\item{profile}{Numeric vector or list of numeric vectors containing exposure
-profiles in chronological order. For multiple variables, use a named list
-or an unnamed list whose order matches `var`.}
+\item{profile}{Optional exposure-profile input. Supply exactly one of
+  `profile` or `data`.
 
-\item{data}{Optional long-format data frame containing the grouping column,
-`time`, and the exposure variables. Within each group, `time` must uniquely
-identify observations from earliest to most recent.}
+  When exactly one exposure is requested, `profile` may be one finite numeric
+  vector. For multiple requested exposures, supply a list with exactly one
+  finite numeric vector per requested variable. A named list is recommended;
+  an unnamed list must follow the same order as `var`.
 
-\item{group}{Optional character scalar naming the grouping column in `data`.}
+  Every supplied history must contain exactly `max_lag + 1` observations.
+  Longer histories are not truncated and shorter histories are not padded.
 
-\item{group_level}{Optional grouping value or vector of values to evaluate.
-If `NULL`, all levels are evaluated.}
+  Under the EpiExposure exact-history contract, all fitted exposure variables
+  in the model must share the same fitted `max_lag`, and therefore the same
+  history length.}
 
-\item{fit}{Fitted model returned by `fit_epidlnm()`.}
+\item{data}{Optional non-empty long-format data frame containing exposure
+  histories. Supply exactly one of `profile` or `data`.
 
-\item{var}{Optional character scalar or vector naming fitted exposure
-variables. Required when the fitted model contains multiple exposures.}
+  The data must contain the grouping column named by `group`, the time column
+  named by `time`, and every exposure requested in `var`. If a method-based
+  reference is used, `data` must additionally contain every fitted exposure
+  because those variables are needed to derive the joint reference values.
 
-\item{eps}{Positive finite-difference perturbation. Default is `1e-6`.}
+  Every group in the supplied `data` must contain exactly `max_lag + 1`
+  unique, equally spaced time points. All groups must use the same temporal
+  spacing.}
 
-\item{center}{Logical. If `TRUE`, use central differences; otherwise use
-forward differences.}
+\item{group}{Character scalar naming the independent-history grouping column
+in `data`. Required when `data` is supplied.}
 
-\item{absolute}{Logical. If `TRUE`, include absolute contributions and
-absolute weights.}
+\item{time}{Character scalar naming the chronological numeric time column in
+`data`. Default is `"time"`.}
 
-\item{uncertainty}{Logical. If `TRUE`, propagate coefficient uncertainty.}
+\item{group_level}{Optional grouping value or vector of values to return. If
+`NULL`, all groups are evaluated in first-occurrence order. The exact
+temporal-history contract is validated for every group supplied in `data`,
+including groups not selected by `group_level`.}
 
-\item{output}{Character. `"summary"` or `"samples"`. This argument only
-changes the returned object when `uncertainty = TRUE`.}
+\item{fit}{Fitted model returned by the current `fit_epidlnm()`.}
 
-\item{n_samples}{Positive integer number of coefficient draws. At least two
-draws are required when `uncertainty = TRUE`.}
+\item{var}{Optional character vector naming fitted exposure variables to
+  decompose.
+
+  If the fitted model contains one exposure and `var = NULL`, that exposure
+  is used. For a multivariable fit, `var` must be supplied explicitly.
+
+  Each requested exposure is decomposed separately. Other fitted exposures
+  remain fixed at their reference values.}
+
+\item{ref}{Reference exposure specification.
+
+  Two forms are supported:
+
+  \itemize{
+    \item Method-based:
+      `list(method = "median", value = NULL)`,
+      `list(method = "percentile", value = p)`, or
+      `list(method = "fixed", value = x)`.
+    \item Exposure-specific: a named list containing exactly one finite
+      numeric reference value for every fitted exposure, for example
+      `list(tmean = 25, rain = 5, wetness = 10)`.
+  }
+
+  Method-based references require `data`. `"median"` uses each fitted
+  exposure's own median. `"percentile"` uses the same percentile `p` for
+  every fitted exposure. `"fixed"` applies the same numeric value to all
+  fitted exposures and should be used cautiously when exposure variables
+  have different units.
+
+  With direct `profile` input, use the exposure-specific named-list form.
+
+  The default is `list(method = "median", value = NULL)`.}
+
+\item{absolute}{Logical. If `TRUE`, add `abs_contribution` columns
+(and their uncertainty summaries).}
+
+\item{uncertainty}{Logical. If `FALSE`, use the harmonized central
+fixed/population parameter estimate. If `TRUE`, propagate joint
+fixed/population parameter uncertainty draw by draw.}
+
+\item{output}{Character. `"summary"` returns deterministic values when
+`uncertainty = FALSE`, or medians, SDs, and empirical intervals when
+`uncertainty = TRUE`. `"samples"` returns draw-level decomposition and
+requires `uncertainty = TRUE`.}
+
+\item{n_samples}{Positive integer number of parameter draws used when
+`uncertainty = TRUE`. At least two are required. Default is 1000.}
+
+\item{interval_probs}{Numeric vector of length two defining the empirical
+uncertainty interval. Default `c(0.025, 0.975)` gives a 95 percent
+interval.}
+
+\item{seed}{Optional finite integer used for parameter-draw sampling. The
+caller's global random-number state is restored when the function exits.}
+
+\item{extrapolation}{Character controlling exposure values outside the
+fitted cross-basis exposure range: `"error"` (default), `"warn"`, or
+`"allow"`.}
 }
 \value{
-For one profile-variable combination, a list containing `ECI_raw`,
-  `ECI_weighted`, and `by_lag`. With uncertainty, ECI uncertainty summaries
-  are also returned. For multiple variables or groups, a list containing
-  `eci_summary` and `by_lag` is returned; sample-level outputs are added when
-  requested.
+A list.
+
+  For one profile-variable combination, the list contains:
+
+  \describe{
+    \item{`ECI_raw`}{Discrete sum of the observed focal exposure values.}
+    \item{`ECI_raw_centered`}{Discrete sum of exposure deviations from the
+      focal reference value.}
+    \item{`ECI_weighted`}{Centered cumulative trajectory effect on the
+      linear-predictor scale.}
+    \item{`reference_value`}{Focal exposure reference value.}
+    \item{`max_lag`}{Common fitted maximum lag.}
+    \item{`n_exposure_values`}{Exact history length, `max_lag + 1`.}
+    \item{`by_lag`}{Lag-specific decomposition table.}
+  }
+
+  With uncertainty, `ECI_weighted_sd`, `ECI_weighted_lower`, and
+  `ECI_weighted_upper` are added. With `output = "samples"`,
+  `by_lag_samples` and `ECI_weighted_samples` are also returned.
+
+  For multiple groups and/or variables, the returned list contains
+  `eci_summary` and `by_lag`, plus sample-level tables when requested.
+
+  `by_lag` contains:
+
+  \describe{
+    \item{`var`}{Focal exposure.}
+    \item{`lag`}{Retrospective lag; 0 is most recent.}
+    \item{`exposure`}{Observed/simulated focal exposure at that lag.}
+    \item{`reference_value`}{Focal reference exposure.}
+    \item{`exposure_minus_reference`}{Exposure deviation from reference.}
+    \item{`contribution`}{Exact centered lag-specific DLNM contribution on
+      the linear-predictor scale.}
+    \item{`percent_contribution`}{Share of total absolute contribution
+      magnitude, `100 * abs(contribution) / sum(abs(contribution))`.}
+  }
 }
 \description{
-Decomposes the model-weighted Exposure Cumulative Impact into lag-specific
-weights and contributions using numerical derivatives of the DLNM linear
-predictor.
+Decomposes the centered model-weighted Exposure Cumulative Impact into exact
+lag-specific contributions on the linear-predictor scale.
 }
 \details{
-Profiles must be supplied in chronological order, from the earliest to the
-most recent observation. When `data` is used, observations are ordered
-internally by `time`. The returned decomposition is indexed by lag, where
-lag 0 is the most recent observation and lag max is the oldest observation.
+`compute_ecilag()` is designed to complement `compute_eci()` and
+`summarise_effects()`:
+
+- `summarise_effects(scale = "lag")` evaluates a general exposure-by-lag
+  effect surface;
+- `compute_eci()` evaluates the total impact of one complete exposure
+  trajectory relative to a joint reference profile;
+- `compute_ecilag()` decomposes that trajectory-specific total impact into
+  exact lag-specific contributions.
+
+Exposure profiles are supplied chronologically from the oldest observation
+to the most recent observation. The returned decomposition is indexed on the
+retrospective lag scale, where lag 0 is the most recent exposure and
+`max_lag` is the oldest exposure.
 
 
-For a chronological profile of length `max_lag + 1`, profile position 1 is
-associated with lag max and the final profile position is associated with
-lag 0. The function does not reverse the profile before constructing the
-cross-basis. The final cross-basis row performs the retrospective lag mapping.
+## Exact history contract
 
-All weighted ECI estimates, numerical-derivative weights, and lag-specific
-contributions are returned on the linear-predictor scale. Therefore, this
-function does not apply a response-scale or percent transformation. The
-interpretation warning for percent effects under log versus logit links does
-not apply to this function.
+EpiExposure uses one complete discrete exposure history per epidemiological
+unit. For a common fitted maximum lag `L`, every fitted exposure and every
+evaluated group must therefore use exactly
 
-Lag-specific weights are numerical derivatives of the DLNM contribution:
-\deqn{w_l(x) \approx [\eta(x + \epsilon e_l)-\eta(x)]/\epsilon}
-or the corresponding central difference. Contributions are calculated as
-\deqn{contribution_l = x_l w_l(x)}.
+\deqn{
+  L + 1
+}
 
-When `uncertainty = FALSE`, estimates are computed using the central
-coefficient estimates provided by the fitted model. For Bayesian engines,
-these are the coefficient means returned by the fitted object. No single
-posterior draw is used as a deterministic estimate.
+observations.
 
-When `uncertainty = TRUE`, estimates are computed for each coefficient draw
-and summarized using the median as the central estimate, together with the
-standard deviation and empirical 2.5% and 97.5% quantiles. Consequently,
-deterministic estimates and medians of draw-specific estimates may differ.
+Histories with different lengths or fitted exposures with different
+`max_lag` values are rejected explicitly. `compute_ecilag()` never selects a
+trailing window, truncates older observations, pads shorter histories, or
+silently aligns variables with different temporal windows.
 
-Frequentist uncertainty is approximated from the asymptotic multivariate
-normal coefficient distribution. `brms`, INLA, and `bdlnm` models use
-posterior coefficient draws when available. The function does not call
-`posterior_linpred()`, `posterior_epred()`, or `posterior_predict()`.
+## Centered total ECI
+
+For focal exposure trajectory
+
+\deqn{
+  X = (x_L, \ldots, x_1, x_0)
+}
+
+supplied chronologically from oldest to most recent, and a constant focal
+reference trajectory
+
+\deqn{
+  X_{ref} = (r, \ldots, r),
+}
+
+the weighted ECI on the linear-predictor scale is
+
+\deqn{
+  ECI_{weighted}
+  =
+  \{CB(X)-CB(X_{ref})\}^T\beta_{focal}.
+}
+
+All non-focal fitted exposures are held at their own reference values.
+
+This is the same trajectory-level centered effect used by
+`compute_eci(scale = "link")`.
+
+## Exact lag-specific contribution
+
+For lag `l`, define a trajectory that equals the reference at every lag
+except lag `l`, where the focal exposure takes its observed value `x_l`.
+The exact contribution is
+
+\deqn{
+  C_l
+  =
+  \eta_l(x_l)-\eta_l(r).
+}
+
+Because a DLNM cross-basis is additive over lag-specific basis
+contributions on the linear-predictor scale,
+
+\deqn{
+  ECI_{weighted}
+  =
+  \sum_{l=0}^{L} C_l.
+}
+
+`compute_ecilag()` verifies this identity numerically at the design-matrix
+level and again for the central estimate. With uncertainty it additionally
+verifies the equality draw by draw.
+
+For the same exposure value, lag, reference, basis, and coefficients,
+`C_l` is numerically the same centered lag-specific linear effect represented
+by `summarise_effects(scale = "lag", effect_measure = "linear")`.
+The functions differ in purpose: `summarise_effects()` maps a general
+exposure-by-lag surface, whereas `compute_ecilag()` extracts the values
+actually occurring along one specific trajectory.
+
+## Percent contribution
+
+The magnitude share is
+
+\deqn{
+  P_l
+  =
+  100
+  \frac{|C_l|}
+  {\sum_j |C_j|}.
+}
+
+The signed effect remains available in `contribution`. If every lag
+contribution is exactly zero, percent contributions are undefined and
+returned as `NA`.
+
+## Why decomposition stays on the link scale
+
+Additivity is guaranteed on the linear-predictor scale. In general,
+
+\deqn{
+  g^{-1}\left(\eta_{ref}+\sum_l C_l\right)
+  -
+  g^{-1}(\eta_{ref})
+}
+
+cannot be decomposed into the sum of separately inverse-linked lag effects
+when the link is nonlinear.
+
+Consequently, `compute_ecilag()` intentionally returns contribution and
+`ECI_weighted` on the link scale only. Use `compute_eci(scale = "response")`
+when the scientific target is the total trajectory impact on the expected
+response scale.
+
+## Population-level model contract
+
+The decomposition uses the same EpiExposure v1 fixed/population parameter
+contract as `compute_eci()` and `predict_outcomes()`. Fitted group-specific
+random effects are excluded/set to zero. No residual, observation, process,
+dispersion, or posterior-predictive noise is added.
+
+With `uncertainty = FALSE`, frequentist fits use fitted fixed coefficients
+and Bayesian fits use posterior-mean fixed/population coefficients.
+
+## Uncertainty
+
+With `uncertainty = TRUE`, one joint fixed/population parameter draw
+`beta^(s)` is applied simultaneously to every group, variable, and lag.
+Thus, for each draw,
+
+\deqn{
+  ECI_{weighted}^{(s)}
+  =
+  \sum_l C_l^{(s)}.
+}
+
+Contributions, absolute quantities, and percent contributions are calculated
+draw by draw before summaries are produced.
+Summary output uses the median, empirical SD, and empirical quantiles.
+
+Because the median is nonlinear,
+
+\deqn{
+  median\left(\sum_l C_l^{(s)}\right)
+}
+
+does not generally equal
+
+\deqn{
+  \sum_l median(C_l^{(s)}).
+}
+
+Therefore, exact additivity is a deterministic and draw-level identity; it is
+not expected between separately summarized medians.
+
+Frequentist and Bayesian parameter draws are obtained exclusively through
+the centralized EpiExposure prediction helpers. This function does not
+reconstruct engine-specific coefficient covariance or posterior logic.
 }

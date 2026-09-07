@@ -11,6 +11,9 @@
 
 \item{...}{Unused.}
 }
+\value{
+`x`, invisibly.
+}
 \description{
 Print DLNM identifiability diagnostics
 }

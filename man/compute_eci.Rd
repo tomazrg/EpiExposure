@@ -8,96 +8,359 @@ compute_eci(
   profile = NULL,
   data = NULL,
   group = NULL,
+  time = "time",
   group_level = NULL,
   fit = NULL,
   var = NULL,
+  ref = list(method = "median", value = NULL),
   scale = c("link", "response", "percent"),
   uncertainty = FALSE,
   output = c("summary", "samples"),
-  n_samples = 1000
+  n_samples = 1000,
+  interval_probs = c(0.025, 0.975),
+  seed = NULL,
+  extrapolation = c("error", "warn", "allow")
 )
 }
 \arguments{
-\item{profile}{Numeric vector or list of numeric vectors representing one or
-more chronological exposure profiles. If `fit = NULL`, `profile` must be a
-single numeric vector. For multiple fitted variables, use a named list or
-an unnamed list whose order matches `var`.}
+\item{profile}{Optional exposure profile input. Supply exactly one of
+  `profile` or `data`.
 
-\item{data}{Optional long-format data frame containing observed exposure
-histories. Must contain the grouping column specified in `group`, `time`,
-and all exposure variables requested in `var`. Observations are ordered
-internally by `time` within each group.}
+  When one exposure variable is evaluated, `profile` may be a finite numeric
+  vector. For multiple variables, supply a list with one numeric vector per
+  requested variable. A named list is recommended. If the list is unnamed,
+  its order must match `var`.
 
-\item{group}{Optional character scalar naming the grouping column in `data`.}
+  Profiles must be chronological from oldest to most recent. When `fit` is
+  supplied, every focal exposure profile must contain **exactly**
+  `max_lag + 1` observations for that fitted exposure. Histories that are
+  shorter or longer are rejected; `compute_eci()` never selects a temporal
+  window silently from a longer profile.
+
+  When `fit = NULL`, no fitted `max_lag` exists. In that raw-only mode,
+  `profile` must be one finite numeric vector and the function simply returns
+  its descriptive cumulative sum.}
+
+\item{data}{Optional non-empty long-format data frame containing observed
+  chronological exposure histories. Supply exactly one of `profile` or
+  `data`.
+
+  `data` must contain the grouping column named by `group`, the time column
+  named by `time`, and every exposure requested in `var`. Every evaluated
+  group must contain exactly `max_lag + 1` equally spaced observations for
+  the requested focal exposure(s). Groups with either fewer or more rows are
+  rejected. If a method-based reference is used, `data` must additionally
+  contain every exposure in the fitted model because those variables are
+  needed to construct the joint reference profile.}
+
+\item{group}{Character scalar naming the independent-history grouping column
+in `data`. Required when `data` is supplied.}
+
+\item{time}{Character scalar naming the chronological numeric time column in
+`data`. Default is `"time"`. Times must be unique and equally spaced within
+each evaluated group, and the temporal spacing must be common across
+groups.}
 
 \item{group_level}{Optional grouping value or vector of values to evaluate.
-If `NULL`, all observed levels are evaluated.}
+If `NULL`, all group levels are evaluated in first-occurrence order.}
 
-\item{fit}{Fitted model returned by `fit_epidlnm()`. If `NULL`, only
-`ECI_raw` is calculated.}
+\item{fit}{Optional fitted model returned by the current `fit_epidlnm()`.
+If `NULL`, only `ECI_raw` is calculated and model-weighted ECI,
+uncertainty, and response-scale quantities are unavailable.}
 
-\item{var}{Optional character scalar or vector naming fitted exposure
-variables. Required when the fitted model contains multiple exposures.}
+\item{var}{Optional character vector naming fitted exposure variables to
+  evaluate.
 
-\item{scale}{Character. Scale used for `ECI_weighted`: `"link"`,
-`"response"`, or `"percent"`.}
+  If `fit` contains one exposure and `var = NULL`, that exposure is used.
+  For a multivariable fit, `var` must be supplied explicitly. Each requested
+  variable is evaluated separately against the same joint reference profile;
+  the function does not sum impacts from different exposure variables.}
 
-\item{uncertainty}{Logical. If `TRUE`, propagates coefficient uncertainty.}
+\item{ref}{Reference exposure specification used when `fit` is supplied.
 
-\item{output}{Character. `"summary"` or `"samples"`.}
+  Two forms are supported:
 
-\item{n_samples}{Positive integer number of coefficient draws.}
+  \itemize{
+    \item Method-based:
+      `list(method = "median", value = NULL)`,
+      `list(method = "percentile", value = p)`, or
+      `list(method = "fixed", value = x)`.
+    \item Exposure-specific: a named list containing exactly one finite
+      numeric reference value for **every fitted exposure**, for example
+      `list(tmean = 25, rain = 5, wetness = 10)`.
+  }
+
+  Method-based references require `data` because the reference values are
+  derived from the supplied exposure data. `"median"` uses each fitted
+  exposure's own median. `"percentile"` uses the same percentile `p` for
+  every fitted exposure. `"fixed"` applies the same numeric value to all
+  fitted exposures and should be used cautiously when variables have
+  different units.
+
+  For direct `profile` input, use the exposure-specific named-list form.
+
+  The default is `list(method = "median", value = NULL)`.}
+
+\item{scale}{Character defining `ECI_weighted`:
+
+  - `"link"`: the centered cumulative DLNM contrast
+    \eqn{\Delta\eta};
+  - `"response"`: the absolute response-scale impact
+    `predicted - baseline`;
+  - `"percent"`: `100 * (exp(Delta eta) - 1)`, available only for log and
+    logit links.
+
+  For a log link, `"percent"` is the percent relative change in the expected
+  response. For a logit link, it is the percent change in odds, not the
+  percentage-point change in probability.}
+
+\item{uncertainty}{Logical. If `FALSE`, use the harmonized central
+fixed/population parameter estimate. If `TRUE`, propagate joint
+fixed/population parameter uncertainty draw by draw.}
+
+\item{output}{Character. `"summary"` returns deterministic values when
+`uncertainty = FALSE`, or medians, SDs, and empirical intervals when
+`uncertainty = TRUE`. `"samples"` returns one row per parameter draw and
+requires `uncertainty = TRUE`.}
+
+\item{n_samples}{Positive integer number of parameter draws used when
+`uncertainty = TRUE`. At least two are required. Default is 1000.}
+
+\item{interval_probs}{Numeric vector of length two defining the empirical
+uncertainty interval. Default `c(0.025, 0.975)` gives a 95 percent
+interval.}
+
+\item{seed}{Optional finite integer used for parameter-draw sampling. The
+caller's global random-number state is restored when the function exits.}
+
+\item{extrapolation}{Character controlling exposure values outside the
+fitted cross-basis exposure range: `"error"` (default), `"warn"`, or
+`"allow"`. The fitted basis is never re-estimated from ECI input data.}
 }
 \value{
-A data.frame containing `ECI_raw`, `ECI_weighted`, and `scale`.
-  Depending on the requested input and uncertainty settings, the output may
-  also contain `var`, the grouping column, `sample`, `sd`, `lower`, and
-  `upper`.
+A data frame.
+
+  With a fitted model, principal columns are:
+
+  \describe{
+    \item{`var`}{Focal exposure variable.}
+    \item{`reference_value`}{Reference exposure value for the focal
+      variable.}
+    \item{`max_lag`}{Fitted maximum lag for that variable.}
+    \item{`n_exposure_values`}{Number of exposure values used; always
+      `max_lag + 1`.}
+    \item{`ECI_raw`}{Descriptive sum of the focal exposure values over the
+      fitted lag window.}
+    \item{`ECI_raw_centered`}{Descriptive sum of exposure deviations from the
+      focal reference value over the same lag window.}
+    \item{`eta`}{Centered cumulative DLNM linear-predictor contrast
+      \eqn{\Delta\eta}.}
+    \item{`baseline`}{Population-level expected response under the joint
+      reference exposure profile, with fitted random effects excluded.}
+    \item{`predicted`}{Population-level expected response when the focal
+      exposure follows the evaluated profile and every other fitted exposure
+      remains at its reference value.}
+    \item{`delta`}{Absolute response-scale impact
+      `predicted - baseline`.}
+    \item{`ECI_weighted`}{`eta`, `delta`, or the permitted percent
+      transformation depending on `scale`.}
+    \item{`scale`}{Requested weighted-ECI scale.}
+  }
+
+  With `uncertainty = TRUE` and `output = "summary"`, `eta`, `baseline`,
+  `predicted`, `delta`, and `ECI_weighted` are each summarized by their
+  median plus `_sd`, `_lower`, and `_upper` columns. `ECI_raw` and
+  `ECI_raw_centered` are exposure-profile descriptors and therefore remain
+  deterministic.
+
+  With `uncertainty = TRUE` and `output = "samples"`, the same quantities are
+  returned draw by draw with a `sample` column.
+
+  When `fit = NULL`, the result contains only `ECI_raw` and the number of
+  exposure values used.
+
+  The output attribute `epiexposure_eci_history_contract` records
+  `"exact_max_lag_plus_one"` whenever a fitted model is used.
 }
 \description{
-Computes the raw Exposure Cumulative Impact (`ECI_raw`) and, when a fitted
-model is provided, the model-weighted Exposure Cumulative Impact
-(`ECI_weighted`) for one or more exposure variables.
+Computes a descriptive raw cumulative exposure (`ECI_raw`) and, when a
+fitted EpiExposure model is supplied, a model-weighted cumulative exposure
+impact (`ECI_weighted`) for one or more exposure variables.
 }
 \details{
-Exposure profiles must always be supplied in chronological order, from the
-earliest observation to the most recent observation before disease
-assessment. The function preserves this ordering when reconstructing the
-cross-basis. In the final cross-basis row, the most recent observation is
-internally associated with lag 0.
+Exposure histories are interpreted chronologically, from the oldest
+observation to the most recent observation. The most recent value is
+associated internally with lag 0.
+
+The model-weighted ECI is a **contrast relative to an explicit exposure
+reference profile**. It is not the uncentered cross-basis contribution
+`cb(x) %*% beta`, because that quantity depends on basis parameterization and
+is not, by itself, an interpretable exposure effect.
 
 
-`ECI_raw` is the unweighted sum of the chronological exposure profile:
-\deqn{ECI_{raw}=\sum_{t=0}^{T}x_t}
+## Raw ECI
 
-`ECI_weighted` is the contribution of the selected exposure on the requested
-scale, calculated from the final cross-basis row and the aligned fitted
-cross-basis coefficients:
-\deqn{ECI_{weighted}=\mathbf{cb}(x)^\top\boldsymbol{\beta}}
+For the discrete exposure history used by the fitted lag window,
 
-For `scale = "response"`, the inverse link is applied to the exposure
-contribution only. The model intercept, other predictors, and random effects
-are not included.
+\deqn{
+  ECI_{raw} = \sum_{j=0}^{L} x_j.
+}
 
-For `scale = "percent"`, the transformation is:
-`(exp(eta) - 1) * 100`.
+This is a discrete cumulative exposure sum, not a continuous-time integral.
+It retains the units of the exposure multiplied by the number of discrete
+lag positions. Comparisons are meaningful only for the same exposure
+variable, units, lag window, and temporal resolution.
 
-For models using a log link (e.g. Poisson, Gamma and Negative Binomial),
-this quantity can be interpreted as a relative percentage change with
-respect to the reference exposure condition.
+The centered descriptive counterpart is
 
-For models using a logit link (e.g. Beta and Binomial), this quantity
-represents a relative exposure effect on the linear-predictor scale and
-should not be interpreted as a direct percentage change in the response
-variable.
+\deqn{
+  ECI_{raw,centered} =
+  \sum_{j=0}^{L}(x_j-x_{ref}).
+}
 
-When `uncertainty = FALSE`, ECI is calculated using the central coefficient
-estimates provided by the fitted model.
+Neither raw quantity incorporates the fitted exposure-response or lag-response
+shape.
 
-When `uncertainty = TRUE`, ECI is calculated for each coefficient draw and
-summarized using the median together with empirical uncertainty intervals.
+## Exact exposure-history length
 
-Frequentist uncertainty is approximated with draws from the asymptotic
-multivariate normal coefficient distribution. Bayesian engines use posterior
-coefficient draws when available.
+When a fitted model is supplied, `compute_eci()` uses an explicit and strict
+temporal contract. For a fitted maximum lag `L`, the focal exposure history
+must contain exactly
+
+\deqn{
+  L + 1
+}
+
+chronological observations: the first value represents lag `L` and the last
+value represents lag 0. Longer histories are not truncated with `tail()` and
+shorter histories are not padded. This prevents ambiguity about which
+exposure window generated the cumulative impact and keeps ECI calculations
+comparable across profiles, groups, and downstream lag decompositions.
+
+In raw-only mode (`fit = NULL`), this restriction cannot be inferred because
+no fitted `max_lag` is available; the supplied vector is summed as given.
+
+## Why the weighted ECI must be centered
+
+A DLNM cross-basis is a basis expansion. The uncentered quantity
+
+\deqn{
+  cb(x)^T\beta
+}
+
+is a contribution to the linear predictor under the chosen basis
+parameterization, but it is not an invariant exposure effect. In particular,
+applying the inverse link to this contribution alone does not produce a valid
+expected response because the model intercept and the reference contribution
+of the other fitted exposures are absent.
+
+EpiExposure therefore defines model-weighted cumulative impact as a contrast
+between the focal profile and an explicit reference profile:
+
+\deqn{
+  \Delta\eta =
+  \{cb(x)-cb(x_{ref})\}^T\beta_{focal}.
+}
+
+Every non-focal fitted exposure is held at its own reference value throughout
+its lag window.
+
+This centering makes `ECI_weighted` consistent with the DLNM contrast logic
+used by `summarise_effects()`.
+
+## Response-scale ECI
+
+Let \eqn{X_{ref}} denote the complete fixed/population design under the
+joint reference exposure profile. The population expected-response baseline
+is
+
+\deqn{
+  B = g^{-1}(X_{ref}\beta).
+}
+
+Let \eqn{X_{target}} replace only the focal exposure history by the evaluated
+profile. Then
+
+\deqn{
+  P = g^{-1}(X_{target}\beta)
+}
+
+and
+
+\deqn{
+  D = P-B.
+}
+
+With `scale = "response"`, `ECI_weighted = D`.
+
+This differs fundamentally from the previous implementation, which applied
+the inverse link directly to the isolated focal cross-basis contribution.
+That operation did not represent a model prediction.
+
+## Percent scale
+
+With a log link,
+
+\deqn{
+  100\{\exp(\Delta\eta)-1\}
+}
+
+is the percent relative change in the population expected response.
+
+With a logit link, the same mathematical transformation is the percent change
+in odds. It is not the percent change or percentage-point change in predicted
+probability.
+
+Other links do not receive this exponential interpretation, so
+`scale = "percent"` is rejected explicitly.
+
+## Population-level prediction contract
+
+Weighted ECI follows the same EpiExposure v1 prediction target as
+`predict_outcomes()` and `summarise_effects()`:
+
+\deqn{
+  E(Y\mid X,\theta)
+}
+
+using only the fixed/population component. Fitted group-specific random
+effects are set to zero/excluded. No residual, observation, process,
+dispersion, or posterior-predictive noise is added.
+
+With `uncertainty = FALSE`, frequentist fits use fitted fixed coefficients
+and Bayesian fits use posterior-mean fixed/population coefficients.
+
+## Uncertainty
+
+With `uncertainty = TRUE`, one coherent fixed/population parameter draw is
+applied jointly to the reference design and every target ECI design. For
+draw \eqn{s},
+
+\deqn{
+  B^{(s)} = g^{-1}(X_{ref}\beta^{(s)}),
+}
+
+\deqn{
+  P_i^{(s)} = g^{-1}(X_i\beta^{(s)}),
+}
+
+\deqn{
+  D_i^{(s)} = P_i^{(s)}-B^{(s)}.
+}
+
+The same draw therefore determines every ECI row, preserving covariance
+among variables, groups, baseline, and target predictions. Transformations
+are performed draw by draw before medians, SDs, and empirical quantiles are
+calculated.
+
+Frequentist engines use the joint asymptotic fixed-effect covariance matrix.
+Bayesian engines use joint posterior or approximate-posterior fixed-effect
+draws through the centralized EpiExposure prediction helpers. The function
+does not independently reconstruct engine-specific uncertainty.
+
+## Method-based reference values
+
+Method-based references are resolved once from the complete supplied
+`data`, not independently within each group. This ensures every evaluated
+group is compared with the same joint exposure reference condition.
 }

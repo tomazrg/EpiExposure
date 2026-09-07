@@ -2,7 +2,7 @@
 % Please edit documentation in R/simulate_scenarios.R
 \name{simulate_scenarios}
 \alias{simulate_scenarios}
-\title{Simulate epidemiological DLNM scenarios}
+\title{Simulate epidemiological exposure-history scenarios}
 \usage{
 simulate_scenarios(
   fit,
@@ -10,71 +10,183 @@ simulate_scenarios(
   data = NULL,
   periods = NULL,
   ref_vals = NULL,
-  pop_level = TRUE,
   uncertainty = FALSE,
   output = c("summary", "samples"),
   n_samples = 1000,
-  seed = NULL
+  probs = c(0.025, 0.975),
+  seed = NULL,
+  extrapolation = c("warn", "error", "allow")
 )
 }
+\arguments{
+\item{fit}{Fitted model returned by the current `fit_epidlnm()`.}
+
+\item{scenarios}{Scenario definitions. Two input forms are supported:
+
+  \enumerate{
+    \item A named list in which each top-level element is one scenario.
+      Within a scenario, elements are named lag periods, and each period is a
+      named list of fitted exposure variables.
+    \item A structured object containing a `$scenarios` component and,
+      optionally, `$periods` and `$info` components, such as the object
+      produced by EpiExposure scenario-generation utilities.
+  }
+
+  For a period/exposure entry, a scalar applies one value uniformly to every
+  lag in that period. A numeric vector of length greater than one represents
+  multiple matched **scenario points**, not a lag-varying within-period
+  trajectory. All varying vectors within the same scenario must have the same
+  length; scalar entries are recycled across those points.
+
+  If a genuinely lag-varying chronological exposure history is required,
+  supply that history directly to `predict_outcomes(profiles = ...)` instead
+  of encoding it as a period vector here.}
+
+\item{data}{Optional long-format exposure data used only when a scenario
+leaves one or more fitted exposure-lag positions unspecified and no
+corresponding value was supplied in `ref_vals`. In that case, the median
+of the required fitted exposure in `data` is used as the background value.
+If every scenario completely specifies every fitted exposure over its full
+lag window, `data` is not required. `data` is never used to reconstruct,
+refit, or redefine a cross-basis.}
+
+\item{periods}{Optional data frame containing `period`, `lag_start`, and
+`lag_end`. If `scenarios` is a structured object with an embedded
+`$periods`, `periods` may be omitted. If both are supplied, their required
+columns must agree exactly; conflicting definitions are rejected.}
+
+\item{ref_vals}{Optional named list of finite numeric background values.
+  Values are used **only** for fitted exposure-lag positions left unspecified
+  by a scenario. The list may contain all fitted exposures or only the
+  exposures for which background filling is needed.
+
+  If an unassigned position requires a background value and that exposure is
+  absent from `ref_vals`, its median is derived from `data`. If neither source
+  is available, the function stops with an explicit error naming the exposure
+  that still requires a background value.
+
+  Complete scenarios therefore do not need `ref_vals` or `data`. For example,
+  when `simulate_ranges()` copies every fitted exposure combination across
+  non-overlapping periods that jointly cover the full fitted lag window,
+  every exposure-lag position is already specified.
+
+  EpiExposure does not use `argvar$cen` or another spline-centering attribute
+  as an implicit scenario background because DLNM centering and a complete
+  epidemiological background profile are distinct concepts.}
+
+\item{uncertainty}{Logical. If `FALSE`, predict from the harmonized central
+fixed/population parameter estimate. If `TRUE`, propagate joint
+fixed/population parameter uncertainty draw by draw through
+`predict_outcomes()`.}
+
+\item{output}{Character. `"summary"` returns deterministic predictions when
+`uncertainty = FALSE`, or median, SD, and empirical uncertainty intervals
+when `uncertainty = TRUE`. `"samples"` returns one row per parameter draw
+and scenario point and requires `uncertainty = TRUE`.}
+
+\item{n_samples}{Positive integer number of parameter draws used when
+`uncertainty = TRUE`. At least two are required.}
+
+\item{probs}{Numeric vector of length two defining the empirical uncertainty
+interval when `uncertainty = TRUE` and `output = "summary"`. The default
+`c(0.025, 0.975)` gives a 95 percent interval.}
+
+\item{seed}{Optional finite integer for reproducible parameter sampling.
+Random-number handling is delegated to `predict_outcomes()`, which restores
+the caller's global random-number state when it exits.}
+
+\item{extrapolation}{Character. Behavior when a complete scenario profile
+contains exposure values outside the fitted cross-basis exposure range:
+`"warn"` (default), `"error"`, or `"allow"`. The fitted basis is never
+re-estimated from scenario values.}
+}
+\value{
+A data frame containing scenario identifiers, optional scenario
+  metadata, and population-level expected-response predictions.
+
+  `scenario` identifies the named scenario and `scenario_point` identifies
+  matched points when a scenario contains varying vectors.
+
+  With `uncertainty = FALSE`, the result contains `prediction`.
+
+  With `uncertainty = TRUE` and `output = "summary"`, it contains
+  `prediction`, `prediction_sd`, `prediction_lower`, and
+  `prediction_upper`.
+
+  With `uncertainty = TRUE` and `output = "samples"`, it contains `sample`
+  and `prediction`, with the same `sample` index referring to the same joint
+  fixed/population parameter draw across all scenario points.
+}
 \description{
-Generates predicted outcomes under user-defined epidemiological scenarios
-using distributed lag nonlinear models (DLNMs).
+Builds complete chronological exposure histories from user-defined lag-period
+scenarios and predicts their population-level expected outcomes with
+`predict_outcomes()`.
 }
 \details{
-The function combines exposure conditions specified for one or more lag
-periods, assembles complete exposure histories, and evaluates the resulting
-outcome predictions through `predict_outcomes()`.
+`simulate_scenarios()` is intentionally a thin scenario-construction wrapper.
+It does not contain engine-specific prediction code, does not refit or
+redefine DLNM bases, and does not summarize parameter draws independently of
+`predict_outcomes()`. All model-specific prediction, link handling, and
+uncertainty propagation are delegated to the harmonized prediction layer.
 
-Scenarios can be supplied either as:
 
-- a structured object returned by `simulate_ranges()`, or
-- a named list of scenario definitions.
+## Scenario interpretation
 
-Exposure profiles are assembled in chronological order:
+Each scenario is converted into one complete chronological exposure history
+for every fitted exposure. Period-specific assignments are written first.
+Only positions that remain unassigned are filled from `ref_vals` or, when
+needed, exposure medians derived from `data`.
 
-- the first profile element represents the oldest exposure;
-- the last profile element represents the most recent exposure.
+This means a complete scenario is predicted exactly as supplied. Background
+values do not modify or recenter positions that the scenario already defines.
 
-Internal conversion to retrospective lag indexing is handled
-automatically by the package and is never required from the user.
+For a fitted maximum lag \eqn{L}, a profile has \eqn{L + 1} elements ordered
+chronologically:
 
-Reference exposure values can be supplied explicitly through
-`ref_vals`. When omitted, the function attempts to determine
-appropriate reference values from:
+\deqn{(x_L, x_{L-1}, \ldots, x_1, x_0),}
 
-1. the median of each variable in `data`;
-2. centering values stored in the fitted DLNM specification.
+so the final profile element corresponds to lag 0.
 
-When `uncertainty = FALSE`, predictions are computed using the
-central coefficient estimates stored in the fitted model.
+A scenario prediction therefore describes the expected outcome under the
+**entire assembled exposure history**, not the effect of a single lag in
+isolation.
 
-When `uncertainty = TRUE`, uncertainty is propagated through
-`predict_outcomes()` using model-specific coefficient draws:
+## Population-level expected response
 
-- posterior draws for Bayesian models;
-- simulated coefficient draws based on the asymptotic covariance
-  matrix for frequentist models.
+EpiExposure v1 reports scenario predictions from the fixed/population
+component of the fitted model:
 
-If `output = "summary"`, simulated predictions are summarized by:
+\deqn{\eta = X\beta,}
 
-- median prediction;
-- empirical standard deviation;
-- empirical 95% uncertainty interval.
+with fitted random effects set to zero. Random effects may have contributed
+to model estimation, but no fitted group-specific random effect is inherited
+by a scenario. With response-scale output, the target is
 
-If `output = "samples"`, all simulated predictions are returned
-without aggregation.
+\deqn{E(Y \mid X) = g^{-1}(X\beta).}
 
-For mixed-effects models, `pop_level = TRUE` produces population-level
-predictions when supported by the fitted engine, whereas
-`pop_level = FALSE` includes conditional predictions.
+This is not integration over the random-effect distribution and is not a
+simulation of a future observed outcome.
 
-The function is intended for scenario analysis, intervention
-assessment, counterfactual simulations, and exposure profile
-comparisons across multiple lag periods.
+## Uncertainty and scenario comparisons
 
-Conceptually, each scenario represents a complete exposure history.
-The prediction associated with a scenario therefore reflects the
-cumulative effect of the entire exposure profile rather than the
-effect of a single lag or a single exposure value.
+When `uncertainty = TRUE`, all scenario profiles are passed to
+`predict_outcomes()` in a **single prediction call**. Consequently, parameter
+draw \eqn{s} is applied jointly to every scenario:
+
+\deqn{\mu_j^{(s)} = g^{-1}(X_j\beta^{(s)}),}
+
+where \eqn{j} indexes scenario points. This preserves covariance among
+scenario predictions and allows sample-wise differences between scenarios to
+be calculated correctly downstream.
+
+The uncertainty distribution describes uncertainty in expected responses.
+Residual, observation, process, dispersion, posterior-predictive, and
+group-specific random-effect noise are not added.
+
+## Overlapping periods
+
+`periods` may contain overlapping intervals, but within a single scenario the
+same exposure cannot be assigned by two overlapping period blocks. Such a
+conflict is rejected rather than allowing one block to silently overwrite the
+other.
 }

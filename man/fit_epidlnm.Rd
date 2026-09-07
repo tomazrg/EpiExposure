@@ -2,7 +2,7 @@
 % Please edit documentation in R/fit_epidlnm.R
 \name{fit_epidlnm}
 \alias{fit_epidlnm}
-\title{Fit DLNM inferential model}
+\title{Fit a harmonized DLNM inferential model}
 \usage{
 fit_epidlnm(
   data,
@@ -15,55 +15,185 @@ fit_epidlnm(
 )
 }
 \arguments{
-\item{data}{Data frame containing `y_model` and the fitted `cb_*` terms.
-Data prepared with `prepare_response()` may contain the
-`response_family_name` attribute, which is checked against `family`.}
+\item{data}{A data.frame containing `y_model` and the fitted DLNM design
+columns. For all engines except `bdlnm`, cross-basis columns must follow the
+package convention `cb_<variable>_<index>`. For `bdlnm`, the original
+cross-basis objects are supplied through `basis_objects` instead. Data
+prepared by `prepare_response()` may carry the `response_family_name`
+attribute; when present, it must agree with `family`.}
 
-\item{model_engine}{Character scalar identifying the modeling engine:
+\item{model_engine}{Character scalar identifying the modeling engine. One of
 `"glm"`, `"glmmTMB"`, `"gam"`, `"gamm"`, `"gls"`, `"spamm"`,
 `"brms"`, `"inla"`, or `"bdlnm"`.}
 
-\item{family}{Distribution family supplied as a supported character name or
-an engine-compatible family object. Canonical family names are `"beta"`,
-`"binomial"`, `"poisson"`, `"gamma"`, `"gaussian"`,
-`"negative_binomial"`, and `"ordinal"`. Aliases such as `"negbin"`,
-`"nbinom1"`, and `"nbinom2"` are normalized internally.}
+\item{family}{Response distribution supplied as a supported canonical name
+or as a family object from which a supported canonical family and link can
+be identified. The supported EpiExposure v1 families are `"beta"`,
+`"binomial"`, `"poisson"`, `"gamma"`, `"gaussian"`, and
+`"negative_binomial"`. The canonical negative-binomial model is the
+quadratic-variance NB2 parameterization. NB1 and ordinal models are not
+supported in this version and produce explicit errors.}
 
-\item{random_effect}{Optional character scalar naming a random-effect column.}
+\item{random_effect}{Optional character scalar naming one grouping column.
+In EpiExposure v1 this argument represents a random intercept only; random
+slopes, nested/crossed random-effect specifications, and arbitrary
+engine-specific random-effect expressions are intentionally not accepted.
+The random intercept is translated to the native syntax of each supported
+mixed-model engine. INLA-backed fits internally re-index arbitrary grouping
+labels to consecutive integers while retaining the original column name in
+EpiExposure metadata. `glm` and `gls` do not support this argument. `gamm`
+requires it in the current EpiExposure interface because its generated
+fixed formula contains no other smooth/random term.}
 
-\item{epiexposure_spec}{Optional named list describing how each cross-basis
-was constructed. The recommended structure is:
-`list(tmean = list(max_lag = 85, argvar = list(...), arglag = list(...)))`.
-If `NULL`, the model can be fitted, but profile-based downstream functions
-may not be available.}
+\item{epiexposure_spec}{Named list describing the cross-basis construction
+  for every fitted exposure. This metadata is required so downstream
+  functions reconstruct exactly the fitted exposure-lag basis rather than
+  re-inferring `df`, knots, or basis functions. Each element must contain
+  `max_lag`, `argvar`, and `arglag`.
 
-\item{basis_objects}{Optional named list of original cross-basis or one-basis
-objects. Required when `model_engine = "bdlnm"`.}
+  Under the EpiExposure exact-history contract, each `max_lag` must be one
+  non-negative integer and all fitted exposures must use the same
+  `max_lag`. Consequently, every original exposure history used to build the
+  epidemic-level design must contain exactly `max_lag + 1` observations for
+  every fitted exposure. `fit_epidlnm()` receives the already collapsed
+  epidemic-level design and therefore validates the common fitted `max_lag`;
+  exact original history length is validated upstream by the exposure/design
+  construction functions.}
 
-\item{...}{Additional arguments passed to the selected modeling engine.}
+\item{basis_objects}{Optional named list of original `dlnm::crossbasis()`
+objects. It is required for `model_engine = "bdlnm"`. When supplied for
+other engines, its names must match the fitted exposure variables.}
+
+\item{...}{Named additional arguments passed to the selected engine. Core
+arguments managed by EpiExposure (`formula`/`model`, `data`, `family`, and
+the engine-specific random-effect argument) cannot be supplied again in
+`...`. For direct INLA fits, `control.compute$config = TRUE` is required by
+the EpiExposure uncertainty contract and is added automatically when
+absent. If a conflicting value is supplied, the function stops.}
 }
 \value{
-A fitted model object with standardized EpiExposure attributes,
-  including the engine, canonical family name, engine-specific family,
-  link, ordered cross-basis columns, exposure variables, data template,
-  grouping column, exposure specification, and basis objects.
+A fitted model object with a strict metadata contract. The following
+  attributes are attached for downstream functions:
+  `epiexposure_family_name`, `epiexposure_link`, `epiexposure_engine`,
+  `epiexposure_cb_cols`, `epiexposure_vars`,
+  `epiexposure_data_template`, `epiexposure_id_col`, `epiexposure_spec`, and
+  `epiexposure_basis_objects`. Additional attributes record the standardized
+  family parameterization, random-intercept structure, common fitted
+  `max_lag`, expected history length (`max_lag + 1`), the exact-history
+  contract, and the EpiExposure v1 prediction contract.
 }
 \description{
-Fits a DLNM inferential model from an epidemic-level design matrix and
-stores standardized EpiExposure metadata for downstream prediction,
-effect summarization, and exposure-impact calculations.
+Fits a distributed lag nonlinear model (DLNM) from an epidemic-level design
+matrix and stores the standardized EpiExposure metadata required by
+downstream prediction, effect summarization, scenario simulation, and model
+comparison functions.
 }
 \details{
-This function fits models but does not generate posterior predictions or
-uncertainty summaries. Consequently, it does not call
-`posterior_linpred()`, `posterior_epred()`, or `posterior_predict()`, and no
-single posterior draw is used as a deterministic estimate.
+## Engine harmonization
 
-Family specifications are normalized to a canonical family name and then
-converted to the representation expected by the selected engine. Unknown or
-unsupported engine-family combinations generate explicit errors. No silent
-fallback to the Gaussian family is used.
+`fit_epidlnm()` standardizes the *statistical target* across engines without
+requiring every engine to use the same computational implementation. The
+model is fitted using the selected engine, while downstream EpiExposure v1
+predictions are defined as population-level expected responses. Random
+effects may therefore affect estimation during model fitting, but downstream
+predictions exclude group-specific random-effect contributions.
 
-If `prepare_response()` stored a `response_family_name` attribute in `data`,
-that family must match the canonical family used for model fitting.
+The random-intercept translation used at fitting is:
+
+* `glmmTMB`, `brms`, and `spaMM`: `(1 | group)`;
+* `gam`: `s(group, bs = "re")`;
+* `gamm`: `random = list(group = ~1)`;
+* `INLA` and `bdlnm`: `f(group, model = "iid")`.
+
+`glm` and `gls` are fixed-effect engines in this interface and reject a
+non-`NULL` `random_effect`. The `mgcv::gamm()` implementation uses the
+engine's native `random` argument rather than lme4-style syntax. Because
+`gamm()` uses PQL for non-Gaussian responses and is specifically known to be
+problematic for binary data, a warning is issued for the binomial family.
+
+## Families and links
+
+Canonical families are translated to engine-native representations. The
+canonical `negative_binomial` family is standardized to an NB2-type model
+(`Var(Y) = mu + mu^2 / shape`) where supported. An explicit NB1 request is
+rejected instead of being silently converted.
+
+Automatic family availability is engine-specific:
+
+* `glm`: Gaussian, Binomial, Poisson, Gamma;
+* `glmmTMB`: all six EpiExposure v1 families;
+* `gam`: all six EpiExposure v1 families;
+* `gamm`: Gaussian, Binomial, Poisson, Gamma;
+* `gls`: Gaussian with identity link only;
+* `spaMM`: all six EpiExposure v1 families;
+* `brms`: all six EpiExposure v1 families;
+* `INLA`: all six EpiExposure v1 families, subject to the installed INLA
+  likelihood implementation;
+* `bdlnm`: all six EpiExposure v1 families through its INLA backend.
+
+When a family object supplies a non-default link, EpiExposure records that
+exact link in `epiexposure_link` and reconstructs the corresponding
+engine-native family. For INLA-based engines the same link is forwarded via
+`control.family$control.link$model`. Unsupported family-link combinations
+fail explicitly in EpiExposure or in the selected engine; no Gaussian or
+identity-link fallback is used.
+
+For `gam`, Beta and negative-binomial models use `mgcv` extended families.
+When needed, `method = "REML"` is supplied by default to satisfy the
+supported fitting route; an explicitly supplied incompatible method is
+rejected. A GAM random intercept also defaults to REML unless the user
+explicitly selects another method.
+
+## Response-scale validation
+
+To avoid engine-specific silent coercion, `y_model` is checked against the
+canonical family before fitting: Beta responses must lie strictly inside
+`(0, 1)`; Binomial responses must be coded `0/1`; Poisson and negative-
+binomial responses must be non-negative integer counts; Gamma responses must
+be strictly positive; Gaussian responses need only be finite numeric values.
+
+## Common lag and exact-history contract
+
+EpiExposure models use one common retrospective lag window for every fitted
+exposure. If the common maximum lag is `L`, all original exposure histories
+must contain exactly
+
+\deqn{
+  L + 1
+}
+
+equally spaced observations per epidemiological unit and per exposure.
+Exposures with different fitted `max_lag` values are rejected here.
+
+Because `fit_epidlnm()` is called after `build_design()` has collapsed each
+complete history to one epidemic-level model row, the original long-format
+row count is no longer available at this stage. Exact `L + 1` temporal
+coverage must therefore be enforced by `define_exposures()` and
+`build_design()`. This function records the common lag/history contract in
+the fitted model metadata so downstream functions can enforce it.
+
+## Metadata and downstream prediction contract
+
+The fitted exposure specification is part of the model contract, not an
+optional hint. Downstream functions must use the stored family, link, engine,
+cross-basis mapping, exposure specification, and data template. They should
+not infer a link from the family, rebuild a cross-basis from user-supplied
+degrees of freedom, align coefficients by position, or substitute a
+Gaussian/identity model when metadata are missing.
+
+EpiExposure v1 prediction functions are intended to return the expected
+outcome under the fitted model, not a newly simulated observation. They use
+population-level predictions: random effects are included in model fitting
+when requested here, but group-specific random effects are not included in
+downstream predictions. This function itself only fits the model and does
+not create outcome predictions or uncertainty summaries.
+
+Bayesian engines may generate posterior coefficient draws as part of their
+native fitting procedure (notably `bdlnm`). Those stored coefficient draws
+are model output and are available for later draw-by-draw uncertainty
+propagation; they are not used here as a single deterministic prediction.
+
+Ordinal outcomes are deliberately excluded from EpiExposure v1 so fitting,
+prediction, uncertainty, performance metrics, and ensemble behavior remain
+harmonized across the supported response families.
 }

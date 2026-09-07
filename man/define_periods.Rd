@@ -7,48 +7,132 @@
 define_periods(max_lag, cuts = NULL, prefix = "W")
 }
 \arguments{
-\item{max_lag}{Maximum lag. Must be a positive integer.}
+\item{max_lag}{Non-negative integer maximum lag. The standard form is a
+scalar such as `85`. For compatibility with lag-range metadata,
+`c(0, 85)` is also accepted. EpiExposure v1 requires lag histories to start
+at 0.}
 
-\item{cuts}{Optional numeric vector of cut points defining lag periods.}
+\item{cuts}{Optional numeric vector of **inclusive period-end lags**.
 
-\item{prefix}{Character string used to label periods.
-Default: `"W"`.}
+  For example, with `max_lag = 20`:
+
+  ```
+  cuts = c(7, 14)
+  ```
+
+  creates:
+
+  ```
+  0--7
+  8--14
+  15--20
+  ```
+
+  Every cut must therefore be a unique finite integer strictly between
+  `0` and `max_lag`. Cut order in the input is not meaningful; valid cuts
+  are arranged in increasing lag order before periods are constructed.
+
+  `NULL` or `numeric(0)` requests one cumulative period from lag 0 through
+  `max_lag`.}
+
+\item{prefix}{Non-empty character scalar used to label periods. With the
+default `prefix = "W"`, periods are labeled `"W1"`, `"W2"`, and so on.}
 }
 \value{
-A data.frame with columns:
-\itemize{
-  \item `period`
-  \item `lag_start`
-  \item `lag_end`
-}
+A data frame with exactly three columns:
+
+  - `period`: unique period label;
+  - `lag_start`: first lag included in the period;
+  - `lag_end`: last lag included in the period.
+
+  Period bounds are integer and inclusive. Rows are ordered from the most
+  recent lag interval to the oldest.
+
+  The returned object also stores:
+
+  - `attr(x, "epiexposure_max_lag")`: validated maximum lag;
+  - `attr(x, "epiexposure_cuts")`: validated internal cut points;
+  - `attr(x, "epiexposure_n_lags")`: total number of represented lags,
+    `max_lag + 1`;
+  - `attr(x, "epiexposure_period_contract")`:
+    `"contiguous_inclusive_retrospective_lags"`;
+  - `attr(x, "epiexposure_lag_scale")`:
+    `"lag_0_most_recent"`;
+  - `attr(x, "epiexposure_full_coverage")`: `TRUE`.
 }
 \description{
-Creates lag periods used to summarise cumulative DLNM effects.
+Creates contiguous, non-overlapping lag periods for period-specific DLNM
+summaries and scenario definitions.
 }
 \details{
-Lag periods are defined on the retrospective lag scale, where
-lag 0 represents the most recent observation and `max_lag`
-represents the oldest observation included in the exposure history.
+Periods are defined on the EpiExposure retrospective lag scale:
+
+- lag 0 = the most recent exposure observation;
+- increasing lag = progressively older exposure observations;
+- `max_lag` = the oldest exposure observation included in the fitted history.
 
 
-If `cuts = NULL`, a single cumulative lag period is returned:
+## Inclusive cut semantics
 
-\preformatted{
-lag_start = 0
-lag_end   = max_lag
-}
+`cuts` are not arbitrary break coordinates and are not the first lag of the
+following period. Each cut is the **inclusive final lag of the current
+period**.
 
-If cut points are supplied, periods are created as contiguous,
-non-overlapping lag intervals:
+Thus:
 
-\preformatted{
-cuts = c(7, 14)
+```
+define_periods(
+  max_lag = 20,
+  cuts = c(7, 14)
+)
+```
 
-W1 = 0 - 7
-W2 = 8 - 14
-W3 = 15 - max_lag
-}
+returns:
 
-Invalid cut points outside the interval
-`[1, max_lag - 1]` are ignored.
+```
+  period lag_start lag_end
+  W1             0       7
+  W2             8      14
+  W3            15      20
+```
+
+Every lag from `0` through `max_lag` appears exactly once. There are no gaps
+and no overlaps.
+
+## Single cumulative period
+
+When `cuts = NULL` or `cuts = numeric(0)`, the full lag history is represented
+by one period:
+
+```
+  period lag_start lag_end
+  W1             0 max_lag
+```
+
+This also supports `max_lag = 0`, in which case the single valid period is
+`0--0`.
+
+## Validation philosophy
+
+Earlier versions silently converted cut points with `as.integer()` and
+discarded cuts outside the fitted lag range. The current EpiExposure
+contract does not alter or ignore invalid period definitions silently.
+
+Non-integer, duplicated, non-finite, boundary (`0` or `max_lag`), or
+out-of-range cut points produce explicit errors. This prevents downstream
+functions such as `summarise_effects()` and scenario simulation from using a
+period definition different from the one requested by the analyst.
+
+## Relationship with `summarise_effects()`
+
+For period-specific effects, `summarise_effects()` treats both
+`lag_start` and `lag_end` as inclusive. Therefore a period `8--14`
+represents exactly the lags:
+
+```
+8, 9, 10, 11, 12, 13, 14
+```
+
+`define_periods()` constructs exactly that contract and orders periods by
+increasing retrospective lag.
 }

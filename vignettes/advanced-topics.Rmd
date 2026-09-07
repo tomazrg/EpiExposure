@@ -4,20 +4,26 @@ description: "Advanced model specification, uncertainty, diagnostics, and comput
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Advanced Topics}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
 
+```{=html}
 <img src="../reference/figures/sticker.png"
      class="pkg-page-logo"
      alt="EpiExposure logo">
-     
-     
+```
+
 # Introduction
 
-Most `EpiExposure` workflows can be completed using the default model specification introduced in previous vignettes.
+Most `EpiExposure` workflows can be completed using the default model
+specification introduced in previous vignettes.
 
-However, advanced applications often require additional flexibility regarding:
+However, advanced applications often require additional flexibility
+regarding:
 
 - model engines;
 - uncertainty estimation;
@@ -25,13 +31,15 @@ However, advanced applications often require additional flexibility regarding:
 - identifiability diagnostics;
 - computational performance.
 
-This vignette discusses these advanced topics and provides recommendations for robust DLNM analyses.
+This vignette discusses these advanced topics and provides
+recommendations for robust DLNM analyses.
 
 # Alternative model engines
 
 EpiExposure separates exposure-lag specification from model estimation.
 
-Consequently, the same DLNM structure can be fitted using different regression engines.
+Consequently, the same DLNM structure can be fitted using different
+regression engines.
 
 ## glmmTMB
 
@@ -54,12 +62,13 @@ fit_glmmTMB <- fit_epidlnm(
 )
 ```
 
-
 ## GAM models
 
 Generalized Additive Models (GAMs) can also be used for estimation.
 
-When DLNM predictors are fitted within a GAM framework, the DLNM basis functions should be interpreted as the exposure-lag representation, while GAM smoothing primarily acts as a penalization mechanism.
+When DLNM predictors are fitted within a GAM framework, the DLNM basis
+functions should be interpreted as the exposure-lag representation,
+while GAM smoothing primarily acts as a penalization mechanism.
 
 ```{r}
 fit_gam <- fit_epidlnm(
@@ -93,9 +102,11 @@ fit_brms <- fit_epidlnm(
 
 ## INLA
 
-INLA provides approximate Bayesian inference with substantially lower computational costs than MCMC approaches.
+INLA provides approximate Bayesian inference with substantially lower
+computational costs than MCMC approaches.
 
-For large exposure-lag datasets, INLA often offers an attractive compromise between speed and Bayesian inference.
+For large exposure-lag datasets, INLA often offers an attractive
+compromise between speed and Bayesian inference.
 
 ```{r}
 fit_inla <- fit_epidlnm(
@@ -109,10 +120,11 @@ fit_inla <- fit_epidlnm(
 
 Every DLNM estimate contains uncertainty.
 
-Ignoring uncertainty can lead to overconfident epidemiological conclusions.
+Ignoring uncertainty can lead to overconfident epidemiological
+conclusions.
 
-`EpiExposure` allows uncertainty to be propagated throughout effect estimation, prediction, simulation, and loss calculations.
-
+`EpiExposure` allows uncertainty to be propagated throughout effect
+estimation, prediction, simulation, and loss calculations.
 
 # Summary versus samples
 
@@ -141,9 +153,7 @@ epi_l <- summarise_effects(
 
 This returns:
 
-• estimate;
-• lower interval;
-• upper interval.
+• estimate; • lower interval; • upper interval.
 
 ## Sample output
 
@@ -161,9 +171,8 @@ This return individual uncertainty realizations
 
 These samples may subsequently be used for:
 
-• sensitivity analysis;
-• scenario simulations;
-• custom uncertainty visualization.
+• sensitivity analysis; • scenario simulations; • custom uncertainty
+visualization.
 
 # Uncertainty in predictions
 
@@ -192,9 +201,11 @@ ggplot(
 
 # Identifiability diagnostics
 
-Large lag dimensions and complex spline structures may occasionally produce unstable estimates.
+Large lag dimensions and complex spline structures may occasionally
+produce unstable estimates.
 
-The `check_identifiability()` function evaluates whether the selected DLNM specification is likely to generate numerical problems.
+The `check_identifiability()` function evaluates whether the selected
+DLNM specification is likely to generate numerical problems.
 
 Example:
 
@@ -219,38 +230,33 @@ check_identifiability(
 
 Poor identifiability can arise from:
 
-• highly correlated exposures;
-• excessive spline flexibility;
-• insufficient sample size;
-• extremely long lag periods.
+• highly correlated exposures; • excessive spline flexibility; •
+insufficient sample size; • extremely long lag periods.
 
 Symptoms include:
 
-• non-convergence;
-• inflated confidence intervals;
-• unstable predictions;
+• non-convergence; • inflated confidence intervals; • unstable
+predictions;
 
 # Choosing lag duration
 
-The lag duration should be guided by biological knowledge whenever possible.
+The lag duration should be guided by biological knowledge whenever
+possible.
 
 Excessively short lags may exclude relevant exposure information.
 
-Excessively long lags may introduce noise and reduce numerical stability.
+Excessively long lags may introduce noise and reduce numerical
+stability.
 
 Recommended strategy:
 
-Known latent period
-       ↓
-Known incubation period
-       ↓
-Known epidemic duration
-       ↓
-Maximum lag
+Known latent period ↓ Known incubation period ↓ Known epidemic duration
+↓ Maximum lag
 
 # Choosing spline complexity
 
-Spline complexity determines the flexibility of exposure-response and lag-response functions.
+Spline complexity determines the flexibility of exposure-response and
+lag-response functions.
 
 Typical starting point:
 
@@ -273,7 +279,6 @@ df_var = 2
 df_lag = 2
 ```
 
-
 # Practical recommendations
 
 Small datasets:
@@ -284,7 +289,8 @@ Large datasets:
 
 - greater flexibility may be appropriate.
 
-Always evaluate predictive performance rather than relying only on model fit.
+Always evaluate predictive performance rather than relying only on model
+fit.
 
 # Computational performance
 
@@ -297,21 +303,16 @@ Model fitting time increases as:
 
 Example:
 
-Low complexity
-↓
-faster estimation
+Low complexity ↓ faster estimation
 
-High complexity
-↓
-slower estimation
-↓
-greater overfitting risk
+High complexity ↓ slower estimation ↓ greater overfitting risk
 
 # Common warnings
 
 ## Knot-placement warning
 
-Predictors with many repeated observations or highly skewed distributions may produce knot-placement warnings.
+Predictors with many repeated observations or highly skewed
+distributions may produce knot-placement warnings.
 
 `EpiExposure` automatically adjusts knot placement whenever possible.
 
@@ -333,10 +334,7 @@ Convergence warnings usually indicate:
 
 Possible solutions:
 
-Reduce df_var
-Reduce df_lag
-Reduce max_lag
-Increase sample size
+Reduce df_var Reduce df_lag Reduce max_lag Increase sample size
 
 # Reproducibility
 
@@ -358,28 +356,27 @@ set.seed(123) # verificar se nao seria o "seed" usado nas funcoes ao inves de "s
 
 Recommended workflow:
 
-1. Begin with simple specifications
+1.  Begin with simple specifications
 
-df_var = 3
-df_lag = 2
+df_var = 3 df_lag = 2
 
-2. Evaluate identifiability
+2.  Evaluate identifiability
 
 check_identifiability()
 
-3. Compare alternative structures
+3.  Compare alternative structures
 
 find_bestfit()
 
-4. Quantify uncertainty
+4.  Quantify uncertainty
 
 uncertainty = TRUE
 
-5. Perform simulation analyses
+5.  Perform simulation analyses
 
 simulate_scenarios()
 
-6. Report predictive validation metrics
+6.  Report predictive validation metrics
 
 # Summary
 
@@ -392,4 +389,6 @@ This section introduced advanced `EpiExposure` topics, including:
 - spline selection;
 - computational optimization.
 
-Together, these tools provide the flexibility required for rigorous exposure-lag-response analyses in both research and forecasting applications.
+Together, these tools provide the flexibility required for rigorous
+exposure-lag-response analyses in both research and forecasting
+applications.

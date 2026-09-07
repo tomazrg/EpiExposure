@@ -9,97 +9,302 @@ compare_predictions(
   profiles = NULL,
   profiles1 = NULL,
   profiles2 = NULL,
-  re = c("population", "conditional"),
-  id = NULL,
-  allow_new_levels = FALSE,
   type = c("response", "link"),
   uncertainty = FALSE,
   output = c("summary", "samples"),
   n_samples = 1000,
+  probs = c(0.025, 0.975),
+  seed = NULL,
+  extrapolation = c("warn", "error", "allow"),
   eps = 1e-12
 )
 }
 \arguments{
-\item{fit}{Fitted model returned by `fit_epidlnm()`.}
+\item{fit}{Fitted model returned by the current `fit_epidlnm()`.}
 
-\item{profiles}{Named list of exposure scenarios. Each top-level element
-represents one scenario and must contain the profile structure expected by
-`predict_outcomes()`. Profiles must be supplied in chronological order.}
+\item{profiles}{Named list containing at least two scenarios. Top-level names
+  are scenario labels.
 
-\item{profiles1}{Legacy profile for the first scenario. Used together with
-`profiles2` only when `profiles = NULL`.}
+  Each scenario must contain the complete fitted exposure profile structure
+  expected by `predict_outcomes()`. For each fitted exposure, the scenario may
+  supply:
 
-\item{profiles2}{Legacy profile for the second scenario. Used together with
-`profiles1` only when `profiles = NULL`.}
+  \itemize{
+    \item one finite numeric scalar, interpreted as a constant profile and
+      expanded internally to that exposure's fitted `max_lag + 1` positions;
+    \item one explicit numeric chronological history;
+    \item a matrix/data frame whose rows are multiple chronological profiles;
+    \item a list of multiple numeric chronological profiles;
+    \item an object returned directly by the audited `simulate_exposures()`.
+  }
 
-\item{re}{Character. Random-effect prediction level: `"population"` or
-`"conditional"`.}
+  For an audited `simulate_exposures()` object, all `n` simulated exposure
+  profiles in its canonical `$profiles` collection are used directly.
 
-\item{id}{Optional character scalar identifying the grouping column returned
-by `predict_outcomes()`. When supplied, predictions and coefficient draws
-are matched by this column.}
+  Thus, for example:
 
-\item{allow_new_levels}{Logical. Passed to `predict_outcomes()`.}
+  ```
+  scenario_A <- list(
+    tmean = 25,
+    rain = simulate_exposures(..., n = 100),
+    wetness = simulate_exposures(..., n = 100)
+  )
+  ```
 
-\item{type}{Character. Prediction scale passed to `predict_outcomes()`:
-`"response"` or `"link"`. Conditional predictions are selected with
-`re = "conditional"`, not through `type`.}
+  creates 100 multivariable profiles: the constant temperature profile is
+  recycled, while rain profile 1 is paired with wetness profile 1, rain
+  profile 2 with wetness profile 2, and so forth.
 
-\item{uncertainty}{Logical. If `TRUE`, comparisons are calculated for every
-coefficient draw returned by `predict_outcomes()`.}
+  Within a scenario, fitted exposures are paired by profile index exactly as
+  in `predict_outcomes()`. Across scenarios, the number of matched profile
+  sets must be either one or a common maximum. A scenario containing one
+  profile set is recycled across that common profile index when another
+  scenario contains multiple matched profile sets.
 
-\item{output}{Character. When `uncertainty = TRUE`, `"summary"` returns
-median-based summaries and uncertainty intervals, while `"samples"`
-returns draw-level comparisons. When `uncertainty = FALSE`, a deterministic
-comparison is returned regardless of `output`.}
+  Thus multiple profiles are compared by matched index; a Cartesian product
+  of scenario profiles is never created.
 
-\item{n_samples}{Positive integer number of coefficient draws requested from
-`predict_outcomes()` when `uncertainty = TRUE`.}
+  Explicit non-scalar histories must contain exactly the fitted
+  `max_lag + 1` positions for their exposure. A `simulate_exposures()` object
+  must have been generated with the same `max_lag` stored for that fitted
+  exposure. This strict check prevents extra or missing historical positions
+  from being silently ignored.}
 
-\item{eps}{Positive finite numeric constant used to stabilize percentage and
-ratio calculations when the first prediction is close to zero.}
+\item{profiles1}{Legacy first scenario profile. Used only with `profiles2`
+when `profiles = NULL`.}
+
+\item{profiles2}{Legacy second scenario profile. Used only with `profiles1`
+when `profiles = NULL`.}
+
+\item{type}{Prediction scale:
+
+  - `"response"` (default): population-level expected outcome on its natural
+    response scale;
+  - `"link"`: population-level linear predictor.
+
+  `diff = pred2 - pred1` is available on either scale. Relative metrics
+  (`ratio` and `percent_change`) are calculated only for response-scale
+  predictions.}
+
+\item{uncertainty}{Logical. If `FALSE`, comparisons use deterministic
+predictions from the central fixed/population parameter estimate. If
+`TRUE`, comparisons are calculated draw by draw from joint parameter
+uncertainty.}
+
+\item{output}{Character. `"summary"` or `"samples"`.
+
+  With `uncertainty = FALSE`, only `"summary"` is valid.
+
+  With `uncertainty = TRUE`, `"samples"` returns draw-level pairwise
+  comparisons and `"summary"` summarizes the **draw-level comparisons** by
+  median, SD, and empirical interval.}
+
+\item{n_samples}{Positive integer number of fixed/population parameter draws
+used when `uncertainty = TRUE`. At least two are required.}
+
+\item{probs}{Numeric vector of length two defining the lower and upper
+empirical uncertainty probabilities. The default `c(0.025, 0.975)` gives
+a 95 percent interval.}
+
+\item{seed}{Optional finite integer seed passed once to the joint
+`predict_outcomes()` call. It controls **model-parameter draws only** and
+does not resimulate exposure profiles already produced by
+`simulate_exposures()`. The prediction backend restores the caller's
+random-number state after seeded sampling.}
+
+\item{extrapolation}{Behavior when any scenario contains exposure values
+outside the fitted exposure range: `"warn"` (default), `"error"`, or
+`"allow"`. The fitted DLNM basis is never re-estimated from scenario data.}
+
+\item{eps}{Positive finite tolerance used only to decide whether a
+  response-scale reference prediction is sufficiently above zero for a
+  relative comparison.
+
+  No epsilon is added to a prediction. When `pred1 <= eps`, `ratio` and
+  `percent_change` are returned as `NA` rather than modifying the
+  denominator.}
 }
 \value{
-A data.frame.
+A data frame containing pairwise scenario comparisons.
 
-Without uncertainty, the output contains `scenario1`, `scenario2`, `pred1`,
-`pred2`, `diff`, `percent_change`, and `ratio`, plus the column named by `id`
-when applicable.
+  Deterministic output contains:
 
-With `uncertainty = TRUE` and `output = "samples"`, the output contains one
-row per matched draw and scenario pair.
+  - `scenario1`, `scenario2`;
+  - `profile` when more than one matched profile set is compared;
+  - `pred1`, `pred2`;
+  - `diff = pred2 - pred1`;
+  - `abs_diff = abs(diff)`;
+  - `ratio = pred2 / pred1` when defined on the response scale;
+  - `percent_change = 100 * (ratio - 1)` when defined;
+  - `relative_change_defined`;
+  - `percentage_point_change = 100 * diff` for Beta and Binomial
+    response-scale predictions, otherwise `NA`.
 
-With `uncertainty = TRUE` and `output = "summary"`, the output contains
-medians, standard deviations, and empirical 95 percent intervals for `pred1`,
-`pred2`, `diff`, `percent_change`, and `ratio`.
+  With `uncertainty = TRUE` and `output = "samples"`, the same quantities are
+  returned for every matched parameter draw, together with `sample`.
+
+  With `uncertainty = TRUE` and `output = "summary"`, `pred1`, `pred2`,
+  `diff`, `abs_diff`, and any applicable relative/probability contrasts are
+  summarized by their median plus `_sd`, `_lower`, and `_upper` columns.
+
+  For relative metrics, `relative_defined_fraction` gives the fraction of
+  draws in which `pred1 > eps`. A posterior relative summary is returned only
+  when the relative metric is defined for **all** matched draws; otherwise
+  its median and interval are `NA` rather than being calculated from a
+  truncated subset of draws.
+
+  Output attributes record the population expected-response prediction
+  contract, family, link, prediction scale, scenario order, profile-input
+  sources, uncertainty contract, and comparison direction.
 }
 \description{
-Compares predicted outcomes across two or more exposure scenarios using
-`predict_outcomes()` as the computational backend. Comparisons are performed
-pairwise for all scenarios supplied in `profiles`.
+Compares population-level expected predictions from two or more explicit
+exposure scenarios using `predict_outcomes()` as the computational backend.
 }
 \details{
-Exposure profiles must be supplied in chronological order, from the earliest
-observation to the most recent observation. Validation of profile lengths,
-reconstruction of the DLNM cross-basis, coefficient alignment, conversion
-to the internal lag representation, model-engine handling, and uncertainty
-propagation are delegated to `predict_outcomes()`.
+All scenarios are submitted to `predict_outcomes()` in **one joint batch**.
+This is essential when `uncertainty = TRUE`: the same fixed/population
+parameter draw is applied to every scenario before differences, ratios, or
+other contrasts are calculated.
+
+Exposure histories follow the EpiExposure chronological convention: each
+profile is supplied from the oldest/earliest exposure observation to the most
+recent observation, with the final value corresponding to lag 0.
 
 
-For a comparison between scenario 1 and scenario 2, the function calculates:
+## EpiExposure v1 prediction target
 
-\deqn{diff = pred_2 - pred_1}
+`compare_predictions()` compares the same prediction estimand used throughout
+the current package:
 
-\deqn{percent\_change = 100(pred_2-pred_1)/(|pred_1|+\epsilon)}
+\deqn{E(Y \mid X, \theta)}
 
-\deqn{ratio = pred_2/(pred_1+\epsilon)}
+using the fixed/population component with fitted random effects excluded.
+Models may have been fitted with random effects, but this function does not
+provide conditional/group-specific prediction.
 
-Scenario order follows the order of names in `profiles`. Therefore, the sign
-of `diff` and `percent_change`, and the direction of `ratio`, depend on that
-ordering.
+For deterministic prediction, each scenario is evaluated with the central
+parameter estimate:
 
-Uncertainty summaries are calculated from draw-level comparisons. Temporary
-names are used for medians inside `dplyr::summarise()` so that the original
-draw columns are not overwritten before their standard deviations and
-quantiles are calculated.
+\deqn{\hat\mu_j = g^{-1}(X_j\hat\beta)}
+
+for `type = "response"`, or \eqn{X_j\hat\beta} for `type = "link"`.
+
+No residual, observation, process, dispersion, or posterior-predictive noise
+is added.
+
+## Pairwise direction
+
+For every ordered pair generated from the input scenario order,
+
+\deqn{diff = pred_2 - pred_1.}
+
+A positive difference therefore means that scenario 2 has the larger
+predicted expected outcome on the selected prediction scale.
+
+## Relative response-scale contrasts
+
+When `type = "response"` and `pred1 > eps`,
+
+\deqn{ratio = pred_2/pred_1}
+
+and
+
+\deqn{percent\_change = 100(ratio - 1).}
+
+Earlier EpiExposure code used `pred2 / (pred1 + eps)` and divided differences
+by `abs(pred1) + eps`. Those formulas changed valid predictions and gave
+unusual behavior for non-positive denominators. The current implementation
+never modifies predicted values.
+
+A numerical response ratio is scientifically interpretable as a relative
+outcome change only when the outcome scale has an appropriate meaningful
+zero. This is usually natural for expected counts, positive means, and
+probabilities, but may not be meaningful for every Gaussian response.
+
+With `type = "link"`, `ratio` and `percent_change` are intentionally `NA`.
+Dividing two linear predictors generally does not define a meaningful model
+contrast. The valid link-scale contrast is `diff`.
+
+## Probability and proportion outcomes
+
+For Beta and Binomial response-scale predictions,
+
+\deqn{percentage\_point\_change = 100(pred_2 - pred_1).}
+
+This is distinct from `percent_change`. For example, a probability increase
+from 0.20 to 0.30 is +10 percentage points but +50 percent relative to 0.20.
+
+## Joint uncertainty across scenarios
+
+A central requirement of scenario comparison is that scenario contrasts use
+the same parameter draw. For draw \eqn{s},
+
+\deqn{
+  diff^{(s)} =
+  \mu_2^{(s)} - \mu_1^{(s)}.
+}
+
+`compare_predictions()` therefore constructs one combined prediction batch
+containing every scenario and calls `predict_outcomes()` only once. The
+prediction backend applies one joint \eqn{\beta^{(s)}} to every row in that
+batch.
+
+The function then matches scenario 1 and scenario 2 within the same
+`profile` and `sample`, calculates all contrasts draw by draw, and only then
+summarizes them. This preserves covariance among scenario predictions.
+
+Calling `predict_outcomes()` independently for each scenario and pairing
+rows with the same integer sample label would not establish that those rows
+came from the same parameter draw and is therefore not used.
+
+## Direct `simulate_exposures()` integration
+
+An audited `simulate_exposures()` object contains the canonical `$profiles`
+collection and metadata describing chronological order and `max_lag`.
+`compare_predictions()` recognizes this object directly and uses all `n`
+simulated exposure profiles.
+
+For example:
+
+```
+scenario_A <- list(
+  tmean = simulate_exposures(
+    max_lag = 85,
+    n = 100,
+    mode = "profile",
+    background = list(dist = "normal", mean = 25, sd = 4)
+  ),
+  rain = 5,
+  wetness = simulate_exposures(
+    max_lag = 85,
+    n = 100,
+    mode = "profile",
+    background = list(dist = "normal", mean = 10, sd = 2)
+  )
+)
+```
+
+The 100 tmean and wetness profiles are paired by index; the constant rain
+profile is recycled across them.
+
+`n` in `simulate_exposures()` controls exposure-profile variability only.
+Model-parameter uncertainty requested through `uncertainty = TRUE` in this
+function is a separate layer. Thus 100 simulated exposure profiles and 1000
+coefficient draws represent different sources of variation.
+
+The direct integration also supports the immediately preceding
+`simulate_exposures()` return structure for backward compatibility, provided
+its metadata explicitly identify chronological profile order. New package
+code should use the standardized audited object.
+
+## Multiple profile sets within scenarios
+
+If all scenarios contain one profile set, the output has one row per
+scenario pair.
+
+If at least one scenario contains multiple matched profile sets, comparisons
+are made by profile index. A scenario with one profile set is recycled to the
+common number of profile sets; any other non-singleton scenario must contain
+that same common number.
 }

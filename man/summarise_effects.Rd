@@ -2,7 +2,7 @@
 % Please edit documentation in R/summarise_effects.R
 \name{summarise_effects}
 \alias{summarise_effects}
-\title{Summarises distributed lag nonlinear model effects}
+\title{Summarise DLNM exposure-lag effects on link and response scales}
 \usage{
 summarise_effects(
   fit,
@@ -18,115 +18,254 @@ summarise_effects(
   uncertainty = FALSE,
   output = c("summary", "samples"),
   n_samples = 1000,
+  interval_probs = c(0.025, 0.975),
   diagnostics = FALSE,
-  seed = NULL
+  seed = NULL,
+  extrapolation = c("error", "warn", "allow")
 )
 }
 \arguments{
-\item{fit}{Fitted model returned by `fit_epidlnm()`.}
+\item{fit}{Fitted model returned by the current `fit_epidlnm()`.}
 
-\item{data}{Long-format exposure data containing `epi_id`, `time`, and the
-fitted exposure variables.}
+\item{data}{Long-format exposure data containing `epi_id`, `time`, and every
+exposure variable used in the fitted model. `data` is used to define
+default exposure grids and reference values and to validate temporal
+coverage. Under the EpiExposure exact-history contract, every `epi_id`
+must contain exactly the common fitted `max_lag + 1` time points, and all
+fitted exposures therefore share the same temporal-history length. Longer
+histories are not truncated and shorter histories are not padded. `data`
+is **not** used to re-estimate spline knots, boundary knots, lag bases, or
+any other fitted cross-basis component.}
 
-\item{var}{Exposure-variable name(s), or `NULL` for all fitted exposures.}
+\item{var}{Exposure-variable name or names to summarise, or `NULL` to
+summarise all fitted exposures.}
 
-\item{scale}{Character. `"lag"` for lag-specific effects or
-`"period"` for cumulative effects aggregated across lag intervals.}
+\item{scale}{Character. `"lag"` returns lag-specific associations.
+`"period"` aggregates lag-specific linear-predictor contrasts over
+intervals.}
 
-\item{lag_periods}{Optional data.frame with `period`, `lag_start`,
-and `lag_end`, required for user-defined period summaries.}
+\item{lag_periods}{Optional data frame containing `period`, `lag_start`, and
+`lag_end`. Required when `scale = "period"` and `incremental = FALSE`.
+Periods may be non-overlapping or overlapping; each period is interpreted
+independently.}
 
-\item{probs}{Unique probabilities used to generate the exposure grid for
-variables without a custom `at` specification. The default preserves the
-current quantile-based behavior.}
+\item{probs}{Unique probabilities used only to construct the default exposure
+evaluation grid when `at` is not supplied for a variable. Defaults to
+`seq(0.05, 0.95, by = 0.01)`.}
 
-\item{at}{Optional exposure values at which effects are evaluated. Use
-`NULL` to generate quantile-based grids from `probs` for every variable.
-A numeric vector is allowed when exactly one exposure variable is
-requested. For multiple variables, use a named list, for example
-`list(tmax = seq(29, 34, length.out = 1000), rain = seq(0, 50, by = 0.5))`.
-The list may be partial: variables omitted from `at` continue to use the
-quantile-based grid defined by `probs`. To evaluate effects at the unique
-observed values, supply `sort(unique(data[[variable]]))` for that variable.}
+\item{at}{Optional exposure values at which associations are evaluated.
+`NULL` uses the quantiles specified by `probs`. A numeric vector can be used
+when exactly one exposure is requested. For multiple exposures, supply a
+named list, for example
+`list(tmean = seq(20, 35, by = 0.25), rain = seq(0, 40, by = 1))`.
+A named list may be partial; omitted requested variables use `probs`.}
 
-\item{ref}{Reference exposure specification. The original method-based form is
-retained: `list(method = "median", value = NULL)`,
-`list(method = "percentile", value = p)`, or
-`list(method = "fixed", value = x)`. Alternatively, supply a named list
-with one finite numeric reference value for every fitted exposure, for
-example `list(tmean = 25, rain = 0, wetness = 10)`. In this variable-specific
-form, each exposure is centered on its own reference value and the same
-values define the joint baseline profile used for `baseline`, `predicted`,
-and `delta`.}
+\item{ref}{Reference exposure specification.
 
-\item{effect_measure}{Character. `"linear"`, `"exponentiated"`, or
-`"percent"`.}
+  Two forms are supported:
 
-\item{incremental}{Logical. For `scale = "period"`, calculate
-cumulative effects incrementally from lag 0 through each lag
-instead of using user-defined periods.}
+  \itemize{
+    \item Method-based: `list(method = "median", value = NULL)`,
+      `list(method = "percentile", value = p)`, or
+      `list(method = "fixed", value = x)`.
+    \item Exposure-specific: a named list with exactly one finite reference
+      value for every fitted exposure, for example
+      `list(tmean = 25, rain = 5, wetness = 10)`.
+  }
 
-\item{uncertainty}{Logical. Propagate coefficient uncertainty draw by draw.}
+  Method-based references are applied consistently to **every** fitted
+  exposure. Thus `method = "median"` uses each exposure's own median;
+  `method = "percentile"` uses the same percentile for each exposure; and
+  `method = "fixed"` applies the same numeric value to every exposure.
+  Because exposures often have different units, the exposure-specific form
+  is recommended for multivariable models when fixed reference values are
+  desired.
 
-\item{output}{Character. `"summary"` or `"samples"`.}
+  The focal exposure's reference value is passed to the DLNM centering
+  operation (`cen`). The complete set of reference values simultaneously
+  defines the joint reference profile used for `baseline`.}
 
-\item{n_samples}{Positive integer number of draws. At least two are required
-when `uncertainty = TRUE`.}
+\item{effect_measure}{Character. `"linear"` returns the DLNM contrast on the
+  linear-predictor scale. `"exponentiated"` returns `exp(eta)` and `"percent"`
+  returns `100 * (exp(eta) - 1)`.
 
-\item{diagnostics}{Logical. Available only for lag-specific non-ordinal
-effects. Returns integrated lag rankings and contribution metrics.
-Rankings depend on `effect_measure`.}
+  Exponentiation is allowed only for fitted `"log"` and `"logit"` links,
+  matching the convention used by `dlnm::crosspred()`. With a log link,
+  `exp(eta)` is a response-scale ratio and `"percent"` is the corresponding
+  percent relative change in the expected response. With a logit link,
+  `exp(eta)` is an odds ratio and `"percent"` is the percent change in odds;
+  neither is a percentage-point change in probability. For links such as
+  `"identity"`, `"probit"`, `"cloglog"`, or `"inverse"`, use
+  `effect_measure = "linear"`.}
 
-\item{seed}{Optional finite integer seed for reproducible sampling.}
+\item{incremental}{Logical. Used only with `scale = "period"`. If `TRUE`,
+return cumulative effects from lag 0 through each successive lag. If
+`FALSE`, aggregate over `lag_periods`.}
+
+\item{uncertainty}{Logical. If `FALSE`, use the harmonized central
+fixed/population parameter estimate. If `TRUE`, propagate joint
+fixed/population parameter uncertainty draw by draw.}
+
+\item{output}{Character. `"summary"` returns deterministic values when
+`uncertainty = FALSE`, or median, SD, and empirical intervals when
+`uncertainty = TRUE`. `"samples"` returns one row per parameter draw and
+exposure-lag/period combination and therefore requires
+`uncertainty = TRUE`.}
+
+\item{n_samples}{Positive integer number of parameter draws used when
+`uncertainty = TRUE`. At least two are required.}
+
+\item{interval_probs}{Numeric vector of length two defining the empirical
+uncertainty interval. The default `c(0.025, 0.975)` gives a 95 percent
+interval.}
+
+\item{diagnostics}{Logical. If `TRUE`, additionally return lag-ranking and
+lag-contribution diagnostics. Diagnostics are available only for
+`scale = "lag"` and are always based on the additive linear-predictor
+contrast `eta`, regardless of `effect_measure`. This avoids treating the
+neutral value 1 of an exponentiated effect as if it were an additive
+contribution.}
+
+\item{seed}{Optional finite integer used for parameter sampling. The caller's
+global random-number state is restored when the function exits.}
+
+\item{extrapolation}{Character controlling values outside the exposure range
+stored with the fitted cross-basis: `"error"` (default), `"warn"`, or
+`"allow"`. This does not re-estimate the basis; it only controls whether
+extrapolation is rejected, warned about, or allowed.}
 }
 \value{
-A data.frame of effects or category probabilities. For non-ordinal
-  models, `predicted` is the response-scale prediction, `baseline` is the
-  response-scale reference prediction, and `delta` is their absolute
-  difference (`predicted - baseline`) in the natural units of the response.
-  With `diagnostics = TRUE`, a list with `effects` and `diagnostics`.
+A data frame, or when `diagnostics = TRUE`, an object of class
+  `"epiexposure_effects"` containing `effects` and `diagnostics`.
+
+  The principal columns have the following meanings:
+
+  \describe{
+    \item{`eta`}{DLNM association contrast on the fitted link/linear-predictor
+      scale, centered at the focal exposure reference. For
+      `scale = "lag"`, this is the contribution of the specified exposure
+      value at that lag relative to the same lag at the reference exposure.
+      For period summaries, lag-specific `eta` contrasts are summed on the
+      additive linear-predictor scale.}
+    \item{`effect`}{`eta` itself for `effect_measure = "linear"`, or its
+      permitted log/logit transformation for `"exponentiated"` or
+      `"percent"`.}
+    \item{`baseline`}{Population-level expected outcome under the **joint
+      reference exposure profile**: every fitted exposure is held at its own
+      reference value at every fitted lag and fitted random effects are set
+      to zero. This is an EpiExposure response-scale reference prediction; it
+      is not the DLNM contrast itself and should not be confused with the
+      neutral DLNM values `eta = 0` or `exp(eta) = 1`.}
+    \item{`predicted`}{Population-level expected outcome after applying the
+      focal DLNM contrast to that joint baseline. For a lag-specific row,
+      only the focal exposure at that lag is changed from its reference to
+      `value`; all other lags and all other fitted exposures remain at their
+      reference values. For a period row, the focal exposure is changed to
+      `value` throughout the specified lag interval while all remaining
+      exposure-lag positions remain at reference.}
+    \item{`delta`}{Absolute response-scale difference
+      `predicted - baseline`. For Gaussian/Gamma-type mean responses this is
+      a difference in expected means; for Poisson/negative-binomial outcomes
+      it is a difference in expected counts; and for Beta/Binomial outcomes
+      it is a difference in expected proportions/probabilities. Multiplying
+      `delta` by 100 for Beta or Binomial models gives percentage-point
+      differences.}
+  }
 }
 \description{
-Returns lag-specific or period-specific effect summaries based on the
-exposure specification stored by `fit_epidlnm()`. Exposure histories are
-interpreted chronologically: the first observation is the oldest exposure
-and the final observation is the most recent exposure, corresponding
-internally to lag 0.
+Summarises lag-specific or period-specific distributed lag nonlinear model
+(DLNM) associations for models fitted with `fit_epidlnm()`. The function
+preserves the centering logic of `dlnm::crosspred()`: each exposure-lag
+association is expressed relative to a reference exposure value (`cen`) for
+the focal exposure. EpiExposure then extends that DLNM contrast by anchoring
+it to a joint reference exposure profile, allowing the same association to
+be reported as `baseline`, `predicted`, and `delta` on the response scale.
 }
 \details{
-For non-ordinal models, effects are calculated relative to a reference
-(baseline) exposure condition. The `"linear"` scale returns the contrast
-on the linear predictor scale (`eta`). The `"exponentiated"` scale returns
-`exp(eta)`, and the `"percent"` scale returns `(exp(eta) - 1) * 100`.
-
-Effects therefore describe how strongly a given exposure condition is
-associated with the outcome relative to the selected reference exposure.
-Values greater than zero indicate a greater relative effect than the
-reference condition, whereas values below zero indicate a smaller relative
-effect.
-
-Under a log link, exponentiated and percent effects can be interpreted as
-relative changes in the expected outcome. Under a logit link, they represent
-relative exposure effects with respect to the reference condition and should
-not be interpreted as direct changes in the response variable.
-
-For ordinal `brms` models, the function returns the predicted probability of
-every response category. `effect_measure` is not applied to ordinal category
-probabilities.
-
-The `delta` column is defined consistently for every non-ordinal family as
-`predicted - baseline` on the response scale. Its interpretation follows the
-response distribution: a difference in predicted means for Gaussian and
-Gamma models, a difference in expected counts for Poisson and Negative
-Binomial models, and a difference in predicted proportions or probabilities
-for Beta and Binomial models. For Beta and Binomial models, multiplying
-`delta` by 100 gives the difference in percentage points.
+Exposure histories are interpreted chronologically. The oldest exposure is
+first and the most recent exposure is last; the final exposure corresponds
+internally to lag 0.
 
 
-The cross-basis is reconstructed exclusively from `epiexposure_spec`; basis
-arguments are not re-specified by the user. When `uncertainty = FALSE`, the
-central coefficients supplied by the fitted engine are used. When
-`uncertainty = TRUE`, every draw is transformed separately and summaries use
-the median and empirical 2.5% and 97.5% quantiles. The baseline response is
-intentionally held fixed, consistently with other EpiExposure functions.
+## DLNM contrast and the EpiExposure response-scale extension
+
+`eta` is constructed using the centering mechanism of `dlnm::crosspred()`.
+The fitted cross-basis is never redefined from `data`: EpiExposure uses the
+stored `argvar`, `arglag`, maximum lag, and, when available, the original
+stored `crossbasis` object. Consequently, `eta` retains the standard DLNM
+interpretation as an association relative to `cen`.
+
+EpiExposure additionally defines a joint response-scale reference prediction
+
+\deqn{B = g^{-1}(X_{ref}\beta),}
+
+where every fitted exposure history is held at its selected reference value.
+A lag- or period-specific DLNM contrast \eqn{\Delta\eta_{x,l}} is then
+translated to the response scale as
+
+\deqn{P_{x,l} = g^{-1}\{g(B) + \Delta\eta_{x,l}\},}
+
+and
+
+\deqn{D_{x,l} = P_{x,l} - B.}
+
+Thus `baseline`, `predicted`, and `delta` do not replace the DLNM contrast;
+they provide an additional outcome-scale interpretation anchored to the same
+reference condition.
+
+## Uncertainty
+
+With `uncertainty = TRUE`, one **joint** fixed/population coefficient draw is
+used consistently across the complete requested effect surface. For draw
+\eqn{s},
+
+\deqn{B^{(s)} = g^{-1}(X_{ref}\beta^{(s)}),}
+
+\deqn{P^{(s)}_{x,l} =
+  g^{-1}\{X_{ref}\beta^{(s)} + \Delta\eta^{(s)}_{x,l}\},}
+
+and
+
+\deqn{D^{(s)}_{x,l} = P^{(s)}_{x,l} - B^{(s)}.}
+
+The same draw therefore determines `baseline`, `eta`, `effect`, `predicted`,
+and `delta`, preserving their covariance. `baseline` changes across parameter
+draws because the fitted parameters are uncertain, but for a given draw it
+remains the same across all exposure-lag/period rows that use the same joint
+reference profile. In summary output, the same baseline uncertainty summary
+is therefore repeated across those rows.
+
+Parameter uncertainty includes the joint uncertainty of the fitted
+fixed/population coefficients. Fitted group-specific random effects are
+excluded because EpiExposure v1 reports population-level effects. Residual,
+observation, process, dispersion, and posterior-predictive noise are not
+added. The uncertainty interval therefore describes uncertainty in the
+expected response and in the exposure-lag association, not the dispersion of
+a future individual observation.
+
+For uncertainty summaries, all response-scale transformations are performed
+draw by draw before medians, SDs, and empirical quantiles are calculated.
+
+## Exact common lag/history contract
+
+`summarise_effects()` requires the fitted model to use one common
+`max_lag` across all fitted exposure variables. If that common maximum lag
+is `L`, every epidemic history supplied in `data` must contain exactly
+
+\deqn{
+  L + 1
+}
+
+equally spaced observations. Histories with fewer or more observations are
+rejected explicitly. Because all exposure variables are columns of the same
+validated long-format history and missing/non-finite exposure values are not
+permitted, all fitted exposures necessarily use the same time support.
+
+## Period effects
+
+DLNM contributions are additive on the linear-predictor scale. Period
+summaries therefore sum lag-specific `eta` contrasts first and only then
+transform the resulting contrast, if requested. With `incremental = TRUE`,
+periods are `0-0`, `0-1`, ..., `0-L`. Otherwise each row of `lag_periods`
+defines an independent lag interval.
 }

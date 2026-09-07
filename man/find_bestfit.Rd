@@ -2,7 +2,7 @@
 % Please edit documentation in R/find_bestfit.R
 \name{find_bestfit}
 \alias{find_bestfit}
-\title{Find the best DLNM model structure using LOOCV}
+\title{Find the best DLNM model structure using grouped cross-validation}
 \usage{
 find_bestfit(
   data,
@@ -27,6 +27,9 @@ find_bestfit(
   top_n = Inf,
   keep_fits = FALSE,
   verbose = TRUE,
+  cv_method = c("LOOCV", "k-fold"),
+  k = 5,
+  seed = NULL,
   ...
 )
 }
@@ -35,20 +38,35 @@ find_bestfit(
 chronological time column, and candidate exposure variables.}
 
 \item{response}{Character scalar naming the response column in `data`. The
-response may be repeated across rows but must be constant within each group.}
+response may be repeated over exposure-history rows but must be constant
+within each cross-validation group because one outcome is predicted per
+group.}
 
-\item{group}{Character scalar naming the grouping column used for LOOCV.}
+\item{group}{Character scalar naming the independent cross-validation unit.
+Every row belonging to one group is kept together in either training or
+test data within a fold.}
 
-\item{time}{Character scalar naming the chronological time column.}
+\item{time}{Character scalar naming the chronological time column. Time must
+be finite and unique within groups. Within every group observations must be
+complete and equally spaced, and the time step must be the same across
+groups. Every group must contain exactly `max_lag + 1` time points. Because
+all candidate exposure variables are finite columns of the same validated
+long-format rows, all variables necessarily use the same temporal support.
+Rows are ordered internally by `group` and `time`.}
 
-\item{vars}{Unique character vector of candidate exposure variables.}
+\item{vars}{Unique character vector of candidate exposure variables. Exposure
+variables must be distinct from `response`, `group`, and `time`.}
 
-\item{max_lag}{Maximum lag. A numeric vector such as `c(0, 85)` is normalized
-to its finite maximum.}
+\item{max_lag}{Non-negative integer maximum lag, expressed in observation
+steps. A two-element form such as `c(0, 85)` is accepted and normalized to
+its maximum. Because all groups must use the same time step, a lag index has
+the same temporal meaning across groups.}
 
-\item{df_var_grid}{Positive finite candidate dimensions for the exposure basis.}
+\item{df_var_grid}{Positive integer candidate dimensions for the
+exposure-response basis.}
 
-\item{df_lag_grid}{Positive finite candidate dimensions for the lag basis.}
+\item{df_lag_grid}{Positive integer candidate dimensions for the lag-response
+basis.}
 
 \item{min_vars}{Positive integer minimum number of exposure variables.}
 
@@ -56,138 +74,263 @@ to its finite maximum.}
 `NULL` to use `length(vars)`.}
 
 \item{var_sets}{Optional list of exact variable combinations. When supplied,
-`min_vars` and `max_vars` are ignored.}
+`min_vars` and `max_vars` do not determine the combinations, although their
+basic argument validation is still applied.}
 
-\item{fun_var}{Character exposure-basis function passed to `define_exposure()`.}
+\item{fun_var}{Character exposure-basis function passed to
+`define_exposures()`.}
 
-\item{fun_lag}{Character lag-basis function passed to `define_exposure()`.}
+\item{fun_lag}{Character lag-basis function passed to `define_exposures()`.}
 
 \item{model_engine}{Character model engine supported by `fit_epidlnm()`:
 `"glm"`, `"glmmTMB"`, `"gam"`, `"gamm"`, `"gls"`, `"spamm"`,
 `"brms"`, `"inla"`, or `"bdlnm"`.}
 
 \item{family}{Character or family object passed to `prepare_response()` and
-`fit_epidlnm()`. The same family is used to determine the appropriate
-performance metrics. Supported canonical families are `"beta"`,
-`"binomial"`, `"poisson"`, `"gamma"`, `"gaussian"`,
-`"negative_binomial"`, and `"ordinal"`; aliases are normalized by the
-shared internal family resolver.}
+`fit_epidlnm()`. Supported EpiExposure v1 canonical families are `"beta"`,
+`"binomial"`, `"poisson"`, `"gamma"`, `"gaussian"`, and
+`"negative_binomial"` (NB2). Ordinal outcomes and NB1 are not supported in
+EpiExposure v1.}
 
-\item{random_effect}{Optional character scalar naming a random-effect column.}
+\item{random_effect}{Optional character scalar naming one grouping column used
+as a random intercept by `fit_epidlnm()`. It must be constant within each
+cross-validation group. Random effects may contribute to model fitting, but
+held-out predictions are always population-level and therefore set fitted
+random effects to zero. `glm` and `gls` do not accept `random_effect`;
+`gamm` requires it under the current EpiExposure v1 fitting contract.}
 
-\item{min_success}{Minimum number of successful LOOCV folds required.}
+\item{min_success}{Positive integer of at least 2 giving the minimum number of
+  **groups with a finite out-of-fold prediction** required for a candidate to
+  be eligible for metric calculation and, when requested, full-data refitting.
 
-\item{rank_metric}{Optional character scalar selecting the primary metric used
-to rank candidate models. If `NULL`, the default is `"CCC"` for non-binary
-outcomes and `"ROC_AUC"` for binary outcomes. For non-binary outcomes the
-available metrics are `"CCC"`, `"Cb"`, `"rho"`, `"RMSE"`, and `"MAE"`.
-For binary outcomes the available metrics are `"ROC_AUC"`, `"Brier"`,
+  `min_success` counts successful group-level predictions, not successful
+  folds. Under `"LOOCV"` these quantities coincide because each fold contains
+  one held-out group. Under `"k-fold"` one fold contains multiple groups, so a
+  failed fold can remove several out-of-fold predictions at once.
+
+  `min_success` is a technical eligibility threshold, not a recommendation
+  that large numbers of failed predictions are acceptable. Candidate output
+  also reports `n_success`, `n_failed`, `n_success_folds`, and
+  `n_failed_folds` so cross-validation completeness can be inspected.}
+
+\item{rank_metric}{Optional character scalar selecting the primary ranking
+metric. If `NULL`, the default is `"CCC"` for non-binary outcomes and
+`"ROC_AUC"` for binary outcomes. Non-binary metrics are `"CCC"`, `"Cb"`,
+`"rho"`, `"RMSE"`, and `"MAE"`. Binary metrics are `"ROC_AUC"`, `"Brier"`,
 `"LogLoss"`, `"Accuracy"`, `"Balanced_Accuracy"`, `"Sensitivity"`,
-`"Specificity"`, `"F1"`, `"MCC"`, and `"Precision"`. The function
-automatically maximizes or minimizes the selected metric as appropriate.}
+`"Specificity"`, `"F1"`, `"MCC"`, and `"Precision"`. Metric direction
+(maximize/minimize) is resolved automatically.}
 
-\item{threshold}{Numeric probability threshold strictly between 0 and 1 used
-only for `family = "binomial"` to convert predicted probabilities into
-classes 0/1 for classification metrics. The default is `0.5`. The threshold
-applies to predicted probabilities, not predictions that have already been
-reduced to class labels 0/1. It affects `Accuracy`, `Balanced_Accuracy`,
-`Sensitivity`, `Specificity`, `F1`, `MCC`, and `Precision`, but does not
-affect `ROC_AUC`, `Brier`, or `LogLoss`. It is ignored for non-binary
-outcomes.}
+\item{threshold}{Numeric probability strictly between 0 and 1 used only for
+binomial classification metrics. The default is `0.5`. Predicted
+probabilities are retained; thresholding is used only to create the
+auxiliary 0/1 class required by classification metrics. ROC AUC, Brier
+score, and Log Loss do not depend on the threshold.}
 
 \item{top_n}{Positive integer or `Inf`; number of ranked candidates returned.}
 
-\item{keep_fits}{Logical. Refit successful retained candidates on all data and
-store them in `attr(result, "fits")`.}
+\item{keep_fits}{Logical. If `TRUE`, every candidate that reaches
+`min_success` is refitted on the complete data using a full-data basis.
+After ranking and `top_n` filtering, only retained candidate fits are stored
+in `attr(result, "fits")`. This preserves the historical behavior of
+`find_bestfit()`.}
 
-\item{verbose}{Logical. Print progress messages.}
+\item{verbose}{Logical. Print progress and concise warning summaries.}
 
-\item{...}{Additional arguments passed to `fit_epidlnm()`.}
+\item{cv_method}{Character. Cross-validation scheme: `"LOOCV"` (default) or
+`"k-fold"`. `"LOOCV"` leaves one complete group out at a time. `"k-fold"`
+assigns complete groups to `k` folds and never splits exposure-history rows
+from one group across folds.}
+
+\item{k}{Positive integer number of folds used only when
+  `cv_method = "k-fold"`. It must satisfy `2 <= k < number of groups`.
+
+  Fold sizes are made as equal as possible; therefore the number of groups in
+  any two folds differs by at most one. For binomial outcomes, allocation is
+  additionally stratified by the group-level 0/1 response. Each outcome class
+  must contain at least `k` groups so every fold can contain both classes.}
+
+\item{seed}{Optional non-negative integer controlling only the random
+assignment of groups to folds when `cv_method = "k-fold"`. Supplying a seed
+makes `attr(result, "fold_assignments")` reproducible. The caller's existing
+global random-number state is restored after fold construction. `seed` does
+not alter LOOCV fold membership and is not passed to `fit_epidlnm()`.}
+
+\item{...}{Named additional arguments passed to `fit_epidlnm()`. Core
+arguments managed by `find_bestfit()` (`data`, `model_engine`, `family`,
+`random_effect`, `epiexposure_spec`, and `basis_objects`) cannot be supplied
+again through `...`.}
 }
 \value{
 A data frame ranked by `rank_metric`. Non-binary families report
-  `CCC`, `Cb`, `rho`, `RMSE`, and `MAE`. Binary families report `ROC_AUC`,
+  `CCC`, `Cb`, `rho`, `RMSE`, and `MAE`. Binomial models report `ROC_AUC`,
   `Brier`, `LogLoss`, `Accuracy`, `Balanced_Accuracy`, `Sensitivity`,
   `Specificity`, `F1`, `MCC`, and `Precision`.
 
-  In addition to the original `"predictions"` and `"failures"` attributes,
-  the returned object stores `"predictions_by_model"` (a named list of LOOCV
-  prediction data frames), `"warnings"` (warning details and classes by
-  candidate/fold/stage), `"warning_summary"` (one warning summary per
-  candidate, including counts for knot, convergence, Hessian, other, and
-  performance-metric warnings), `"timing"` (overall run timing), and
-  `"candidate_times"` (elapsed time per candidate). If `keep_fits = TRUE`,
-  fitted full-data models are stored in `"fits"`.
+  Candidate diagnostics distinguish prediction completeness from fold
+  completeness. `n_success` and `n_failed` count held-out groups, whereas
+  `n_success_folds` and `n_failed_folds` count folds. A fold is considered
+  successful only when every group assigned to that fold receives a finite
+  out-of-fold prediction.
 
-  The result also stores standardized metadata in attributes `"family"`,
-  `"outcome_type"`, `"rank_metric"`, and `"threshold"` for downstream use,
-  including by `ensemble_bestfit()`.
+  The result retains the diagnostic attributes used by earlier versions:
+  `"predictions"`, `"predictions_by_model"`, `"failures"`, `"warnings"`,
+  `"warning_summary"`, `"timing"`, and `"candidate_times"`. With
+  `keep_fits = TRUE`, `"fits"` contains retained full-data refits.
+
+  Cross-validation metadata include:
+
+  - `"cv_method"`: `"LOOCV"` or `"k-fold"`;
+  - `"cv_scheme"`: normalized descriptive scheme;
+  - `"k"`: effective number of folds;
+  - `"cv_seed"`: supplied k-fold seed or `NA`;
+  - `"cv_stratified"`: whether binomial stratification was used;
+  - `"fold_assignments"`: data frame with `group`, `fold`, and `observed`,
+    giving the single fold assigned to every independent group;
+  - `"fold_balance"`: number of groups per fold and, for binomial outcomes,
+    the numbers of outcome-0 and outcome-1 groups.
+
+  Standard downstream metadata are stored in `"family"`, `"outcome_type"`,
+  `"rank_metric"`, and `"threshold"`. Additional attributes document the
+  prediction contract: `"prediction_level" = "population"`,
+  `"prediction_estimand" = "expected_response"`,
+  `"prediction_contract" = "central_expected_response"`,
+  `"basis_training_only" = TRUE`, `"max_lag"`, `"history_length"`,
+  `"history_contract"`, and `"time_step"`.
 }
 \description{
-Tests combinations of exposure variables and basis dimensions using
-leave-one-group-out cross-validation and family-aware predictive performance
-metrics. Candidate models are ranked by a user-selected performance metric,
-with metric direction (maximize or minimize) determined automatically.
+Evaluates combinations of exposure variables and cross-basis dimensions using
+grouped cross-validation, then ranks candidate models with family-aware
+predictive-performance metrics.
 }
 \details{
-Input observations must be chronological within each group, from the earliest
-to the most recent observation. The function orders rows internally by
-`group` and `time`. The DLNM lag representation is constructed internally by
-`define_exposure()` and `build_design()`.
+Two cross-validation schemes are available:
+
+- `"LOOCV"`: leave one complete group out at a time;
+- `"k-fold"`: divide complete groups into `k` approximately equal folds.
+
+The unit of cross-validation is always the complete `group`. Exposure-history
+rows belonging to one group are never split between training and test data.
+For binomial outcomes, grouped k-fold allocation is stratified so the numbers
+of outcome-0 and outcome-1 groups are distributed as evenly as possible
+across folds.
+
+The statistical target used for every held-out prediction is the same target
+used by the EpiExposure v1 prediction layer: the population/fixed-component
+expected response, with fitted random effects set to zero. Cross-validation
+ranking uses deterministic predictions from the harmonized central parameter
+estimate and does not propagate coefficient, posterior, residual, or
+future-observation uncertainty.
 
 
-For each fold, basis templates are estimated from the training groups only
-and then applied to the held-out group. This prevents the held-out exposure
-history from determining the training basis specification. The LOOCV fold
-construction, basis estimation, model fitting, and held-out prediction steps
-are not altered by the performance-metric layer.
+## Grouped cross-validation
 
-Performance metrics are computed only after all successful out-of-fold
+Fold membership is constructed once before candidate evaluation and reused
+unchanged for every candidate model. This ensures that candidate metrics are
+compared on exactly the same training/test partitions.
+
+With `cv_method = "LOOCV"`, a data set containing \eqn{G} groups produces
+\eqn{G} folds, each containing one test group.
+
+With `cv_method = "k-fold"`, complete groups are randomized into `k`
+approximately equal folds. The total number of groups does not need to be
+divisible by `k`; for example, 521 groups with `k = 5` produce fold sizes
+105, 104, 104, 104, and 104 in some fold order.
+
+For binomial outcomes, k-fold allocation is grouped and stratified. Outcome-0
+groups and outcome-1 groups are each distributed as evenly as possible while
+maintaining overall fold balance. Because every fold is required to contain
+both classes, `k` cannot exceed the number of groups in the less frequent
+class.
+
+## Training-only basis construction
+
+For every fold, `define_exposures()` is called **only on the training groups**.
+The effective `argvar`, `arglag`, lag range, spline knots, and boundary knots
+stored in those returned training cross-basis objects are then reused to
+transform every held-out exposure history. Held-out values therefore never
+determine the training basis parameterization.
+
+Reusing the training basis does not mean reusing the same numerical
+cross-basis matrix. Held-out exposure values produce new matrix values, but
+they are transformed with the **same training basis parameterization**.
+
+The function validates basis transport explicitly. For every candidate, the
+requested `max_lag`, the lag stored in the training cross-basis, and the lag
+stored in the exposure specification must agree. Reconstructed training and
+held-out cross-bases must have the same number of columns and, when native
+cross-basis column names are available, the same native column names/order as
+the training template. Canonical EpiExposure columns
+`cb_<variable>_<index>` are then assigned deterministically.
+
+For `model_engine = "bdlnm"`, an additional epidemic-level matrix-form
+cross-basis is built from those same training parameters so the cross-basis
+included in the `bdlnm` formula has exactly one row per epidemic-level
+outcome. Its numerical values are checked against the canonical candidate
+design before fitting.
+
+The design-matrix attribute `cb_templates` stores the **original training
+templates**, not cross-bases reconstructed from the first epidemic. The
+effective specification passed to `fit_epidlnm()` is synchronized with the
+returned training-template attributes.
+
+## Temporal requirements
+
+A vector supplied to `dlnm::crossbasis()` represents one complete, ordered,
+equally spaced exposure history. Accordingly, this function rejects
+duplicated or irregular time values, requires the same time step across
+groups, and requires **exactly `max_lag + 1` observations in every group**.
+
+Histories with fewer observations are rejected because the fitted lag window
+is incomplete. Histories with more observations are also rejected: they are
+not truncated to a trailing window and the function never chooses silently
+which observations define the epidemiological history.
+
+All candidate exposure variables are columns of these same validated
+long-format rows and must contain only finite values. Therefore every
+candidate variable uses exactly the same number of time points and the same
+temporal positions within each group.
+
+## Held-out prediction target
+
+Every successful held-out group receives one deterministic out-of-fold
+prediction of the expected response from the harmonized central
+fixed/population parameter estimate. Group-specific random effects are set to
+zero, including when a random intercept was fitted and held-out groups are
+unseen. Bayesian engines therefore use posterior-mean fixed parameters for
+deterministic CV prediction; candidates are not ranked using medians of
+posterior expected predictions.
+
+Coefficient/posterior uncertainty and residual/future-observation noise are
+intentionally excluded from model ranking. `find_bestfit()` evaluates point
+predictive performance; uncertainty belongs to downstream prediction and
+effect functions.
+
+## Performance, warnings, and ranking
+
+Performance metrics are computed after all successful out-of-fold group
 predictions for a candidate have been collected. Both `find_bestfit()` and
-`ensemble_bestfit()` use the shared internal `.compute_performance_metrics()`
-implementation so the same metric definitions are used throughout the package.
+`ensemble_bestfit()` use `.compute_performance_metrics()` so metric
+definitions are shared across the package.
 
 For non-binary outcomes (`beta`, `poisson`, `gamma`, `gaussian`, and
 `negative_binomial`), performance is summarized by CCC, Cb, Pearson
-correlation, RMSE, and MAE. For binary outcomes (`binomial`), predicted
-probabilities are retained and evaluated using ROC AUC, Brier score, and Log
-Loss; the configured `threshold` is then applied to those probabilities to
-obtain 0/1 classes for Accuracy, Balanced Accuracy, Sensitivity, Specificity,
-F1, MCC, and Precision.
+correlation, RMSE, and MAE. For binomial outcomes, out-of-fold probabilities
+are retained for ROC AUC, Brier score, and Log Loss; `threshold` is applied
+only when classification metrics are calculated.
 
-If a binary outcome contains only one observed class, metrics that require
-both classes are returned as `NA` and a diagnostic warning is recorded. A
-threshold is meaningful for predicted probabilities; if binary predictions
-contain only 0/1 values, a warning is recorded because probability-resolution
-information has already been lost.
+Warnings raised during fold fitting/prediction are captured and classified as
+`"knot"`, `"convergence"`, `"hessian"`, or `"other"`. Warning occurrence does
+not by itself make a fold fail. Performance-metric warnings are recorded at
+candidate level. When `verbose = TRUE`, only concise candidate-level warning
+summaries are emitted after evaluation.
 
-The `ordinal` family is recognized and normalized consistently with
-`fit_epidlnm()`, but ordinal-specific performance metrics have not yet been
-defined. `find_bestfit()` therefore stops explicitly for ordinal outcomes
-rather than silently applying continuous or binary metrics.
+Candidate ranking uses `rank_metric` first. Remaining family-appropriate
+metrics are deterministic tie-breakers in canonical order, each with its own
+maximize/minimize direction.
 
-Candidate ranking uses `rank_metric` as the primary criterion. Remaining
-family-appropriate metrics are used only as deterministic tie-breakers in
-their canonical order, each with its own automatically recognized direction.
-
-Direct engine-specific prediction is attempted first. If unavailable, a
-fixed-effect fallback uses the official cross-basis column order stored in
-`epiexposure_cb_cols`, or `epiexposure_data_template` as a fallback. Missing
-model or design columns produce an explicit error rather than being omitted.
-
-The function ranks point predictions and does not propagate coefficient or
-posterior-draw uncertainty.
-
-Warnings raised while fitting or predicting individual LOOCV folds are
-captured internally and muffled. They therefore do not flood the console.
-The number of affected folds and warning events is recorded for each
-candidate. Fit/prediction warnings are additionally classified as `"knot"`,
-`"convergence"`, `"hessian"`, or `"other"`, without changing model fitting,
-eligibility, or ranking. Performance-metric warnings are stored separately
-at the candidate level and do not count as failed LOOCV folds. When
-`verbose = TRUE`, at most one warning summary message is emitted per affected
-candidate after candidate evaluation finishes.
-
-Timing is diagnostic only and does not alter model fitting. Total elapsed
-time and per-candidate elapsed times are stored as attributes of the result.
+Candidate-level parallelism is preserved: when the caller has configured a
+`future` plan with more than one worker, candidates are evaluated in parallel
+while all cross-validation folds belonging to one candidate remain
+sequential.
 }

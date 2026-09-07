@@ -1,54 +1,194 @@
 #' Diagnose identifiability and numerical stability of DLNM cross-basis designs
 #'
-#' Evaluates the epidemic-level DLNM design matrix that would be used for model
-#' fitting. One or more exposure variables can be assessed simultaneously.
+#' Diagnoses the epidemic-level DLNM design that EpiExposure would construct for
+#' model fitting from one or more exposure variables. The function deliberately
+#' reuses the canonical EpiExposure design path:
 #'
-#' The function reports exact rank, rank deficiency, scaled condition number,
-#' singular values, near-zero-variance columns, cross-basis correlations,
-#' descriptive VIFs, pairwise raw-exposure correlations, pairwise correlation
-#' between cross-basis blocks, and the ratio between complete epidemics and
-#' model columns. It also returns concise recommendations.
+#' ```
+#' templates <- define_exposures(...)
+#' design    <- build_design(data, templates, include_response = FALSE)
+#' ```
 #'
-#' @param data Long-format exposure data containing `epi_id`, `time`, and the
-#'   exposure variables.
-#' @param var Character vector with one or more exposure-variable names.
-#' @param max_lag Maximum retrospective lag. A vector such as `c(0, 85)` is
-#'   accepted and reduced to its maximum value for backward compatibility.
-#' @param df_var Positive integer degrees of freedom for the exposure basis.
-#' @param df_lag Positive integer degrees of freedom for the lag basis.
-#' @param fun_var Exposure-basis function: `"ns"`, `"bs"`, `"poly"`, or `"lin"`.
-#' @param fun_lag Lag-basis function: `"ns"`, `"ps"`, or `"lin"`.
-#' @param include_intercept Logical. Include a model intercept when checking the
-#'   rank of the combined design matrix. Default is `TRUE`.
-#' @param corr_threshold Heuristic absolute-correlation threshold used to flag
-#'   potentially important collinearity. Default is 0.90.
-#' @param condition_warn Heuristic scaled condition-number threshold for a
-#'   warning. Default is 30.
-#' @param condition_severe Heuristic scaled condition-number threshold for a
-#'   severe numerical-stability warning. Default is 100.
-#' @param vif_threshold Heuristic VIF threshold used only as a supplementary
-#'   diagnostic. Spline-basis columns are often correlated by construction.
-#' @param n_per_parameter_warn Heuristic minimum ratio of complete epidemics to
-#'   design columns. Default is 10.
-#' @param tol Numerical tolerance used in QR-rank and near-zero-variance checks.
-#' @param keep_design Logical. If `TRUE`, include the complete epidemic-level
-#'   cross-basis design matrix in the returned object.
+#' This avoids maintaining a second, potentially divergent implementation of
+#' cross-basis construction inside the diagnostic function. Consequently, the
+#' basis definitions, training-data-dependent knots, lag convention, marginal
+#' intercept rules, canonical cross-basis column order, and final-row design
+#' used here are the same as those used by the current EpiExposure fitting
+#' workflow.
 #'
-#' @return An object of class `epiexposure_identifiability` containing:
-#'   `identifiable`, `numerically_stable`, `status`, `overall`, `by_variable`,
-#'   `pairwise_exposure_correlation`, `pairwise_crossbasis_correlation`, `vif`,
-#'   `dependent_columns`, `recommendations`, and optionally `design_matrix`.
+#' @param data Non-empty long-format exposure data frame containing `epi_id`,
+#'   `time`, and every exposure named in `var`.
+#'
+#'   EpiExposure v1 uses a strict exact-history contract. If `max_lag = L`,
+#'   every epidemic must contain exactly `L + 1` rows. Histories with fewer or
+#'   more rows are rejected; they are never truncated, padded, or silently
+#'   realigned. All requested exposure variables occupy those same validated
+#'   rows and therefore necessarily have the same temporal support and history
+#'   length.
+#'
+#'   `epi_id` must not contain missing values. `time` and all exposure variables
+#'   must contain only finite numeric values. When `max_lag > 0`, time must be
+#'   strictly increasing after ordering, equally spaced within each epidemic,
+#'   and use the same spacing across epidemics. Missing or non-finite exposure
+#'   values are not dropped in EpiExposure v1; they are errors.
+#' @param var Character vector with one or more unique exposure-variable names.
+#'   The reserved EpiExposure names `"epi_id"`, `"time"`, and `"y"` cannot be
+#'   used as exposure names.
+#' @param max_lag Non-negative integer maximum lag. The legacy form `c(0, L)` is
+#'   accepted for backward compatibility. EpiExposure v1 requires the fitted
+#'   lag range to begin at lag 0 and all fitted exposures to use the same
+#'   `max_lag`.
+#' @param df_var Positive integer controlling the exposure-response basis when
+#'   `fun_var` is `"ns"` or `"bs"`. For `fun_var = "poly"`, it is used as the
+#'   polynomial degree. It is ignored by the linear basis.
+#' @param df_lag Positive integer controlling the lag-response basis when
+#'   `fun_lag` is `"ns"` or `"bs"`. For `fun_lag = "poly"`, it is used as the
+#'   polynomial degree. It is ignored by the linear basis.
+#' @param fun_var Character exposure-basis function. Supported unpenalized
+#'   EpiExposure v1 choices are `"ns"`, `"bs"`, `"poly"`, and `"lin"`.
+#' @param fun_lag Character lag-basis function. Supported unpenalized
+#'   EpiExposure v1 choices are `"ns"`, `"bs"`, `"poly"`, and `"lin"`.
+#'
+#'   Penalized dlnm basis functions `"ps"` and `"cr"` are deliberately not
+#'   supported in EpiExposure v1. A penalized spline transformation alone is
+#'   not a penalized DLNM: the associated penalty matrices and smoothing
+#'   parameters must also be propagated to model fitting. The current
+#'   engine-agnostic fitting contract therefore stops explicitly instead of
+#'   diagnosing a basis that EpiExposure would later fit without its penalty.
+#' @param include_intercept Logical scalar. If `TRUE` (default), include a model
+#'   intercept when evaluating numerical rank of the combined epidemic-level
+#'   design. This matches the standard EpiExposure fitting parameterization.
+#'   `FALSE` is retained as an advanced diagnostic option.
+#' @param corr_threshold Finite number in `(0, 1]`. Heuristic absolute
+#'   correlation threshold used to flag potentially important between-exposure
+#'   cross-basis collinearity and to report high same-time raw-exposure
+#'   correlation. Default is `0.90`.
+#' @param condition_warn Positive finite number. Heuristic scaled condition
+#'   number at or above which a numerical warning is reported. Default is `30`.
+#' @param condition_severe Positive finite number strictly larger than
+#'   `condition_warn`. At or above this value the design is classified as
+#'   numerically unstable. Default is `100`.
+#' @param vif_threshold Positive finite number. Threshold for supplementary VIF
+#'   reporting. Default is `10`. VIFs for individual spline columns can be high
+#'   by construction and do not independently determine the global status.
+#' @param n_per_parameter_warn Positive finite number. Heuristic minimum ratio
+#'   of complete epidemics to columns in the rank design. Default is `10`.
+#'   This is a design-complexity diagnostic, not a universal sample-size rule.
+#' @param tol Positive finite number used for numerical QR-rank decisions,
+#'   near-zero-variance checks, and numerical zero checks in the supplementary
+#'   VIF calculation. Default is `1e-7`. Temporal validation itself follows the
+#'   canonical tolerances in `define_exposures()` and `build_design()`.
+#' @param keep_design Logical scalar. If `TRUE`, include the complete
+#'   epidemic-level numerical matrix used for the rank diagnostic in the
+#'   returned object. Default is `FALSE`.
+#'
+#' @return An object of class `epiexposure_identifiability`, a list containing:
+#'
+#'   - `identifiable`: whether the combined rank design has full numerical rank
+#'     at `tol`;
+#'   - `numerically_stable`: whether it is full rank, has no near-zero-variance
+#'     cross-basis columns, has a scaled condition number below
+#'     `condition_severe`, and contains more epidemics than rank-design columns;
+#'   - `status`: `"ok"`, `"warning"`, or `"problem"`;
+#'   - `overall`: one-row summary of the combined design;
+#'   - `by_variable`: diagnostics for each exposure's cross-basis block;
+#'   - `pairwise_exposure_correlation`: descriptive row-level Pearson and
+#'     Spearman correlations between raw exposures;
+#'   - `pairwise_crossbasis_correlation`: maximum and mean absolute pairwise
+#'     correlations between columns belonging to different exposure blocks;
+#'   - `vif`: supplementary column-wise VIF diagnostics;
+#'   - `singular_values`: singular values of the centered/scaled usable
+#'     cross-basis predictor matrix;
+#'   - `dependent_columns`: pivot-based set of columns not needed to span a
+#'     rank-deficient combined design;
+#'   - `near_zero_variance_columns`: flagged cross-basis columns;
+#'   - `complete_epi_id`: epidemic IDs represented in the design;
+#'   - `basis_specification`: effective basis metadata transported from
+#'     `define_exposures()`/`build_design()`;
+#'   - `diagnostic_flags`: named logical flags used to construct the status;
+#'   - `recommendations`: concise interpretation and follow-up suggestions;
+#'   - `settings`: normalized diagnostic settings and temporal metadata;
+#'   - `design_matrix`: included only when `keep_design = TRUE`.
 #'
 #' @details
-#' Mathematical identifiability is defined here by full column rank of the
-#' epidemic-level design matrix. Numerical stability is evaluated separately.
-#' The condition-number, correlation, VIF, and observations-per-column cutoffs
-#' are practical diagnostics rather than universal inferential thresholds.
+#' ## What is diagnosed
 #'
-#' Individual VIFs should be interpreted cautiously for spline-expanded terms,
-#' because correlations among columns belonging to the same basis can be
-#' expected. The combined rank and scaled condition number are the primary
-#' numerical diagnostics.
+#' EpiExposure fits one epidemic-level row after transforming each complete
+#' exposure history through its training cross-basis and retaining the final
+#' cross-basis row. `check_identifiability()` diagnoses that same numerical
+#' design. It does not diagnose every intermediate row returned by
+#' `dlnm::crossbasis()` within a history.
+#'
+#' The function first calls `define_exposures()` to estimate the training basis
+#' definitions jointly from all supplied epidemics, then calls `build_design()`
+#' to reconstruct one final cross-basis row per epidemic using those fixed
+#' training definitions. This is the authoritative EpiExposure v1 design path.
+#'
+#' ## Exact-history and common-window contract
+#'
+#' If the fitted maximum lag is `L`, each epidemic must contain exactly
+#'
+#' \deqn{
+#'   L + 1
+#' }
+#'
+#' chronological exposure observations, corresponding to lag `L` through lag
+#' `0`. All fitted exposures use the same `L`. A longer history is not silently
+#' reduced to its last `L + 1` rows, and a shorter history is not padded.
+#'
+#' For `max_lag = 0`, each epidemic contains exactly one observation and the lag
+#' basis must be linear. A one-point history has no estimable temporal step, so
+#' `time_step` is stored as `NA`.
+#'
+#' ## Identifiability versus numerical stability
+#'
+#' `identifiable` is based on the **numerical rank** of the epidemic-level
+#' design at the user-selected tolerance; it is not an algebraic symbolic-rank
+#' proof. When `include_intercept = TRUE`, the intercept is included in this
+#' rank calculation.
+#'
+#' Numerical stability is assessed separately. The condition number is computed
+#' from usable cross-basis predictor columns after centering and scaling each
+#' column to unit standard deviation. The intercept is not included in this
+#' scaled condition number because centering makes it orthogonal to the scaled
+#' predictor columns. If the scaled predictor matrix is rank deficient, or if
+#' the number of usable columns cannot be supported by its rows, the condition
+#' number is reported as infinite.
+#'
+#' Condition-number cutoffs are heuristics, not universal inferential laws.
+#' Similarly, the epidemics-per-column ratio is a descriptive warning about
+#' design complexity and should not be interpreted as a formal sample-size
+#' calculation.
+#'
+#' ## Correlations and VIFs
+#'
+#' Correlations among columns from the same spline basis are expected and are
+#' not, by themselves, evidence that the model is invalid. The combined rank
+#' and scaled condition number are the primary numerical diagnostics.
+#'
+#' `pairwise_crossbasis_correlation` examines **different exposure blocks** and
+#' can therefore highlight two exposures that contribute highly redundant
+#' transformed temporal information. It reports the maximum pairwise column
+#' correlation; this is not a canonical-correlation analysis.
+#'
+#' Raw-exposure correlations are calculated on the long-format rows and are
+#' purely descriptive. Repeated/serial observations are not treated as
+#' independent observations for inferential testing, and the function does not
+#' report correlation p-values. High raw correlation alone does not change the
+#' global `status` when the fitted cross-basis design remains well behaved.
+#'
+#' VIFs are also supplementary because spline-expanded columns are commonly
+#' correlated by construction. A high VIF produces a recommendation but, on its
+#' own, does not upgrade an otherwise acceptable design to `"warning"`.
+#'
+#' ## Penalized DLNMs
+#'
+#' EpiExposure v1 is intentionally unpenalized. `"ps"` and `"cr"` are rejected
+#' here for the same reason they are rejected by `define_exposures()`: the
+#' future penalized framework must carry the basis, penalty matrices, smoothing
+#' parameters, fitting engine, prediction design, and uncertainty contract as a
+#' coherent model. Diagnosing `"ps"` columns while fitting them later without
+#' their penalty would be misleading.
 #'
 #' @export
 check_identifiability <- function(
@@ -69,369 +209,553 @@ check_identifiability <- function(
     keep_design = FALSE
 ) {
 
-  # ---------------------------------------------------------------------------
-  # Basic validation
-  # ---------------------------------------------------------------------------
-  if (!is.data.frame(data)) {
-    stop("`data` must be a data.frame.")
+  # ==========================================================================
+  # LOCAL VALIDATORS
+  # ==========================================================================
+
+  stopf <- function(...) {
+    stop(..., call. = FALSE)
   }
 
-  required_columns <- c("epi_id", "time")
-  missing_required <- setdiff(required_columns, names(data))
+  logical_scalar <- function(x) {
+    is.logical(x) && length(x) == 1L && !is.na(x)
+  }
+
+  character_scalar <- function(x) {
+    is.character(x) && length(x) == 1L && !is.na(x) && nzchar(x)
+  }
+
+  positive_numeric_scalar <- function(x, name) {
+    if (!is.numeric(x) || length(x) != 1L || is.na(x) ||
+        !is.finite(x) || x <= 0) {
+      stopf("`", name, "` must be one positive finite number.")
+    }
+    as.numeric(x)
+  }
+
+  positive_integer_scalar <- function(x, name) {
+    if (!is.numeric(x) || length(x) != 1L || is.na(x) ||
+        !is.finite(x) || x < 1 || x != as.integer(x)) {
+      stopf("`", name, "` must be one positive integer.")
+    }
+    as.integer(x)
+  }
+
+  normalize_max_lag <- function(x) {
+    if (!is.numeric(x) || !length(x) || length(x) > 2L ||
+        anyNA(x) || any(!is.finite(x)) || any(x < 0) ||
+        any(x != as.integer(x))) {
+      stopf(
+        "`max_lag` must be one non-negative integer or the legacy lag range ",
+        "`c(0, L)`."
+      )
+    }
+
+    x <- as.integer(x)
+
+    if (!is.null(names(x)) && any(nzchar(names(x)))) {
+      stopf(
+        "Named/exposure-specific `max_lag` values are not supported. All ",
+        "fitted exposure variables must use one common `max_lag`."
+      )
+    }
+
+    if (length(x) == 1L) {
+      return(x)
+    }
+
+    if (min(x) != 0L) {
+      stopf(
+        "EpiExposure v1 requires the fitted lag range to start at lag 0. ",
+        "Use `max_lag = L` or `max_lag = c(0, L)`."
+      )
+    }
+
+    as.integer(max(x))
+  }
+
+  # ==========================================================================
+  # BASIC INPUT VALIDATION
+  # ==========================================================================
+
+  if (!is.data.frame(data) || !nrow(data)) {
+    stopf("`data` must be a non-empty data.frame.")
+  }
+
+  missing_required <- setdiff(c("epi_id", "time"), names(data))
   if (length(missing_required)) {
-    stop(
-      "`data` is missing required columns: ",
-      paste(missing_required, collapse = ", "), "."
+    stopf(
+      "`data` is missing required column(s): ",
+      paste(missing_required, collapse = ", "),
+      "."
     )
   }
 
   if (!is.character(var) || !length(var) || anyNA(var) ||
       any(!nzchar(var)) || anyDuplicated(var)) {
-    stop("`var` must contain unique, non-empty exposure-variable names.")
+    stopf("`var` must contain unique non-empty exposure-variable names.")
+  }
+
+  if (any(var %in% c("epi_id", "time", "y"))) {
+    stopf(
+      "Exposure variables cannot use the reserved EpiExposure names ",
+      "'epi_id', 'time', or 'y'."
+    )
   }
 
   missing_variables <- setdiff(var, names(data))
   if (length(missing_variables)) {
-    stop(
-      "Exposure variables not found in `data`: ",
-      paste(missing_variables, collapse = ", "), "."
+    stopf(
+      "Exposure variable(s) not found in `data`: ",
+      paste(missing_variables, collapse = ", "),
+      "."
     )
   }
 
-  for (v in var) {
-    if (!is.numeric(data[[v]])) {
-      stop("Exposure variable '", v, "' must be numeric.")
+  if (anyNA(data$epi_id)) {
+    stopf("`data$epi_id` cannot contain missing values.")
+  }
+
+  if (!is.numeric(data$time) || anyNA(data$time) ||
+      any(!is.finite(data$time))) {
+    stopf("`data$time` must contain only finite numeric values.")
+  }
+
+  for (variable in var) {
+    values <- data[[variable]]
+
+    if (!is.numeric(values) || anyNA(values) ||
+        any(!is.finite(values))) {
+      stopf(
+        "Exposure variable '", variable,
+        "' must contain only finite numeric values."
+      )
     }
-    if (all(!is.finite(data[[v]]))) {
-      stop("Exposure variable '", v, "' contains no finite values.")
+
+    if (length(unique(values)) < 2L) {
+      stopf(
+        "Exposure variable '", variable,
+        "' is constant. A cross-basis effect cannot be estimated from a ",
+        "constant exposure."
+      )
     }
   }
 
-  if (!is.numeric(max_lag) || !length(max_lag) || anyNA(max_lag) ||
-      any(!is.finite(max_lag))) {
-    stop("`max_lag` must contain finite numeric values.")
-  }
-  max_lag <- max(max_lag)
-  if (max_lag < 0 || abs(max_lag - round(max_lag)) > tol) {
-    stop("`max_lag` must resolve to one non-negative integer.")
-  }
-  max_lag <- as.integer(round(max_lag))
+  maximum_lag <- normalize_max_lag(max_lag)
+  history_length <- maximum_lag + 1L
+  history_contract <-
+    "all_fitted_exposures_same_exact_max_lag_plus_one"
 
-  is_positive_integer_scalar <- function(x) {
-    is.numeric(x) && length(x) == 1L && !is.na(x) && is.finite(x) &&
-      x > 0 && abs(x - round(x)) <= tol
-  }
+  df_var <- positive_integer_scalar(df_var, "df_var")
+  df_lag <- positive_integer_scalar(df_lag, "df_lag")
 
-  if (!is_positive_integer_scalar(df_var)) {
-    stop("`df_var` must be one positive integer.")
+  if (!character_scalar(fun_var)) {
+    stopf("`fun_var` must be one non-empty character value.")
   }
-  if (!is_positive_integer_scalar(df_lag)) {
-    stop("`df_lag` must be one positive integer.")
-  }
-  df_var <- as.integer(round(df_var))
-  df_lag <- as.integer(round(df_lag))
-
-  if (!is.character(fun_var) || length(fun_var) != 1L ||
-      !fun_var %in% c("ns", "bs", "poly", "lin")) {
-    stop("`fun_var` must be one of 'ns', 'bs', 'poly', or 'lin'.")
-  }
-  if (!is.character(fun_lag) || length(fun_lag) != 1L ||
-      !fun_lag %in% c("ns", "ps", "lin")) {
-    stop("`fun_lag` must be one of 'ns', 'ps', or 'lin'.")
+  if (!character_scalar(fun_lag)) {
+    stopf("`fun_lag` must be one non-empty character value.")
   }
 
-  logical_scalar <- function(x) is.logical(x) && length(x) == 1L && !is.na(x)
+  fun_var <- tolower(fun_var)
+  fun_lag <- tolower(fun_lag)
+
+  penalized_functions <- c("ps", "cr")
+  if (fun_var %in% penalized_functions ||
+      fun_lag %in% penalized_functions) {
+    requested <- unique(c(
+      if (fun_var %in% penalized_functions) fun_var,
+      if (fun_lag %in% penalized_functions) fun_lag
+    ))
+
+    stopf(
+      "Penalized dlnm basis function(s) ",
+      paste(paste0("'", requested, "'"), collapse = ", "),
+      " are not supported by the engine-agnostic EpiExposure v1 fitting ",
+      "contract. `ps`/`cr` require their penalty matrices to be propagated ",
+      "during fitting; EpiExposure does not silently diagnose or fit them as ",
+      "unpenalized basis columns."
+    )
+  }
+
+  allowed_unpenalized <- c("ns", "bs", "poly", "lin")
+
+  if (!fun_var %in% allowed_unpenalized) {
+    stopf(
+      "Unsupported `fun_var = ", sQuote(fun_var),
+      "`. Supported EpiExposure v1 exposure bases are: ",
+      paste(allowed_unpenalized, collapse = ", "), "."
+    )
+  }
+
+  if (!fun_lag %in% allowed_unpenalized) {
+    stopf(
+      "Unsupported `fun_lag = ", sQuote(fun_lag),
+      "`. Supported EpiExposure v1 lag bases are: ",
+      paste(allowed_unpenalized, collapse = ", "), "."
+    )
+  }
+
+  if (maximum_lag == 0L && !identical(fun_lag, "lin")) {
+    stopf(
+      "When `max_lag = 0`, use `fun_lag = 'lin'`. A non-linear lag basis ",
+      "cannot be identified from a single lag value."
+    )
+  }
+
   if (!logical_scalar(include_intercept)) {
-    stop("`include_intercept` must be TRUE or FALSE.")
+    stopf("`include_intercept` must be TRUE or FALSE.")
   }
   if (!logical_scalar(keep_design)) {
-    stop("`keep_design` must be TRUE or FALSE.")
+    stopf("`keep_design` must be TRUE or FALSE.")
   }
 
-  numeric_positive_scalar <- function(x, name, allow_zero = FALSE) {
-    ok <- is.numeric(x) && length(x) == 1L && !is.na(x) && is.finite(x) &&
-      if (allow_zero) x >= 0 else x > 0
-    if (!ok) stop("`", name, "` must be one finite ",
-                  if (allow_zero) "non-negative" else "positive", " number.")
-    as.numeric(x)
-  }
-
-  corr_threshold <- numeric_positive_scalar(corr_threshold, "corr_threshold")
-  if (corr_threshold > 1) stop("`corr_threshold` cannot exceed 1.")
-  condition_warn <- numeric_positive_scalar(condition_warn, "condition_warn")
-  condition_severe <- numeric_positive_scalar(condition_severe, "condition_severe")
-  if (condition_severe <= condition_warn) {
-    stop("`condition_severe` must be greater than `condition_warn`.")
-  }
-  vif_threshold <- numeric_positive_scalar(vif_threshold, "vif_threshold")
-  n_per_parameter_warn <- numeric_positive_scalar(
-    n_per_parameter_warn, "n_per_parameter_warn"
+  corr_threshold <- positive_numeric_scalar(
+    corr_threshold,
+    "corr_threshold"
   )
-  tol <- numeric_positive_scalar(tol, "tol")
+  if (corr_threshold > 1) {
+    stopf("`corr_threshold` cannot exceed 1.")
+  }
+
+  condition_warn <- positive_numeric_scalar(
+    condition_warn,
+    "condition_warn"
+  )
+  condition_severe <- positive_numeric_scalar(
+    condition_severe,
+    "condition_severe"
+  )
+  if (condition_severe <= condition_warn) {
+    stopf("`condition_severe` must be greater than `condition_warn`.")
+  }
+
+  vif_threshold <- positive_numeric_scalar(vif_threshold, "vif_threshold")
+  n_per_parameter_warn <- positive_numeric_scalar(
+    n_per_parameter_warn,
+    "n_per_parameter_warn"
+  )
+  tol <- positive_numeric_scalar(tol, "tol")
+
+  if (tol >= 1) {
+    stopf("`tol` must be smaller than 1.")
+  }
 
   if (!requireNamespace("dlnm", quietly = TRUE)) {
-    stop("Package 'dlnm' is required by `check_identifiability()`.")
+    stopf("Package 'dlnm' is required by `check_identifiability()`.")
   }
 
-  # ---------------------------------------------------------------------------
-  # Temporal integrity
-  # ---------------------------------------------------------------------------
-  ids <- unique(data$epi_id)
-  if (!length(ids)) stop("`data` contains no epidemics.")
+  # ==========================================================================
+  # CANONICAL EPIEXPOSURE DESIGN CONSTRUCTION
+  # ==========================================================================
 
-  to_numeric_time <- function(x) {
-    if (inherits(x, "Date") || inherits(x, "POSIXt")) return(as.numeric(x))
-    if (is.numeric(x) || is.integer(x)) return(as.numeric(x))
-    stop("`time` must be numeric/integer, Date, or POSIXt.")
-  }
-
-  time_steps <- rep(NA_real_, length(ids))
-  names(time_steps) <- as.character(ids)
-  insufficient_ids <- character(0)
-  irregular_ids <- character(0)
-  duplicated_ids <- character(0)
-  missing_time_ids <- character(0)
-
-  for (i in seq_along(ids)) {
-    current_id <- ids[i]
-    idx <- which(data$epi_id == current_id)
-    tt_raw <- data$time[idx]
-
-    if (anyNA(tt_raw)) {
-      missing_time_ids <- c(missing_time_ids, as.character(current_id))
-      next
+  # The public helpers are intentionally reused here. This ensures that the
+  # diagnostic cannot drift away from the design later fitted by EpiExposure.
+  templates <- tryCatch(
+    define_exposures(
+      data = data,
+      vars = var,
+      max_lag = maximum_lag,
+      df_var = df_var,
+      df_lag = df_lag,
+      fun_var = fun_var,
+      fun_lag = fun_lag
+    ),
+    error = function(e) {
+      stopf(
+        "Could not define the DLNM exposure templates for identifiability ",
+        "diagnosis: ", conditionMessage(e)
+      )
     }
-
-    tt <- to_numeric_time(tt_raw)
-    if (anyDuplicated(tt)) {
-      duplicated_ids <- c(duplicated_ids, as.character(current_id))
-      next
-    }
-
-    tt <- sort(tt)
-    if (length(tt) < max_lag + 1L) {
-      insufficient_ids <- c(insufficient_ids, as.character(current_id))
-    }
-
-    if (length(tt) > 1L) {
-      dd <- diff(tt)
-      if (any(dd <= 0) ||
-          max(abs(dd - dd[1L])) > tol * max(1, abs(dd[1L]))) {
-        irregular_ids <- c(irregular_ids, as.character(current_id))
-      } else {
-        time_steps[i] <- dd[1L]
-      }
-    }
-  }
-
-  if (length(missing_time_ids)) {
-    stop(
-      "Missing `time` values were detected. Example epi_id: ",
-      paste(utils::head(missing_time_ids, 5L), collapse = ", "), "."
-    )
-  }
-  if (length(duplicated_ids)) {
-    stop(
-      "Duplicated `time` values were detected within epidemics. Example epi_id: ",
-      paste(utils::head(duplicated_ids, 5L), collapse = ", "), "."
-    )
-  }
-  if (length(insufficient_ids)) {
-    stop(
-      "Some epidemics do not have enough temporal coverage for max_lag = ",
-      max_lag, ". At least ", max_lag + 1L,
-      " observations are required. Example epi_id: ",
-      paste(utils::head(insufficient_ids, 5L), collapse = ", "), "."
-    )
-  }
-  if (length(irregular_ids)) {
-    stop(
-      "Irregular time spacing was detected within epidemics. DLNM lags assume ",
-      "regularly spaced observations. Example epi_id: ",
-      paste(utils::head(irregular_ids, 5L), collapse = ", "), "."
-    )
-  }
-
-  finite_steps <- time_steps[is.finite(time_steps)]
-  if (length(finite_steps) > 1L &&
-      (max(finite_steps) - min(finite_steps)) >
-      tol * max(1, max(abs(finite_steps)))) {
-    stop("Different temporal step sizes were detected across epidemics.")
-  }
-  time_step <- if (length(finite_steps)) finite_steps[1L] else NA_real_
-
-  # ---------------------------------------------------------------------------
-  # Basis specification
-  # ---------------------------------------------------------------------------
-  argvar <- switch(
-    fun_var,
-    ns   = list(fun = "ns", df = df_var),
-    bs   = list(fun = "bs", df = df_var),
-    poly = list(fun = "poly", degree = df_var),
-    lin  = list(fun = "lin")
   )
 
-  if (!is.null(argvar$fun) && argvar$fun != "lin") {
-    argvar$intercept <- FALSE
-  }
-
-  arglag <- switch(
-    fun_lag,
-    ns  = list(fun = "ns", df = df_lag),
-    ps  = list(fun = "ps", df = df_lag),
-    lin = list(fun = "lin")
+  design <- tryCatch(
+    build_design(
+      data = data,
+      cb_templates = templates,
+      max_lag = maximum_lag,
+      include_response = FALSE
+    ),
+    error = function(e) {
+      stopf(
+        "Could not construct the epidemic-level DLNM design for ",
+        "identifiability diagnosis: ", conditionMessage(e)
+      )
+    }
   )
 
-  # ---------------------------------------------------------------------------
-  # Helpers reproducing the epidemic-level design used for model fitting
-  # ---------------------------------------------------------------------------
-  build_pooled_series <- function(dat, variable, separator_n) {
-    out <- vector("list", length(ids))
-    for (i in seq_along(ids)) {
-      current_id <- ids[i]
-      idx <- which(dat$epi_id == current_id)
-      ord <- order(dat$time[idx])
-      values <- dat[[variable]][idx][ord]
-      out[[i]] <- c(values, rep(NA_real_, separator_n))
-    }
-    unlist(out, use.names = FALSE)
-  }
+  design_max_lag <- attr(design, "epiexposure_max_lag", exact = TRUE)
+  design_history_length <- attr(
+    design,
+    "epiexposure_history_length",
+    exact = TRUE
+  )
+  design_history_contract <- attr(
+    design,
+    "epiexposure_history_contract",
+    exact = TRUE
+  )
+  design_time_step <- attr(design, "epiexposure_time_step", exact = TRUE)
+  design_contract <- attr(
+    design,
+    "epiexposure_design_contract",
+    exact = TRUE
+  )
+  design_profile_order <- attr(
+    design,
+    "epiexposure_profile_order",
+    exact = TRUE
+  )
+  basis_specification <- attr(design, "epiexposure_spec", exact = TRUE)
+  cb_cols <- attr(design, "epiexposure_cb_cols", exact = TRUE)
+  design_vars <- attr(design, "epiexposure_vars", exact = TRUE)
 
-  extract_last_cb <- function(values, template) {
-    if (length(values) <= max_lag) {
-      return(rep(NA_real_, ncol(template)))
-    }
-
-    cb <- dlnm::crossbasis(
-      values,
-      lag = max_lag,
-      argvar = attr(template, "argvar"),
-      arglag = attr(template, "arglag")
-    )
-
-    as.numeric(cb[length(values), , drop = TRUE])
-  }
-
-  templates <- vector("list", length(var))
-  names(templates) <- var
-  blocks <- vector("list", length(var))
-  names(blocks) <- var
-
-  for (v in var) {
-    pooled <- build_pooled_series(data, v, max_lag)
-
-    template <- tryCatch(
-      dlnm::crossbasis(
-        pooled,
-        lag = max_lag,
-        argvar = argvar,
-        arglag = arglag
-      ),
-      error = function(e) {
-        stop(
-          "Could not construct the cross-basis for variable '", v,
-          "': ", conditionMessage(e), call. = FALSE
-        )
-      }
-    )
-
-    templates[[v]] <- template
-
-    block <- matrix(
-      NA_real_,
-      nrow = length(ids),
-      ncol = ncol(template)
-    )
-
-    for (i in seq_along(ids)) {
-      current_id <- ids[i]
-      idx <- which(data$epi_id == current_id)
-      ord <- order(data$time[idx])
-      values <- data[[v]][idx][ord]
-      block[i, ] <- extract_last_cb(values, template)
-    }
-
-    colnames(block) <- paste0("cb_", v, "_", seq_len(ncol(block)))
-    rownames(block) <- as.character(ids)
-    blocks[[v]] <- block
-  }
-
-  X_cb_all <- do.call(cbind, blocks)
-  complete_rows <- stats::complete.cases(X_cb_all)
-  n_complete <- sum(complete_rows)
-  n_total <- nrow(X_cb_all)
-  n_excluded <- n_total - n_complete
-
-  if (n_complete == 0L) {
-    stop(
-      "No epidemic has a complete cross-basis design across all requested ",
-      "variables. Inspect missing exposure values within the lag histories."
+  if (!is.numeric(design_max_lag) || length(design_max_lag) != 1L ||
+      is.na(design_max_lag) || !is.finite(design_max_lag) ||
+      design_max_lag != as.integer(design_max_lag) ||
+      !identical(as.integer(design_max_lag), maximum_lag)) {
+    stopf(
+      "Internal design metadata disagree with the requested common `max_lag`."
     )
   }
 
-  X_cb <- X_cb_all[complete_rows, , drop = FALSE]
+  if (!is.numeric(design_history_length) ||
+      length(design_history_length) != 1L ||
+      is.na(design_history_length) ||
+      !is.finite(design_history_length) ||
+      design_history_length != as.integer(design_history_length) ||
+      !identical(as.integer(design_history_length), history_length)) {
+    stopf(
+      "Internal design metadata violate `history_length = max_lag + 1`."
+    )
+  }
+
+  if (!identical(design_history_contract, history_contract)) {
+    stopf(
+      "Internal design metadata violate the EpiExposure exact-history contract."
+    )
+  }
+
+  if (!identical(design_contract, "final_crossbasis_row_per_group")) {
+    stopf(
+      "Internal design metadata do not use the expected epidemic-level ",
+      "final-cross-basis-row contract."
+    )
+  }
+
+  if (!identical(design_profile_order, "chronological")) {
+    stopf("Internal design metadata do not use chronological profile order.")
+  }
+
+  if (!identical(as.character(design_vars), as.character(var))) {
+    stopf(
+      "Internal design exposure order does not match the requested variables."
+    )
+  }
+
+  if (!is.character(cb_cols) || !length(cb_cols) ||
+      anyNA(cb_cols) || anyDuplicated(cb_cols) ||
+      any(!cb_cols %in% names(design))) {
+    stopf("Internal cross-basis column metadata are invalid.")
+  }
+
+  X_cb <- as.matrix(design[, cb_cols, drop = FALSE])
+  storage.mode(X_cb) <- "double"
+  rownames(X_cb) <- as.character(design$epi_id)
+
+  if (!nrow(X_cb) || !ncol(X_cb) || anyNA(X_cb) ||
+      any(!is.finite(X_cb))) {
+    stopf(
+      "The canonical epidemic-level cross-basis design must contain only ",
+      "finite numeric values."
+    )
+  }
+
+  n_total <- nrow(X_cb)
+  n_complete <- n_total
+  n_excluded <- 0L
   complete_ids <- rownames(X_cb)
 
-  X_rank <- if (include_intercept) {
-    cbind(`(Intercept)` = 1, X_cb)
+  X_rank <- if (isTRUE(include_intercept)) {
+    cbind(`(Intercept)` = rep(1, nrow(X_cb)), X_cb)
   } else {
     X_cb
   }
+  storage.mode(X_rank) <- "double"
 
-  # ---------------------------------------------------------------------------
-  # Matrix diagnostics
-  # ---------------------------------------------------------------------------
-  qr_full <- qr(X_rank, tol = tol)
+  # ==========================================================================
+  # NUMERICAL-DIAGNOSTIC HELPERS
+  # ==========================================================================
+
+  column_sd <- function(X) {
+    if (!ncol(X)) return(numeric(0))
+    if (nrow(X) < 2L) {
+      out <- rep(NA_real_, ncol(X))
+      names(out) <- colnames(X)
+      return(out)
+    }
+    out <- apply(X, 2L, stats::sd)
+    names(out) <- colnames(X)
+    out
+  }
+
+  near_zero_flags <- function(X) {
+    means <- if (ncol(X)) colMeans(X) else numeric(0)
+    sds <- column_sd(X)
+    cutoff <- tol * pmax(1, abs(means))
+    flags <- !is.finite(sds) | sds <= cutoff
+    names(flags) <- colnames(X)
+    list(flags = flags, mean = means, sd = sds, cutoff = cutoff)
+  }
+
+  scaled_matrix_diagnostics <- function(X) {
+    if (!is.matrix(X)) X <- as.matrix(X)
+
+    nz <- near_zero_flags(X)
+    usable <- !nz$flags
+
+    singular_values <- numeric(0)
+    condition_number <- Inf
+    max_abs_correlation <- NA_real_
+    median_abs_correlation <- NA_real_
+
+    if (sum(usable) == 1L && nrow(X) >= 2L) {
+      condition_number <- 1
+      max_abs_correlation <- 0
+      median_abs_correlation <- 0
+
+      column <- X[, usable, drop = TRUE]
+      z <- (column - mean(column)) / stats::sd(column)
+      singular_values <- sqrt(sum(z^2))
+
+    } else if (sum(usable) > 1L && nrow(X) >= 2L) {
+      X_use <- X[, usable, drop = FALSE]
+      means <- colMeans(X_use)
+      sds <- column_sd(X_use)
+      X_scaled <- sweep(X_use, 2L, means, FUN = "-")
+      X_scaled <- sweep(X_scaled, 2L, sds, FUN = "/")
+
+      sv <- tryCatch(
+        svd(X_scaled, nu = 0L, nv = 0L)$d,
+        error = function(e) numeric(0)
+      )
+      singular_values <- sv
+
+      scaled_rank <- qr(
+        X_scaled,
+        tol = tol,
+        LAPACK = FALSE
+      )$rank
+
+      if (nrow(X_scaled) > ncol(X_scaled) &&
+          scaled_rank == ncol(X_scaled) &&
+          length(sv) == ncol(X_scaled) &&
+          max(sv) > 0 &&
+          min(sv) > tol * max(sv)) {
+        condition_number <- max(sv) / min(sv)
+      }
+
+      R <- suppressWarnings(stats::cor(X_use))
+      upper_values <- abs(R[upper.tri(R)])
+      upper_values <- upper_values[is.finite(upper_values)]
+
+      if (length(upper_values)) {
+        max_abs_correlation <- max(upper_values)
+        median_abs_correlation <- stats::median(upper_values)
+      }
+    }
+
+    list(
+      near_zero = nz$flags,
+      sd = nz$sd,
+      mean = nz$mean,
+      cutoff = nz$cutoff,
+      usable = usable,
+      singular_values = singular_values,
+      condition_number = condition_number,
+      max_abs_correlation = max_abs_correlation,
+      median_abs_correlation = median_abs_correlation
+    )
+  }
+
+  numerical_rank <- function(X) {
+    qr(X, tol = tol, LAPACK = FALSE)$rank
+  }
+
+  compute_vif <- function(X, nz_flags) {
+    p <- ncol(X)
+    out <- rep(NA_real_, p)
+    names(out) <- colnames(X)
+
+    if (!p || nrow(X) < 2L) return(out)
+
+    usable <- which(!nz_flags)
+    if (!length(usable)) return(out)
+
+    for (j in usable) {
+      y <- X[, j]
+      y_centered <- y - mean(y)
+      sst <- sum(y_centered^2)
+
+      if (!is.finite(sst) || sst <= tol * max(1, sum(y^2))) {
+        out[j] <- NA_real_
+        next
+      }
+
+      others <- setdiff(usable, j)
+      if (!length(others)) {
+        out[j] <- 1
+        next
+      }
+
+      Z <- cbind(`(Intercept)` = 1, X[, others, drop = FALSE])
+      fit_j <- tryCatch(stats::lm.fit(x = Z, y = y), error = function(e) NULL)
+
+      if (is.null(fit_j) || is.null(fit_j$residuals) ||
+          any(!is.finite(fit_j$residuals))) {
+        out[j] <- NA_real_
+        next
+      }
+
+      sse <- sum(fit_j$residuals^2)
+      ratio <- sse / sst
+
+      if (!is.finite(ratio)) {
+        out[j] <- NA_real_
+      } else if (ratio <= tol) {
+        out[j] <- Inf
+      } else {
+        out[j] <- 1 / ratio
+      }
+    }
+
+    out
+  }
+
+  # ==========================================================================
+  # COMBINED RANK AND CONDITION DIAGNOSTICS
+  # ==========================================================================
+
+  qr_full <- qr(X_rank, tol = tol, LAPACK = FALSE)
   rank_full <- qr_full$rank
   p_full <- ncol(X_rank)
-  full_rank <- rank_full == p_full
+  full_rank <- identical(rank_full, p_full)
 
   dependent_columns <- character(0)
   if (!full_rank) {
-    dependent_columns <- colnames(X_rank)[
-      qr_full$pivot[seq.int(rank_full + 1L, p_full)]
+    dependent_positions <- qr_full$pivot[
+      seq.int(rank_full + 1L, p_full)
     ]
+    dependent_columns <- colnames(X_rank)[dependent_positions]
   }
 
-  predictor_sd <- apply(X_cb, 2L, stats::sd)
-  predictor_mean <- colMeans(X_cb)
-  nzv_cutoff <- tol * pmax(1, abs(predictor_mean))
-  near_zero_variance <- !is.finite(predictor_sd) | predictor_sd <= nzv_cutoff
-  nzv_columns <- names(predictor_sd)[near_zero_variance]
-
-  usable_columns <- !near_zero_variance
-  X_scaled <- NULL
-  singular_values <- numeric(0)
-  condition_number <- Inf
-  max_abs_cb_correlation <- NA_real_
-  median_abs_cb_correlation <- NA_real_
-
-  if (sum(usable_columns) == 1L) {
-    X_scaled <- scale(X_cb[, usable_columns, drop = FALSE])
-    singular_values <- sqrt(sum(X_scaled^2))
-    condition_number <- 1
-    max_abs_cb_correlation <- 0
-    median_abs_cb_correlation <- 0
-  } else if (sum(usable_columns) > 1L) {
-    X_scaled <- scale(X_cb[, usable_columns, drop = FALSE])
-    sv <- svd(X_scaled, nu = 0L, nv = 0L)$d
-    singular_values <- sv
-
-    if (nrow(X_scaled) < ncol(X_scaled) ||
-        qr(X_scaled, tol = tol)$rank < ncol(X_scaled) ||
-        !length(sv) || max(sv) == 0 || min(sv) <= tol * max(sv)) {
-      condition_number <- Inf
-    } else {
-      condition_number <- max(sv) / min(sv)
-    }
-
-    R_cb <- stats::cor(X_cb[, usable_columns, drop = FALSE])
-    upper_values <- abs(R_cb[upper.tri(R_cb)])
-    if (length(upper_values)) {
-      max_abs_cb_correlation <- max(upper_values, na.rm = TRUE)
-      median_abs_cb_correlation <- stats::median(upper_values, na.rm = TRUE)
-    }
-  }
+  combined_scaled <- scaled_matrix_diagnostics(X_cb)
+  nzv_columns <- names(combined_scaled$near_zero)[
+    combined_scaled$near_zero
+  ]
+  singular_values <- combined_scaled$singular_values
+  condition_number <- combined_scaled$condition_number
+  max_abs_cb_correlation <- combined_scaled$max_abs_correlation
+  median_abs_cb_correlation <- combined_scaled$median_abs_correlation
 
   min_singular_value <- if (length(singular_values)) {
     min(singular_values)
@@ -446,97 +770,110 @@ check_identifiability <- function(
   }
 
   n_per_parameter <- n_complete / p_full
+  design_residual_df_proxy <- n_complete - rank_full
 
-  # ---------------------------------------------------------------------------
-  # Descriptive VIFs for cross-basis columns
-  # ---------------------------------------------------------------------------
-  vif_variable <- unlist(
-    lapply(var, function(v) rep(v, ncol(blocks[[v]]))),
-    use.names = FALSE
+  # ==========================================================================
+  # SUPPLEMENTARY VIFS
+  # ==========================================================================
+
+  cb_variable <- rep(NA_character_, length(cb_cols))
+  names(cb_variable) <- cb_cols
+
+  for (variable in var) {
+    template <- templates[[variable]]
+
+    if (is.null(template) || !inherits(template, "crossbasis") ||
+        !ncol(template)) {
+      stopf(
+        "Internal training-template mapping failed for exposure '",
+        variable, "'."
+      )
+    }
+
+    variable_cols <- paste0(
+      "cb_",
+      variable,
+      "_",
+      seq_len(ncol(template))
+    )
+
+    if (!all(variable_cols %in% cb_cols)) {
+      stopf(
+        "Internal cross-basis column mapping failed for exposure '",
+        variable, "'."
+      )
+    }
+
+    cb_variable[variable_cols] <- variable
+  }
+
+  if (anyNA(cb_variable)) {
+    stopf("Some cross-basis columns could not be mapped to an exposure variable.")
+  }
+
+  vif_values <- compute_vif(
+    X_cb,
+    combined_scaled$near_zero
   )
+
   vif_table <- data.frame(
-    column = colnames(X_cb),
-    variable = vif_variable,
-    vif = NA_real_,
+    column = cb_cols,
+    variable = unname(cb_variable[cb_cols]),
+    vif = unname(vif_values[cb_cols]),
     stringsAsFactors = FALSE
   )
 
-  if (!any(near_zero_variance)) {
-    if (ncol(X_cb) == 1L) {
-      vif_table$vif <- 1
-    } else if (n_complete > ncol(X_cb)) {
-      R <- stats::cor(X_cb)
-      invR <- tryCatch(solve(R), error = function(e) NULL)
-      if (!is.null(invR)) {
-        vif_table$vif <- diag(invR)
-      }
-    }
+  nonmissing_vif <- vif_table$vif[!is.na(vif_table$vif)]
+  max_vif <- if (length(nonmissing_vif)) {
+    max(nonmissing_vif)
+  } else {
+    NA_real_
+  }
+  median_vif <- if (length(nonmissing_vif)) {
+    stats::median(nonmissing_vif)
+  } else {
+    NA_real_
   }
 
-  finite_vif <- vif_table$vif[is.finite(vif_table$vif)]
-  max_vif <- if (length(finite_vif)) max(finite_vif) else NA_real_
-  median_vif <- if (length(finite_vif)) stats::median(finite_vif) else NA_real_
+  # ==========================================================================
+  # VARIABLE-SPECIFIC CROSS-BASIS DIAGNOSTICS
+  # ==========================================================================
 
-  # ---------------------------------------------------------------------------
-  # Variable-specific diagnostics on the same complete epidemics
-  # ---------------------------------------------------------------------------
   by_variable <- do.call(
     rbind,
-    lapply(var, function(v) {
-      B <- blocks[[v]][complete_rows, , drop = FALSE]
-      q <- qr(B, tol = tol)
-      p_v <- ncol(B)
-      rank_v <- q$rank
+    lapply(var, function(variable) {
+      variable_cols <- names(cb_variable)[cb_variable == variable]
+      B <- X_cb[, variable_cols, drop = FALSE]
 
-      sd_v <- apply(B, 2L, stats::sd)
-      mean_v <- colMeans(B)
-      nz_v <- !is.finite(sd_v) | sd_v <= tol * pmax(1, abs(mean_v))
-
-      B_use <- B[, !nz_v, drop = FALSE]
-      kappa_v <- Inf
-      max_cor_v <- NA_real_
-
-      if (ncol(B_use) == 1L) {
-        kappa_v <- 1
-        max_cor_v <- 0
-      } else if (ncol(B_use) > 1L) {
-        B_scaled <- scale(B_use)
-        sv_v <- svd(B_scaled, nu = 0L, nv = 0L)$d
-        if (nrow(B_scaled) >= ncol(B_scaled) &&
-            qr(B_scaled, tol = tol)$rank == ncol(B_scaled) &&
-            length(sv_v) && max(sv_v) > 0 &&
-            min(sv_v) > tol * max(sv_v)) {
-          kappa_v <- max(sv_v) / min(sv_v)
-        }
-        R_v <- stats::cor(B_use)
-        vals <- abs(R_v[upper.tri(R_v)])
-        if (length(vals)) max_cor_v <- max(vals, na.rm = TRUE)
-      }
-
-      exposure_values <- data[[v]]
-      finite_exposure <- exposure_values[is.finite(exposure_values)]
+      block_rank <- numerical_rank(B)
+      block_scaled <- scaled_matrix_diagnostics(B)
+      exposure_values <- data[[variable]]
 
       data.frame(
-        variable = v,
-        n_unique_exposure = length(unique(finite_exposure)),
-        exposure_missing_n = sum(!is.finite(exposure_values)),
-        exposure_missing_percent = 100 * mean(!is.finite(exposure_values)),
-        basis_columns = p_v,
-        rank = rank_v,
-        full_rank = rank_v == p_v,
-        rank_ratio = if (p_v > 0L) rank_v / p_v else NA_real_,
-        condition_number_scaled = kappa_v,
-        max_abs_within_basis_correlation = max_cor_v,
-        near_zero_variance_columns = sum(nz_v),
+        variable = variable,
+        n_unique_exposure = length(unique(exposure_values)),
+        exposure_missing_n = 0L,
+        exposure_missing_percent = 0,
+        history_length = history_length,
+        max_lag = maximum_lag,
+        basis_columns = ncol(B),
+        rank = block_rank,
+        full_rank = block_rank == ncol(B),
+        rank_ratio = if (ncol(B) > 0L) block_rank / ncol(B) else NA_real_,
+        condition_number_scaled = block_scaled$condition_number,
+        max_abs_within_basis_correlation =
+          block_scaled$max_abs_correlation,
+        near_zero_variance_columns = sum(block_scaled$near_zero),
         stringsAsFactors = FALSE
       )
     })
   )
   rownames(by_variable) <- NULL
 
-  # ---------------------------------------------------------------------------
-  # Pairwise raw-exposure correlations
-  # ---------------------------------------------------------------------------
+  # ==========================================================================
+  # DESCRIPTIVE RAW-EXPOSURE CORRELATIONS
+  # ==========================================================================
+
   pairwise_exposure_correlation <- data.frame(
     variable_1 = character(0),
     variable_2 = character(0),
@@ -548,6 +885,7 @@ check_identifiability <- function(
 
   if (length(var) >= 2L) {
     pairs <- utils::combn(var, 2L, simplify = FALSE)
+
     pairwise_exposure_correlation <- do.call(
       rbind,
       lapply(pairs, function(pair) {
@@ -556,14 +894,20 @@ check_identifiability <- function(
         ok <- is.finite(x) & is.finite(y)
         n_ok <- sum(ok)
 
-        pearson <- if (n_ok >= 3L && stats::sd(x[ok]) > 0 && stats::sd(y[ok]) > 0) {
+        pearson <- if (
+          n_ok >= 3L &&
+          stats::sd(x[ok]) > 0 &&
+          stats::sd(y[ok]) > 0
+        ) {
           stats::cor(x[ok], y[ok], method = "pearson")
         } else {
           NA_real_
         }
 
         spearman <- if (n_ok >= 3L) {
-          suppressWarnings(stats::cor(x[ok], y[ok], method = "spearman"))
+          suppressWarnings(
+            stats::cor(x[ok], y[ok], method = "spearman")
+          )
         } else {
           NA_real_
         }
@@ -581,9 +925,10 @@ check_identifiability <- function(
     rownames(pairwise_exposure_correlation) <- NULL
   }
 
-  # ---------------------------------------------------------------------------
-  # Pairwise correlations between different cross-basis variable blocks
-  # ---------------------------------------------------------------------------
+  # ==========================================================================
+  # BETWEEN-EXPOSURE CROSS-BASIS CORRELATIONS
+  # ==========================================================================
+
   pairwise_crossbasis_correlation <- data.frame(
     variable_1 = character(0),
     variable_2 = character(0),
@@ -596,18 +941,23 @@ check_identifiability <- function(
 
   if (length(var) >= 2L) {
     pairs <- utils::combn(var, 2L, simplify = FALSE)
+
     pairwise_crossbasis_correlation <- do.call(
       rbind,
       lapply(pairs, function(pair) {
-        A <- blocks[[pair[1L]]][complete_rows, , drop = FALSE]
-        B <- blocks[[pair[2L]]][complete_rows, , drop = FALSE]
+        A_cols <- names(cb_variable)[cb_variable == pair[1L]]
+        B_cols <- names(cb_variable)[cb_variable == pair[2L]]
 
-        sd_A <- apply(A, 2L, stats::sd)
-        sd_B <- apply(B, 2L, stats::sd)
-        A <- A[, is.finite(sd_A) & sd_A > tol, drop = FALSE]
-        B <- B[, is.finite(sd_B) & sd_B > tol, drop = FALSE]
+        A <- X_cb[, A_cols, drop = FALSE]
+        B <- X_cb[, B_cols, drop = FALSE]
 
-        if (!ncol(A) || !ncol(B)) {
+        A_nz <- near_zero_flags(A)$flags
+        B_nz <- near_zero_flags(B)$flags
+
+        A <- A[, !A_nz, drop = FALSE]
+        B <- B[, !B_nz, drop = FALSE]
+
+        if (!ncol(A) || !ncol(B) || nrow(X_cb) < 2L) {
           return(data.frame(
             variable_1 = pair[1L],
             variable_2 = pair[2L],
@@ -619,17 +969,33 @@ check_identifiability <- function(
           ))
         }
 
-        C <- stats::cor(A, B)
+        C <- suppressWarnings(stats::cor(A, B))
         abs_C <- abs(C)
-        max_index <- which(abs_C == max(abs_C, na.rm = TRUE), arr.ind = TRUE)[1L, ]
+        finite_mask <- is.finite(abs_C)
+
+        if (!any(finite_mask)) {
+          return(data.frame(
+            variable_1 = pair[1L],
+            variable_2 = pair[2L],
+            max_abs_correlation = NA_real_,
+            mean_abs_correlation = NA_real_,
+            column_1 = NA_character_,
+            column_2 = NA_character_,
+            stringsAsFactors = FALSE
+          ))
+        }
+
+        maximum <- max(abs_C[finite_mask])
+        candidates <- which(finite_mask & abs_C == maximum, arr.ind = TRUE)
+        max_index <- candidates[1L, , drop = FALSE]
 
         data.frame(
           variable_1 = pair[1L],
           variable_2 = pair[2L],
-          max_abs_correlation = max(abs_C, na.rm = TRUE),
-          mean_abs_correlation = mean(abs_C, na.rm = TRUE),
-          column_1 = rownames(C)[max_index[1L]],
-          column_2 = colnames(C)[max_index[2L]],
+          max_abs_correlation = maximum,
+          mean_abs_correlation = mean(abs_C[finite_mask]),
+          column_1 = rownames(C)[max_index[1L, 1L]],
+          column_2 = colnames(C)[max_index[1L, 2L]],
           stringsAsFactors = FALSE
         )
       })
@@ -637,42 +1003,73 @@ check_identifiability <- function(
     rownames(pairwise_crossbasis_correlation) <- NULL
   }
 
-  # ---------------------------------------------------------------------------
-  # Overall status and recommendations
-  # ---------------------------------------------------------------------------
+  # ==========================================================================
+  # STATUS FLAGS
+  # ==========================================================================
+
   severe_condition <- !is.finite(condition_number) ||
     condition_number >= condition_severe
+
   warning_condition <- is.finite(condition_number) &&
     condition_number >= condition_warn &&
     condition_number < condition_severe
 
   high_crossbasis_pair <- nrow(pairwise_crossbasis_correlation) > 0L &&
     any(
-      pairwise_crossbasis_correlation$max_abs_correlation >= corr_threshold,
-      na.rm = TRUE
+      is.finite(pairwise_crossbasis_correlation$max_abs_correlation) &
+        pairwise_crossbasis_correlation$max_abs_correlation >=
+        corr_threshold
     )
 
   high_raw_pair <- nrow(pairwise_exposure_correlation) > 0L &&
     any(
-      abs(pairwise_exposure_correlation$pearson_correlation) >= corr_threshold,
-      na.rm = TRUE
+      is.finite(pairwise_exposure_correlation$pearson_correlation) &
+        abs(pairwise_exposure_correlation$pearson_correlation) >=
+        corr_threshold
     )
 
-  high_vif <- is.finite(max_vif) && max_vif >= vif_threshold
+  high_vif <- nrow(vif_table) > 0L &&
+    any(!is.na(vif_table$vif) & vif_table$vif >= vif_threshold)
+
   low_n_per_parameter <- n_per_parameter < n_per_parameter_warn
+  no_residual_design_df <- n_complete <= p_full
 
   identifiable <- full_rank
-  numerically_stable <- full_rank && !severe_condition &&
-    !length(nzv_columns) && n_complete > p_full
+  numerically_stable <- full_rank &&
+    !severe_condition &&
+    !length(nzv_columns) &&
+    !no_residual_design_df
+
+  # Raw same-time correlations and individual-column VIFs are deliberately
+  # supplementary. They generate interpretation below but do not independently
+  # change the global status.
+  warning_status <- warning_condition ||
+    high_crossbasis_pair ||
+    low_n_per_parameter
 
   status <- if (!identifiable || !numerically_stable) {
     "problem"
-  } else if (warning_condition || high_crossbasis_pair || high_raw_pair ||
-             high_vif || low_n_per_parameter || n_excluded > 0L) {
+  } else if (warning_status) {
     "warning"
   } else {
     "ok"
   }
+
+  diagnostic_flags <- c(
+    rank_deficient = !full_rank,
+    near_zero_variance = length(nzv_columns) > 0L,
+    condition_warning = warning_condition,
+    condition_severe = severe_condition,
+    high_between_exposure_crossbasis_correlation = high_crossbasis_pair,
+    high_raw_exposure_correlation_supplementary = high_raw_pair,
+    high_vif_supplementary = high_vif,
+    low_epidemics_per_design_column = low_n_per_parameter,
+    no_positive_design_residual_df = no_residual_design_df
+  )
+
+  # ==========================================================================
+  # RECOMMENDATIONS
+  # ==========================================================================
 
   recommendations <- character(0)
 
@@ -680,11 +1077,12 @@ check_identifiability <- function(
     recommendations <- c(
       recommendations,
       paste0(
-        "The combined epidemic-level design is rank-deficient (rank = ",
-        rank_full, ", columns = ", p_full, "). Inspect the reported dependent ",
-        "columns and simplify the exposure-lag basis. Reducing df_var and/or ",
-        "df_lag is usually preferable before shortening max_lag; change max_lag ",
-        "only when scientifically justified."
+        "The combined epidemic-level design is numerically rank-deficient ",
+        "at tol = ", format(tol, scientific = TRUE), " (rank = ",
+        rank_full, ", columns = ", p_full, "). Inspect the reported ",
+        "dependent columns and simplify the exposure-lag basis. Reducing ",
+        "`df_var` and/or `df_lag` is usually preferable before shortening ",
+        "`max_lag`; change the lag window only when scientifically justified."
       )
     )
   }
@@ -705,20 +1103,25 @@ check_identifiability <- function(
     recommendations <- c(
       recommendations,
       paste0(
-        "The scaled condition number is ",
-        if (is.finite(condition_number)) format(condition_number, digits = 4) else "infinite",
-        ", indicating severe numerical instability. Consider reducing basis ",
-        "complexity and checking whether exposure variables provide redundant ",
-        "cross-basis information."
+        "The centered/scaled cross-basis condition number is ",
+        if (is.finite(condition_number)) {
+          format(condition_number, digits = 4)
+        } else {
+          "infinite"
+        },
+        ", indicating severe numerical instability under the selected ",
+        "threshold. Consider reducing basis complexity and checking whether ",
+        "exposures provide redundant transformed temporal information."
       )
     )
   } else if (warning_condition) {
     recommendations <- c(
       recommendations,
       paste0(
-        "The scaled condition number is ", format(condition_number, digits = 4),
-        ". This suggests moderate-to-strong numerical collinearity; inspect the ",
-        "pairwise cross-basis diagnostics before model fitting."
+        "The centered/scaled cross-basis condition number is ",
+        format(condition_number, digits = 4),
+        ". This exceeds the warning threshold; inspect the between-exposure ",
+        "cross-basis diagnostics and basis complexity before fitting."
       )
     )
   }
@@ -730,6 +1133,7 @@ check_identifiability <- function(
       ,
       drop = FALSE
     ]
+
     flagged_text <- paste(
       paste0(
         flagged$variable_1, " vs ", flagged$variable_2,
@@ -738,13 +1142,14 @@ check_identifiability <- function(
       ),
       collapse = "; "
     )
+
     recommendations <- c(
       recommendations,
       paste0(
-        "Strong correlation was detected between cross-basis blocks: ",
-        flagged_text,
-        ". Consider whether these exposures are providing redundant temporal ",
-        "information, and compare simpler or alternative variable sets."
+        "Strong correlation was detected between different exposure ",
+        "cross-basis blocks: ", flagged_text,
+        ". Consider whether these exposures provide redundant temporal ",
+        "information and compare simpler or alternative variable sets."
       )
     )
   }
@@ -752,36 +1157,61 @@ check_identifiability <- function(
   if (high_raw_pair) {
     flagged <- pairwise_exposure_correlation[
       is.finite(pairwise_exposure_correlation$pearson_correlation) &
-        abs(pairwise_exposure_correlation$pearson_correlation) >= corr_threshold,
+        abs(pairwise_exposure_correlation$pearson_correlation) >=
+        corr_threshold,
       ,
       drop = FALSE
     ]
+
     flagged_text <- paste(
       paste0(
         flagged$variable_1, " vs ", flagged$variable_2,
-        " (r = ", format(flagged$pearson_correlation, digits = 3), ")"
+        " (r = ",
+        format(flagged$pearson_correlation, digits = 3), ")"
       ),
       collapse = "; "
     )
+
     recommendations <- c(
       recommendations,
       paste0(
         "High same-time correlation was detected among raw exposures: ",
         flagged_text,
-        ". Use this as descriptive evidence only; the cross-basis diagnostics ",
-        "are more directly relevant to the fitted DLNM design."
+        ". This is descriptive only and does not by itself determine the ",
+        "global status; the fitted cross-basis rank and conditioning are more ",
+        "directly relevant to DLNM identifiability."
       )
     )
   }
 
   if (high_vif) {
+    flagged_vif <- vif_table[
+      !is.na(vif_table$vif) & vif_table$vif >= vif_threshold,
+      ,
+      drop = FALSE
+    ]
+
     recommendations <- c(
       recommendations,
       paste0(
-        "At least one cross-basis column has VIF >= ", vif_threshold,
-        ". Treat this as a supplementary signal because spline-basis columns ",
-        "can be correlated by construction; prioritize rank and condition-number ",
-        "diagnostics."
+        nrow(flagged_vif),
+        " cross-basis column(s) have VIF >= ", vif_threshold,
+        ". Treat this as supplementary because spline-basis columns are ",
+        "correlated by construction. High VIF alone does not change `status`; ",
+        "prioritize the combined rank and scaled condition number."
+      )
+    )
+  }
+
+  if (no_residual_design_df) {
+    recommendations <- c(
+      recommendations,
+      paste0(
+        "The design contains ", n_complete, " epidemic(s) and ", p_full,
+        " rank-design column(s), leaving no positive design residual degrees ",
+        "of freedom proxy. Even a formally full-rank square design is not ",
+        "classified as numerically stable. Simplify the basis or increase the ",
+        "number of independent epidemics."
       )
     )
   }
@@ -790,36 +1220,28 @@ check_identifiability <- function(
     recommendations <- c(
       recommendations,
       paste0(
-        "There are only ", format(n_per_parameter, digits = 3),
-        " complete epidemics per design column. This may indicate an ",
-        "overparameterized exposure-lag specification; consider reducing df_var ",
-        "and/or df_lag or increasing the number of independent epidemics."
+        "There are ", format(n_per_parameter, digits = 3),
+        " epidemics per rank-design column, below the diagnostic threshold of ",
+        format(n_per_parameter_warn, digits = 3),
+        ". This is a heuristic overparameterization signal rather than a ",
+        "universal sample-size rule. Consider reducing basis complexity or ",
+        "increasing the number of independent epidemics."
       )
     )
   }
 
-  if (n_excluded > 0L) {
-    recommendations <- c(
-      recommendations,
-      paste0(
-        n_excluded, " of ", n_total,
-        " epidemics were excluded from the combined diagnostic because their ",
-        "cross-basis design contained missing values. Inspect missing exposure ",
-        "values within the relevant lag history."
-      )
-    )
-  }
-
-  low_unique <- if (fun_var == "lin") {
+  low_unique <- if (identical(fun_var, "lin")) {
     rep(FALSE, nrow(by_variable))
   } else {
     by_variable$n_unique_exposure <= df_var
   }
+
   if (any(low_unique)) {
     recommendations <- c(
       recommendations,
       paste0(
-        "Limited exposure support relative to df_var was detected for: ",
+        "Limited exposure support relative to the requested exposure-basis ",
+        "complexity was detected for: ",
         paste(by_variable$variable[low_unique], collapse = ", "),
         ". Consider reducing exposure-basis flexibility."
       )
@@ -833,16 +1255,23 @@ check_identifiability <- function(
     )
   }
 
+  # ==========================================================================
+  # OUTPUT
+  # ==========================================================================
+
   overall <- data.frame(
     n_epidemics_total = n_total,
     n_epidemics_complete = n_complete,
     n_epidemics_excluded = n_excluded,
     n_exposures = length(var),
+    max_lag = maximum_lag,
+    history_length = history_length,
     crossbasis_columns = ncol(X_cb),
     design_columns = p_full,
     rank = rank_full,
     full_rank = full_rank,
     rank_ratio = if (p_full > 0L) rank_full / p_full else NA_real_,
+    design_residual_df_proxy = design_residual_df_proxy,
     condition_number_scaled = condition_number,
     min_singular_value_scaled = min_singular_value,
     max_singular_value_scaled = max_singular_value,
@@ -852,7 +1281,7 @@ check_identifiability <- function(
     median_vif = median_vif,
     near_zero_variance_columns = length(nzv_columns),
     epidemics_per_design_column = n_per_parameter,
-    time_step = time_step,
+    time_step = if (is.null(design_time_step)) NA_real_ else design_time_step,
     stringsAsFactors = FALSE
   )
 
@@ -865,44 +1294,65 @@ check_identifiability <- function(
     pairwise_exposure_correlation = pairwise_exposure_correlation,
     pairwise_crossbasis_correlation = pairwise_crossbasis_correlation,
     vif = vif_table,
+    singular_values = singular_values,
     dependent_columns = dependent_columns,
     near_zero_variance_columns = nzv_columns,
     complete_epi_id = complete_ids,
+    basis_specification = basis_specification,
+    diagnostic_flags = diagnostic_flags,
     recommendations = unique(recommendations),
     settings = list(
       variables = var,
-      max_lag = max_lag,
+      max_lag = maximum_lag,
+      history_length = history_length,
+      history_contract = history_contract,
+      design_contract = design_contract,
+      profile_order = design_profile_order,
+      time_step = if (is.null(design_time_step)) NA_real_ else design_time_step,
       df_var = df_var,
       df_lag = df_lag,
       fun_var = fun_var,
       fun_lag = fun_lag,
+      penalized = FALSE,
       include_intercept = include_intercept,
       corr_threshold = corr_threshold,
       condition_warn = condition_warn,
       condition_severe = condition_severe,
       vif_threshold = vif_threshold,
       n_per_parameter_warn = n_per_parameter_warn,
-      tol = tol
+      tol = tol,
+      design_source = "define_exposures_plus_build_design"
     )
   )
 
-  if (keep_design) {
+  if (isTRUE(keep_design)) {
     out$design_matrix <- X_rank
   }
+
+  attr(out, "epiexposure_max_lag") <- maximum_lag
+  attr(out, "epiexposure_history_length") <- history_length
+  attr(out, "epiexposure_history_contract") <- history_contract
+  attr(out, "epiexposure_time_step") <-
+    if (is.null(design_time_step)) NA_real_ else design_time_step
+  attr(out, "epiexposure_design_contract") <- design_contract
+  attr(out, "epiexposure_profile_order") <- design_profile_order
 
   class(out) <- c("epiexposure_identifiability", "list")
   out
 }
 
+
 #' Print DLNM identifiability diagnostics
 #'
 #' @param x Object returned by `check_identifiability()`.
 #' @param ... Unused.
+#'
+#' @return `x`, invisibly.
 #' @export
 print.epiexposure_identifiability <- function(x, ...) {
   cat("EpiExposure DLNM identifiability diagnostics\n")
   cat("Status: ", toupper(x$status), "\n", sep = "")
-  cat("Identifiable (full rank): ", x$identifiable, "\n", sep = "")
+  cat("Identifiable (full numerical rank): ", x$identifiable, "\n", sep = "")
   cat("Numerically stable: ", x$numerically_stable, "\n\n", sep = "")
 
   cat("Overall design\n")
@@ -917,13 +1367,19 @@ print.epiexposure_identifiability <- function(x, ...) {
   }
 
   if (nrow(x$pairwise_exposure_correlation)) {
-    cat("\nRaw exposure correlation\n")
+    cat("\nRaw exposure correlation (descriptive)\n")
     print(x$pairwise_exposure_correlation, row.names = FALSE)
   }
 
   if (length(x$dependent_columns)) {
-    cat("\nDependent columns\n")
+    cat("\nPivot-based dependent columns\n")
     cat(paste0("- ", x$dependent_columns), sep = "\n")
+    cat("\n")
+  }
+
+  if (length(x$near_zero_variance_columns)) {
+    cat("\nNear-zero-variance cross-basis columns\n")
+    cat(paste0("- ", x$near_zero_variance_columns), sep = "\n")
     cat("\n")
   }
 

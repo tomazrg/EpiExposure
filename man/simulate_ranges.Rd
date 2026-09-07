@@ -2,7 +2,7 @@
 % Please edit documentation in R/simulate_ranges.R
 \name{simulate_ranges}
 \alias{simulate_ranges}
-\title{Generate DLNM simulation scenarios across lag periods}
+\title{Generate exposure-value scenarios across DLNM lag periods}
 \usage{
 simulate_ranges(
   periods,
@@ -14,43 +14,123 @@ simulate_ranges(
 )
 }
 \arguments{
-\item{periods}{Output from `define_periods()`. Must be a data.frame containing
-`period`, `lag_start`, and `lag_end`.}
+\item{periods}{A non-empty data frame, typically returned by
+  `define_periods()`, containing `period`, `lag_start`, and `lag_end`.
 
-\item{vary}{Named list of exposure variables and the finite numeric values to
-evaluate. Under `scenario_type = "grid"`, all combinations are generated.
-Under `scenario_type = "paired"`, values are matched by position and all
-vectors must have the same length.}
+  Periods are expressed on the retrospective lag scale. For example,
+  `lag_start = 0` and `lag_end = 20` represent lags 0 through 20, the portion
+  of the exposure history closest to outcome assessment.
 
-\item{fixed}{Named list of exposure variables to keep fixed. Each fixed
-variable must contain exactly one finite numeric value. Use `list()` when
-no fixed variables are required.}
+  Periods must not overlap. Gaps are allowed: any exposure-lag positions not
+  covered later by a scenario remain available for background filling in
+  `simulate_scenarios()`.}
 
-\item{scenario_type}{Character. Either `"grid"` or `"paired"`.}
+\item{vary}{Named list of exposure variables and finite numeric values to
+  evaluate. At least one varying variable is required.
 
-\item{scenario_names}{Optional character vector with one unique name for each
-generated scenario.}
+  With `scenario_type = "grid"`, the Cartesian product across the variables
+  in `vary` is generated **once**. Each resulting combination is then copied
+  to every supplied lag period. No additional Cartesian product is generated
+  across periods.
 
-\item{scenario_var}{Optional name of a variable in `vary` used to construct
-automatic scenario names. If `NULL`, the first variable in `vary` is used.}
+  With `scenario_type = "paired"`, values are matched by position across
+  variables. All vectors in `vary` must therefore have the same length.
+
+  Values within each varying variable must be unique. Repeated values would
+  create duplicated scenario combinations and are rejected explicitly.}
+
+\item{fixed}{Named list of exposure variables held fixed in every generated
+scenario and every supplied period. Each fixed variable must contain
+exactly one finite numeric value. Use `list()` when none are required.}
+
+\item{scenario_type}{Character. `"grid"` or `"paired"`.}
+
+\item{scenario_names}{Optional character vector containing exactly one unique,
+non-empty name for each generated scenario.}
+
+\item{scenario_var}{Optional name of one variable in `vary`. It is used only
+to construct the automatic scenario-name prefix and is retained as
+metadata. It does **not** give that exposure a special statistical role.
+If `NULL`, the first variable in `vary` is used.}
 }
 \value{
-A list containing:
-  - `scenarios`: named scenario definitions indexed by lag period;
-  - `periods`: the supplied lag-period definitions;
-  - `info`: a data.frame describing the exposure combination in each scenario.
+A structured list containing:
+
+  \describe{
+    \item{`scenarios`}{Named scenario definitions. Each generated exposure
+      combination is copied to every supplied period.}
+    \item{`periods`}{The validated lag-period definitions.}
+    \item{`info`}{One metadata row per generated scenario. It contains the
+      scenario name and the values of both varying and fixed exposures.}
+  }
+
+  Additional attributes record `scenario_type`, `scenario_var`, and simple
+  period-coverage diagnostics.
 }
 \description{
-Creates structured scenario input for `simulate_scenarios()` by combining
-user-defined exposure levels and assigning each resulting combination as a
-constant condition within every supplied lag period.
+Creates structured scenario definitions for `simulate_scenarios()` by
+generating combinations of user-specified exposure values and copying each
+resulting combination unchanged to every supplied lag period.
 }
 \details{
-`periods` is interpreted on the retrospective lag scale. For example,
-`lag_start = 0` and `lag_end = 20` represent lags 0 through 20, i.e. the
-portion of the exposure history closest to the outcome assessment.
+This function generates **scenario definitions only**. It does not fit a
+model, construct a cross-basis, or predict an outcome. Conversion from
+retrospective lag-period definitions to complete chronological exposure
+histories is performed later by `simulate_scenarios()`, which then calls
+`predict_outcomes()`.
 
-The function generates scenario definitions only. Conversion from lag-period
-definitions to complete chronological exposure histories is performed later
-by `simulate_scenarios()` before prediction with `predict_outcome()`.
+
+## How values are repeated across periods
+
+`simulate_ranges()` deliberately does **not** generate separate exposure
+values for each period. Suppose four periods cover lags 0--85 and one grid
+combination is:
+
+```
+tmean   = 20
+rain    = 8
+wetness = 2
+```
+
+The generated scenario is equivalent to:
+
+```
+P1 = list(tmean = 20, rain = 8, wetness = 2)
+P2 = list(tmean = 20, rain = 8, wetness = 2)
+P3 = list(tmean = 20, rain = 8, wetness = 2)
+P4 = list(tmean = 20, rain = 8, wetness = 2)
+```
+
+`simulate_scenarios()` then expands each scalar across all lags belonging to
+its period. If P1--P4 jointly cover the entire fitted lag window and the
+variables in `vary` plus `fixed` include every exposure in the fitted model,
+the resulting exposure history is complete and no background/reference value
+is needed for those positions.
+
+If periods leave gaps, do not extend to the fitted maximum lag, or omit one
+or more fitted exposures, `simulate_scenarios()` fills only the unassigned
+positions from `ref_vals` or from exposure medians derived from `data`.
+
+## Grid versus paired scenarios
+
+With:
+
+```
+vary = list(
+  tmean = c(20, 34),
+  rain = 0:15,
+  wetness = c(2, 10)
+)
+```
+
+`scenario_type = "grid"` generates
+
+\deqn{2 \times 16 \times 2 = 64}
+
+scenarios. If four periods are supplied, there are still 64 scenarios, not
+\eqn{64^4}: each of the 64 combinations is simply copied to all four
+periods.
+
+`scenario_type = "paired"` instead combines the first value of each varying
+exposure, then the second value of each, and so forth.
 }

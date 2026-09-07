@@ -1,48 +1,178 @@
-#' Fit DLNM inferential model
+#' Fit a harmonized DLNM inferential model
 #'
-#' Fits a DLNM inferential model from an epidemic-level design matrix and
-#' stores standardized EpiExposure metadata for downstream prediction,
-#' effect summarization, and exposure-impact calculations.
+#' Fits a distributed lag nonlinear model (DLNM) from an epidemic-level design
+#' matrix and stores the standardized EpiExposure metadata required by
+#' downstream prediction, effect summarization, scenario simulation, and model
+#' comparison functions.
 #'
-#' @param data Data frame containing `y_model` and the fitted `cb_*` terms.
-#'   Data prepared with `prepare_response()` may contain the
-#'   `response_family_name` attribute, which is checked against `family`.
-#' @param model_engine Character scalar identifying the modeling engine:
+#' @param data A data.frame containing `y_model` and the fitted DLNM design
+#'   columns. For all engines except `bdlnm`, cross-basis columns must follow the
+#'   package convention `cb_<variable>_<index>`. For `bdlnm`, the original
+#'   cross-basis objects are supplied through `basis_objects` instead. Data
+#'   prepared by `prepare_response()` may carry the `response_family_name`
+#'   attribute; when present, it must agree with `family`.
+#' @param model_engine Character scalar identifying the modeling engine. One of
 #'   `"glm"`, `"glmmTMB"`, `"gam"`, `"gamm"`, `"gls"`, `"spamm"`,
 #'   `"brms"`, `"inla"`, or `"bdlnm"`.
-#' @param family Distribution family supplied as a supported character name or
-#'   an engine-compatible family object. Canonical family names are `"beta"`,
-#'   `"binomial"`, `"poisson"`, `"gamma"`, `"gaussian"`,
-#'   `"negative_binomial"`, and `"ordinal"`. Aliases such as `"negbin"`,
-#'   `"nbinom1"`, and `"nbinom2"` are normalized internally.
-#' @param random_effect Optional character scalar naming a random-effect column.
-#' @param epiexposure_spec Optional named list describing how each cross-basis
-#'   was constructed. The recommended structure is:
-#'   `list(tmean = list(max_lag = 85, argvar = list(...), arglag = list(...)))`.
-#'   If `NULL`, the model can be fitted, but profile-based downstream functions
-#'   may not be available.
-#' @param basis_objects Optional named list of original cross-basis or one-basis
-#'   objects. Required when `model_engine = "bdlnm"`.
-#' @param ... Additional arguments passed to the selected modeling engine.
+#' @param family Response distribution supplied as a supported canonical name
+#'   or as a family object from which a supported canonical family and link can
+#'   be identified. The supported EpiExposure v1 families are `"beta"`,
+#'   `"binomial"`, `"poisson"`, `"gamma"`, `"gaussian"`, and
+#'   `"negative_binomial"`. The canonical negative-binomial model is the
+#'   quadratic-variance NB2 parameterization. NB1 and ordinal models are not
+#'   supported in this version and produce explicit errors.
+#' @param random_effect Optional character scalar naming one grouping column.
+#'   In EpiExposure v1 this argument represents a random intercept only; random
+#'   slopes, nested/crossed random-effect specifications, and arbitrary
+#'   engine-specific random-effect expressions are intentionally not accepted.
+#'   The random intercept is translated to the native syntax of each supported
+#'   mixed-model engine. INLA-backed fits internally re-index arbitrary grouping
+#'   labels to consecutive integers while retaining the original column name in
+#'   EpiExposure metadata. `glm` and `gls` do not support this argument. `gamm`
+#'   requires it in the current EpiExposure interface because its generated
+#'   fixed formula contains no other smooth/random term.
+#' @param epiexposure_spec Named list describing the cross-basis construction
+#'   for every fitted exposure. This metadata is required so downstream
+#'   functions reconstruct exactly the fitted exposure-lag basis rather than
+#'   re-inferring `df`, knots, or basis functions. Each element must contain
+#'   `max_lag`, `argvar`, and `arglag`.
 #'
-#' @return A fitted model object with standardized EpiExposure attributes,
-#'   including the engine, canonical family name, engine-specific family,
-#'   link, ordered cross-basis columns, exposure variables, data template,
-#'   grouping column, exposure specification, and basis objects.
+#'   Under the EpiExposure exact-history contract, each `max_lag` must be one
+#'   non-negative integer and all fitted exposures must use the same
+#'   `max_lag`. Consequently, every original exposure history used to build the
+#'   epidemic-level design must contain exactly `max_lag + 1` observations for
+#'   every fitted exposure. `fit_epidlnm()` receives the already collapsed
+#'   epidemic-level design and therefore validates the common fitted `max_lag`;
+#'   exact original history length is validated upstream by the exposure/design
+#'   construction functions.
+#' @param basis_objects Optional named list of original `dlnm::crossbasis()`
+#'   objects. It is required for `model_engine = "bdlnm"`. When supplied for
+#'   other engines, its names must match the fitted exposure variables.
+#' @param ... Named additional arguments passed to the selected engine. Core
+#'   arguments managed by EpiExposure (`formula`/`model`, `data`, `family`, and
+#'   the engine-specific random-effect argument) cannot be supplied again in
+#'   `...`. For direct INLA fits, `control.compute$config = TRUE` is required by
+#'   the EpiExposure uncertainty contract and is added automatically when
+#'   absent. If a conflicting value is supplied, the function stops.
+#'
+#' @return A fitted model object with a strict metadata contract. The following
+#'   attributes are attached for downstream functions:
+#'   `epiexposure_family_name`, `epiexposure_link`, `epiexposure_engine`,
+#'   `epiexposure_cb_cols`, `epiexposure_vars`,
+#'   `epiexposure_data_template`, `epiexposure_id_col`, `epiexposure_spec`, and
+#'   `epiexposure_basis_objects`. Additional attributes record the standardized
+#'   family parameterization, random-intercept structure, common fitted
+#'   `max_lag`, expected history length (`max_lag + 1`), the exact-history
+#'   contract, and the EpiExposure v1 prediction contract.
 #'
 #' @details
-#' This function fits models but does not generate posterior predictions or
-#' uncertainty summaries. Consequently, it does not call
-#' `posterior_linpred()`, `posterior_epred()`, or `posterior_predict()`, and no
-#' single posterior draw is used as a deterministic estimate.
+#' ## Engine harmonization
 #'
-#' Family specifications are normalized to a canonical family name and then
-#' converted to the representation expected by the selected engine. Unknown or
-#' unsupported engine-family combinations generate explicit errors. No silent
-#' fallback to the Gaussian family is used.
+#' `fit_epidlnm()` standardizes the *statistical target* across engines without
+#' requiring every engine to use the same computational implementation. The
+#' model is fitted using the selected engine, while downstream EpiExposure v1
+#' predictions are defined as population-level expected responses. Random
+#' effects may therefore affect estimation during model fitting, but downstream
+#' predictions exclude group-specific random-effect contributions.
 #'
-#' If `prepare_response()` stored a `response_family_name` attribute in `data`,
-#' that family must match the canonical family used for model fitting.
+#' The random-intercept translation used at fitting is:
+#'
+#' * `glmmTMB`, `brms`, and `spaMM`: `(1 | group)`;
+#' * `gam`: `s(group, bs = "re")`;
+#' * `gamm`: `random = list(group = ~1)`;
+#' * `INLA` and `bdlnm`: `f(group, model = "iid")`.
+#'
+#' `glm` and `gls` are fixed-effect engines in this interface and reject a
+#' non-`NULL` `random_effect`. The `mgcv::gamm()` implementation uses the
+#' engine's native `random` argument rather than lme4-style syntax. Because
+#' `gamm()` uses PQL for non-Gaussian responses and is specifically known to be
+#' problematic for binary data, a warning is issued for the binomial family.
+#'
+#' ## Families and links
+#'
+#' Canonical families are translated to engine-native representations. The
+#' canonical `negative_binomial` family is standardized to an NB2-type model
+#' (`Var(Y) = mu + mu^2 / shape`) where supported. An explicit NB1 request is
+#' rejected instead of being silently converted.
+#'
+#' Automatic family availability is engine-specific:
+#'
+#' * `glm`: Gaussian, Binomial, Poisson, Gamma;
+#' * `glmmTMB`: all six EpiExposure v1 families;
+#' * `gam`: all six EpiExposure v1 families;
+#' * `gamm`: Gaussian, Binomial, Poisson, Gamma;
+#' * `gls`: Gaussian with identity link only;
+#' * `spaMM`: all six EpiExposure v1 families;
+#' * `brms`: all six EpiExposure v1 families;
+#' * `INLA`: all six EpiExposure v1 families, subject to the installed INLA
+#'   likelihood implementation;
+#' * `bdlnm`: all six EpiExposure v1 families through its INLA backend.
+#'
+#' When a family object supplies a non-default link, EpiExposure records that
+#' exact link in `epiexposure_link` and reconstructs the corresponding
+#' engine-native family. For INLA-based engines the same link is forwarded via
+#' `control.family$control.link$model`. Unsupported family-link combinations
+#' fail explicitly in EpiExposure or in the selected engine; no Gaussian or
+#' identity-link fallback is used.
+#'
+#' For `gam`, Beta and negative-binomial models use `mgcv` extended families.
+#' When needed, `method = "REML"` is supplied by default to satisfy the
+#' supported fitting route; an explicitly supplied incompatible method is
+#' rejected. A GAM random intercept also defaults to REML unless the user
+#' explicitly selects another method.
+#'
+#' ## Response-scale validation
+#'
+#' To avoid engine-specific silent coercion, `y_model` is checked against the
+#' canonical family before fitting: Beta responses must lie strictly inside
+#' `(0, 1)`; Binomial responses must be coded `0/1`; Poisson and negative-
+#' binomial responses must be non-negative integer counts; Gamma responses must
+#' be strictly positive; Gaussian responses need only be finite numeric values.
+#'
+#' ## Common lag and exact-history contract
+#'
+#' EpiExposure models use one common retrospective lag window for every fitted
+#' exposure. If the common maximum lag is `L`, all original exposure histories
+#' must contain exactly
+#'
+#' \deqn{
+#'   L + 1
+#' }
+#'
+#' equally spaced observations per epidemiological unit and per exposure.
+#' Exposures with different fitted `max_lag` values are rejected here.
+#'
+#' Because `fit_epidlnm()` is called after `build_design()` has collapsed each
+#' complete history to one epidemic-level model row, the original long-format
+#' row count is no longer available at this stage. Exact `L + 1` temporal
+#' coverage must therefore be enforced by `define_exposures()` and
+#' `build_design()`. This function records the common lag/history contract in
+#' the fitted model metadata so downstream functions can enforce it.
+#'
+#' ## Metadata and downstream prediction contract
+#'
+#' The fitted exposure specification is part of the model contract, not an
+#' optional hint. Downstream functions must use the stored family, link, engine,
+#' cross-basis mapping, exposure specification, and data template. They should
+#' not infer a link from the family, rebuild a cross-basis from user-supplied
+#' degrees of freedom, align coefficients by position, or substitute a
+#' Gaussian/identity model when metadata are missing.
+#'
+#' EpiExposure v1 prediction functions are intended to return the expected
+#' outcome under the fitted model, not a newly simulated observation. They use
+#' population-level predictions: random effects are included in model fitting
+#' when requested here, but group-specific random effects are not included in
+#' downstream predictions. This function itself only fits the model and does
+#' not create outcome predictions or uncertainty summaries.
+#'
+#' Bayesian engines may generate posterior coefficient draws as part of their
+#' native fitting procedure (notably `bdlnm`). Those stored coefficient draws
+#' are model output and are available for later draw-by-draw uncertainty
+#' propagation; they are not used here as a single deterministic prediction.
+#'
+#' Ordinal outcomes are deliberately excluded from EpiExposure v1 so fitting,
+#' prediction, uncertainty, performance metrics, and ensemble behavior remain
+#' harmonized across the supported response families.
 #'
 #' @export
 fit_epidlnm <- function(
@@ -56,134 +186,96 @@ fit_epidlnm <- function(
 ) {
 
   # =========================================================
-  # BASIC VALIDATION
+  # SMALL INTERNAL HELPERS
   # =========================================================
 
-  if (!is.data.frame(data)) {
-    stop("`data` must be a data.frame.")
+  `%||%` <- function(a, b) if (!is.null(a)) a else b
+
+  stopf <- function(...) stop(..., call. = FALSE)
+
+  is_scalar_string <- function(x) {
+    is.character(x) && length(x) == 1L && !is.na(x) && nzchar(x)
   }
 
-  if (!"y_model" %in% names(data)) {
-    stop("`data` must contain a column named 'y_model'.")
+  quote_name <- function(x) {
+    if (!is_scalar_string(x)) stopf("Internal error: invalid name to quote.")
+    if (grepl("`", x, fixed = TRUE)) {
+      stopf("Column and basis names containing backticks are not supported.")
+    }
+    paste0("`", x, "`")
   }
 
-  if (!is.numeric(data$y_model)) {
-    stop("`y_model` must be numeric.")
+  normalize_token <- function(x) {
+    x <- tolower(trimws(as.character(x)[1]))
+    x <- gsub("[[:space:]-]+", "_", x)
+    gsub("[^a-z0-9_]", "", x)
   }
 
-  if (!length(data$y_model)) {
-    stop("`y_model` cannot be empty.")
-  }
+  extract_family_raw <- function(family_input) {
+    if (is_scalar_string(family_input)) return(family_input)
 
-  if (any(!is.finite(data$y_model))) {
-    stop("`y_model` must contain only finite values before model fitting.")
-  }
-
-  model_engine <- match.arg(
-    model_engine,
-    choices = c(
-      "glm", "glmmTMB", "gam", "gamm", "gls",
-      "spamm", "brms", "inla", "bdlnm"
-    )
-  )
-
-  if (!is.null(random_effect)) {
-    if (!is.character(random_effect) || length(random_effect) != 1L ||
-        is.na(random_effect) || !nzchar(random_effect)) {
-      stop("`random_effect` must be NULL or one non-empty column name.")
+    if (is.list(family_input) && !is.null(family_input$family) &&
+        length(family_input$family) >= 1L) {
+      return(as.character(family_input$family[[1]]))
     }
 
-    if (!random_effect %in% names(data)) {
-      stop(
-        "`random_effect` ('", random_effect,
-        "') was not found in `data`."
-      )
-    }
-
-    if (anyNA(data[[random_effect]])) {
-      stop("`random_effect` cannot contain missing values.")
-    }
-  }
-
-  # =========================================================
-  # FAMILY HELPERS
-  # =========================================================
-
-  resolve_family_name <- function(family_input) {
-    family_raw <- NULL
-
-    if (is.character(family_input) && length(family_input) == 1L &&
-        !is.na(family_input) && nzchar(family_input)) {
-      family_raw <- family_input
-    } else if (is.list(family_input) && !is.null(family_input$family) &&
-               length(family_input$family) >= 1L) {
-      family_raw <- as.character(family_input$family[[1]])
-    } else if (inherits(family_input, "family") &&
-               !is.null(family_input$family)) {
-      family_raw <- as.character(family_input$family[[1]])
-    } else {
-      stop(
-        "Unsupported `family` specification. Provide a supported family name ",
-        "or an engine-compatible family object containing a `family` field."
-      )
-    }
-
-    normalized <- tolower(trimws(family_raw))
-    normalized <- gsub("[[:space:]-]+", "_", normalized)
-    normalized <- gsub("[^a-z0-9_]", "", normalized)
-
-    if (normalized %in% c("beta", "beta_family", "beta_proportion")) {
-      return("beta")
-    }
-
-    if (normalized %in% c("binomial", "bernoulli")) {
-      return("binomial")
-    }
-
-    if (normalized == "poisson") {
-      return("poisson")
-    }
-
-    if (normalized == "gamma") {
-      return("gamma")
-    }
-
-    if (normalized %in% c("gaussian", "normal")) {
-      return("gaussian")
-    }
-
-    if (
-      normalized %in% c(
-        "negbin", "nbinom", "nbinom1", "nbinom2",
-        "negative_binomial", "negative_binomial_1",
-        "negative_binomial_2"
-      ) || grepl("negative.*binomial", normalized)
-    ) {
-      return("negative_binomial")
-    }
-
-    if (normalized %in% c("ordinal", "cumulative")) {
-      return("ordinal")
-    }
-
-    stop(
-      "Unsupported family: '", family_raw, "'. Supported canonical families are: ",
-      "beta, binomial, poisson, gamma, gaussian, negative_binomial, and ordinal."
+    stopf(
+      "Unsupported `family` specification. Supply one supported canonical ",
+      "family name or a family object containing a `family` field."
     )
   }
 
-  resolve_input_link <- function(family_input) {
+  resolve_family_info <- function(family_input) {
+    raw <- extract_family_raw(family_input)
+    z <- normalize_token(raw)
+
+    if (z %in% c("ordinal", "cumulative")) {
+      return(list(name = "ordinal", variant = "ordinal", raw = raw))
+    }
+
+    if (z %in% c("nbinom1", "negative_binomial_1", "negativebinomial1")) {
+      return(list(name = "negative_binomial", variant = "NB1", raw = raw))
+    }
+
+    if (z %in% c(
+      "negbin", "nbinom", "nbinom2", "negative_binomial",
+      "negative_binomial_2", "negativebinomial", "negativebinomial2"
+    ) || grepl("negative.*binomial", z)) {
+      return(list(name = "negative_binomial", variant = "NB2", raw = raw))
+    }
+
+    if (z %in% c("beta", "beta_family", "beta_proportion", "beta_regression", "betar", "beta_resp")) {
+      return(list(name = "beta", variant = "mean_precision", raw = raw))
+    }
+
+    if (z %in% c("binomial", "bernoulli")) {
+      return(list(name = "binomial", variant = "bernoulli", raw = raw))
+    }
+
+    if (z == "poisson") {
+      return(list(name = "poisson", variant = "poisson", raw = raw))
+    }
+
+    if (z == "gamma") {
+      return(list(name = "gamma", variant = "gamma", raw = raw))
+    }
+
+    if (z %in% c("gaussian", "normal")) {
+      return(list(name = "gaussian", variant = "gaussian", raw = raw))
+    }
+
+    stopf(
+      "Unsupported family: '", raw, "'. EpiExposure v1 supports: beta, ",
+      "binomial, poisson, gamma, gaussian, and negative_binomial (NB2)."
+    )
+  }
+
+  extract_input_link <- function(family_input) {
     if (is.list(family_input) && !is.null(family_input$link) &&
         length(family_input$link) >= 1L) {
-      link <- tolower(as.character(family_input$link[[1]]))
-      if (!is.na(link) && nzchar(link)) return(link)
+      out <- tolower(trimws(as.character(family_input$link[[1]])))
+      if (!is.na(out) && nzchar(out)) return(out)
     }
-
-    if (inherits(family_input, "family") && !is.null(family_input$link)) {
-      link <- tolower(as.character(family_input$link[[1]]))
-      if (!is.na(link) && nzchar(link)) return(link)
-    }
-
     NULL
   }
 
@@ -196,220 +288,198 @@ fit_epidlnm <- function(
       gamma = "log",
       gaussian = "identity",
       negative_binomial = "log",
-      ordinal = "logit",
-      stop("Could not determine a default link for family '", family_name, "'.")
+      stopf("Could not determine the default link for family '", family_name, "'.")
     )
   }
 
-  resolve_engine_family <- function(
-    family_input,
-    family_name,
-    model_engine,
-    link_name
-  ) {
-    user_supplied_object <- !is.character(family_input)
-
-    # Preserve compatible user-supplied objects for engines that accept them.
-    if (
-      user_supplied_object &&
-      model_engine %in% c("glm", "glmmTMB", "gam", "gamm", "spamm", "brms")
-    ) {
-      return(family_input)
-    }
-
-    if (model_engine == "glm") {
-      return(
-        switch(
-          family_name,
-          gaussian = stats::gaussian(link = link_name),
-          poisson = stats::poisson(link = link_name),
-          gamma = stats::Gamma(link = link_name),
-          binomial = stats::binomial(link = link_name),
-          stop(
-            "Family '", family_name,
-            "' is not supported by `model_engine = 'glm'`."
-          )
-        )
-      )
-    }
-
-    if (model_engine == "glmmTMB") {
-      if (!requireNamespace("glmmTMB", quietly = TRUE)) {
-        stop("Package 'glmmTMB' is required for `model_engine = 'glmmTMB'`.")
-      }
-
-      return(
-        switch(
-          family_name,
-          beta = glmmTMB::beta_family(link = link_name),
-          gaussian = stats::gaussian(link = link_name),
-          poisson = stats::poisson(link = link_name),
-          gamma = stats::Gamma(link = link_name),
-          binomial = stats::binomial(link = link_name),
-          negative_binomial = glmmTMB::nbinom2(link = link_name),
-          stop(
-            "Family '", family_name,
-            "' is not supported by `model_engine = 'glmmTMB'`."
-          )
-        )
-      )
-    }
-
-    if (model_engine %in% c("gam", "gamm")) {
-      if (!requireNamespace("mgcv", quietly = TRUE)) {
-        stop("Package 'mgcv' is required for GAM or GAMM models.")
-      }
-
-      if (family_name == "beta") {
-        if (model_engine == "gamm") {
-          stop(
-            "Canonical Beta-family support is not harmonized for ",
-            "`model_engine = 'gamm'`. Supply a verified engine-compatible ",
-            "family object or use another supported engine."
-          )
-        }
-        return(mgcv::betar(link = link_name))
-      }
-
-      return(
-        switch(
-          family_name,
-          gaussian = stats::gaussian(link = link_name),
-          poisson = stats::poisson(link = link_name),
-          gamma = stats::Gamma(link = link_name),
-          binomial = stats::binomial(link = link_name),
-          negative_binomial = mgcv::nb(link = link_name),
-          stop(
-            "Family '", family_name,
-            "' is not supported by `model_engine = '", model_engine, "'`."
-          )
-        )
-      )
-    }
-
-    if (model_engine == "gls") {
-      if (family_name != "gaussian") {
-        stop("`model_engine = 'gls'` supports only `family = 'gaussian'`.")
-      }
-      return(stats::gaussian(link = "identity"))
-    }
-
-    if (model_engine == "spamm") {
-      if (!requireNamespace("spaMM", quietly = TRUE)) {
-        stop("Package 'spaMM' is required for `model_engine = 'spamm'`.")
-      }
-
-      return(
-        switch(
-          family_name,
-          gaussian = stats::gaussian(link = link_name),
-          poisson = stats::poisson(link = link_name),
-          gamma = stats::Gamma(link = link_name),
-          binomial = stats::binomial(link = link_name),
-          stop(
-            "Family '", family_name,
-            "' is not mapped automatically for `model_engine = 'spamm'`. ",
-            "Supply a verified spaMM-compatible family object."
-          )
-        )
-      )
-    }
-
-    if (model_engine == "brms") {
-      if (!requireNamespace("brms", quietly = TRUE)) {
-        stop("Package 'brms' is required for `model_engine = 'brms'`.")
-      }
-
-      return(
-        switch(
-          family_name,
-          beta = brms::Beta(link = link_name),
-          gaussian = brms::gaussian(link = link_name),
-          poisson = brms::poisson(link = link_name),
-          gamma = brms::Gamma(link = link_name),
-          binomial = brms::bernoulli(link = link_name),
-          negative_binomial = brms::negbinomial(link = link_name),
-          ordinal = brms::cumulative(link = link_name),
-          stop(
-            "Family '", family_name,
-            "' is not supported by `model_engine = 'brms'`."
-          )
-        )
-      )
-    }
-
-    if (model_engine == "inla") {
-      return(
-        switch(
-          family_name,
-          gaussian = "gaussian",
-          poisson = "poisson",
-          binomial = "binomial",
-          gamma = "gamma",
-          negative_binomial = "nbinomial",
-          stop(
-            "Family '", family_name,
-            "' is not mapped for `model_engine = 'inla'`."
-          )
-        )
-      )
-    }
-
-    if (model_engine == "bdlnm") {
-      return(
-        switch(
-          family_name,
-          gaussian = "gaussian",
-          poisson = "poisson",
-          binomial = "binomial",
-          gamma = "gamma",
-          negative_binomial = "nbinomial",
-          stop(
-            "Family '", family_name,
-            "' is not mapped for `model_engine = 'bdlnm'`."
-          )
-        )
-      )
-    }
-
-    stop("Unsupported `model_engine`: ", model_engine, ".")
-  }
-
-  family_name <- resolve_family_name(family)
-  link_name <- resolve_input_link(family)
-  if (is.null(link_name)) {
-    link_name <- default_family_link(family_name)
-  }
-
-  if (family_name == "ordinal" && model_engine != "brms") {
-    stop(
-      "`family = 'ordinal'` is currently supported only with ",
-      "`model_engine = 'brms'`."
-    )
-  }
-
-  engine_family <- resolve_engine_family(
-    family_input = family,
-    family_name = family_name,
-    model_engine = model_engine,
-    link_name = link_name
+  supported_link_names <- c(
+    "identity", "log", "logit", "probit", "cloglog",
+    "inverse", "sqrt", "cauchit"
   )
 
+  validate_link_name <- function(link_name) {
+    if (!is_scalar_string(link_name)) stopf("Could not determine a valid model link.")
+    link_name <- tolower(link_name)
+    if (!link_name %in% supported_link_names) {
+      stopf(
+        "Link '", link_name, "' is outside the EpiExposure v1 link contract. ",
+        "Supported link names are: ", paste(supported_link_names, collapse = ", "), "."
+      )
+    }
+    link_name
+  }
+
+  check_dot_conflicts <- function(dots, reserved, engine) {
+    if (!length(dots)) return(invisible(TRUE))
+    dot_names <- names(dots)
+    if (is.null(dot_names) || anyNA(dot_names) || any(dot_names == "")) {
+      stopf("All arguments supplied through `...` must be explicitly named.")
+    }
+    conflict <- intersect(dot_names, reserved)
+    if (length(conflict)) {
+      stopf(
+        "Argument(s) managed internally by EpiExposure cannot be supplied in `...` ",
+        "for engine '", engine, "': ", paste(conflict, collapse = ", "), "."
+      )
+    }
+    invisible(TRUE)
+  }
+
   # =========================================================
-  # CHECK CONSISTENCY WITH PREPARE_RESPONSE()
+  # BASIC VALIDATION
+  # =========================================================
+
+  if (!is.data.frame(data)) stopf("`data` must be a data.frame.")
+  if (!nrow(data)) stopf("`data` must contain at least one row.")
+
+  if (!"y_model" %in% names(data)) {
+    stopf("`data` must contain a column named 'y_model'.")
+  }
+  if (!is.numeric(data$y_model)) stopf("`y_model` must be numeric.")
+  if (any(!is.finite(data$y_model))) {
+    stopf("`y_model` must contain only finite values before model fitting.")
+  }
+
+  model_engine <- match.arg(
+    model_engine,
+    choices = c(
+      "glm", "glmmTMB", "gam", "gamm", "gls",
+      "spamm", "brms", "inla", "bdlnm"
+    )
+  )
+
+  dots <- list(...)
+
+  family_info <- resolve_family_info(family)
+  family_name <- family_info$name
+
+  if (identical(family_name, "ordinal")) {
+    stopf(
+      "Ordinal outcomes are not supported in EpiExposure v1. This deliberate ",
+      "restriction keeps fitting, prediction, uncertainty, performance metrics, ",
+      "and ensemble behavior harmonized across supported families."
+    )
+  }
+
+  if (identical(family_info$variant, "NB1")) {
+    stopf(
+      "Negative-binomial NB1 was requested, but EpiExposure v1 standardizes ",
+      "`negative_binomial` to the quadratic-variance NB2 parameterization. ",
+      "Use an NB2-compatible family specification."
+    )
+  }
+
+  input_link <- extract_input_link(family)
+  link_name <- validate_link_name(input_link %||% default_family_link(family_name))
+  link_source <- if (is.null(input_link)) "epiexposure_default" else "family_input"
+
+  # =========================================================
+  # RESPONSE VALIDATION BY CANONICAL FAMILY
+  # =========================================================
+
+  y <- data$y_model
+
+  if (family_name == "beta" && any(y <= 0 | y >= 1)) {
+    stopf("`family = 'beta'` requires every `y_model` value to lie strictly in (0, 1).")
+  }
+
+  if (family_name == "binomial" && !all(y %in% c(0, 1))) {
+    stopf(
+      "`family = 'binomial'` in EpiExposure v1 represents a Bernoulli 0/1 ",
+      "outcome; every `y_model` value must be coded 0 or 1."
+    )
+  }
+
+  count_tol <- sqrt(.Machine$double.eps) * pmax(1, abs(y))
+  is_integer_count <- abs(y - round(y)) <= count_tol
+
+  if (family_name %in% c("poisson", "negative_binomial") &&
+      any(y < 0 | !is_integer_count)) {
+    stopf(
+      "`family = '", family_name,
+      "'` requires non-negative integer counts in `y_model`."
+    )
+  }
+
+  if (family_name == "gamma" && any(y <= 0)) {
+    stopf("`family = 'gamma'` requires strictly positive `y_model` values.")
+  }
+
+  # =========================================================
+  # CHECK CONSISTENCY WITH prepare_response()
   # =========================================================
 
   prepared_family_name <- attr(data, "response_family_name")
-
   if (!is.null(prepared_family_name)) {
-    prepared_family_name <- resolve_family_name(prepared_family_name)
-
-    if (!identical(prepared_family_name, family_name)) {
-      stop(
-        "The response was prepared for family '", prepared_family_name,
+    prepared_info <- resolve_family_info(prepared_family_name)
+    if (identical(prepared_info$name, "ordinal")) {
+      stopf("The response was prepared as ordinal, which is not supported in EpiExposure v1.")
+    }
+    if (!identical(prepared_info$name, family_name)) {
+      stopf(
+        "The response was prepared for family '", prepared_info$name,
         "', but the model is being fitted with family '", family_name, "'."
       )
     }
+  }
+
+  # =========================================================
+  # RANDOM-INTERCEPT CONTRACT
+  # =========================================================
+
+  if (!is.null(random_effect)) {
+    if (!is_scalar_string(random_effect)) {
+      stopf("`random_effect` must be NULL or one non-empty column name.")
+    }
+    if (!random_effect %in% names(data)) {
+      stopf("`random_effect` ('", random_effect, "') was not found in `data`.")
+    }
+    if (anyNA(data[[random_effect]])) {
+      stopf("`random_effect` cannot contain missing values.")
+    }
+    if (length(unique(data[[random_effect]])) < 2L) {
+      stopf("`random_effect` must contain at least two observed grouping levels.")
+    }
+  }
+
+  if (!is.null(random_effect) && model_engine %in% c("glm", "gls")) {
+    stopf(
+      "`model_engine = '", model_engine,
+      "'` does not implement the EpiExposure random-intercept interface. ",
+      "Use `random_effect = NULL` or select a supported mixed-model engine."
+    )
+  }
+
+  if (identical(model_engine, "gamm") && is.null(random_effect)) {
+    stopf(
+      "`model_engine = 'gamm'` requires `random_effect` in the current ",
+      "EpiExposure interface because the generated model contains no other ",
+      "smooth/random term."
+    )
+  }
+
+  # `mgcv` random-effect smooths and `nlme` random intercepts are most robust
+  # when the grouping variable is represented as a factor. Preserve the user's
+  # original data object and convert only the engine-specific fitting copy.
+  fit_data <- data
+  fit_random_effect <- random_effect
+
+  if (!is.null(random_effect) && model_engine %in% c("gam", "gamm")) {
+    fit_data[[random_effect]] <- factor(fit_data[[random_effect]])
+  }
+
+  # INLA latent iid effects are indexed internally. Re-index arbitrary user
+  # labels to consecutive integers for fitting while preserving the original
+  # grouping-column name in EpiExposure metadata. Downstream v1 predictions
+  # are population-level and therefore never require a group-specific index.
+  if (!is.null(random_effect) && model_engine %in% c("inla", "bdlnm")) {
+    internal_name <- ".epiexposure_re_index"
+    while (internal_name %in% names(fit_data)) {
+      internal_name <- paste0(internal_name, "_")
+    }
+    level_order <- unique(as.character(fit_data[[random_effect]]))
+    fit_data[[internal_name]] <- match(as.character(fit_data[[random_effect]]), level_order)
+    fit_random_effect <- internal_name
   }
 
   # =========================================================
@@ -417,43 +487,69 @@ fit_epidlnm <- function(
   # =========================================================
 
   normalize_spec <- function(spec) {
-    if (is.null(spec)) return(NULL)
-
-    if (!is.list(spec) || is.null(names(spec)) ||
-        anyNA(names(spec)) || any(!nzchar(names(spec)))) {
-      stop("`epiexposure_spec` must be a named list.")
+    if (is.null(spec)) {
+      stopf(
+        "`epiexposure_spec` is required. EpiExposure downstream functions must ",
+        "reuse the fitted cross-basis specification rather than reconstructing it ",
+        "from user-supplied degrees of freedom or defaults."
+      )
     }
 
-    if (anyDuplicated(names(spec))) {
-      stop("`epiexposure_spec` must contain unique variable names.")
+    if (!is.list(spec) || is.null(names(spec)) || !length(spec) ||
+        anyNA(names(spec)) || any(names(spec) == "") || anyDuplicated(names(spec))) {
+      stopf("`epiexposure_spec` must be a non-empty named list with unique names.")
     }
 
     for (nm in names(spec)) {
       current <- spec[[nm]]
 
       if (!is.list(current)) {
-        stop("Specification for variable '", nm, "' must be a list.")
+        stopf("Specification for variable '", nm, "' must be a list.")
       }
 
-      if (is.null(current$max_lag)) {
-        stop("Missing `max_lag` for variable '", nm, "'.")
-      }
+      max_lag_value <- current$max_lag
 
-      if (!is.numeric(current$max_lag) || !length(current$max_lag) ||
-          any(!is.finite(current$max_lag)) || max(current$max_lag) < 0) {
-        stop("Invalid `max_lag` for variable '", nm, "'.")
+      if (is.null(max_lag_value) ||
+          !is.numeric(max_lag_value) ||
+          length(max_lag_value) != 1L ||
+          is.na(max_lag_value) ||
+          !is.finite(max_lag_value) ||
+          max_lag_value < 0 ||
+          max_lag_value != as.integer(max_lag_value)) {
+        stopf(
+          "`max_lag` for variable '", nm,
+          "' must be one non-negative finite integer."
+        )
       }
 
       if (is.null(current$argvar) || !is.list(current$argvar)) {
-        stop("Missing or invalid `argvar` for variable '", nm, "'.")
+        stopf("Missing or invalid `argvar` for variable '", nm, "'.")
       }
 
       if (is.null(current$arglag) || !is.list(current$arglag)) {
-        stop("Missing or invalid `arglag` for variable '", nm, "'.")
+        stopf("Missing or invalid `arglag` for variable '", nm, "'.")
       }
 
-      current$max_lag <- as.integer(max(current$max_lag))
+      current$max_lag <- as.integer(max_lag_value)
       spec[[nm]] <- current
+    }
+
+    fitted_max_lags <- vapply(
+      spec,
+      function(current) current$max_lag,
+      integer(1)
+    )
+
+    if (length(unique(fitted_max_lags)) != 1L) {
+      stopf(
+        "All fitted exposure variables must use the same `max_lag` under the ",
+        "EpiExposure exact-history contract. Received: ",
+        paste(
+          paste0(names(fitted_max_lags), "=", fitted_max_lags),
+          collapse = ", "
+        ),
+        "."
+      )
     }
 
     spec
@@ -461,286 +557,622 @@ fit_epidlnm <- function(
 
   epiexposure_spec <- normalize_spec(epiexposure_spec)
 
+  common_max_lag <- epiexposure_spec[[1L]]$max_lag
+  expected_history_length <- common_max_lag + 1L
+
   # =========================================================
-  # ORDER CROSS-BASIS COLUMNS
+  # CROSS-BASIS COLUMN / VARIABLE CONTRACT
   # =========================================================
 
-  sort_cb_cols <- function(cols) {
-    if (!length(cols)) return(cols)
-
-    vars <- sub("^cb_", "", cols)
-    vars <- sub("_[0-9]+$", "", vars)
-
-    idx <- suppressWarnings(as.integer(sub("^.*_([0-9]+)$", "\\1", cols)))
-    missing_idx <- is.na(idx)
-    idx[missing_idx] <- seq_along(cols)[missing_idx]
-
-    cols[order(vars, idx)]
+  parse_cb_variable <- function(columns) {
+    out <- sub("^cb_", "", columns)
+    sub("_[0-9]+$", "", out)
   }
 
-  cb_cols <- sort_cb_cols(grep("^cb_", names(data), value = TRUE))
+  sort_cb_cols <- function(columns) {
+    if (!length(columns)) return(columns)
+    variables <- parse_cb_variable(columns)
+    variable_order <- unique(variables)
+    index <- suppressWarnings(as.integer(sub("^.*_([0-9]+)$", "\\1", columns)))
+    if (anyNA(index)) {
+      stopf(
+        "Every EpiExposure cross-basis column must end in a numeric index: ",
+        paste(columns[is.na(index)], collapse = ", "), "."
+      )
+    }
+    columns[order(match(variables, variable_order), index)]
+  }
+
+  raw_cb_cols <- grep("^cb_", names(fit_data), value = TRUE)
+  cb_cols <- sort_cb_cols(raw_cb_cols)
 
   if (!length(cb_cols) && model_engine != "bdlnm") {
-    stop("No `cb_*` columns were found in `data`.")
+    stopf("No `cb_*` columns were found in `data`.")
   }
 
-  infer_vars <- function(columns) {
-    variables <- sub("^cb_", "", columns)
-    variables <- sub("_[0-9]+$", "", variables)
-    unique(variables)
+  if (length(cb_cols)) {
+    invalid_cb <- vapply(
+      fit_data[cb_cols],
+      function(x) !is.numeric(x) || any(!is.finite(x)),
+      logical(1)
+    )
+    if (any(invalid_cb)) {
+      stopf(
+        "All fitted `cb_*` columns must contain finite numeric values. Invalid: ",
+        paste(names(invalid_cb)[invalid_cb], collapse = ", "), "."
+      )
+    }
   }
+
+  validate_basis_objects <- function(x, required = FALSE) {
+    if (is.null(x)) {
+      if (required) {
+        stopf(
+          "For `model_engine = 'bdlnm'`, `basis_objects` must be a non-empty ",
+          "named list of original `dlnm::crossbasis()` objects."
+        )
+      }
+      return(NULL)
+    }
+
+    if (!is.list(x) || is.null(names(x)) || !length(x) ||
+        anyNA(names(x)) || any(names(x) == "") || anyDuplicated(names(x))) {
+      stopf("`basis_objects` must be NULL or a non-empty named list with unique names.")
+    }
+
+    if (required) {
+      valid_crossbasis <- vapply(x, inherits, logical(1), what = "crossbasis")
+      if (any(!valid_crossbasis)) {
+        stopf(
+          "EpiExposure v1 requires every `bdlnm` basis object to inherit from ",
+          "'crossbasis'. Unsupported object(s): ",
+          paste(names(x)[!valid_crossbasis], collapse = ", "), "."
+        )
+      }
+    }
+
+    x
+  }
+
+  basis_objects <- validate_basis_objects(
+    basis_objects,
+    required = identical(model_engine, "bdlnm")
+  )
 
   vars_inferred <- if (length(cb_cols)) {
-    infer_vars(cb_cols)
-  } else if (
-    model_engine == "bdlnm" &&
-    !is.null(basis_objects) &&
-    is.list(basis_objects) &&
-    !is.null(names(basis_objects))
-  ) {
-    names(basis_objects)
+    unique(parse_cb_variable(cb_cols))
   } else {
-    character(0)
+    names(basis_objects)
   }
 
   if (!length(vars_inferred)) {
-    stop("Could not determine the exposure variables used by the fitted model.")
+    stopf("Could not determine the exposure variables used by the fitted model.")
   }
 
-  if (!is.null(epiexposure_spec)) {
-    missing_spec_vars <- setdiff(vars_inferred, names(epiexposure_spec))
-    if (length(missing_spec_vars)) {
-      stop(
-        "`epiexposure_spec` is missing variables used by the model: ",
-        paste(missing_spec_vars, collapse = ", "), "."
+  if (!setequal(names(epiexposure_spec), vars_inferred)) {
+    missing_spec <- setdiff(vars_inferred, names(epiexposure_spec))
+    extra_spec <- setdiff(names(epiexposure_spec), vars_inferred)
+    parts <- character(0)
+    if (length(missing_spec)) {
+      parts <- c(parts, paste0("missing: ", paste(missing_spec, collapse = ", ")))
+    }
+    if (length(extra_spec)) {
+      parts <- c(parts, paste0("extra: ", paste(extra_spec, collapse = ", ")))
+    }
+    stopf(
+      "`epiexposure_spec` names must match the fitted exposure variables exactly (",
+      paste(parts, collapse = "; "), ")."
+    )
+  }
+  epiexposure_spec <- epiexposure_spec[vars_inferred]
+
+  if (!is.null(basis_objects)) {
+    if (!setequal(names(basis_objects), vars_inferred)) {
+      stopf(
+        "`basis_objects` names must match the fitted exposure variables exactly. ",
+        "Expected: ", paste(vars_inferred, collapse = ", "), "."
       )
+    }
+
+    basis_objects <- basis_objects[vars_inferred]
+
+    for (nm in names(basis_objects)) {
+      basis_object <- basis_objects[[nm]]
+
+      if (inherits(basis_object, "crossbasis")) {
+        basis_lag <- attr(basis_object, "lag")
+
+        if (is.null(basis_lag) ||
+            !is.numeric(basis_lag) ||
+            !length(basis_lag) ||
+            anyNA(basis_lag) ||
+            any(!is.finite(basis_lag))) {
+          stopf(
+            "Cross-basis object for exposure '", nm,
+            "' has invalid `lag` metadata."
+          )
+        }
+
+        basis_max_lag <- as.integer(max(basis_lag))
+
+        if (basis_max_lag != common_max_lag) {
+          stopf(
+            "Cross-basis lag metadata for exposure '", nm,
+            "' does not match the common fitted `max_lag`. Expected ",
+            common_max_lag, " but found ", basis_max_lag, "."
+          )
+        }
+      }
     }
   }
 
   # =========================================================
-  # VALIDATE BDLNM BASIS OBJECTS
+  # ENGINE-SPECIFIC FAMILY CONSTRUCTION
   # =========================================================
 
-  if (model_engine == "bdlnm") {
-    if (is.null(basis_objects) || !is.list(basis_objects) ||
-        is.null(names(basis_objects)) || !length(basis_objects) ||
-        anyNA(names(basis_objects)) || any(!nzchar(names(basis_objects))) ||
-        anyDuplicated(names(basis_objects))) {
-      stop(
-        "For `model_engine = 'bdlnm'`, `basis_objects` must be a non-empty ",
-        "named list with unique names."
+  resolve_engine_family <- function(engine, family_name, link_name) {
+
+    if (engine == "glm") {
+      return(switch(
+        family_name,
+        gaussian = stats::gaussian(link = link_name),
+        poisson = stats::poisson(link = link_name),
+        gamma = stats::Gamma(link = link_name),
+        binomial = stats::binomial(link = link_name),
+        stopf(
+          "Family '", family_name,
+          "' is not supported by `model_engine = 'glm'` in EpiExposure v1."
+        )
+      ))
+    }
+
+    if (engine == "glmmTMB") {
+      if (!requireNamespace("glmmTMB", quietly = TRUE)) {
+        stopf("Package 'glmmTMB' is required for `model_engine = 'glmmTMB'`.")
+      }
+      return(switch(
+        family_name,
+        beta = glmmTMB::beta_family(link = link_name),
+        gaussian = stats::gaussian(link = link_name),
+        poisson = stats::poisson(link = link_name),
+        gamma = stats::Gamma(link = link_name),
+        binomial = stats::binomial(link = link_name),
+        negative_binomial = glmmTMB::nbinom2(link = link_name),
+        stopf("Unsupported glmmTMB family.")
+      ))
+    }
+
+    if (engine == "gam") {
+      if (!requireNamespace("mgcv", quietly = TRUE)) {
+        stopf("Package 'mgcv' is required for `model_engine = 'gam'`.")
+      }
+      return(switch(
+        family_name,
+        beta = mgcv::betar(link = link_name),
+        gaussian = stats::gaussian(link = link_name),
+        poisson = stats::poisson(link = link_name),
+        gamma = stats::Gamma(link = link_name),
+        binomial = stats::binomial(link = link_name),
+        negative_binomial = mgcv::nb(link = link_name),
+        stopf("Unsupported GAM family.")
+      ))
+    }
+
+    if (engine == "gamm") {
+      if (!requireNamespace("mgcv", quietly = TRUE)) {
+        stopf("Package 'mgcv' is required for `model_engine = 'gamm'`.")
+      }
+      return(switch(
+        family_name,
+        gaussian = stats::gaussian(link = link_name),
+        poisson = stats::poisson(link = link_name),
+        gamma = stats::Gamma(link = link_name),
+        binomial = stats::binomial(link = link_name),
+        stopf(
+          "Family '", family_name, "' is not harmonized for `gamm`. ",
+          "In EpiExposure v1, `gamm` supports Gaussian, Binomial, Poisson, and Gamma only."
+        )
+      ))
+    }
+
+    if (engine == "gls") {
+      if (family_name != "gaussian") {
+        stopf("`model_engine = 'gls'` supports only `family = 'gaussian'`.")
+      }
+      if (link_name != "identity") {
+        stopf("`model_engine = 'gls'` requires the Gaussian identity link.")
+      }
+      return(stats::gaussian(link = "identity"))
+    }
+
+    if (engine == "spamm") {
+      if (!requireNamespace("spaMM", quietly = TRUE)) {
+        stopf("Package 'spaMM' is required for `model_engine = 'spamm'`.")
+      }
+      return(switch(
+        family_name,
+        beta = spaMM::beta_resp(link = link_name),
+        gaussian = stats::gaussian(link = link_name),
+        poisson = stats::poisson(link = link_name),
+        gamma = stats::Gamma(link = link_name),
+        binomial = stats::binomial(link = link_name),
+        negative_binomial = spaMM::negbin2(link = link_name),
+        stopf("Unsupported spaMM family.")
+      ))
+    }
+
+    if (engine == "brms") {
+      if (!requireNamespace("brms", quietly = TRUE)) {
+        stopf("Package 'brms' is required for `model_engine = 'brms'`.")
+      }
+      return(switch(
+        family_name,
+        beta = brms::Beta(link = link_name),
+        gaussian = brms::gaussian(link = link_name),
+        poisson = brms::poisson(link = link_name),
+        gamma = brms::Gamma(link = link_name),
+        binomial = brms::bernoulli(link = link_name),
+        negative_binomial = brms::negbinomial(link = link_name),
+        stopf("Unsupported brms family.")
+      ))
+    }
+
+    if (engine %in% c("inla", "bdlnm")) {
+      return(switch(
+        family_name,
+        beta = "beta",
+        gaussian = "gaussian",
+        poisson = "poisson",
+        gamma = "gamma",
+        binomial = "binomial",
+        negative_binomial = "nbinomial",
+        stopf("Unsupported INLA-backed family.")
+      ))
+    }
+
+    stopf("Unsupported `model_engine`: ", engine, ".")
+  }
+
+  engine_family <- resolve_engine_family(model_engine, family_name, link_name)
+
+  # =========================================================
+  # ENGINE-SPECIFIC DOTS / LINK CONTROL
+  # =========================================================
+
+  if (model_engine == "gam") {
+    if (!is.null(dots$method) && !is_scalar_string(dots$method)) {
+      stopf("`method` supplied to `gam` must be one non-empty character value.")
+    }
+
+    # mgcv extended families have restricted smoothing-parameter estimation
+    # routes. REML is also a stable default for random-effect smooths.
+    if (is.null(dots$method) &&
+        (family_name %in% c("beta", "negative_binomial") || !is.null(random_effect))) {
+      dots$method <- "REML"
+    }
+
+    if (family_name == "beta" && !is.null(dots$method) &&
+        !toupper(dots$method) %in% c("REML", "ML", "NCV")) {
+      stopf(
+        "`gam` with Beta family requires a supported extended-family method: ",
+        "'REML', 'ML', or 'NCV'."
+      )
+    }
+
+    if (family_name == "negative_binomial" && !is.null(dots$method) &&
+        !toupper(dots$method) %in% c("REML", "NCV")) {
+      stopf(
+        "`gam` with `mgcv::nb()` requires `method = 'REML'` or `method = 'NCV'`."
       )
     }
   }
 
-  # =========================================================
-  # ATTACH STANDARDIZED METADATA
-  # =========================================================
+  prepare_inla_family_control <- function(input_dots) {
+    control_family <- input_dots$control.family %||% list()
+    if (!is.list(control_family)) {
+      stopf("INLA `control.family` supplied through `...` must be a list.")
+    }
 
-  attach_epiexposure_meta <- function(model_obj) {
-    data_template <- data[1, , drop = FALSE]
+    control_link <- control_family$control.link %||% list()
+    if (!is.list(control_link)) {
+      stopf("INLA `control.family$control.link` must be a list.")
+    }
 
-    attr(model_obj, "epiexposure_engine") <- model_engine
-    attr(model_obj, "epiexposure_family_input") <- family
-    attr(model_obj, "epiexposure_family") <- engine_family
-    attr(model_obj, "epiexposure_family_name") <- family_name
-    attr(model_obj, "epiexposure_link") <- link_name
-    attr(model_obj, "epiexposure_cb_cols") <- cb_cols
-    attr(model_obj, "epiexposure_vars") <- vars_inferred
-    attr(model_obj, "epiexposure_data_template") <- data_template
-    attr(model_obj, "epiexposure_id_col") <- random_effect
-    attr(model_obj, "epiexposure_spec") <- epiexposure_spec
-    attr(model_obj, "epiexposure_basis_objects") <- basis_objects
+    if (!is.null(control_link$model)) {
+      supplied_link <- tolower(as.character(control_link$model)[1])
+      if (!identical(supplied_link, link_name)) {
+        stopf(
+          "Conflicting INLA link specifications: `family` implies '", link_name,
+          "' but `control.family$control.link$model` is '", supplied_link, "'."
+        )
+      }
+    }
 
-    model_obj
+    control_link$model <- link_name
+    control_family$control.link <- control_link
+    input_dots$control.family <- control_family
+    input_dots
+  }
+
+  if (model_engine %in% c("inla", "bdlnm")) {
+    dots <- prepare_inla_family_control(dots)
+  }
+
+  if (model_engine == "inla") {
+    control_compute <- dots$control.compute %||% list()
+    if (!is.list(control_compute)) {
+      stopf("INLA `control.compute` supplied through `...` must be a list.")
+    }
+    if (!is.null(control_compute$config) && !isTRUE(control_compute$config)) {
+      stopf(
+        "EpiExposure requires `control.compute$config = TRUE` for INLA so ",
+        "posterior coefficient draws can be generated for downstream uncertainty."
+      )
+    }
+    control_compute$config <- TRUE
+    dots$control.compute <- control_compute
   }
 
   # =========================================================
   # FORMULA CONSTRUCTION
   # =========================================================
 
-  rhs <- if (length(cb_cols)) paste(cb_cols, collapse = " + ") else ""
-
-  fml_fixed <- if (nzchar(rhs)) {
-    paste0("y_model ~ 1 + ", rhs)
+  cb_rhs <- paste(vapply(cb_cols, quote_name, character(1)), collapse = " + ")
+  fixed_formula_text <- if (nzchar(cb_rhs)) {
+    paste0("y_model ~ 1 + ", cb_rhs)
   } else {
     "y_model ~ 1"
   }
 
-  fml <- if (
-    !is.null(random_effect) &&
-    model_engine %in% c("glmmTMB", "gamm", "spamm", "brms")
-  ) {
-    stats::as.formula(paste0(fml_fixed, " + (1|", random_effect, ")"))
-  } else {
-    stats::as.formula(fml_fixed)
+  fixed_formula <- stats::as.formula(fixed_formula_text)
+
+  mixed_formula <- fixed_formula
+  gam_formula <- fixed_formula
+  inla_formula <- fixed_formula
+
+  if (!is.null(random_effect)) {
+    qre <- quote_name(fit_random_effect)
+
+    if (model_engine %in% c("glmmTMB", "spamm", "brms")) {
+      mixed_formula <- stats::as.formula(
+        paste0(fixed_formula_text, " + (1 | ", qre, ")")
+      )
+    }
+
+    if (model_engine == "gam") {
+      gam_formula <- stats::as.formula(
+        paste0(fixed_formula_text, " + s(", qre, ", bs = 're')")
+      )
+    }
+
+    if (model_engine == "inla") {
+      inla_formula <- stats::as.formula(
+        paste0(fixed_formula_text, " + f(", qre, ", model = 'iid')")
+      )
+    }
   }
 
   # =========================================================
-  # FREQUENTIST ENGINES
+  # STANDARDIZED METADATA
+  # =========================================================
+
+  family_parameterization <- switch(
+    family_name,
+    beta = "mean_precision",
+    binomial = "Bernoulli_0_1",
+    poisson = "Poisson_mean",
+    gamma = "Gamma_mean_link",
+    gaussian = "Gaussian_mean",
+    negative_binomial = "NB2",
+    NA_character_
+  )
+
+  random_structure <- if (is.null(random_effect)) {
+    "none"
+  } else {
+    "random_intercept"
+  }
+
+  attach_epiexposure_meta <- function(model_obj) {
+    basis_meta <- basis_objects
+    if (identical(model_engine, "bdlnm") &&
+        is.list(model_obj) && !is.null(model_obj$basis)) {
+      basis_meta <- model_obj$basis
+    }
+
+    attr(model_obj, "epiexposure_engine") <- model_engine
+    attr(model_obj, "epiexposure_family_input") <- family
+    attr(model_obj, "epiexposure_family") <- engine_family
+    attr(model_obj, "epiexposure_family_name") <- family_name
+    attr(model_obj, "epiexposure_family_parameterization") <- family_parameterization
+    attr(model_obj, "epiexposure_link") <- link_name
+    attr(model_obj, "epiexposure_link_source") <- link_source
+    attr(model_obj, "epiexposure_cb_cols") <- cb_cols
+    attr(model_obj, "epiexposure_vars") <- vars_inferred
+    attr(model_obj, "epiexposure_data_template") <- fit_data[1, , drop = FALSE]
+    attr(model_obj, "epiexposure_id_col") <- random_effect
+    attr(model_obj, "epiexposure_random_effect_fit_col") <- fit_random_effect
+    attr(model_obj, "epiexposure_random_structure") <- random_structure
+    attr(model_obj, "epiexposure_spec") <- epiexposure_spec
+    attr(model_obj, "epiexposure_basis_objects") <- basis_meta
+    attr(model_obj, "epiexposure_max_lag") <- common_max_lag
+    attr(model_obj, "epiexposure_history_length") <- expected_history_length
+    attr(model_obj, "epiexposure_history_contract") <-
+      "all_fitted_exposures_same_exact_max_lag_plus_one"
+    attr(model_obj, "epiexposure_prediction_level") <- "population"
+    attr(model_obj, "epiexposure_prediction_estimand") <- "expected_response"
+    attr(model_obj, "epiexposure_point_prediction_contract") <- "central_expected_response"
+    attr(model_obj, "epiexposure_uncertainty_contract") <- "draw_by_draw_median_quantiles"
+
+    model_obj
+  }
+
+  # =========================================================
+  # FIT: glm
   # =========================================================
 
   if (model_engine == "glm") {
-    mod <- stats::glm(
-      formula = fml,
-      data = data,
-      family = engine_family,
-      ...
+    check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
+    args <- c(
+      list(formula = fixed_formula, data = fit_data, family = engine_family),
+      dots
     )
-    return(attach_epiexposure_meta(mod))
+    return(attach_epiexposure_meta(do.call(stats::glm, args)))
   }
+
+  # =========================================================
+  # FIT: glmmTMB
+  # =========================================================
 
   if (model_engine == "glmmTMB") {
-    if (!requireNamespace("glmmTMB", quietly = TRUE)) {
-      stop("Package 'glmmTMB' is required for `model_engine = 'glmmTMB'`.")
-    }
-
-    mod <- glmmTMB::glmmTMB(
-      formula = fml,
-      data = data,
-      family = engine_family,
-      ...
+    check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
+    args <- c(
+      list(formula = mixed_formula, data = fit_data, family = engine_family),
+      dots
     )
-    return(attach_epiexposure_meta(mod))
+    return(attach_epiexposure_meta(do.call(glmmTMB::glmmTMB, args)))
   }
+
+  # =========================================================
+  # FIT: GAM
+  # =========================================================
 
   if (model_engine == "gam") {
-    if (!requireNamespace("mgcv", quietly = TRUE)) {
-      stop("Package 'mgcv' is required for `model_engine = 'gam'`.")
-    }
-
-    mod <- mgcv::gam(
-      formula = fml,
-      data = data,
-      family = engine_family,
-      ...
+    check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
+    args <- c(
+      list(formula = gam_formula, data = fit_data, family = engine_family),
+      dots
     )
-    return(attach_epiexposure_meta(mod))
+    return(attach_epiexposure_meta(do.call(mgcv::gam, args)))
   }
+
+  # =========================================================
+  # FIT: GAMM
+  # =========================================================
 
   if (model_engine == "gamm") {
-    if (!requireNamespace("mgcv", quietly = TRUE)) {
-      stop("Package 'mgcv' is required for `model_engine = 'gamm'`.")
+    check_dot_conflicts(
+      dots,
+      c("formula", "data", "family", "random"),
+      model_engine
+    )
+
+    if (family_name == "binomial") {
+      warning(
+        "`mgcv::gamm()` fits non-Gaussian models by PQL and mgcv specifically ",
+        "warns that binary responses may perform poorly. Consider `gam` with a ",
+        "random-effect smooth or another GLMM engine when appropriate.",
+        call. = FALSE
+      )
     }
 
-    mod <- mgcv::gamm(
-      formula = fml,
-      data = data,
-      family = engine_family,
-      ...
+    random_list <- stats::setNames(list(stats::as.formula("~1")), fit_random_effect)
+    args <- c(
+      list(
+        formula = fixed_formula,
+        random = random_list,
+        data = fit_data,
+        family = engine_family
+      ),
+      dots
     )
-    return(attach_epiexposure_meta(mod))
+    return(attach_epiexposure_meta(do.call(mgcv::gamm, args)))
   }
+
+  # =========================================================
+  # FIT: GLS
+  # =========================================================
 
   if (model_engine == "gls") {
     if (!requireNamespace("nlme", quietly = TRUE)) {
-      stop("Package 'nlme' is required for `model_engine = 'gls'`.")
+      stopf("Package 'nlme' is required for `model_engine = 'gls'`.")
     }
-
-    mod <- nlme::gls(
-      model = fml,
-      data = data,
-      ...
-    )
-    return(attach_epiexposure_meta(mod))
-  }
-
-  if (model_engine == "spamm") {
-    if (!requireNamespace("spaMM", quietly = TRUE)) {
-      stop("Package 'spaMM' is required for `model_engine = 'spamm'`.")
-    }
-
-    mod <- spaMM::fitme(
-      formula = fml,
-      data = data,
-      family = engine_family,
-      ...
-    )
-    return(attach_epiexposure_meta(mod))
+    check_dot_conflicts(dots, c("model", "data"), model_engine)
+    args <- c(list(model = fixed_formula, data = fit_data), dots)
+    return(attach_epiexposure_meta(do.call(nlme::gls, args)))
   }
 
   # =========================================================
-  # BAYESIAN ENGINE: BRMS
+  # FIT: spaMM
+  # =========================================================
+
+  if (model_engine == "spamm") {
+    check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
+    args <- c(
+      list(formula = mixed_formula, data = fit_data, family = engine_family),
+      dots
+    )
+    return(attach_epiexposure_meta(do.call(spaMM::fitme, args)))
+  }
+
+  # =========================================================
+  # FIT: brms
   # =========================================================
 
   if (model_engine == "brms") {
-    if (!requireNamespace("brms", quietly = TRUE)) {
-      stop("Package 'brms' is required for `model_engine = 'brms'`.")
-    }
-
-    mod <- brms::brm(
-      formula = fml,
-      data = data,
-      family = engine_family,
-      ...
+    check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
+    args <- c(
+      list(formula = mixed_formula, data = fit_data, family = engine_family),
+      dots
     )
-    return(attach_epiexposure_meta(mod))
+    return(attach_epiexposure_meta(do.call(brms::brm, args)))
   }
 
   # =========================================================
-  # BAYESIAN ENGINE: INLA
+  # FIT: INLA
   # =========================================================
 
   if (model_engine == "inla") {
     if (!requireNamespace("INLA", quietly = TRUE)) {
-      stop("Package 'INLA' is required for `model_engine = 'inla'`.")
+      stopf("Package 'INLA' is required for `model_engine = 'inla'`.")
     }
-
-    fml_inla <- if (!is.null(random_effect)) {
-      stats::as.formula(
-        paste0(fml_fixed, " + f(", random_effect, ", model = 'iid')")
-      )
-    } else {
-      stats::as.formula(fml_fixed)
-    }
-
-    mod <- INLA::inla(
-      formula = fml_inla,
-      data = data,
-      family = engine_family,
-      ...
+    check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
+    args <- c(
+      list(formula = inla_formula, data = fit_data, family = engine_family),
+      dots
     )
-    return(attach_epiexposure_meta(mod))
+    return(attach_epiexposure_meta(do.call(INLA::inla, args)))
   }
 
   # =========================================================
-  # BAYESIAN DLNM ENGINE: BDLNM
+  # FIT: Bayesian DLNM (bdlnm)
   # =========================================================
 
   if (model_engine == "bdlnm") {
     if (!requireNamespace("bdlnm", quietly = TRUE)) {
-      stop("Package 'bdlnm' is required for `model_engine = 'bdlnm'`.")
+      stopf("Package 'bdlnm' is required for `model_engine = 'bdlnm'`.")
     }
+
+    check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
 
     basis_names <- names(basis_objects)
-    rhs_bdlnm <- paste(basis_names, collapse = " + ")
+    basis_rhs <- paste(vapply(basis_names, quote_name, character(1)), collapse = " + ")
+    bdlnm_formula_text <- paste0("y_model ~ 1 + ", basis_rhs)
 
-    fml_bdlnm <- if (!is.null(random_effect)) {
-      stats::as.formula(
-        paste0(
-          "y_model ~ 1 + ", rhs_bdlnm,
-          " + f(", random_effect, ", model = 'iid')"
-        )
+    if (!is.null(random_effect)) {
+      bdlnm_formula_text <- paste0(
+        bdlnm_formula_text,
+        " + f(", quote_name(fit_random_effect), ", model = 'iid')"
       )
-    } else {
-      stats::as.formula(paste0("y_model ~ 1 + ", rhs_bdlnm))
     }
 
+    bdlnm_formula <- stats::as.formula(bdlnm_formula_text)
+
+    # bdlnm requires the original basis objects to be visible from the formula
+    # environment. Preserve the caller as parent so user-supplied terms in `...`
+    # keep their normal lookup behavior.
     eval_env <- new.env(parent = parent.frame())
     for (nm in basis_names) {
       assign(nm, basis_objects[[nm]], envir = eval_env)
     }
-    environment(fml_bdlnm) <- eval_env
+    environment(bdlnm_formula) <- eval_env
 
-    mod <- bdlnm::bdlnm(
-      formula = fml_bdlnm,
-      data = data,
-      family = engine_family,
-      ...
+    args <- c(
+      list(formula = bdlnm_formula, data = fit_data, family = engine_family),
+      dots
     )
-
-    return(attach_epiexposure_meta(mod))
+    return(attach_epiexposure_meta(do.call(bdlnm::bdlnm, args)))
   }
 
-  stop("Unsupported `model_engine`.")
+  stopf("Unsupported `model_engine`.")
 }

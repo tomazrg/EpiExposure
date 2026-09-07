@@ -2,7 +2,7 @@
 % Please edit documentation in R/ensemble_bestfit.R
 \name{ensemble_bestfit}
 \alias{ensemble_bestfit}
-\title{Create prediction and lag-contribution ensembles from best-fit models}
+\title{Create model and lag-contribution ensembles from best-fit DLNM models}
 \usage{
 ensemble_bestfit(
   bestfit,
@@ -33,145 +33,272 @@ ensemble_bestfit(
 )
 }
 \arguments{
-\item{bestfit}{Data frame returned by `find_bestfit()`. It must contain the
-model identifier and the metric selected by `weight_metric`. The current
-`find_bestfit()` also stores `family`, `outcome_type`, `rank_metric`, and
-`threshold` as attributes, which are inherited here when appropriate.}
+\item{bestfit}{Non-empty data frame returned by the current
+`find_bestfit()`. The function requires the standardized metadata stored by
+that function, including `family`, `outcome_type`, `rank_metric`,
+`threshold`, the prediction contract, the cross-validation method,
+`fold_assignments`, the common fitted `max_lag`, the expected history
+length (`max_lag + 1`), and the EpiExposure exact-history contract.}
 
-\item{predictions}{Optional data frame of out-of-fold predictions. If `NULL`,
-`attr(bestfit, "predictions")` is used. Required columns are `model_col`,
-`id_cols`, `observed`, and `predicted`. For binomial outcomes, `predicted`
-must contain predicted probabilities in `[0, 1]`, not already-thresholded
-class labels.}
+\item{predictions}{Optional data frame of OOF predictions. If `NULL`,
+  `attr(bestfit, "predictions")` is used. Under the current
+  `find_bestfit()` contract, required columns include `model_col`, `group`,
+  `fold`, `observed`, and `predicted`, in addition to any columns listed in
+  `id_cols`.
 
-\item{lag_data}{Optional data frame of lag-specific contributions. Required
-columns are `model_col`, `lag_group_cols`, and `contribution`.}
+  All selected models must contain predictions for the same OOF identifiers.
+  The function deliberately does not silently reduce the ensemble to an
+  intersection of different validation supports, because model weights and
+  ensemble metrics would otherwise be evaluated on a different sample from
+  the individual-model ranking.}
 
-\item{fit_list}{Optional named list of fitted models. If `NULL`,
-`attr(bestfit, "fits")` is used for automatic lag decomposition.}
+\item{lag_data}{Optional data frame of deterministic lag-specific
+contributions. Required columns are `model_col`, all `lag_group_cols`, and
+`contribution`. If `NULL` and a lag ensemble is requested, contributions
+are generated with `compute_ecilag()` from retained full-data fits.}
 
-\item{data}{Optional long-format exposure data used for automatic lag
-decomposition. Must contain `group`, `time`, and the requested variables.}
+\item{fit_list}{Optional named list of fitted models used for automatic lag
+decomposition. If `NULL`, `attr(bestfit, "fits")` is used.}
 
-\item{group}{Character scalar naming the grouping column in `data`.}
+\item{data}{Optional long-format exposure data used only for automatic lag
+decomposition, while ignored/not required for ensemble_scope = "model". It must contain `group`, a column named `time`, and the
+exposures requested from the retained fitted models. Rows are ordered
+internally by `group` and `time`, and time must satisfy the regular-series
+requirements used elsewhere in EpiExposure. Every group must contain
+exactly the common fitted `max_lag + 1` observations. Longer histories are
+not truncated and shorter histories are not padded.}
 
-\item{var}{Optional character vector of exposure variables used for automatic
-lag decomposition.}
+\item{group}{Character scalar naming the grouping column in `data` for
+automatic lag decomposition.}
+
+\item{var}{Optional unique character vector of exposure variables requested
+for automatic lag decomposition.}
 
 \item{compute_ecilag_args}{Named list of additional arguments passed to
 `compute_ecilag()`. It cannot override `data`, `group`, `fit`, `var`, or
-`profile`.}
+`profile`. `uncertainty = TRUE` is not supported by
+`ensemble_bestfit()` v1 for lag ensembles because parameter draws from
+separately fitted models do not form a defined joint draw distribution.}
 
-\item{ensemble_scope}{Character scalar. One of `"model"`, `"lag"`, or
-`"both"`.}
+\item{ensemble_scope}{Character. One of `"model"`, `"lag"`, or `"both"`.}
 
-\item{method}{One or more ensemble methods selected from `"best"`,
-`"hard_voting"`, `"unweighted"`, `"weighted"`, and `"stacked"`.
-Multiple methods can be evaluated in a single call, for example
-`method = c("unweighted", "weighted", "stacked")`. `"stacked"` and
-`"hard_voting"` are available only for `ensemble_scope = "model"`.
-`"hard_voting"` additionally requires a binomial outcome.}
+\item{method}{One or more methods selected from `"best"`, `"hard_voting"`,
+  `"unweighted"`, `"weighted"`, and `"stacked"`. Multiple methods may be
+  evaluated in one call, for example
+  `c("unweighted", "weighted", "stacked")`.
 
-\item{top_n}{Positive integer number of top-ranked models included in each
-requested ensemble.}
+  `"stacked"` and `"hard_voting"` are model-level methods only.
+  `"hard_voting"` additionally requires a binomial outcome.}
 
-\item{model_ids}{Optional vector of model identifiers. If supplied, `top_n`
-is ignored, but selected models are still ordered by `weight_metric`.}
+\item{top_n}{Positive integer number of top-ranked models selected when
+`model_ids = NULL`.}
 
-\item{weight_metric}{Optional character scalar naming a performance metric in
-`bestfit` used to rank/select models and, for `method = "weighted"`, derive
-model weights. If `NULL`, the function first inherits
-`attr(bestfit, "rank_metric")`; if unavailable, the default is `"CCC"` for
-non-binary outcomes and `"ROC_AUC"` for binomial outcomes. Metric direction
-is determined automatically; higher-is-better metrics are maximized and
-error/loss metrics are minimized.}
+\item{model_ids}{Optional vector of unique model identifiers. When supplied,
+`top_n` is ignored. Every requested model must have a finite value for
+`weight_metric`.}
 
-\item{threshold}{Optional numeric probability threshold strictly between 0
-and 1. For a binomial outcome, it converts predicted probabilities into
-classes 0/1 for classification metrics and converts individual-model
-probabilities into votes for `method = "hard_voting"`. It is valid for
-probabilities, not predictions already reduced to class labels 0/1. It
-does not affect ROC AUC, Brier score, or Log Loss. If `NULL`, the function
-inherits `attr(bestfit, "threshold")`; if unavailable, `0.5` is used.}
+\item{weight_metric}{Optional performance metric used to rank/select models
+and, for `method = "weighted"`, construct model weights. If `NULL`, the
+function inherits `attr(bestfit, "rank_metric")`. Metric direction is
+determined by `.metric_direction()`.}
 
-\item{weight_transform}{Character scalar. One of `"softmax"`, `"positive"`,
-`"rank_inverse"`, or `"uniform"`. Used only by `method = "weighted"`.}
+\item{threshold}{Optional probability threshold strictly between 0 and 1 for
+  binomial classification metrics and `hard_voting`. If `NULL`,
+  `attr(bestfit, "threshold")` is used.
 
-\item{stacking_model}{Character scalar. `"ridge"` or `"lm"`.}
+  When `weight_metric` is threshold-dependent (`Accuracy`,
+  `Balanced_Accuracy`, `Sensitivity`, `Specificity`, `F1`, `MCC`, or
+  `Precision`), a user-supplied threshold must equal the threshold used by
+  `find_bestfit()`. Otherwise the stored model-ranking metric and the
+  ensemble threshold would refer to different classification rules, so the
+  function stops explicitly.}
 
-\item{stack_objective}{Character scalar. `"regularized"`, `"min_error"`, or
-`"constrained"`.}
+\item{weight_transform}{Character. Transformation used only by
+  `method = "weighted"`:
 
-\item{lambda}{Non-negative ridge penalty.}
+  \describe{
+    \item{`"softmax"`}{Stable softmax of the direction-adjusted metric.}
+    \item{`"positive"`}{For maximize metrics, negative values are truncated
+      to zero and positive values are normalized. For minimize metrics,
+      reciprocal loss is normalized. If no positive utility exists, the
+      function stops instead of silently switching to uniform weights.}
+    \item{`"rank_inverse"`}{Weights proportional to inverse selected-model
+      rank.}
+    \item{`"uniform"`}{Equal weights.}
+  }}
 
-\item{stack_intercept}{Logical. Include an intercept in stacking.}
+\item{stacking_model}{Character. `"ridge"` or `"lm"`. It must be coherent
+with `stack_objective`: `"regularized"` requires `"ridge"` and
+`"min_error"` requires `"lm"`. With `"constrained"`, `"ridge"` adds the
+penalty `lambda` whereas `"lm"` uses no ridge penalty.}
+
+\item{stack_objective}{Character. `"regularized"`, `"min_error"`, or
+  `"constrained"`.
+
+  `"regularized"` fits ridge stacking. `"min_error"` fits ordinary
+  least-squares stacking. `"constrained"` minimizes squared error subject to
+  non-negative model weights summing to one, using projected-gradient
+  optimization on the simplex.}
+
+\item{lambda}{Non-negative ridge penalty used by regularized stacking and by
+constrained stacking when `stacking_model = "ridge"`.}
+
+\item{stack_intercept}{Logical. Include an intercept for unconstrained
+stacking. `stack_objective = "constrained"` requires
+`stack_intercept = FALSE`, because an unconstrained intercept would destroy
+the convex-combination interpretation.}
 
 \item{model_col}{Character scalar naming the model identifier column.}
 
-\item{id_cols}{Character vector identifying prediction rows.}
+\item{id_cols}{Unique character vector identifying an OOF prediction row.
+Under the current `find_bestfit()` output the default
+`c("group", "fold")` is appropriate for both LOOCV and grouped k-fold.}
 
-\item{lag_group_cols}{Character vector defining each lag-ensemble unit.
-Include an epidemic/group column, for example
-`c("epi_id", "var", "lag")`, when lag contributions are group-specific.}
+\item{lag_group_cols}{Unique character vector defining one lag-ensemble unit.
+It must include `"lag"`. Include the epidemic/group column as well when lag
+contributions are group-specific, for example
+`c("epi_id", "var", "lag")`.}
 
-\item{lg_strategy}{Character scalar. One of `"requested_available"`,
-`"model"`, or `"strict"`.}
+\item{lg_strategy}{Character. Controls automatic lag-variable availability:
+`"requested_available"` uses requested variables available in each model,
+`"model"` uses every exposure fitted in each model, and `"strict"` requires
+every requested variable in every selected model. For lag aggregation,
+`"strict"` additionally requires every lag unit to be available from all
+selected models.}
 
-\item{rl_weights}{Logical. Renormalize model weights within each lag unit.}
+\item{rl_weights}{Logical. For lag ensembles, renormalize model weights among
+models actually available within each lag unit. If `FALSE`, missing models
+retain their absent weight mass and the lag contribution can therefore
+shrink toward zero.}
 
-\item{verbose}{Logical. Print informative messages.}
+\item{verbose}{Logical. Print concise information.}
 }
 \value{
-A list containing `ensemble_summary`, `ensemble_predictions`,
-  `ensemble_by_lag`, `lag_data`, `model_weights`, `selected_models`,
-  `metric_warnings`, `method`, `ensemble_scope`, `lg_strategy`, `rl_weights`,
-  `family`, `outcome_type`, `weight_metric`, `metric_direction`, and
-  `threshold`. Outputs that vary by ensemble method contain an explicit
-  `method` column, allowing several methods to be compared from one call.
+A list containing:
+
+  \describe{
+    \item{`ensemble_summary`}{Model-level performance, one row per requested
+      method.}
+    \item{`ensemble_predictions`}{OOF ensemble predictions with an explicit
+      `method` column and the aligned individual-model predictions.}
+    \item{`ensemble_by_lag`}{Weighted deterministic lag contributions.}
+    \item{`lag_data`}{Lag data used for aggregation.}
+    \item{`model_weights`}{Method-specific model weights. For stacking,
+      these are the **final** level-2 weights fitted to all available OOF
+      rows after cross-fitted ensemble performance has been evaluated.}
+    \item{`selected_models`}{Selected rows from `bestfit`.}
+    \item{`stacking_coefficients_by_fold`}{For stacked methods, level-2
+      coefficients fitted without the current OOF fold and used to predict
+      that fold.}
+    \item{`stacking_final_coefficients`}{Final stacking coefficients fitted
+      to the complete OOF matrix for downstream use with full-data base-model
+      refits.}
+    \item{`metric_warnings`}{Warnings captured while evaluating ensemble
+      performance metrics.}
+  }
+
+  The returned list also carries the inherited family, threshold,
+  population/expected-response prediction contract, CV metadata
+  (`cv_method`, `cv_scheme`, `k`, `cv_stratified`, `fold_assignments`, and
+  `fold_balance`), and temporal metadata (`max_lag`, `history_length`,
+  `history_contract`, and `time_step`).
 }
 \description{
-Builds one or more model-level ensembles from out-of-fold predictions
-produced by `find_bestfit()` and, optionally, lag-level ensembles from
-lag-specific contributions. Automatic lag decomposition uses
-`compute_ecilag()`.
+Combines out-of-fold (OOF) predictions produced by the current
+`find_bestfit()` into one or more model-level ensembles and, optionally,
+combines lag-specific contributions from retained full-data model refits.
 }
 \details{
-Exposure histories supplied through `data` must be chronological, from the
-earliest to the most recent observation within each group. Their conversion
-to the retrospective lag representation is handled by `compute_ecilag()`.
+The function inherits the EpiExposure v1 prediction contract from
+`find_bestfit()`: model-level ensemble predictions represent
+population/fixed-component **expected responses**, with fitted random effects
+set to zero. The OOF predictions used here are deterministic predictions from
+the harmonized central parameter estimate; coefficient/posterior uncertainty,
+residual noise, future-observation noise, and group-specific random effects
+are not added.
 
 
-Model ranking and weighting use the common EpiExposure performance-metric
-infrastructure also used by `find_bestfit()`. Supported non-binary metrics
-are CCC, Cb, rho, RMSE, and MAE. Supported binomial metrics are ROC AUC,
-Brier score, Log Loss, Accuracy, Balanced Accuracy, Sensitivity, Specificity,
-F1, MCC, and Precision. The direction of each metric is resolved internally,
-so no higher-is-better flag is required.
+## Model-level OOF ensemble contract
 
-For binomial outcomes, `best`, `unweighted`, `weighted`, and `stacked`
-combine or generate predicted probabilities. Classification metrics are then
-computed after applying `threshold`. `hard_voting` is different: each model
-probability is thresholded first and the final class is obtained by majority
-vote. With an even number of models, an exact vote tie is broken using the
-class predicted by the highest-ranked selected model. The returned
-`vote_fraction` is the fraction of positive votes and is not treated as a
-calibrated predicted probability. Consequently, probability-based metrics
-(ROC AUC, Brier, and Log Loss) are returned as `NA` for hard voting.
+The current `find_bestfit()` produces one deterministic OOF expected-response
+prediction per successfully validated group and candidate model. This
+function combines those predictions; it does not call the original model
+prediction methods again.
 
-Lag ensembles combine lag-specific contributions, not raw DLNM coefficients:
-\deqn{C_{ens,l}=\sum_m \alpha_m C_{m,l}}
+Selected models must share the same OOF support. This strict alignment is
+intentional. Silently using only complete rows across models could make an
+ensemble appear better simply because difficult groups were removed.
 
-`lag_data` must contain exactly one row per combination of `model_col` and
-`lag_group_cols`. If automatic decomposition returns several epidemics,
-include the grouping column in `lag_group_cols`.
+For non-binary outcomes, ensemble performance uses CCC, Cb, Pearson
+correlation, RMSE, and MAE. For binomial outcomes, probability-based
+ensembles retain probabilities for ROC AUC, Brier score, and Log Loss and
+apply `threshold` only for classification metrics.
 
-When `compute_ecilag_args` requests uncertainty, this function combines the
-summarized `by_lag` estimates returned by `compute_ecilag()`. It does not
-combine `by_lag_samples` draw by draw and therefore does not return ensemble
-uncertainty intervals.
+`hard_voting` is different: each individual predicted probability is
+thresholded first, and the final class is the majority vote. Exact ties are
+resolved with the class produced by the highest-ranked selected model.
+`vote_fraction` is reported for interpretation but is not treated as a
+calibrated probability, so ROC AUC, Brier score, and Log Loss are returned
+as `NA` for hard voting.
 
-Model-level ensembles combine out-of-fold predictions that have already been
-generated by the underlying models. Therefore, deterministic and
-uncertainty-related behaviour is inherited from the prediction workflows
-used to create the input `predictions` object.
+## Stacking and the CV folds
+
+Stacking has two separate outputs that should not be confused.
+
+Ensemble performance is calculated from **fold-cross-fitted level-2
+predictions**. For OOF fold \eqn{f}, stacking coefficients are fitted using
+the stored OOF rows from folds other than \eqn{f}, and those coefficients are
+then applied to fold \eqn{f}. With LOOCV this reduces to the historical
+leave-one-row-out level-2 calculation. With grouped k-fold, every epidemic
+in the same validation fold is held out from level-2 fitting together.
+
+After cross-fitted performance is obtained, a final stacking model is fitted
+to the complete OOF prediction matrix. Its coefficients are returned for
+combining the selected base models after those base models have been refitted
+to all available data.
+
+This is a level-2 cross-fitting procedure based on the OOF prediction matrix
+already produced by `find_bestfit()`. It is not a fully nested re-fitting of
+every base learner inside an additional outer validation loop; therefore
+ensemble performance should be interpreted as OOF ensemble performance for
+model development rather than as an independent external-validation estimate.
+
+## Exact common lag/history contract
+
+`ensemble_bestfit()` inherits the exact-history contract established by the
+current `find_bestfit()`: all candidate/fitted exposures use one common
+non-negative integer `max_lag`, and every original exposure history contains
+exactly `max_lag + 1` equally spaced observations.
+
+For automatic lag decomposition, the retained fitted models must report the
+same `max_lag`, `history_length`, and `history_contract` as `bestfit`, and
+every group supplied in `data` must contain exactly that history length.
+Histories are never truncated, padded, or silently realigned.
+
+If precomputed `lag_data` is supplied, the original long-format exposure
+histories are no longer available to this function. In that route,
+`ensemble_bestfit()` validates the lag values against the inherited common
+`max_lag` but cannot reconstruct the original history row counts.
+
+## Lag ensembles
+
+Lag ensembles combine lag-specific **contributions**, not raw DLNM
+coefficients:
+
+\deqn{C_{ens,l} = \sum_m \alpha_m C_{m,l}.}
+
+The model weights \eqn{\alpha_m} come from OOF model performance, while
+automatically generated lag contributions come from the selected models
+refitted on the complete data. Thus lag ensembles are explanatory summaries
+of the final fitted models, not additional OOF predictions.
+
+Percent contribution is based on the absolute contribution magnitude within
+each non-lag grouping unit:
+
+\deqn{100 |C_{ens,l}| / \sum_l |C_{ens,l}|.}
+
+Ensemble uncertainty for lag contributions is deliberately not produced in
+EpiExposure v1. Independently sampled coefficient/posterior draws from
+separately fitted models do not automatically form a valid joint draw
+distribution, so arbitrary draw-index pairing is not performed.
 }

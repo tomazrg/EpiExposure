@@ -8,10 +8,12 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+```{=html}
 <img src="../reference/figures/sticker.png"
      class="pkg-page-logo"
      alt="EpiExposure logo">
-     
+```
+
 # Introduction
 
 Disease responses are often nonlinear.
@@ -406,7 +408,6 @@ Sensitivity analyses are particularly useful for:
 - selecting management intervention points;
 - evaluating climate-change scenarios;
 - improving disease forecasting systems.
-
 
 # Example interpretation
 
