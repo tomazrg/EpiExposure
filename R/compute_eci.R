@@ -8,7 +8,7 @@
 #' observation to the most recent observation. The most recent value is
 #' associated internally with lag 0.
 #'
-#' The model-weighted ECI is a **contrast relative to an explicit exposure
+#' The model-weighted ECI is a **contrast relative to an explicit joint exposure
 #' reference profile**. It is not the uncentered cross-basis contribution
 #' `cb(x) %*% beta`, because that quantity depends on basis parameterization and
 #' is not, by itself, an interpretable exposure effect.
@@ -83,14 +83,27 @@
 #'   For direct `profile` input, use the exposure-specific named-list form.
 #'
 #'   The default is `list(method = "median", value = NULL)`.
-#' @param scale Character defining `ECI_weighted`:
+#' @param scale Character defining the interpretation and units of the single
+#'   returned model-weighted impact column, `ECI_weighted`:
 #'
 #'   - `"link"`: the centered cumulative DLNM contrast
 #'     \eqn{\Delta\eta};
 #'   - `"response"`: the absolute response-scale impact
-#'     `predicted - baseline`;
+#'     \eqn{P - B}, where `P` is the population expected response for the focal
+#'     profile and `B` is the population expected response for the joint
+#'     reference profile;
 #'   - `"percent"`: `100 * (exp(Delta eta) - 1)`, available only for log and
 #'     logit links.
+#'
+#'   Internally, `compute_eci()` calculates both the centered link-scale
+#'   contrast \eqn{\Delta\eta} and the response-scale difference
+#'   \eqn{\Delta = P-B}. These internal quantities are intentionally **not
+#'   returned as separate `eta` and `delta` columns** because they duplicate
+#'   `ECI_weighted` on the corresponding scale: with `scale = "link"`,
+#'   `ECI_weighted = Delta eta`; with `scale = "response"`,
+#'   `ECI_weighted = P - B`. The internal quantities are still retained during
+#'   computation because they are required for scale transformations and
+#'   draw-by-draw uncertainty propagation.
 #'
 #'   For a log link, `"percent"` is the percent relative change in the expected
 #'   response. For a logit link, it is the percent change in odds, not the
@@ -121,35 +134,40 @@
 #'     \item{`var`}{Focal exposure variable.}
 #'     \item{`reference_value`}{Reference exposure value for the focal
 #'       variable.}
-#'     \item{`max_lag`}{Fitted maximum lag for that variable.}
+#'     \item{`max_lag`}{Common fitted maximum lag.}
 #'     \item{`n_exposure_values`}{Number of exposure values used; always
 #'       `max_lag + 1`.}
 #'     \item{`ECI_raw`}{Descriptive sum of the focal exposure values over the
 #'       fitted lag window.}
 #'     \item{`ECI_raw_centered`}{Descriptive sum of exposure deviations from the
 #'       focal reference value over the same lag window.}
-#'     \item{`eta`}{Centered cumulative DLNM linear-predictor contrast
-#'       \eqn{\Delta\eta}.}
 #'     \item{`baseline`}{Population-level expected response under the joint
 #'       reference exposure profile, with fitted random effects excluded.}
 #'     \item{`predicted`}{Population-level expected response when the focal
 #'       exposure follows the evaluated profile and every other fitted exposure
 #'       remains at its reference value.}
-#'     \item{`delta`}{Absolute response-scale impact
-#'       `predicted - baseline`.}
-#'     \item{`ECI_weighted`}{`eta`, `delta`, or the permitted percent
-#'       transformation depending on `scale`.}
+#'     \item{`ECI_weighted`}{The model-weighted exposure impact on the scale
+#'       requested by `scale`. It equals the internally calculated
+#'       \eqn{\Delta\eta} on the link scale, the internally calculated
+#'       \eqn{P-B} on the response scale, or the permitted exponential percent
+#'       transformation on the percent scale.}
 #'     \item{`scale`}{Requested weighted-ECI scale.}
 #'   }
 #'
-#'   With `uncertainty = TRUE` and `output = "summary"`, `eta`, `baseline`,
-#'   `predicted`, `delta`, and `ECI_weighted` are each summarized by their
-#'   median plus `_sd`, `_lower`, and `_upper` columns. `ECI_raw` and
+#'   `eta` and `delta` are not returned as separate columns. Their information is
+#'   represented by `ECI_weighted` when `scale = "link"` and
+#'   `scale = "response"`, respectively.
+#'
+#'   With `uncertainty = TRUE` and `output = "summary"`, `baseline`,
+#'   `predicted`, and `ECI_weighted` are each summarized by their median plus
+#'   `_sd`, `_lower`, and `_upper` columns. `ECI_raw` and
 #'   `ECI_raw_centered` are exposure-profile descriptors and therefore remain
 #'   deterministic.
 #'
-#'   With `uncertainty = TRUE` and `output = "samples"`, the same quantities are
-#'   returned draw by draw with a `sample` column.
+#'   With `uncertainty = TRUE` and `output = "samples"`, `baseline`,
+#'   `predicted`, and `ECI_weighted` are returned draw by draw with a `sample`
+#'   column. The internal link-scale and response-scale contrasts are calculated
+#'   for every draw but are not duplicated as output columns.
 #'
 #'   When `fit = NULL`, the result contains only `ECI_raw` and the number of
 #'   exposure values used.
@@ -183,24 +201,25 @@
 #'
 #' ## Exact exposure-history length
 #'
-#' When a fitted model is supplied, `compute_eci()` uses an explicit and strict
-#' temporal contract. For a fitted maximum lag `L`, the focal exposure history
-#' must contain exactly
+#' When a fitted model is supplied, `compute_eci()` uses the EpiExposure exact
+#' temporal-history contract. For a fitted maximum lag `L`, every evaluated
+#' focal exposure history must contain exactly
 #'
 #' \deqn{
 #'   L + 1
 #' }
 #'
 #' chronological observations: the first value represents lag `L` and the last
-#' value represents lag 0. Longer histories are not truncated with `tail()` and
-#' shorter histories are not padded. This prevents ambiguity about which
-#' exposure window generated the cumulative impact and keeps ECI calculations
-#' comparable across profiles, groups, and downstream lag decompositions.
+#' value represents lag 0. All fitted exposures share the same `max_lag`.
+#' Longer histories are not truncated with `tail()` and shorter histories are
+#' not padded. This prevents ambiguity about which exposure window generated the
+#' cumulative impact and keeps ECI calculations comparable across profiles,
+#' groups, and downstream lag decompositions.
 #'
 #' In raw-only mode (`fit = NULL`), this restriction cannot be inferred because
 #' no fitted `max_lag` is available; the supplied vector is summed as given.
 #'
-#' ## Why the weighted ECI must be centered
+#' ## Centered weighted ECI
 #'
 #' A DLNM cross-basis is a basis expansion. The uncentered quantity
 #'
@@ -214,8 +233,8 @@
 #' expected response because the model intercept and the reference contribution
 #' of the other fitted exposures are absent.
 #'
-#' EpiExposure therefore defines model-weighted cumulative impact as a contrast
-#' between the focal profile and an explicit reference profile:
+#' EpiExposure therefore defines the model-weighted cumulative impact as a
+#' contrast between the focal profile and an explicit joint reference profile:
 #'
 #' \deqn{
 #'   \Delta\eta =
@@ -223,10 +242,47 @@
 #' }
 #'
 #' Every non-focal fitted exposure is held at its own reference value throughout
-#' its lag window.
+#' its complete lag window.
 #'
 #' This centering makes `ECI_weighted` consistent with the DLNM contrast logic
 #' used by `summarise_effects()`.
+#'
+#' ## Why only `ECI_weighted` is returned
+#'
+#' Three mathematical quantities are required internally:
+#'
+#' \deqn{
+#'   \Delta\eta = \eta_{target} - \eta_{reference},
+#' }
+#'
+#' \deqn{
+#'   B = g^{-1}(\eta_{reference}), \qquad
+#'   P = g^{-1}(\eta_{target}),
+#' }
+#'
+#' and
+#'
+#' \deqn{
+#'   \Delta = P-B.
+#' }
+#'
+#' Earlier output designs could expose `eta`, `delta`, and `ECI_weighted`
+#' simultaneously. This is redundant because the selected scale already defines
+#' which model-weighted impact is being reported. The current output therefore
+#' uses one canonical column:
+#'
+#' \itemize{
+#'   \item `scale = "link"`: `ECI_weighted` is \eqn{\Delta\eta};
+#'   \item `scale = "response"`: `ECI_weighted` is \eqn{\Delta = P-B};
+#'   \item `scale = "percent"`: `ECI_weighted` is the permitted percent
+#'     transformation of \eqn{\Delta\eta}.
+#' }
+#'
+#' `baseline` and `predicted` remain in the output because they are distinct
+#' expected-response quantities that provide the response-scale context for the
+#' contrast. The intermediate `eta` and `delta` quantities continue to be
+#' computed internally, including for every uncertainty draw, but are not
+#' duplicated as public output columns.
 #'
 #' ## Response-scale ECI
 #'
@@ -248,14 +304,10 @@
 #' and
 #'
 #' \deqn{
-#'   D = P-B.
+#'   \Delta = P-B.
 #' }
 #'
-#' With `scale = "response"`, `ECI_weighted = D`.
-#'
-#' This differs fundamentally from the previous implementation, which applied
-#' the inverse link directly to the isolated focal cross-basis contribution.
-#' That operation did not represent a model prediction.
+#' With `scale = "response"`, `ECI_weighted = Delta`.
 #'
 #' ## Percent scale
 #'
@@ -297,6 +349,11 @@
 #' draw \eqn{s},
 #'
 #' \deqn{
+#'   \Delta\eta_i^{(s)} =
+#'   (X_i-X_{ref})\beta^{(s)},
+#' }
+#'
+#' \deqn{
 #'   B^{(s)} = g^{-1}(X_{ref}\beta^{(s)}),
 #' }
 #'
@@ -304,19 +361,23 @@
 #'   P_i^{(s)} = g^{-1}(X_i\beta^{(s)}),
 #' }
 #'
+#' and
+#'
 #' \deqn{
-#'   D_i^{(s)} = P_i^{(s)}-B^{(s)}.
+#'   \Delta_i^{(s)} = P_i^{(s)}-B^{(s)}.
 #' }
 #'
-#' The same draw therefore determines every ECI row, preserving covariance
-#' among variables, groups, baseline, and target predictions. Transformations
-#' are performed draw by draw before medians, SDs, and empirical quantiles are
-#' calculated.
+#' The requested `ECI_weighted` transformation is then applied **within each
+#' draw** before medians, SDs, and empirical quantiles are calculated. The same
+#' parameter draw determines the baseline and every target row, preserving
+#' covariance among variables, groups, baseline, target predictions, and the
+#' weighted ECI.
 #'
 #' Frequentist engines use the joint asymptotic fixed-effect covariance matrix.
 #' Bayesian engines use joint posterior or approximate-posterior fixed-effect
 #' draws through the centralized EpiExposure prediction helpers. The function
-#' does not independently reconstruct engine-specific uncertainty.
+#' does not independently reconstruct engine-specific uncertainty and does not
+#' add residual or posterior-predictive outcome noise.
 #'
 #' ## Method-based reference values
 #'
@@ -712,13 +773,25 @@ compute_eci <- function(
     ".epix_validate_regular_time"
   )
 
+  # `exists()` without an explicit environment is unsafe inside `vapply()`
+  # because its default search frame becomes the iterator's evaluation frame,
+  # not necessarily the EpiExposure namespace. Search explicitly from the
+  # current function evaluation environment, whose enclosing environment is the
+  # package namespace when EpiExposure is loaded normally.
+  helper_env <- environment()
+
   missing_helpers <- required_helpers[
     !vapply(
       required_helpers,
-      exists,
-      logical(1),
-      mode = "function",
-      inherits = TRUE
+      function(helper) {
+        exists(
+          helper,
+          envir = helper_env,
+          mode = "function",
+          inherits = TRUE
+        )
+      },
+      logical(1)
     )
   ]
 
@@ -2102,8 +2175,6 @@ compute_eci <- function(
     out <-
       target_metadata
 
-    out$eta <-
-      eta_contrast
     out$baseline <-
       rep(
         baseline_response,
@@ -2113,8 +2184,6 @@ compute_eci <- function(
       )
     out$predicted <-
       predicted_response
-    out$delta <-
-      delta_response
     out$ECI_weighted <-
       weighted
     out$scale <-
@@ -2363,11 +2432,6 @@ compute_eci <- function(
           n_samples
         )
 
-      current$eta <-
-        eta_contrast_draws[
-          ,
-          i
-        ]
 
       current$baseline <-
         baseline_response_draws
@@ -2378,11 +2442,6 @@ compute_eci <- function(
           i
         ]
 
-      current$delta <-
-        delta_response_draws[
-          ,
-          i
-        ]
 
       current$ECI_weighted <-
         weighted_draws[
@@ -2408,10 +2467,8 @@ compute_eci <- function(
         "ECI_raw",
         "ECI_raw_centered",
         "sample",
-        "eta",
         "baseline",
         "predicted",
-        "delta",
         "ECI_weighted",
         "scale"
       )
@@ -2476,20 +2533,10 @@ compute_eci <- function(
       ]
 
     quantities <- list(
-      eta =
-        eta_contrast_draws[
-          ,
-          i
-        ],
       baseline =
         baseline_response_draws,
       predicted =
         predicted_response_draws[
-          ,
-          i
-        ],
-      delta =
-        delta_response_draws[
           ,
           i
         ],
