@@ -880,7 +880,7 @@ period_plot
 
 ```{r}
 
-period  = define_periods(max_lag = 85, cuts = c(20,40,60,85), prefix = "Period")
+period  = define_periods(max_lag = 85, cuts = c(20,40,60), prefix = "Period")
 
 period
 ```
@@ -1078,7 +1078,8 @@ eci_lag_perc = ct3 |>
 
 eci_lag_exp = ct3 |>
   ggplot(aes(lag,exposure_minus_reference))+
-  geom_smooth(se = F, color = "orange")+
+  geom_line(color = "orange")+
+  #geom_smooth(se = F, color = "orange")+
  facet_wrap(~var, ncol = 1, scales = "free_y")+
   theme_bw()+
      labs(
@@ -1511,7 +1512,7 @@ pred_scenarios = simulate_scenarios(
   uncertainty = TRUE,
   output = "samples",
   n_samples = 20,
-  seed = 123)
+  seed = 1234)
 
 pred_scenarios |>
   #filter(rain %in% c(5,15)) |>
@@ -1537,7 +1538,16 @@ pred_scenarios |>
 
 
 
-ggsave("simulate_scenarios.png", dpi = 600, height = 6, width = 8)
+ggsave("simulate_scenarios2.png", dpi = 600, height = 6, width = 8)
+```
+```{r}
+plot_scenarios(
+  data = pred_scenarios,
+  x = "rain",
+  facet = c("wetness", "tmean"),
+  scale_factor = 100,
+  x_limits = c(0, 15)
+)
 ```
 
 ```{r}
@@ -2292,8 +2302,8 @@ scenarios_losses = simulate_scenarios(
   seed = 123)
 
 scenarios_losses$prediction = scenarios_losses$prediction*100
-scenarios_losses$lower = scenarios_losses$lower*100
-scenarios_losses$upper = scenarios_losses$upper*100
+scenarios_losses$prediction_lower = scenarios_losses$prediction_lower*100
+scenarios_losses$prediction_upper = scenarios_losses$prediction_upper*100
 ```
 
 ```{r}
@@ -2360,6 +2370,21 @@ ec_losses = losses %>%
   strip.background = element_blank(),
   strip.text = element_blank(),
   legend.position = "right")
+```
+
+```{r}
+losses_plot <- plot_losses(
+  data = losses,
+  x = "rain",
+  y = "attainable_yield",
+  facet = c("tmean", "wetness"),
+  x_breaks = seq(0, 15, by = 3),
+  y_breaks = seq(4000, 12000, by = 2000),
+  x_label = "Daily precipitation (mm)",
+  nrow = 2,
+  facet_ncol = 4)
+
+losses_plot
 ```
 
 ```{r}
