@@ -952,6 +952,7 @@ ggsave("phase_effect2.png",dpi = 600, width = 8, height = 6)
 
 ## Overall
 
+
 ```{r}
 ct = compute_eci(
   data = sim_data,
@@ -964,9 +965,10 @@ ct = compute_eci(
                   output = "summary"
 )
 
-
+```
+```{r}
 ctt = ct |> 
-  filter(var == "rain")
+  filter(var == "wetness")
 
 
 
@@ -978,74 +980,65 @@ sim_datact = sim_data |>
 
 ctt$y = sim_datact$y
 
-cor.test(ctt$ECI_weighted, ctt$y,
+cor.test(ctt$ECI_weighted, ctt$predicted,
          method = "spearman")
 
-ctt |> 
+eci_weighted = ct |> 
   ggplot()+
-  geom_jitter(aes(ECI_weighted,predicted))+
-  geom_smooth(aes(ECI_weighted,predicted),se = F)+
-  geom_smooth(aes(ECI_weighted,predicted_lower),se = F)+
-  geom_smooth(aes(ECI_weighted,predicted_upper),se = F)+
-  theme_bw()
-
-ctt2 = ctt |> 
-mutate(pressure = case_when(y > 0.24 ~ "High severity",
-                           y <= 0.24 ~"Low severity")) 
-
-ctt2 |>
-  ggplot(aes(ECI_weighted))+
-  geom_histogram(color = "white", fill = "steelblue", bins = 10)+
-  facet_wrap(~pressure)+
+  geom_jitter(aes(ECI_weighted,predicted), color = "black")+
+  geom_smooth(aes(ECI_weighted,predicted),se = F,
+              linetype = 1, color = "orange")+
+  geom_smooth(aes(ECI_weighted,predicted_lower),se = F,
+              linetype = 2, color = "orange")+
+  geom_smooth(aes(ECI_weighted,predicted_upper),se = F,
+              linetype = 2, color = "orange")+
   theme_bw()+
-  theme(strip.background = element_rect(fill = "white", colour = "black"))
+  facet_wrap(~var, nrow = 3, , scales = "free_y")+
+  labs(
+    x = "ECI",
+    y = "Predicted (%)"
+  )+
+  theme(text = element_text(size = 10, face = "bold"),
+        legend.position = "none")
+```
 
-ctt2 |> 
- # filter(pressure == "High severity") |> 
-  ggplot()+
-  geom_point(aes(ECI_weighted,y))+
-  geom_smooth(aes(ECI_weighted,y),se = F)+
-  geom_smooth(aes(lower,y),se = F)+
-  geom_smooth(aes(upper,y),se = F)+
-  facet_wrap(~pressure)
+```{r}
+eci_raw = ct |> 
+  ggplot(aes(ECI_raw))+
+  geom_histogram(fill = "black", color = "white", bins = 10)+
+  facet_wrap(~var, nrow = 3, scales = "free_y")+
+  labs(
+    x = "ECI unweighted",
+    y = "Frequency"
+  )+
+  theme(text = element_text(size = 10, face = "bold"),
+        legend.position = "none")+
+  theme_bw()
+```
 
-median(ctt$y)
 
+```{r}
+eci_raw_centered = ct |> 
+  ggplot(aes(ECI_raw_centered))+
+  geom_histogram(fill = "black", color = "white", bins = 10)+
+  facet_wrap(~var, nrow = 3, scales = "free_y")+
+  labs(
+    x = "ECI centered",
+    y = "Frequency"
+  )+
+  theme(text = element_text(size = 10, face = "bold"),
+        legend.position = "none")+
+  theme_bw()
+```
 
-ct |> 
-  ggplot(aes(ECI_weighted,predicted))+
-  geom_point()
+```{r}
+plot_grid(eci_weighted,eci_raw,eci_raw_centered, nrow = 1)
 
-is.null(attr(fit,"epiexposure_basis_objects"))
-is.null(attr(fit,"epiexposure_vars"))
-is.null(attr(fit,"epiexposure_spec"))
-
-lappy(attr(fit, "epiexposure_spec"), function(x){
-  list(
-    max_lag = x$max_lag,
-    range = x$range,
-    argvar = x$argvar,
-    arlag = x$arglag
-  )
-})
-
-attr(fit, "epiexposure_vars")
-attr(fit, "epiexposure_spec") |> names()
-attr(fit, "epiexposure_basis_objects")
+ggsave("eci.png",dpi = 600, width = 10, height = 6)
 ```
 
 ## Lag
 
-```{r}
-attr(fit, "epiexposure_vars")
-names(attr(fit, "epiexposure_spec"))
-attr(fit, "epiexposure_max_lag")
-attr(fit, "epiexposure_cb_cols")
-identical(
-  attr(fit, "epiexposure_vars"),
-  names(attr(fit, "epiexposure_spec"))
-)
-```
 
 ```{r}
 ct2  = compute_ecilag(
@@ -1053,7 +1046,7 @@ ct2  = compute_ecilag(
   group = "epi_id",
   time = "time",
   fit = fit,
-  group_level = 2,
+  group_level = c(1,2),
   var = c("wetness","tmean","rain"),
     uncertainty = TRUE,
   n_samples = 10,
@@ -1062,46 +1055,72 @@ ct2  = compute_ecilag(
   ref = list(method = "median", value = NULL)
   )
 
-attr(fit,"epiexposure_data_template")
-
-str(fit$epiexposure_vars)
-names(fit$basis_objects)
-names(fit$crossbasis)
-
-class(fit)
-names(fit)
-fit$epiexposure_vars
-names(fit)
 
 ct3 = ct2$by_lag
 
+ct4 = ct2$by_lag_samples
+
+  
+eci_lag_perc = ct3 |>
+  #filter(var == "wetness") |> 
+  ggplot(aes(lag,percent_contribution))+
+  #geom_point(aes(lag,percent_contribution))+
+  geom_smooth(se = F, color = "orange")+
+  geom_smooth(data = ct4, aes(lag,percent_contribution, group = sample), color = "black", se = F)+
+ facet_wrap(~var, ncol = 1, scales = "free_y")+
+  theme_bw()+
+     labs(
+    x = "lag",
+    y = "Contribution (%)"
+  )+
+  theme(text = element_text(size = 10, face = "bold"),
+        legend.position = "none")
+
+eci_lag_exp = ct3 |>
+  ggplot(aes(lag,exposure_minus_reference))+
+  geom_smooth(se = F, color = "orange")+
+ facet_wrap(~var, ncol = 1, scales = "free_y")+
+  theme_bw()+
+     labs(
+    x = "lag",
+    y = "Exposure difference"
+  )+
+  theme(text = element_text(size = 10, face = "bold"),
+        legend.position = "none")
+
+plot_grid(eci_lag_perc,eci_lag_exp)
+
+ggsave("eci_by.png",dpi = 600, width = 10, height = 6)
+
 ct3 |> 
-  filter(var == "wetness") |> 
+  filter(var == "tmean") |> 
   ggplot()+
   #geom_point(aes(lag,percent_contribution))+
-  geom_smooth(aes(lag,percent_contribution), se = F)+
+  geom_smooth(aes(lag,percent_contribution, group = sample), se = F, color = "black")+
+  geom_smooth(aes(median(lag),median(percent_contribution), color = "orange"), se = F)
   geom_smooth(aes(lag,percent_contribution_lower), se = F, linetype = 2)+
   geom_smooth(aes(lag,percent_contribution_upper), se = F, linetype = 2)+
   theme_bw()
   
+
+```
+
+```{r}
 ct_tmean = ct3 %>% 
-  filter(var == "rain")
+  filter(var == "tmean")
 
-datt = sim_data |> 
-  filter(epi_id == 1)
+#datt = sim_data |> 
+  #filter(epi_id == 1)
 
-ct_tmean$sev = datt$y
-
-
-ct_tmean %>% 
-  #filter(lag == 85) %>% 
-  ggplot(aes(ECI_weighted))+
-  geom_histogram(bins = 20, color = "white")
+#ct_tmean$sev = datt$y
 
 
 
 
-cor.test(ct_tmean$exposure, ct_tmean$percent_contribution,
+cor.test(ct_tmean$exposure_minus_reference,ct_tmean$percent_contribution,
+         method = "spearman")
+
+cor.test(ct_tmean$lag, ct_tmean$percent_contribution,
          method = "spearman")
 
 
@@ -1792,12 +1811,12 @@ best_models <- find_bestfit(
     "wetness"
   ),
   max_lag = 85,
-  df_var_grid = c(2,3,4),
-  df_lag_grid = c(2,3,4),
+  df_var_grid = 4,
+  df_lag_grid = 4,
   min_vars = 1,
-  #var_sets = list(
-  #  c("tmean")
-  #),
+  var_sets = list(
+    c("tmean", "rain","wetness")
+  ),
   fun_var = "ns",
   fun_lag = "ns",
   model_engine = "glmmTMB",
@@ -1805,8 +1824,11 @@ best_models <- find_bestfit(
   random_effect = NULL,
   min_success = 2,
   verbose = TRUE,
-  keep_fits = TRUE
+  keep_fits = TRUE,
+  cv_method = "k-fold", k = 5
 )
+
+attr(best_models, "predictions_by_model")
 
 ```
 
@@ -1875,6 +1897,30 @@ best_pred |>
 
 
 ```
+```{r}
+plot_performance(
+  object = best_models,
+  model_id = c(
+    63, 42, 56, 35, 49, 28, 40, 61,
+    19, 47, 33, 54, 26, 12, 5
+  ),
+  metrics = c("CCC", "Cb", "rho"),
+  x = "observed",
+  y = "predicted",
+  scale_factor = 100,
+  ncol = 5,
+  x_lab = "Observed (%)",
+  y_lab = "Predicted (%)",
+  size = 2.5
+) +
+  ggplot2::theme(
+    text = ggplot2::element_text(
+      size = 10,
+      face = "bold"
+    )
+  )
+```
+
 
 ```{r}
 ggsave("find_bestfit.png", dpi = 600, height = 6, width = 8)
