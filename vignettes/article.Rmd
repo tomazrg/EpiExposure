@@ -1548,6 +1548,7 @@ plot_scenarios(
   scale_factor = 100,
   x_limits = c(0, 15)
 )
+
 ```
 
 ```{r}

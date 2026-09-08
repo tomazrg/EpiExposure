@@ -23,10 +23,10 @@ plot_scenarios(
   ribbon_alpha = 0.25,
   show_ribbon = TRUE,
   smooth = TRUE,
-  smooth_method = "loess",
+  smooth_method = NULL,
   smooth_formula = NULL,
   smooth_se = FALSE,
-  line_width = 0.8,
+  line_width = NULL,
   line_alpha = 1,
   x_breaks = NULL,
   y_breaks = NULL,
@@ -34,7 +34,7 @@ plot_scenarios(
   y_limits = NULL,
   x_expand = ggplot2::expansion(mult = c(0.01, 0.01)),
   y_expand = ggplot2::waiver(),
-  x_label = NULL,
+  x_label = "Exposure",
   y_label = "Predicted",
   title = NULL,
   subtitle = NULL,
@@ -54,175 +54,116 @@ plot_scenarios(
 \arguments{
 \item{data}{A non-empty data frame returned by `simulate_scenarios()`.}
 
-\item{x}{Character scalar naming the scenario or exposure variable displayed
-on the horizontal axis, such as `"rain"`.}
+\item{x}{Character scalar naming the scenario variable on the x-axis.}
 
 \item{y}{Character scalar naming the prediction column. Default is
 `"prediction"`.}
 
-\item{facet}{Optional character vector naming variables used to define facet
-panels, such as `c("wetness", "tmean")`. If `NULL`, no faceting is used.}
+\item{facet}{Optional character vector naming the variables used by
+`ggplot2::facet_wrap()`, for example `c("wetness", "tmean")`.}
 
-\item{sample}{Character scalar naming the sample identifier used when
-`data` contains draw-specific predictions. Default is `"sample"`.}
+\item{sample}{Character scalar naming the sample identifier. Default is
+`"sample"`.}
 
-\item{lower, upper}{Character scalars naming the lower and upper uncertainty
-interval columns used for summary output. Defaults are `"lower"` and
-`"upper"`.}
+\item{lower, upper}{Character scalars naming lower and upper uncertainty limits
+for summary output.}
 
-\item{mode}{Character. `"auto"`, `"samples"`, or `"summary"`. With
-`"auto"`, sample mode is selected when the `sample` column is present;
-otherwise summary mode is used.}
+\item{mode}{Character. `"auto"`, `"samples"`, or `"summary"`. In automatic
+mode, sample mode is used when the sample column is present.}
 
-\item{scale_factor}{Finite numeric scalar multiplying `y`, `lower`, and
-`upper`. Use `100` to display proportional predictions as percentages.}
+\item{scale_factor}{Finite numeric multiplier applied to predictions and
+interval limits. Use `100` to display proportions as percentages.}
 
 \item{facet_ncol, facet_nrow}{Optional positive integers controlling the facet
 arrangement.}
 
-\item{color_scale}{Optional continuous ggplot2 color scale used in sample
-mode. When `NULL`, `ggplot2::scale_color_viridis_c()` is used. Any
-compatible continuous color scale may be supplied, including a customized
-`scale_color_viridis_c()`, `scale_color_gradient()`,
-`scale_color_gradientn()`, or `scale_color_distiller()`.}
+\item{color_scale}{Optional ggplot2 color scale for sample-level trajectories.
+The default is `ggplot2::scale_color_viridis_c()`.}
 
-\item{color_label}{Legend title used by the default color scale. Default is
-`"Sample"`.}
+\item{color_label}{Legend title used by the default color scale.}
 
-\item{line_color}{Color used for the central prediction line in summary mode.}
+\item{line_color}{Color of the central line in summary mode.}
 
-\item{ribbon_fill}{Fill color used for the uncertainty ribbon in summary
-mode.}
+\item{ribbon_fill, ribbon_alpha}{Fill and transparency of the summary
+uncertainty ribbon.}
 
-\item{ribbon_alpha}{Alpha transparency used for the uncertainty ribbon.}
+\item{show_ribbon}{Logical. Display the uncertainty ribbon when summary
+interval columns are available.}
 
-\item{show_ribbon}{Logical. Display an uncertainty ribbon in summary mode
-when the `lower` and `upper` columns exist.}
+\item{smooth}{Logical. Use `ggplot2::geom_smooth()` when `TRUE` and
+`ggplot2::geom_line()` when `FALSE`.}
 
-\item{smooth}{Logical. If `TRUE`, sample trajectories and summary predictions
-are drawn with `ggplot2::geom_smooth()`. If `FALSE`, they are drawn with
-`ggplot2::geom_line()`.}
+\item{smooth_method}{Optional smoothing method passed to `geom_smooth()`.
+When `NULL`, ggplot2 selects its default method, exactly as in a direct
+`geom_smooth()` call.}
 
-\item{smooth_method}{Smoothing method passed to `ggplot2::geom_smooth()`.
-Default is `"loess"`, matching ggplot2 behavior for smaller datasets.}
+\item{smooth_formula}{Optional formula passed to `geom_smooth()`.}
 
-\item{smooth_formula}{Optional smoothing formula. If `NULL`, ggplot2 uses the
-default formula for the selected method.}
+\item{smooth_se}{Logical. Display the smoothing standard-error band. Default
+is `FALSE`.}
 
-\item{smooth_se}{Logical. Display the uncertainty band calculated by
-`geom_smooth()`. The default is `FALSE` because scenario uncertainty is
-represented by draws or by the supplied interval columns.}
+\item{line_width}{Optional positive line width. When `NULL`, the ggplot2
+default is used.}
 
-\item{line_width}{Numeric line width used for trajectories.}
-
-\item{line_alpha}{Numeric alpha transparency used for trajectories.}
+\item{line_alpha}{Line transparency between 0 and 1.}
 
 \item{x_breaks, y_breaks}{Optional numeric axis breaks.}
 
-\item{x_limits, y_limits}{Optional numeric vectors of length two defining axis
-limits. Scale limits remove observations outside the specified range.}
+\item{x_limits, y_limits}{Optional numeric vectors of length two.}
 
-\item{x_expand, y_expand}{Expansion passed to the continuous axes. The default
-x expansion reproduces the narrow margins used in the original plot.}
+\item{x_expand, y_expand}{Axis expansion specifications.}
 
-\item{x_label, y_label}{Axis labels. If `x_label = NULL`, a title-case label is
-generated from `x`. Default `y_label` is `"Predicted"`.}
+\item{x_label, y_label}{Axis titles. Defaults are `"Exposure"` and
+`"Predicted"`, matching the original EpiExposure scenario plot.}
 
 \item{title, subtitle, caption}{Optional plot annotations.}
 
-\item{theme}{A ggplot2 theme. When `NULL`,
-`ggplot2::theme_bw(base_size = base_size)` is used.}
+\item{theme}{Optional ggplot2 theme. When `NULL`, `ggplot2::theme_bw()` is
+used without replacing its default panel grid.}
 
-\item{base_size}{Base font size used by the default theme.}
+\item{base_size}{Base text size. Default is 10.}
 
-\item{text_face}{Font face used for common plot text.}
+\item{text_face}{Common text face. Default is `"bold"`.}
 
-\item{axis_title_size}{Axis-title size.}
+\item{axis_title_size}{Axis-title size. Default is 12.}
 
 \item{strip_background}{Facet-strip background element.}
 
-\item{legend_position}{Legend position. Default is `"none"`, matching the
-original sample-trajectory plot.}
+\item{legend_position}{Legend position. Default is `"none"`.}
 
 \item{line_args}{Optional named list of additional arguments passed to the
-line or smooth layer.}
+trajectory layer.}
 
-\item{ribbon_args}{Optional named list of additional arguments passed to
-`ggplot2::geom_ribbon()` in summary mode.}
+\item{ribbon_args}{Optional named list of arguments passed to
+`ggplot2::geom_ribbon()`.}
 
-\item{add}{Optional ggplot2 component or list of components added after the
-default plot is assembled.}
+\item{add}{Optional ggplot2 component or list of components added last.}
 
-\item{...}{Additional named arguments passed to the trajectory layer. Entries
-in `line_args` take precedence over entries supplied through `...`.}
+\item{...}{Additional named arguments passed to the trajectory layer.}
 }
 \value{
 A `ggplot` object.
 }
 \description{
-Creates scenario-response plots from the output of `simulate_scenarios()`.
-The function supports sample-level predictions returned by
-`output = "samples"` and summarized predictions returned by
-`output = "summary"`.
+Plots predictions generated by `simulate_scenarios()` across a scenario
+variable. The default sample-level plot reproduces the EpiExposure scenario
+visualization based on `geom_smooth()`, `scale_color_viridis_c()`,
+`theme_bw()`, bold text, white facet strips, and no legend.
 }
 \details{
-For sample-level output, one smoothed line is drawn for each coefficient or
-posterior sample and colors are mapped to `sample`. The default color scale
-is `ggplot2::scale_color_viridis_c()`. For summary output, the central
-prediction is displayed as a line and, when available, `lower` and `upper`
-are displayed as an uncertainty ribbon.
-
-
-`plot_scenarios()` does not calculate predictions. Predictions must first be
-produced by `simulate_scenarios()`.
-
-In sample mode, `sample` is converted to numeric for the default continuous
-viridis scale. Every sample is retained as an independent trajectory through
-`group = sample`. If a custom discrete color scale is desired, set
-`color_scale` to that scale and use `add` to replace or extend the default
-mapping as needed.
-
-In summary mode, the function looks for the columns specified by `lower` and
-`upper`. When both are present and `show_ribbon = TRUE`, the interval is
-plotted as a ribbon. If either column is absent, only the central prediction
-is plotted.
+In sample mode, the grouping aesthetic is exactly the sample identifier,
+matching `aes(group = sample, color = sample)`. Faceting does not alter the
+grouping variable. Facet variables are combined using a formula equivalent to
+`facet_wrap(~ wetness + tmean)`.
 }
 \examples{
 \dontrun{
 plot_scenarios(
   data = pred_scenarios,
   x = "rain",
-  y = "prediction",
   facet = c("wetness", "tmean"),
   scale_factor = 100,
-  x_limits = c(0, 15),
-  x_label = "Exposure",
-  y_label = "Predicted",
-  legend_position = "none"
-)
-
-plot_scenarios(
-  pred_scenarios,
-  x = "rain",
-  facet = c("wetness", "tmean"),
-  color_scale = ggplot2::scale_color_viridis_c(
-    option = "magma",
-    name = "Posterior sample"
-  ),
-  facet_ncol = 2,
-  line_width = 0.7,
-  line_alpha = 0.8
-)
-
-plot_scenarios(
-  data = pred_summary,
-  x = "rain",
-  mode = "summary",
-  facet = c("wetness", "tmean"),
-  scale_factor = 100,
-  line_color = "navy",
-  ribbon_fill = "skyblue",
-  ribbon_alpha = 0.25
+  x_limits = c(0, 15)
 )
 }
 
