@@ -1488,8 +1488,9 @@ ggsave("simu_plot2.png", dpi = 600, height = 6, width = 12)
 
 # Scenarios simulation
 
-```{r}
+## Varying
 
+```{r}
 range <- simulate_ranges(
   periods = period,
   vary = list(
@@ -1503,8 +1504,9 @@ range <- simulate_ranges(
   scenario_var = "rain"
 )
 
+```
 
-
+```{r}
 pred_scenarios = simulate_scenarios(
   fit = fit,
   scenarios = range,
@@ -1514,32 +1516,9 @@ pred_scenarios = simulate_scenarios(
   n_samples = 20,
   seed = 1234)
 
-pred_scenarios |>
-  #filter(rain %in% c(5,15)) |>
-  #filter(wetness %in% c(5,15)) |>
-  ggplot()+
-  geom_smooth(aes(rain,prediction*100, group = sample, color = sample),se = F)+
-  scale_color_viridis_c()+
-  #geom_smooth(aes(rain,lower*100),se = F, color = "black", linetype = 2)+
-  #geom_smooth(aes(rain,upper*100),se = F, color = "black", linetype = 2)+
-  #facet_wrap(~as.factor(wetness)+as.factor(rain))
-  theme_bw()+
-  labs(x = "Exposure",
-       y = "Predicted")+
-  theme(text = element_text(size = 10, face = "bold"))+
-  facet_wrap(~wetness+tmean)+
-  theme(
-  axis.title = element_text(size = 12, face = "bold"),
-  strip.background = element_rect(fill = "white", colour = "black"),
-  legend.position = "none")+
-  scale_x_continuous(
-  limits = c(0, 15),
-  expand = expansion(mult = c(0.01, 0.01)))
-
-
-
-ggsave("simulate_scenarios2.png", dpi = 600, height = 6, width = 8)
+pred_scenarios
 ```
+
 ```{r}
 plot_scenarios(
   data = pred_scenarios,
@@ -1549,15 +1528,48 @@ plot_scenarios(
   x_limits = c(0, 15)
 )
 
+
+ggsave("simulate_scenarios2.png", dpi = 600, height = 6, width = 8)
+```
+## Fixed
+```{r}
+range2 <- simulate_ranges(
+  periods = period,
+  vary = list(rain = c(1,3,5,15,20)),
+  fixed = list(
+    tmean = 34,
+    wetness = 10
+  ),
+  scenario_type = "paired"
+)
+
+```
+```{r}
+pred_scenarios2 = simulate_scenarios(
+  fit = fit,
+  scenarios = range2,
+  data = sim_data,
+  uncertainty = TRUE,
+  output = "samples",
+  n_samples = 20,
+  seed = 1234)
+
+pred_scenarios2
+
 ```
 
 ```{r}
-pred_scenarios |> 
-  ggplot(aes(rain,tmean, fill = prediction*100))+
-  geom_tile()+
-  scale_fill_viridis_b()+
-  facet_wrap(~as.factor(wetness))
+plot_scenarios(
+  data = pred_scenarios2,
+  x = "rain",
+  scenario_type = "paired",
+  scale_factor = 100,
+  pointrange_color = "black",
+  point_size = 0.5,
+  pointrange_linewidth = 0.8
+)
 ```
+
 
 # Comparative analysis
 
@@ -2310,6 +2322,8 @@ scenarios_losses$prediction_upper = scenarios_losses$prediction_upper*100
 ```{r}
 losses = simulate_losses(
              data = scenarios_losses,
+             lower = "prediction_lower",
+             upper = "prediction_upper",
              y = "prediction",
              slope = 49.3,
              intercept = 9691.0,
@@ -2318,59 +2332,6 @@ losses = simulate_losses(
 )
 
 losses
-```
-
-```{r}
-yld_losses = losses %>%
-  ggplot(aes(rain, attainable_yield, fill = yield_loss)) +
-  geom_raster() +
-  scale_x_continuous(breaks = seq(0, 15, by = 3),
-                     expand = c(0.02,0.02)) +
-  scale_y_continuous(breaks = seq(4000, 12000, by = 2000),
-                     expand = c(0.02,0.02)) +
- scale_fill_viridis_b()+
-  facet_wrap(~tmean+wetness, ncol = 4)+
-  theme_bw() +
-  labs(
-    y = "Attainable yield (kg/ha)",
-    x = "",
-   # fill = "(kg/ha)"
-    fill = expression(bold("(" * bold(kg~ha^{-1} * ")")))
-  )+
-  theme(text = element_text(size = 10, face = "bold"))+
-  theme(
-  axis.title = element_text(size = 12, face = "bold"),
-  strip.background = element_rect(fill = "white", colour = "black"),
-  legend.position = "right",
-  axis.text.x = element_blank())
-
-#ggsave("simulate_losses.png", dpi = 600, height = 6, width = 8)
-
-```
-
-```{r}
-ec_losses = losses %>%
-  ggplot(aes(rain, attainable_yield, fill = economic_loss)) +
-  geom_raster() +
-  scale_x_continuous(breaks = seq(0, 15, by = 3),
-                     expand = c(0.02,0.02)) +
-  scale_y_continuous(breaks = seq(4000, 12000, by = 2000),
-                     expand = c(0.02,0.02)) +
- scale_fill_viridis_b()+
-  facet_wrap(~tmean+wetness, ncol =4)+
-  theme_bw() +
-  labs(
-    y = "Attainable yield (kg/ha)",
-    x = "Daily precipitation (mm)",
-    #fill = "(USD/ha)"
-    fill = expression(bold("(" * bold(USD~ha^{-1} * ")")))
-  )+
-  theme(text = element_text(size = 10, face = "bold"))+
-  theme(
-  axis.title = element_text(size = 12, face = "bold"),
-  strip.background = element_blank(),
-  strip.text = element_blank(),
-  legend.position = "right")
 ```
 
 ```{r}
@@ -2386,29 +2347,25 @@ losses_plot <- plot_losses(
   facet_ncol = 4)
 
 losses_plot
+
+
+ggsave("simulation_yld_ec_losses.png", dpi = 600, bg = "white", height = 6, width = 10)
 ```
 
 ```{r}
-library(patchwork)
-
-losses_plot <- yld_losses + ec_losses +
-  plot_layout(nrow = 2) +
-  plot_annotation(
-    tag_levels = "a",
-    tag_prefix = "(",
-    tag_suffix = ")"
-  ) &
-  theme(
-    plot.tag = element_text(
-      size = 12,
-      face = "bold"
-    ),
-    plot.tag.position = c(0.01, 1.02)
-  )
-
-losses_plot
-
-ggsave("simulation_yld_ec_losses.png", dpi = 600, bg = "white", height = 6, width = 10)
+losses |> 
+filter(attainable_yield == 6000) |> 
+  ggplot()+
+  geom_smooth(aes(rain,attainable_predicted_yield), se = F,
+              color = "black")+
+  geom_smooth(aes(rain,
+              attainable_predicted_yield_lower), se = F,
+              color = "black", linetype = 2)+
+  geom_smooth(aes(rain,
+                  attainable_predicted_yield_upper), se = F,
+              color = "black", linetype = 2)+
+  facet_wrap(~tmean+wetness, ncol = 4)+
+  theme_bw()
 ```
 
 ```{r}

@@ -7,12 +7,14 @@
 plot_scenarios(
   data,
   x,
+  scenario_type = c("grid", "paired"),
+  output = c("auto", "samples", "summary"),
+  mode = NULL,
   y = "prediction",
   facet = NULL,
   sample = "sample",
-  lower = "lower",
-  upper = "upper",
-  mode = c("auto", "samples", "summary"),
+  lower = NULL,
+  upper = NULL,
   scale_factor = 1,
   facet_ncol = NULL,
   facet_nrow = NULL,
@@ -28,11 +30,23 @@ plot_scenarios(
   smooth_se = FALSE,
   line_width = NULL,
   line_alpha = 1,
-  x_breaks = NULL,
-  y_breaks = NULL,
+  paired_samples_geom = c("boxplot", "jitter"),
+  boxplot_color = "black",
+  boxplot_fill = "white",
+  boxplot_width = NULL,
+  jitter_color = "black",
+  jitter_width = 0.12,
+  jitter_alpha = 0.65,
+  jitter_size = NULL,
+  pointrange_color = "black",
+  point_size = NULL,
+  pointrange_linewidth = NULL,
+  paired_x_discrete = TRUE,
+  x_breaks = ggplot2::waiver(),
+  y_breaks = ggplot2::waiver(),
   x_limits = NULL,
   y_limits = NULL,
-  x_expand = ggplot2::expansion(mult = c(0.01, 0.01)),
+  x_expand = NULL,
   y_expand = ggplot2::waiver(),
   x_label = "Exposure",
   y_label = "Predicted",
@@ -47,6 +61,10 @@ plot_scenarios(
   legend_position = "none",
   line_args = list(),
   ribbon_args = list(),
+  boxplot_args = list(),
+  jitter_args = list(),
+  pointrange_args = list(),
+  point_args = list(),
   add = NULL,
   ...
 )
@@ -54,72 +72,144 @@ plot_scenarios(
 \arguments{
 \item{data}{A non-empty data frame returned by `simulate_scenarios()`.}
 
-\item{x}{Character scalar naming the scenario variable on the x-axis.}
+\item{x}{Character scalar naming the scenario variable shown on the x-axis.}
+
+\item{scenario_type}{Character. Scenario design used to generate the
+scenarios in `simulate_ranges()`. Must be `"grid"` or `"paired"`.
+Default is `"grid"`.}
+
+\item{output}{Character. Prediction output represented by `data`:
+  `"auto"`, `"samples"`, or `"summary"`.
+
+  With `"auto"` (default), the function identifies `"samples"` when the
+  column named by `sample` is present; otherwise it uses `"summary"`.
+  This mirrors the two output structures returned by
+  `simulate_scenarios()`.}
+
+\item{mode}{Deprecated compatibility alias for `output`. It is retained so
+calls written for earlier versions of `plot_scenarios()` do not break.
+New code should use `output`. Do not supply both `output` and `mode`.}
 
 \item{y}{Character scalar naming the prediction column. Default is
 `"prediction"`.}
 
-\item{facet}{Optional character vector naming the variables used by
+\item{facet}{Optional character vector naming variables used by
 `ggplot2::facet_wrap()`, for example `c("wetness", "tmean")`.}
 
-\item{sample}{Character scalar naming the sample identifier. Default is
-`"sample"`.}
+\item{sample}{Character scalar naming the sample identifier in
+`output = "samples"`. Default is `"sample"`.}
 
-\item{lower, upper}{Character scalars naming lower and upper uncertainty limits
-for summary output.}
+\item{lower, upper}{Optional character scalars naming the lower and upper
+  uncertainty-limit columns in `output = "summary"`.
 
-\item{mode}{Character. `"auto"`, `"samples"`, or `"summary"`. In automatic
-mode, sample mode is used when the sample column is present.}
+  When left as `NULL`, `plot_scenarios()` looks first for
+  `"prediction_lower"` and `"prediction_upper"`, respectively, and then for
+  `"lower"` and `"upper"`.
 
-\item{scale_factor}{Finite numeric multiplier applied to predictions and
-interval limits. Use `100` to display proportions as percentages.}
+  These arguments are not used for `output = "samples"` because sample-level
+  output contains individual prediction draws rather than pre-computed
+  lower/upper limits.}
+
+\item{scale_factor}{Finite numeric multiplier applied to predictions and,
+when present, lower and upper limits. Use `100` to display proportions as
+percentages.}
 
 \item{facet_ncol, facet_nrow}{Optional positive integers controlling the facet
 arrangement.}
 
-\item{color_scale}{Optional ggplot2 color scale for sample-level trajectories.
-The default is `ggplot2::scale_color_viridis_c()`.}
+\item{color_scale}{Optional ggplot2 color scale used for sample-specific grid
+trajectories. When `NULL`, `ggplot2::scale_color_viridis_c()` is used.}
 
-\item{color_label}{Legend title used by the default color scale.}
+\item{color_label}{Legend title used by the default grid color scale.}
 
-\item{line_color}{Color of the central line in summary mode.}
+\item{line_color}{Color of the central trajectory for grid-summary plots.}
 
-\item{ribbon_fill, ribbon_alpha}{Fill and transparency of the summary
-uncertainty ribbon.}
+\item{ribbon_fill, ribbon_alpha}{Fill and transparency of the uncertainty
+ribbon for grid-summary plots.}
 
-\item{show_ribbon}{Logical. Display the uncertainty ribbon when summary
-interval columns are available.}
+\item{show_ribbon}{Logical. If `TRUE`, a grid-summary plot shows the
+uncertainty ribbon when lower and upper columns are available.}
 
-\item{smooth}{Logical. Use `ggplot2::geom_smooth()` when `TRUE` and
-`ggplot2::geom_line()` when `FALSE`.}
+\item{smooth}{Logical. For grid plots, use `ggplot2::geom_smooth()` when
+`TRUE` (default) or `ggplot2::geom_line()` when `FALSE`.}
 
-\item{smooth_method}{Optional smoothing method passed to `geom_smooth()`.
-When `NULL`, ggplot2 selects its default method, exactly as in a direct
-`geom_smooth()` call.}
+\item{smooth_method}{Optional smoothing method passed to
+`ggplot2::geom_smooth()`. When `NULL`, ggplot2 chooses its default method.}
 
-\item{smooth_formula}{Optional formula passed to `geom_smooth()`.}
+\item{smooth_formula}{Optional formula passed to `ggplot2::geom_smooth()`.}
 
-\item{smooth_se}{Logical. Display the smoothing standard-error band. Default
-is `FALSE`.}
+\item{smooth_se}{Logical. Display the smoothing standard-error band produced
+by `geom_smooth()`. Default is `FALSE`. This is distinct from the
+prediction uncertainty represented by `lower` and `upper`.}
 
-\item{line_width}{Optional positive line width. When `NULL`, the ggplot2
-default is used.}
+\item{line_width}{Optional positive line width for grid trajectories.
+When `NULL`, ggplot2 uses its default.}
 
-\item{line_alpha}{Line transparency between 0 and 1.}
+\item{line_alpha}{Transparency of grid trajectories, between 0 and 1.}
 
-\item{x_breaks, y_breaks}{Optional numeric axis breaks.}
+\item{paired_samples_geom}{Character. Geometry used when
+`scenario_type = "paired"` and `output = "samples"`.
+`"boxplot"` (default) displays the distribution of the sample predictions
+for each paired scenario; `"jitter"` displays the individual sample
+predictions.}
 
-\item{x_limits, y_limits}{Optional numeric vectors of length two.}
+\item{boxplot_color, boxplot_fill}{Color and fill used by the default paired
+sample boxplot.}
 
-\item{x_expand, y_expand}{Axis expansion specifications.}
+\item{boxplot_width}{Optional positive box width for paired sample boxplots.
+When `NULL`, ggplot2 uses its default.}
+
+\item{jitter_color}{Color used for paired sample jittered points.}
+
+\item{jitter_width}{Horizontal jitter width for paired sample points.}
+
+\item{jitter_alpha}{Transparency of paired sample jittered points.}
+
+\item{jitter_size}{Optional positive size of paired sample jittered points.
+When `NULL`, ggplot2 uses its default.}
+
+\item{pointrange_color}{Color used by `ggplot2::geom_pointrange()` for paired
+summary plots.}
+
+\item{point_size}{Optional positive point size for paired-summary plots.
+When `NULL`, ggplot2 uses its default.}
+
+\item{pointrange_linewidth}{Optional positive line width for the uncertainty
+interval in paired-summary plots. When `NULL`, ggplot2 uses its default.}
+
+\item{paired_x_discrete}{Logical. For paired scenarios, treat the x variable
+as discrete when `TRUE` (default), matching a manual mapping such as
+`aes(as.factor(rain), ...)`. If `FALSE`, `x` must be numeric and a
+continuous x-axis is used.}
+
+\item{x_breaks, y_breaks}{Axis breaks. Defaults to `ggplot2::waiver()`, which
+lets ggplot2 choose breaks automatically and preserves axis tick labels and
+the `theme_bw()` panel grid. Use `NULL` only to intentionally remove the
+corresponding breaks and grid lines.}
+
+\item{x_limits, y_limits}{Optional axis limits.
+
+  For grid plots and paired plots with `paired_x_discrete = FALSE`,
+  `x_limits` must be a finite numeric vector of length two.
+
+  For paired plots with `paired_x_discrete = TRUE`, `x_limits` can instead be
+  a vector of observed x levels used to subset and/or order the displayed
+  categories.}
+
+\item{x_expand, y_expand}{Axis expansion specifications.
+
+  When `x_expand = NULL`, continuous x-axes use
+  `ggplot2::expansion(mult = c(0.01, 0.01))`, matching the original
+  EpiExposure scenario figure, while discrete paired x-axes retain ggplot2's
+  default discrete expansion.}
 
 \item{x_label, y_label}{Axis titles. Defaults are `"Exposure"` and
-`"Predicted"`, matching the original EpiExposure scenario plot.}
+`"Predicted"`.}
 
 \item{title, subtitle, caption}{Optional plot annotations.}
 
-\item{theme}{Optional ggplot2 theme. When `NULL`, `ggplot2::theme_bw()` is
-used without replacing its default panel grid.}
+\item{theme}{Optional ggplot2 theme added after the default `theme_bw()` and
+EpiExposure text settings, allowing users to override them.}
 
 \item{base_size}{Base text size. Default is 10.}
 
@@ -132,38 +222,161 @@ used without replacing its default panel grid.}
 \item{legend_position}{Legend position. Default is `"none"`.}
 
 \item{line_args}{Optional named list of additional arguments passed to the
-trajectory layer.}
+active grid trajectory layer (`geom_smooth()` or `geom_line()`).}
 
-\item{ribbon_args}{Optional named list of arguments passed to
-`ggplot2::geom_ribbon()`.}
+\item{ribbon_args}{Optional named list of additional arguments passed to
+`ggplot2::geom_ribbon()` in grid-summary mode.}
+
+\item{boxplot_args}{Optional named list of additional arguments passed to
+`ggplot2::geom_boxplot()` in paired-samples mode.}
+
+\item{jitter_args}{Optional named list of additional arguments passed to
+`ggplot2::geom_jitter()` when `paired_samples_geom = "jitter"`.}
+
+\item{pointrange_args}{Optional named list of additional arguments passed to
+`ggplot2::geom_pointrange()` in paired-summary mode.}
+
+\item{point_args}{Optional named list of additional arguments passed to
+`ggplot2::geom_point()` when summary predictions do not contain lower/upper
+uncertainty limits.}
 
 \item{add}{Optional ggplot2 component or list of components added last.}
 
-\item{...}{Additional named arguments passed to the trajectory layer.}
+\item{...}{Additional named arguments passed to the principal geometry used
+for the selected combination of `scenario_type` and `output`.}
 }
 \value{
 A `ggplot` object.
 }
 \description{
-Plots predictions generated by `simulate_scenarios()` across a scenario
-variable. The default sample-level plot reproduces the EpiExposure scenario
-visualization based on `geom_smooth()`, `scale_color_viridis_c()`,
-`theme_bw()`, bold text, white facet strips, and no legend.
+Plot predictions generated by `simulate_scenarios()` while respecting both
+the scenario design created by `simulate_ranges()` (`"grid"` or `"paired"`)
+and the prediction output returned by `simulate_scenarios()` (`"samples"` or
+`"summary"`).
 }
 \details{
-In sample mode, the grouping aesthetic is exactly the sample identifier,
-matching `aes(group = sample, color = sample)`. Faceting does not alter the
-grouping variable. Facet variables are combined using a formula equivalent to
-`facet_wrap(~ wetness + tmean)`.
+The default plotting behavior is:
+
+* `scenario_type = "grid"` + `output = "samples"`:
+  sample-specific trajectories using `geom_smooth()` (or `geom_line()`).
+* `scenario_type = "grid"` + `output = "summary"`:
+  one central trajectory, optionally with a lower/upper uncertainty ribbon.
+* `scenario_type = "paired"` + `output = "samples"`:
+  the distribution of sample predictions at each paired scenario using
+  `geom_boxplot()` by default.
+* `scenario_type = "paired"` + `output = "summary"`:
+  point estimates and lower/upper uncertainty intervals using
+  `geom_pointrange()`.
+
+
+`scenario_type` and `output` describe different aspects of the data and
+should not be conflated:
+
+* `scenario_type` describes how exposure scenarios were constructed by
+  `simulate_ranges()`.
+* `output` describes how predictions were returned by
+  `simulate_scenarios()`.
+
+Consequently, all four combinations are valid.
+
+For sample-level output, `lower` and `upper` are intentionally ignored. The
+uncertainty is represented by the multiple sample predictions themselves.
+
+For summary output, lower and upper limits are used when available:
+
+* grid + summary: the limits define the uncertainty ribbon;
+* paired + summary: the limits define the vertical point-range.
+
+If summary output does not contain lower/upper limits, the function still
+plots the central prediction: a grid trajectory for grid scenarios or
+points for paired scenarios.
+
+For paired sample output, `geom_boxplot()` is the default because several
+prediction samples correspond to the same paired scenario value. The user
+can instead request the individual sample predictions with
+`paired_samples_geom = "jitter"`.
 }
 \examples{
 \dontrun{
+# -----------------------------------------------------------------------
+# 1. GRID + SAMPLES
+# -----------------------------------------------------------------------
+pred_grid_samples <- simulate_scenarios(
+  fit = fit,
+  scenarios = range_grid,
+  data = sim_data,
+  uncertainty = TRUE,
+  output = "samples",
+  n_samples = 20,
+  seed = 1234
+)
+
 plot_scenarios(
-  data = pred_scenarios,
+  data = pred_grid_samples,
   x = "rain",
+  scenario_type = "grid",
+  output = "samples",
   facet = c("wetness", "tmean"),
   scale_factor = 100,
   x_limits = c(0, 15)
+)
+
+# Because output = "auto" is the default, the same plot can be requested as:
+plot_scenarios(
+  data = pred_grid_samples,
+  x = "rain",
+  scenario_type = "grid",
+  facet = c("wetness", "tmean"),
+  scale_factor = 100,
+  x_limits = c(0, 15)
+)
+
+# -----------------------------------------------------------------------
+# 2. GRID + SUMMARY
+# -----------------------------------------------------------------------
+plot_scenarios(
+  data = pred_grid_summary,
+  x = "rain",
+  scenario_type = "grid",
+  output = "summary",
+  facet = c("wetness", "tmean"),
+  scale_factor = 100
+)
+
+# -----------------------------------------------------------------------
+# 3. PAIRED + SAMPLES
+# -----------------------------------------------------------------------
+plot_scenarios(
+  data = pred_paired_samples,
+  x = "rain",
+  scenario_type = "paired",
+  output = "samples",
+  scale_factor = 100,
+  x_label = "Daily precipitation (mm)",
+  y_label = "Predicted (\%)"
+)
+
+# Show the individual sample predictions instead of boxplots:
+plot_scenarios(
+  data = pred_paired_samples,
+  x = "rain",
+  scenario_type = "paired",
+  output = "samples",
+  paired_samples_geom = "jitter",
+  scale_factor = 100
+)
+
+# -----------------------------------------------------------------------
+# 4. PAIRED + SUMMARY
+# -----------------------------------------------------------------------
+plot_scenarios(
+  data = pred_paired_summary,
+  x = "rain",
+  scenario_type = "paired",
+  output = "summary",
+  scale_factor = 100,
+  x_label = "Daily precipitation (mm)",
+  y_label = "Predicted (\%)"
 )
 }
 
