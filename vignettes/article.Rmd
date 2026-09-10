@@ -85,13 +85,12 @@ tmean_plot
 plot_grid(tmean_plot,rain_plot,wetness_plot, ncol = 1)
 
 
-ggsave("exposure_lag.png", dpi = 600, bg = "white", height = 6, width = 8)
+ggsave("figure/exposure_lag.png", dpi = 600, bg = "white", height = 6, width = 8)
 ```
 
 # Model fitting
 
 ```{r}
-
 
 cb <- define_exposures(
   data = sim_data,
@@ -101,14 +100,24 @@ cb <- define_exposures(
   df_lag = 2
 )
 
+```
+
+```{r}
 dat <- build_design(
   data = sim_data,
   cb_templates = cb,
   max_lag = 85
 )
 
+```
+
+```{r}
+
 dat <- prepare_response(data = dat, response = "y", family = "beta")
 
+```
+
+```{r}
 fit <- fit_epidlnm(
   data = dat,
   model_engine = "glmmTMB",
@@ -118,12 +127,12 @@ fit <- fit_epidlnm(
 )
 
 summary(fit)
-
 ```
 
 # Structure checking
 
 ```{r}
+
 check_identifiability(data = sim_data,
                       var = c("tmean","rain","wetness"),
                       df_var = 3, df_lag = 2, max_lag = 85)
@@ -203,7 +212,7 @@ lag_plot <- plot_effects(
 
 lag_plot
 
-ggsave("lag_effect.png",dpi = 600, width = 10, height = 8)
+ggsave("figure/lag_effect.png",dpi = 600, width = 10, height = 8)
 
 ```
 
@@ -246,7 +255,7 @@ period_plot <- plot_effects(
 
 period_plot
 
-ggsave("phase_effect.png",dpi = 600, width = 8, height = 6)
+ggsave("figure/phase_effect.png",dpi = 600, width = 8, height = 6)
 
 ```
 
@@ -269,6 +278,7 @@ ct = compute_eci(
 )
 
 ct
+
 ```
 
 
@@ -354,6 +364,21 @@ ct2  = compute_ecilag(
   extrapolation = "warn",
   ref = list(method = "median", value = NULL)
   )
+
+
+ct33  = compute_ecilag(
+  data = sim_data,
+  group = "epi_id",
+  time = "time",
+  fit = fit,
+  group_level = c(1,2),
+  var = c("wetness","tmean","rain"),
+    uncertainty = TRUE,
+  n_samples = 10,
+  output = "summary",
+  extrapolation = "warn",
+  ref = list(method = "median", value = NULL)
+  )
 ```
 
 ```{r}
@@ -402,18 +427,33 @@ eci_lag_exp
 
 
 ```
+```{r}
+eci_plot <- plot_eci(
+  eci_overal = ct,
+  eci_lag = ct2,
+  facet_scales = "free_y",
+  overall_nrow = 3,
+  lag_ncol = 1,
+  sample_smooth = TRUE,
+  linewidth = 0.7,
+  alpha = 0.20,
+  panel_labels = c("(a)", "(b)", "(c)")
+)
+
+eci_plot
+```
 
 ```{r}
 plot_grid(eci_lag_perc,eci_lag_exp)
 
-ggsave("eci_by.png",dpi = 600, width = 10, height = 6)
+ggsave("figure/eci_by.png",dpi = 600, width = 10, height = 6)
 ```
 
 ```{r}
 
 plot_grid(eci_weighted,eci_lag_perc,eci_lag_exp, nrow = 1)
 
-ggsave("eci.png",dpi = 600, width = 8, height = 6)
+ggsave("figure/eci.png",dpi = 600, width = 8, height = 6)
 ```
 
 ```{r}
@@ -826,7 +866,7 @@ mean(pred_02$prediction)
 plot_grid(plot_tmean_simu_01,plot_rain_simu_01,plot_wetness_simu_01,sev_01,
           plot_tmean_simu_02,plot_rain_simu_02,plot_wetness_simu_02,sev_02,nrow =2)
 
-ggsave("simu_plot2.png", dpi = 600, height = 6, width = 12)
+ggsave("figure/simu_plot2.png", dpi = 600, height = 6, width = 12)
 ```
 
 
@@ -873,7 +913,7 @@ plot_scenarios(
 )
 
 
-ggsave("simulate_scenarios2.png", dpi = 600, height = 6, width = 8)
+ggsave("figure/simulate_scenarios2.png", dpi = 600, height = 6, width = 8)
 ```
 
 ## Fixed
@@ -1044,7 +1084,7 @@ exp_wetness_ratio
 plot_grid(exp_tmean+exp_rain+exp_wetness+exp_tmean_ratio+exp_rain_ratio+exp_wetness_ratio,nrow = 1)
 
 
-ggsave("compare_exposures.png", dpi = 600, height = 6, width = 12)
+ggsave("figure/compare_exposures.png", dpi = 600, height = 6, width = 12)
 ```
 
 ## Predictions
@@ -1165,7 +1205,7 @@ ggplot(compare_pred,
   theme(text = element_text(size = 10, face = "bold"),
         legend.position = "none")
 
-ggsave("compare_predictions.png", dpi = 600, height = 4, width = 6)
+ggsave("figure/compare_predictions.png", dpi = 600, height = 4, width = 6)
 ```
 
 # Prediction
@@ -1310,7 +1350,7 @@ plot_performance(
 
 
 ```{r}
-ggsave("find_bestfit.png", dpi = 600, height = 6, width = 8)
+ggsave("figure/find_bestfit.png", dpi = 600, height = 6, width = 8)
 ```
 
 ```{r}
@@ -1372,7 +1412,7 @@ best_plot <- best_models_plot %>%
   )
 
 
-ggsave("bestmodels.png", dpi = 600, bg = "white", height = 6, width = 10)
+ggsave("figure/bestmodels.png", dpi = 600, bg = "white", height = 6, width = 10)
 ```
 
 ## Ensemble
@@ -1529,7 +1569,7 @@ pos_CCC <- ensemble_plot %>%
   theme(text = element_text(size = 10,face = "bold"),legend.position = "none")
 
 
- ggsave("ensemble.png", dpi = 600, bg = "white", height = 6, width = 10)
+ ggsave("figure/ensemble.png", dpi = 600, bg = "white", height = 6, width = 10)
 ```
 
 ```{r}
@@ -1553,7 +1593,7 @@ final_plot <- ensemble_gg + best_plot +
 final_plot
 
 #ggsave("best_ensemble.png", dpi = 600, bg = "white", height = 8, width = 12)
-ggsave("best_ensemble.png", dpi = 600, bg = "white", height = 6, width = 10)
+ggsave("figure/best_ensemble.png", dpi = 600, bg = "white", height = 6, width = 10)
 ```
 
 # Sensitivity
@@ -1713,7 +1753,7 @@ losses_plot <- plot_losses(
 losses_plot
 
 
-ggsave("simulation_yld_ec_losses.png", dpi = 600, bg = "white", height = 6, width = 10)
+ggsave("figure/simulation_yld_ec_losses.png", dpi = 600, bg = "white", height = 6, width = 10)
 ```
 
 ```{r}
