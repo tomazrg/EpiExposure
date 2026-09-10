@@ -117,14 +117,6 @@ tmean_plot = epi_data%>%
 tmean_plot
 ```
 
-```{r}
-
-plot_grid(tmean_plot,rain_plot,wetness_plot, ncol = 1)
-
-
-ggsave("exposure_lag.png", dpi = 600, bg = "white", height = 6, width = 8)
-```
-
 Visual inspection often helps identify:
 
 • Temporal trends; • Exposure variability; • Unusual exposure histories; • Missing observations
@@ -222,7 +214,7 @@ Define epidemiological periods:
 ```{r}
 periods <- define_periods(
   max_lag = 85,
-  cuts = c(20,40,60,85)
+  cuts = c(20,40,60)
 )
 ```
 

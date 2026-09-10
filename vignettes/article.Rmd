@@ -19,6 +19,63 @@ library(dplyr)
 library(EpiExposure)
 ```
 
+```{r}
+data("epi_data")
+
+head(epi_data)
+```
+
+```{r}
+wetness_plot = epi_data%>% 
+  ggplot(aes(time,wetness, group = epi_id))+
+  geom_smooth(se = F, color = "#55A868",linewidth = 0.3)+
+  theme_bw()+
+  labs(x = "Days after planting the rice",
+       y = "Leaf wetness (%)")+
+  scale_x_continuous(limits = c(0,85), expand = c(0,0),
+                     breaks = pretty(sim_data$time, n = 8))+
+  theme(text = element_text(size = 10))
+
+wetness_plot
+```
+
+```{r}
+rain_plot = epi_data%>% 
+  ggplot(aes(time,rain, group = epi_id))+
+  geom_smooth(se = F, color = "#4C72B0",linewidth = 0.3)+
+  theme_bw()+
+  labs(x = "",
+       y = "Daily precipitation (mm)")+
+  scale_x_continuous(limits = c(0,85), expand = c(0,0),
+                     breaks = pretty(sim_data$time, n = 8))+
+  theme(axis.text.x = element_blank(),
+        text = element_text(size = 10))
+
+rain_plot
+```
+
+```{r}
+tmean_plot = epi_data%>% 
+  ggplot(aes(time,tmean, group = epi_id))+
+  geom_smooth(se = F, color = "#C44E52",linewidth = 0.3)+
+  theme_bw()+
+  labs(x = "",
+       y = "Mean temperature (°C)")+
+  scale_x_continuous(limits = c(0,85), expand = c(0,0),
+                     breaks = pretty(sim_data$time, n = 8))+
+  theme(axis.text.x = element_blank(),
+        text = element_text(size = 10))
+
+tmean_plot
+```
+
+```{r}
+
+plot_grid(tmean_plot,rain_plot,wetness_plot, ncol = 1)
+
+
+ggsave("exposure_lag.png", dpi = 600, bg = "white", height = 6, width = 8)
+```
 
 ```{r}
 cb2 <- define_exposures(
