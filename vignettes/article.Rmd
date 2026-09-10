@@ -363,7 +363,6 @@ ct4 = ct2$by_lag_samples
 
   
 eci_lag_perc = ct4 |>
-  #filter(var == "wetness") |> 
   ggplot(aes(lag,percent_contribution))+
   #geom_point(aes(lag,percent_contribution))+
   #geom_smooth(se = F, color = "orange")+
