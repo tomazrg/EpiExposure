@@ -94,9 +94,9 @@
 #'
 #' @param absolute Logical. If `TRUE`, add the absolute lag contribution and,
 #'   when uncertainty is requested, its uncertainty summary. The signed
-#'   `contribution` column is always retained.
+#'   `ECI_weighted` column is always retained.
 #'
-#'   `percent_contribution` is always based on the absolute magnitude of each
+#'   `ECI_percent` is always based on the absolute magnitude of each
 #'   lag contribution:
 #'
 #'   \deqn{
@@ -533,12 +533,12 @@ compute_ecilag <- function(
       exposure = chronology,
       reference_value = ref_values[[v]],
       exposure_minus_reference = chronology - ref_values[[v]],
-      contribution = cp,
-      percent_contribution = pct,
+      ECI_weighted = cp,
+      ECI_percent = pct,
       stringsAsFactors = FALSE
     )
     if (absolute) {
-      base$abs_contribution <- abs(cp)
+      base$ECI_absolute <- abs(cp)
     }
     sample_table <- weighted_table <- NULL
     summary <- data.frame(var=v,reference_value=ref_values[[v]],max_lag=max_lag,n_exposure_values=history_length,
@@ -559,18 +559,18 @@ compute_ecilag <- function(
         function(j) summarize_defined(PD[, j]),
         numeric(5)
       ))
-      base$contribution<-cs[,1]; base$contribution_sd<-cs[,2]; base$contribution_lower<-cs[,3]; base$contribution_upper<-cs[,4]
-      base$percent_contribution<-ps[,1]; base$percent_contribution_sd<-ps[,2]; base$percent_contribution_lower<-ps[,3]; base$percent_contribution_upper<-ps[,4]; base$percent_contribution_n_defined<-as.integer(ps[,5])
+      base$ECI_weighted<-cs[,1]; base$ECI_weighted_sd<-cs[,2]; base$ECI_weighted_lower<-cs[,3]; base$ECI_weighted_upper<-cs[,4]
+      base$ECI_percent<-ps[,1]; base$ECI_percent_sd<-ps[,2]; base$ECI_percent_lower<-ps[,3]; base$ECI_percent_upper<-ps[,4]; base$ECI_percent_n<-as.integer(ps[,5])
       if (absolute) {
         acs <- t(vapply(
           seq_len(history_length),
           function(j) summarize_finite(abs(CD[, j])),
           numeric(4)
         ))
-        base$abs_contribution <- acs[, 1]
-        base$abs_contribution_sd <- acs[, 2]
-        base$abs_contribution_lower <- acs[, 3]
-        base$abs_contribution_upper <- acs[, 4]
+        base$ECI_absolute <- acs[, 1]
+        base$ECI_absolute_sd <- acs[, 2]
+        base$ECI_absolute_lower <- acs[, 3]
+        base$ECI_absolute_upper <- acs[, 4]
       }
       ws <- summarize_finite(WD)
       summary$ECI_weighted<-ws[1]; summary$ECI_weighted_sd<-ws[2]; summary$ECI_weighted_lower<-ws[3]; summary$ECI_weighted_upper<-ws[4]
@@ -583,12 +583,12 @@ compute_ecilag <- function(
             exposure = chronology,
             reference_value = ref_values[[v]],
             exposure_minus_reference = chronology - ref_values[[v]],
-            contribution = CD[s, ],
-            percent_contribution = PD[s, ],
+            ECI_weighted = CD[s, ],
+            ECI_percent = PD[s, ],
             stringsAsFactors = FALSE
           )
           if (absolute) {
-            z$abs_contribution <- abs(z$contribution)
+            z$ECI_absolute <- abs(z$ECI_weighted)
           }
           z
         }))

@@ -99,9 +99,9 @@ exact-history metadata contracts.}
 
 \item{absolute}{Logical. If `TRUE`, add the absolute lag contribution and,
   when uncertainty is requested, its uncertainty summary. The signed
-  `contribution` column is always retained.
+  `ECI_weighted` column is always retained.
 
-  `percent_contribution` is always based on the absolute magnitude of each
+  `ECI_percent` is always based on the absolute magnitude of each
   lag contribution:
 
   \deqn{

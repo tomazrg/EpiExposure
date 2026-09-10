@@ -5,8 +5,10 @@
 \title{Plot ECI and lag-specific contribution results}
 \usage{
 plot_eci(
-  eci_overal = NULL,
+  eci_overall = NULL,
   eci_lag = NULL,
+  overall_col = c("ECI_weighted", "ECI_raw", "ECI_raw_centered"),
+  lag_col = c("ECI_weighted", "ECI_percent", "ECI_absolute"),
   facet_scales = c("free_y", "fixed", "free", "free_x"),
   overall_nrow = 3L,
   lag_ncol = 1L,
@@ -16,9 +18,9 @@ plot_eci(
   linewidth = 0.7,
   alpha = 0.2,
   overall_x_label = "ECI",
-  overall_y_label = "Predicted (\%)",
-  lag_x_label = "lag",
-  lag_y_label = "Contribution (\%)",
+  overall_y_label = "Predicted",
+  lag_x_label = "Lag",
+  lag_y_label = "ECI",
   exposure_y_label = "Exposure difference",
   exposure_colors = c("#4C72B0", "#C44E52", "#55A868"),
   base_size = 10,
@@ -28,11 +30,19 @@ plot_eci(
 )
 }
 \arguments{
-\item{eci_overal}{Optional data frame returned by `compute_eci()`.}
+\item{eci_overall}{Optional data frame returned by `compute_eci()`.}
 
 \item{eci_lag}{Optional object returned by `compute_ecilag()`. A list with
 `by_lag_samples` and/or `by_lag` is handled internally. A lag-level data
 frame is also accepted.}
+
+\item{overall_col}{Character scalar selecting the `compute_eci()` column
+used on the x-axis. One of `"ECI_weighted"`, `"ECI_raw"`, or
+`"ECI_raw_centered"`. Default is `"ECI_weighted"`.}
+
+\item{lag_col}{Character scalar selecting the lag-specific ECI column from
+`compute_ecilag()` used on the y-axis. One of `"ECI_weighted"`,
+`"ECI_percent"`, or `"ECI_absolute"`. Default is `"ECI_weighted"`.}
 
 \item{facet_scales}{Character scalar controlling facet scales. One of
 `"fixed"`, `"free"`, `"free_x"`, or `"free_y"`. Default is `"free_y"`.}
@@ -45,7 +55,9 @@ Default is `1`.}
 
 \item{sample_smooth}{Logical scalar. If `TRUE`, draw-level curves are shown
 with `geom_smooth(se = FALSE)`, reproducing the historical manual plot.
-If `FALSE`, draw-level curves are connected with `geom_line()`.}
+If `FALSE`, draw-level curves are connected with `geom_line()`. Summary
+outputs are always displayed with a smoothed central curve and, when
+available, dashed smoothed lower and upper interval curves.}
 
 \item{smooth_method}{Optional smoothing method passed to `geom_smooth()`.
 The default `NULL` lets ggplot2 select its standard method.}
@@ -55,8 +67,9 @@ The default `NULL` lets ggplot2 select its standard method.}
 
 \item{linewidth}{Positive finite line width. Default is `0.7`.}
 
-\item{alpha}{Finite number in `[0, 1]` controlling uncertainty-ribbon alpha.
-Default is `0.20`.}
+\item{alpha}{Finite number in `[0, 1]` retained for backward
+compatibility with earlier ribbon-based summary plots. Summary uncertainty
+is now represented by dashed smoothed interval curves. Default is `0.20`.}
 
 \item{overall_x_label, overall_y_label, lag_x_label, lag_y_label, }{exposure_y_label Axis labels.}
 

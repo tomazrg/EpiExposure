@@ -10,10 +10,16 @@
 #' corresponding estimate and interval columns. For `compute_ecilag()` objects,
 #' `by_lag_samples` and `by_lag` are extracted internally.
 #'
-#' @param eci_overal Optional data frame returned by `compute_eci()`.
+#' @param eci_overall Optional data frame returned by `compute_eci()`.
 #' @param eci_lag Optional object returned by `compute_ecilag()`. A list with
 #'   `by_lag_samples` and/or `by_lag` is handled internally. A lag-level data
 #'   frame is also accepted.
+#' @param overall_col Character scalar selecting the `compute_eci()` column
+#'   used on the x-axis. One of `"ECI_weighted"`, `"ECI_raw"`, or
+#'   `"ECI_raw_centered"`. Default is `"ECI_weighted"`.
+#' @param lag_col Character scalar selecting the lag-specific ECI column from
+#'   `compute_ecilag()` used on the y-axis. One of `"ECI_weighted"`,
+#'   `"ECI_percent"`, or `"ECI_absolute"`. Default is `"ECI_weighted"`.
 #' @param facet_scales Character scalar controlling facet scales. One of
 #'   `"fixed"`, `"free"`, `"free_x"`, or `"free_y"`. Default is `"free_y"`.
 #' @param overall_nrow Positive integer number of facet rows for the overall ECI
@@ -22,14 +28,17 @@
 #'   Default is `1`.
 #' @param sample_smooth Logical scalar. If `TRUE`, draw-level curves are shown
 #'   with `geom_smooth(se = FALSE)`, reproducing the historical manual plot.
-#'   If `FALSE`, draw-level curves are connected with `geom_line()`.
+#'   If `FALSE`, draw-level curves are connected with `geom_line()`. Summary
+#'   outputs are always displayed with a smoothed central curve and, when
+#'   available, dashed smoothed lower and upper interval curves.
 #' @param smooth_method Optional smoothing method passed to `geom_smooth()`.
 #'   The default `NULL` lets ggplot2 select its standard method.
 #' @param smooth_formula Optional formula passed to `geom_smooth()`. Default is
 #'   `NULL`.
 #' @param linewidth Positive finite line width. Default is `0.7`.
-#' @param alpha Finite number in `[0, 1]` controlling uncertainty-ribbon alpha.
-#'   Default is `0.20`.
+#' @param alpha Finite number in `[0, 1]` retained for backward
+#'   compatibility with earlier ribbon-based summary plots. Summary uncertainty
+#'   is now represented by dashed smoothed interval curves. Default is `0.20`.
 #' @param overall_x_label,overall_y_label,lag_x_label,lag_y_label,
 #'   exposure_y_label Axis labels.
 #' @param exposure_colors Character vector of colors used for exposure-
@@ -53,8 +62,10 @@
 #' @importFrom rlang .data
 #' @export
 plot_eci <- function(
-    eci_overal = NULL,
+    eci_overall = NULL,
     eci_lag = NULL,
+    overall_col = c("ECI_weighted", "ECI_raw", "ECI_raw_centered"),
+    lag_col = c("ECI_weighted", "ECI_percent", "ECI_absolute"),
     facet_scales = c("free_y", "fixed", "free", "free_x"),
     overall_nrow = 3L,
     lag_ncol = 1L,
@@ -64,9 +75,9 @@ plot_eci <- function(
     linewidth = 0.7,
     alpha = 0.20,
     overall_x_label = "ECI",
-    overall_y_label = "Predicted (%)",
-    lag_x_label = "lag",
-    lag_y_label = "Contribution (%)",
+    overall_y_label = "Predicted",
+    lag_x_label = "Lag",
+    lag_y_label = "ECI",
     exposure_y_label = "Exposure difference",
     exposure_colors = c("#4C72B0", "#C44E52", "#55A868"),
     base_size = 10,
@@ -127,8 +138,73 @@ plot_eci <- function(
     }
   }
 
-  if (is.null(eci_overal) && is.null(eci_lag)) {
-    stopf("Supply at least one of `eci_overal` or `eci_lag`.")
+  add_summary_smooth <- function(
+    plot,
+    data,
+    x_col,
+    y_col,
+    lower_col = NULL,
+    upper_col = NULL
+  ) {
+    central_args <- list(
+      mapping = ggplot2::aes(
+        x = .data[[x_col]],
+        y = .data[[y_col]]
+      ),
+      data = data,
+      se = FALSE,
+      linetype = 1,
+      linewidth = linewidth,
+      colour = "black"
+    )
+    if (!is.null(smooth_method)) central_args$method <- smooth_method
+    if (!is.null(smooth_formula)) central_args$formula <- smooth_formula
+
+    plot <- plot + do.call(ggplot2::geom_smooth, central_args)
+
+    if (!is.null(lower_col) && !is.null(upper_col)) {
+      lower_args <- list(
+        mapping = ggplot2::aes(
+          x = .data[[x_col]],
+          y = .data[[lower_col]]
+        ),
+        data = data,
+        se = FALSE,
+        linetype = 2,
+        linewidth = linewidth * 0.7,
+        colour = "black"
+      )
+      upper_args <- list(
+        mapping = ggplot2::aes(
+          x = .data[[x_col]],
+          y = .data[[upper_col]]
+        ),
+        data = data,
+        se = FALSE,
+        linetype = 2,
+        linewidth = linewidth * 0.7,
+        colour = "black"
+      )
+
+      if (!is.null(smooth_method)) {
+        lower_args$method <- smooth_method
+        upper_args$method <- smooth_method
+      }
+      if (!is.null(smooth_formula)) {
+        lower_args$formula <- smooth_formula
+        upper_args$formula <- smooth_formula
+      }
+
+      plot <- plot +
+        do.call(ggplot2::geom_smooth, lower_args) +
+        do.call(ggplot2::geom_smooth, upper_args)
+    }
+
+    plot
+  }
+
+  if (is.null(eci_overall) && is.null(eci_lag)) {
+    stopf("Supply at least one of `eci_overall` or `eci_lag`.")
   }
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stopf("Package 'ggplot2' is required by `plot_eci()`.")
@@ -137,6 +213,8 @@ plot_eci <- function(
     stopf("Package 'cowplot' is required by `plot_eci()`.")
   }
 
+  overall_col <- match.arg(overall_col)
+  lag_col <- match.arg(lag_col)
   facet_scales <- match.arg(facet_scales)
   if (!positive_integer(overall_nrow)) stopf("`overall_nrow` must be a positive integer.")
   if (!positive_integer(lag_ncol)) stopf("`lag_ncol` must be a positive integer.")
@@ -171,9 +249,13 @@ plot_eci <- function(
   lag_exposure_plot <- NULL
   lag_panel <- NULL
 
-  if (!is.null(eci_overal)) {
-    overall_data <- validate_frame(eci_overal, "eci_overal")
-    require_columns(overall_data, c("var", "ECI_weighted", "predicted"), "eci_overal")
+  if (!is.null(eci_overall)) {
+    overall_data <- validate_frame(eci_overall, "eci_overall")
+    require_columns(
+      overall_data,
+      c("var", overall_col, "predicted"),
+      "eci_overall"
+    )
     overall_is_samples <- "sample" %in% names(overall_data)
 
     overall_plot <- ggplot2::ggplot(overall_data)
@@ -182,7 +264,7 @@ plot_eci <- function(
       overall_plot <- add_sample_curves(
         overall_plot,
         ggplot2::aes(
-          x = .data$ECI_weighted,
+          x = .data[[overall_col]],
           y = .data$predicted,
           group = .data$sample,
           color = .data$sample
@@ -191,44 +273,23 @@ plot_eci <- function(
       )
       overall_plot <- add_sample_scale(overall_plot, overall_data)
     } else {
-      eci_lower <- first_existing(overall_data, c("ECI_weighted_lower", "ECI_lower"))
-      eci_upper <- first_existing(overall_data, c("ECI_weighted_upper", "ECI_upper"))
-      pred_lower <- first_existing(overall_data, c("predicted_lower", "prediction_lower"))
-      pred_upper <- first_existing(overall_data, c("predicted_upper", "prediction_upper"))
-
-      if (!is.null(pred_lower) && !is.null(pred_upper)) {
-        overall_plot <- overall_plot + ggplot2::geom_ribbon(
-          ggplot2::aes(
-            x = .data$ECI_weighted,
-            ymin = .data[[pred_lower]],
-            ymax = .data[[pred_upper]],
-            group = .data$var
-          ),
-          alpha = alpha,
-          fill = "grey60",
-          colour = NA
-        )
-      }
-
-      overall_plot <- overall_plot + ggplot2::geom_line(
-        ggplot2::aes(x = .data$ECI_weighted, y = .data$predicted, group = .data$var),
-        linewidth = linewidth,
-        colour = "black"
+      pred_lower <- first_existing(
+        overall_data,
+        c("predicted_lower", "prediction_lower")
+      )
+      pred_upper <- first_existing(
+        overall_data,
+        c("predicted_upper", "prediction_upper")
       )
 
-      if (!is.null(eci_lower) && !is.null(eci_upper)) {
-        overall_plot <- overall_plot + ggplot2::geom_errorbarh(
-          ggplot2::aes(
-            y = .data$predicted,
-            xmin = .data[[eci_lower]],
-            xmax = .data[[eci_upper]]
-          ),
-          height = 0,
-          alpha = max(alpha, 0.35),
-          linewidth = linewidth * 0.6,
-          colour = "grey35"
-        )
-      }
+      overall_plot <- add_summary_smooth(
+        plot = overall_plot,
+        data = overall_data,
+        x_col = overall_col,
+        y_col = "predicted",
+        lower_col = pred_lower,
+        upper_col = pred_upper
+      )
     }
 
     overall_plot <- overall_plot +
@@ -249,70 +310,70 @@ plot_eci <- function(
     } else if (is.list(eci_lag)) {
       lag_samples <- eci_lag$by_lag_samples
       lag_summary <- eci_lag$by_lag
-      if (!is.null(lag_samples)) lag_samples <- validate_frame(lag_samples, "eci_lag$by_lag_samples")
-      if (!is.null(lag_summary)) lag_summary <- validate_frame(lag_summary, "eci_lag$by_lag")
+      if (!is.null(lag_samples)) {
+        lag_samples <- validate_frame(
+          lag_samples,
+          "eci_lag$by_lag_samples"
+        )
+      }
+      if (!is.null(lag_summary)) {
+        lag_summary <- validate_frame(
+          lag_summary,
+          "eci_lag$by_lag"
+        )
+      }
     } else {
-      stopf("`eci_lag` must be a compute_ecilag result or a non-empty data.frame.")
+      stopf(
+        "`eci_lag` must be a compute_ecilag result or a non-empty data.frame."
+      )
     }
 
-    contribution_data <- if (!is.null(lag_samples)) lag_samples else lag_summary
-    if (is.null(contribution_data)) {
+    lag_data <- if (!is.null(lag_samples)) lag_samples else lag_summary
+    if (is.null(lag_data)) {
       stopf("`eci_lag` does not contain `by_lag_samples` or `by_lag` data.")
     }
-    require_columns(contribution_data, c("var", "lag"), "lag contribution data")
 
-    contribution_is_samples <- "sample" %in% names(contribution_data)
-    contribution_col <- if (contribution_is_samples) {
-      first_existing(contribution_data, c("percent_contribution", "contribution"))
-    } else {
-      first_existing(contribution_data, c("contribution", "percent_contribution"))
-    }
-    if (is.null(contribution_col)) {
-      stopf("Lag contribution data must contain `percent_contribution` or `contribution`.")
-    }
+    require_columns(
+      lag_data,
+      c("var", "lag", lag_col),
+      "lag ECI data"
+    )
 
-    lag_contribution_plot <- ggplot2::ggplot(contribution_data)
+    lag_is_samples <- "sample" %in% names(lag_data)
+    lag_contribution_plot <- ggplot2::ggplot(lag_data)
 
-    if (contribution_is_samples) {
+    if (lag_is_samples) {
       lag_contribution_plot <- add_sample_curves(
         lag_contribution_plot,
         ggplot2::aes(
           x = .data$lag,
-          y = .data[[contribution_col]],
+          y = .data[[lag_col]],
           group = .data$sample,
           color = .data$sample
         ),
-        contribution_data
+        lag_data
       )
-      lag_contribution_plot <- add_sample_scale(lag_contribution_plot, contribution_data)
+      lag_contribution_plot <- add_sample_scale(
+        lag_contribution_plot,
+        lag_data
+      )
     } else {
-      contribution_lower <- first_existing(
-        contribution_data,
-        c("contribution_lower", "contributon_lower", "percent_contribution_lower")
-      )
-      contribution_upper <- first_existing(
-        contribution_data,
-        c("contribution_upper", "percent_contribution_upper")
-      )
+      lag_lower <- paste0(lag_col, "_lower")
+      lag_upper <- paste0(lag_col, "_upper")
 
-      if (!is.null(contribution_lower) && !is.null(contribution_upper)) {
-        lag_contribution_plot <- lag_contribution_plot + ggplot2::geom_ribbon(
-          ggplot2::aes(
-            x = .data$lag,
-            ymin = .data[[contribution_lower]],
-            ymax = .data[[contribution_upper]],
-            group = .data$var
-          ),
-          alpha = alpha,
-          fill = "grey60",
-          colour = NA
-        )
+      if (!lag_lower %in% names(lag_data) ||
+          !lag_upper %in% names(lag_data)) {
+        lag_lower <- NULL
+        lag_upper <- NULL
       }
 
-      lag_contribution_plot <- lag_contribution_plot + ggplot2::geom_line(
-        ggplot2::aes(x = .data$lag, y = .data[[contribution_col]], group = .data$var),
-        linewidth = linewidth,
-        colour = "black"
+      lag_contribution_plot <- add_summary_smooth(
+        plot = lag_contribution_plot,
+        data = lag_data,
+        x_col = "lag",
+        y_col = lag_col,
+        lower_col = lag_lower,
+        upper_col = lag_upper
       )
     }
 

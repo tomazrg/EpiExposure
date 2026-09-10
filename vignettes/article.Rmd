@@ -264,7 +264,6 @@ ggsave("figure/phase_effect.png",dpi = 600, width = 8, height = 6)
 
 ## Overall
 
-
 ```{r}
 ct = compute_eci(
   data = sim_data,
@@ -282,73 +281,7 @@ ct
 ```
 
 
-
-```{r}
-
-eci_weighted = ct |> 
-  ggplot()+
-  #geom_jitter(aes(ECI_weighted,predicted), color = "black")+
-  geom_smooth(aes(ECI_weighted,predicted, group = sample, color = sample),se = F,
-              linetype = 1)+
-  #geom_smooth(aes(ECI_weighted,predicted_lower),se = F,
-   #           linetype = 2, color = "orange", linewidth = 0.5)+
-  #geom_smooth(aes(ECI_weighted,predicted_upper),se = F,
-   #           linetype = 2, color = "orange", linewidth = 0.5)+
-  theme_bw()+
-  facet_wrap(~var, nrow = 3, , scales = "free_y")+
-  scale_color_viridis_c() +
-  labs(
-    x = "ECI",
-    y = "Predicted (%)"
-  )+
-  theme(text = element_text(size = 10, face = "bold"),
-        legend.position = "none",
-        strip.background = element_rect(fill = "white", colour = "black"))
-
-eci_weighted
-```
-
-```{r}
-eci_raw = ct |> 
-  ggplot(aes(ECI_raw))+
-  geom_histogram(fill = "black", color = "white", bins = 10)+
-  facet_wrap(~var, nrow = 3, scales = "free_y")+
-  labs(
-    x = "ECI unweighted",
-    y = "Frequency"
-  )+
-  theme(text = element_text(size = 10, face = "bold"),
-        legend.position = "none")+
-  theme_bw()
-
-eci_raw
-```
-
-
-```{r}
-eci_raw_centered = ct |> 
-  ggplot(aes(ECI_raw_centered))+
-  geom_histogram(fill = "black", color = "white", bins = 10)+
-  facet_wrap(~var, nrow = 3, scales = "free_y")+
-  labs(
-    x = "ECI centered",
-    y = "Frequency"
-  )+
-  theme(text = element_text(size = 10, face = "bold"),
-        legend.position = "none")+
-  theme_bw()
-
-eci_raw_centered
-```
-
-```{r}
-plot_grid(eci_weighted,eci_raw,eci_raw_centered, nrow = 1)
-
-#ggsave("eci.png",dpi = 600, width = 10, height = 6)
-```
-
 ## Lag
-
 
 ```{r}
 ct2  = compute_ecilag(
@@ -358,78 +291,33 @@ ct2  = compute_ecilag(
   fit = fit,
   group_level = c(1,2),
   var = c("wetness","tmean","rain"),
-    uncertainty = TRUE,
+  uncertainty = TRUE,
   n_samples = 10,
   output = "samples",
   extrapolation = "warn",
   ref = list(method = "median", value = NULL)
   )
-
-
-ct33  = compute_ecilag(
-  data = sim_data,
-  group = "epi_id",
-  time = "time",
-  fit = fit,
-  group_level = c(1,2),
-  var = c("wetness","tmean","rain"),
-    uncertainty = TRUE,
-  n_samples = 10,
-  output = "summary",
-  extrapolation = "warn",
-  ref = list(method = "median", value = NULL)
-  )
 ```
 
 ```{r}
-ct3 = ct2$by_lag
-
-ct4 = ct2$by_lag_samples
-
-  
-eci_lag_perc = ct4 |>
-  ggplot(aes(lag,percent_contribution))+
-  #geom_point(aes(lag,percent_contribution))+
-  #geom_smooth(se = F, color = "orange")+
-  geom_smooth(data = ct4, aes(lag,percent_contribution, group = sample, color = sample), se = F)+
- facet_wrap(~var, ncol = 1, scales = "free_y")+
-  scale_color_viridis_c() +
-  theme_bw()+
-     labs(
-    x = "lag",
-    y = "Contribution (%)"
-  )+
-  theme(text = element_text(size = 10, face = "bold"),
-        legend.position = "none",
-        strip.background = element_rect(fill = "white", colour = "black"))
-
-eci_lag_perc
+ct2$eci_summary
 ```
 
 ```{r}
-eci_lag_exp = ct3 |>
-  ggplot(aes(lag,exposure_minus_reference, color = var))+
-  geom_line()+
-  #geom_smooth(se = F, color = "orange")+
- facet_wrap(~var, ncol = 1, scales = "free_y")+
-  scale_color_manual(
-    values = c("#4C72B0", "#C44E52", "#55A868"))+
-  theme_bw()+
-     labs(
-    x = "lag",
-    y = "Exposure difference"
-  )+
-  theme(text = element_text(size = 10, face = "bold"),
-        legend.position = "none",
-        strip.background = element_rect(fill = "white", colour = "black"))
-
-eci_lag_exp
-
-
+ct2$ECI_weighted_samples
 ```
+
+```{r}
+ct2$by_lag_samples
+```
+
+```{r}
+ct2$by_lag
+```
+
 ```{r}
 eci_plot <- plot_eci(
-  eci_overal = ct,
+  eci_overall = ct,
   eci_lag = ct2,
   facet_scales = "free_y",
   overall_nrow = 3,
@@ -437,26 +325,25 @@ eci_plot <- plot_eci(
   sample_smooth = TRUE,
   linewidth = 0.7,
   alpha = 0.20,
-  panel_labels = c("(a)", "(b)", "(c)")
-)
+  panel_labels = c("(a)", "(b)", "(c)"),
+  overall_col = "ECI_weighted",
+  lag_col = "ECI_percent")
 
 eci_plot
+
 ```
 
 ```{r}
-plot_grid(eci_lag_perc,eci_lag_exp)
-
-ggsave("figure/eci_by.png",dpi = 600, width = 10, height = 6)
-```
-
-```{r}
-
-plot_grid(eci_weighted,eci_lag_perc,eci_lag_exp, nrow = 1)
-
 ggsave("figure/eci.png",dpi = 600, width = 8, height = 6)
 ```
 
+
 ```{r}
+
+ct3 = ct2$by_lag
+
+ct2$by_lag_samples
+
 ct_tmean = ct3 %>% 
   filter(var == "tmean")
 
@@ -908,8 +795,9 @@ plot_scenarios(
   data = pred_scenarios,
   x = "rain",
   facet = c("wetness", "tmean"),
-  scale_factor = 100,
-  x_limits = c(0, 15)
+  #scale_factor = 100,
+  x_limits = c(0, 15),
+  output = "samples"
 )
 
 
@@ -951,7 +839,7 @@ plot_scenarios(
   data = pred_scenarios2,
   x = "rain",
   scenario_type = "paired",
-  scale_factor = 100,
+  #scale_factor = 100,
   pointrange_color = "black",
   point_size = 0.5,
   pointrange_linewidth = 0.8
@@ -1736,6 +1624,25 @@ losses = simulate_losses(
 )
 
 losses
+
+
+losses |>
+  filter(attainable_yield == 12000) |> 
+  ggplot()+
+  geom_smooth(aes(rain,yield_loss, group = sample, color = sample), se = F, method = "lm")+
+  scale_color_viridis_b()+
+  facet_wrap(~tmean+wetness)+
+  theme_bw()+
+  theme(legend.position = "none",
+        strip.background = element_rect(fill = "white", color = "black"),
+        strip.text = element_text(face = "bold"))
+
+
+  #geom_smooth(aes(prediction_upper,relative_yield_pct_upper),
+   #           linetype = 2, color = "black", method = "lm",se = F)+
+  geom_smooth(aes(prediction_lower,relative_yield_pct_lower),
+              linetype = 2, color = "black", method = "lm", se = F)+
+  theme_bw()
 ```
 
 ```{r}
@@ -1768,7 +1675,7 @@ filter(attainable_yield == 6000) |>
   geom_smooth(aes(rain,
                   attainable_predicted_yield_upper), se = F,
               color = "black", linetype = 2)+
-  facet_wrap(~tmean+wetness, ncol = 4)+
+  facet_wrap(~tmean+wetness, ncol = 2)+
   theme_bw()
 ```
 
