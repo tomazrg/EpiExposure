@@ -753,6 +753,7 @@ build_design <- function(
   # ==========================================================================
 
   attr(out, "cb_templates") <- cb_templates
+  attr(out, "epiexposure_basis_objects") <- cb_templates
   attr(out, "epiexposure_spec") <- effective_spec
   attr(out, "epiexposure_cb_cols") <- cb_cols
   attr(out, "epiexposure_vars") <- vars

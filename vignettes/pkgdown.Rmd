@@ -81,7 +81,7 @@ wetness_plot = epi_data%>%
   labs(x = "Days after planting the rice",
        y = "Leaf wetness (%)")+
   scale_x_continuous(limits = c(0,85), expand = c(0,0),
-                     breaks = pretty(sim_data$time, n = 8))+
+                     breaks = pretty(epi_data$time, n = 8))+
   theme(text = element_text(size = 10))
 
 wetness_plot
@@ -95,7 +95,7 @@ rain_plot = epi_data%>%
   labs(x = "",
        y = "Daily precipitation (mm)")+
   scale_x_continuous(limits = c(0,85), expand = c(0,0),
-                     breaks = pretty(sim_data$time, n = 8))+
+                     breaks = pretty(epi_data$time, n = 8))+
   theme(axis.text.x = element_blank(),
         text = element_text(size = 10))
 
@@ -110,7 +110,7 @@ tmean_plot = epi_data%>%
   labs(x = "",
        y = "Mean temperature (°C)")+
   scale_x_continuous(limits = c(0,85), expand = c(0,0),
-                     breaks = pretty(sim_data$time, n = 8))+
+                     breaks = pretty(epi_data$time, n = 8))+
   theme(axis.text.x = element_blank(),
         text = element_text(size = 10))
 
@@ -192,6 +192,11 @@ epi_l <- summarise_effects(
   scale = "lag",
   effect_measure = "percent"
 )
+
+epi_l <- summarise_effects(fit = fit, data = sim_data,
+                  scale = "lag", effect_measure = "percent",
+                  uncertainty = TRUE, n_samples = 20,
+                  output = "summary")
 ```
 
 Visualize the results:
@@ -245,7 +250,7 @@ This approach allows cumulative exposure effects to be examined within biologica
 While effect summaries focus on individual exposure components, disease prediction uses the complete exposure history.
 
 ```{r}
-prediction <- predict_outcome(
+prediction <- predict_outcomes(
   fit = fit,
   profiles = list(
     tmean = rep(25,86),
@@ -278,7 +283,7 @@ rain_profile <- simulate_exposures(
 These profiles can be evaluated immediately:
 
 ```{r}
-predict_outcome(
+predict_outcomes(
   fit = fit,
   profiles = list(
     tmean = rep(25,86),

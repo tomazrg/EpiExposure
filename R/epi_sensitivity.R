@@ -4,7 +4,7 @@
 #' curve. The function can work directly with supplied curve values or first
 #' smooth the curve with a GAM and differentiate the fitted smooth.
 #'
-#' `df_sensitivity()` is a **post-processing** function. It does not fit an
+#' `epi_sensitivity()` is a **post-processing** function. It does not fit an
 #' EpiExposure DLNM, reconstruct exposure histories, or redefine the fitted lag
 #' window. Consequently, rows supplied to this function are curve-evaluation
 #' points, not necessarily the `max_lag + 1` observations that constituted an
@@ -62,7 +62,7 @@
 #'   - `"ts"`: shrinkage thin plate regression spline.
 #'
 #'   This choice belongs only to the **post-processing GAM fitted inside
-#'   `df_sensitivity()`**. It does **not** redefine, replace, inherit, or need to
+#'   `epi_sensitivity()`**. It does **not** redefine, replace, inherit, or need to
 #'   match the exposure-response or lag-response basis used by
 #'   `define_exposures()`, `fit_epidlnm()`, or `find_bestfit()`. The DLNM has
 #'   already been fitted before this function is called.
@@ -250,7 +250,7 @@
 #'
 #' ## Relationship to the EpiExposure exact-history contract
 #'
-#' `df_sensitivity()` does not consume raw fitted exposure histories. It works
+#' `epi_sensitivity()` does not consume raw fitted exposure histories. It works
 #' on an already evaluated curve, whose number of rows may legitimately differ
 #' from the original history length. Consequently, it does **not** require
 #'
@@ -274,13 +274,13 @@
 #'
 #' ## Uncertainty
 #'
-#' `df_sensitivity()` does not generate coefficient/posterior draws. If the
+#' `epi_sensitivity()` does not generate coefficient/posterior draws. If the
 #' supplied data contain draw-specific curves, include the draw identifier in
 #' `scenario_var` so each draw is differentiated independently. The function
 #' does not silently pool repeated `x` positions across draws.
 #'
 #' @export
-df_sensitivity <- function(
+epi_sensitivity <- function(
     data,
     x = "value",
     y = "prediction",
@@ -725,7 +725,7 @@ df_sensitivity <- function(
         } else {
           ""
         },
-        ". `df_sensitivity()` does not aggregate duplicate curve positions ",
+        ". `epi_sensitivity()` does not aggregate duplicate curve positions ",
         "silently.",
         call. = FALSE
       )

@@ -625,33 +625,70 @@ fit_epidlnm <- function(
           "named list of original `dlnm::crossbasis()` objects."
         )
       }
+
       return(NULL)
     }
 
-    if (!is.list(x) || is.null(names(x)) || !length(x) ||
-        anyNA(names(x)) || any(names(x) == "") || anyDuplicated(names(x))) {
-      stopf("`basis_objects` must be NULL or a non-empty named list with unique names.")
+    if (is.data.frame(x)) {
+      stopf(
+        "`basis_objects` must be a named list of `dlnm::crossbasis()` objects, ",
+        "not a data.frame or an epidemic-level design matrix."
+      )
     }
 
-    if (required) {
-      valid_crossbasis <- vapply(x, inherits, logical(1), what = "crossbasis")
-      if (any(!valid_crossbasis)) {
-        stopf(
-          "EpiExposure v1 requires every `bdlnm` basis object to inherit from ",
-          "'crossbasis'. Unsupported object(s): ",
-          paste(names(x)[!valid_crossbasis], collapse = ", "), "."
-        )
-      }
+    if (!is.list(x) ||
+        is.null(names(x)) ||
+        !length(x) ||
+        anyNA(names(x)) ||
+        any(names(x) == "") ||
+        anyDuplicated(names(x))) {
+      stopf(
+        "`basis_objects` must be NULL or a non-empty named list with ",
+        "unique exposure-variable names."
+      )
+    }
+
+    valid_crossbasis <- vapply(
+      x,
+      inherits,
+      logical(1),
+      what = "crossbasis"
+    )
+
+    if (any(!valid_crossbasis)) {
+      stopf(
+        "Every element of `basis_objects` must inherit from 'crossbasis'. ",
+        "Invalid object(s): ",
+        paste(names(x)[!valid_crossbasis], collapse = ", "),
+        "."
+      )
     }
 
     x
   }
 
+  # Recover basis objects stored by build_design() when they are not
+  # supplied explicitly by the user.
+  basis_objects_source <- if (is.null(basis_objects)) {
+    "data_attribute"
+  } else {
+    "user_argument"
+  }
+
+  if (is.null(basis_objects)) {
+    basis_objects <- attr(
+      data,
+      "epiexposure_basis_objects",
+      exact = TRUE
+    )
+  }
+
+  # Validate the final object regardless of whether it was supplied
+  # explicitly or recovered from the design metadata.
   basis_objects <- validate_basis_objects(
     basis_objects,
     required = identical(model_engine, "bdlnm")
   )
-
   vars_inferred <- if (length(cb_cols)) {
     unique(parse_cb_variable(cb_cols))
   } else {
@@ -1008,10 +1045,10 @@ fit_epidlnm <- function(
     attr(model_obj, "epiexposure_random_structure") <- random_structure
     attr(model_obj, "epiexposure_spec") <- epiexposure_spec
     attr(model_obj, "epiexposure_basis_objects") <- basis_meta
+    attr(model_obj, "epiexposure_basis_objects_source") <- basis_objects_source
     attr(model_obj, "epiexposure_max_lag") <- common_max_lag
     attr(model_obj, "epiexposure_history_length") <- expected_history_length
-    attr(model_obj, "epiexposure_history_contract") <-
-      "all_fitted_exposures_same_exact_max_lag_plus_one"
+    attr(model_obj, "epiexposure_history_contract") <- "all_fitted_exposures_same_exact_max_lag_plus_one"
     attr(model_obj, "epiexposure_prediction_level") <- "population"
     attr(model_obj, "epiexposure_prediction_estimand") <- "expected_response"
     attr(model_obj, "epiexposure_point_prediction_contract") <- "central_expected_response"
