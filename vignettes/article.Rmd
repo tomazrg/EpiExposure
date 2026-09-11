@@ -2245,12 +2245,15 @@ scenarios_losses$prediction_upper = scenarios_losses$prediction_upper*100
 ```
 
 ```{r}
+
+  
 losses = simulate_losses(
              data = scenarios_losses,
              lower = "prediction_lower",
              upper = "prediction_upper",
              y = "prediction",
-             slope = 49.3,
+             slope = c(49.3,80),
+             parameter_mode = "values",
              intercept = 9691.0,
              attainable_yield = seq(4000,12000, by = 50),
              price = 300
@@ -2258,8 +2261,10 @@ losses = simulate_losses(
 
 losses
 
+unique(losses$slope_sim)
 
 losses |>
+  filter(slope_sim == 49.3) |> 
   filter(attainable_yield == 12000) |> 
   ggplot()+
   geom_smooth(aes(rain,relative_yield_pct, group = sample, color = sample), se = F)+
@@ -2298,15 +2303,16 @@ ggsave("figure/simulation_yld_ec_losses.png", dpi = 600, bg = "white", height = 
 
 ```{r}
 losses |> 
-filter(attainable_yield == 9000) |> 
+  filter(slope_sim == 80) |> 
+ filter(att_yield == 9000) |> 
   ggplot()+
-  geom_smooth(aes(rain,attainable_predicted_yield), se = F,
+  geom_smooth(aes(rain,ap_yield), se = F,
               color = "black")+
   geom_smooth(aes(rain,
-              attainable_predicted_yield_lower), se = F,
+              ap_yield_lower), se = F,
               color = "black", linetype = 2)+
   geom_smooth(aes(rain,
-                  attainable_predicted_yield_upper), se = F,
+                  ap_yield_upper), se = F,
               color = "black", linetype = 2)+
   facet_wrap(~tmean+wetness, ncol = 2)+
   theme_bw()

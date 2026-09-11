@@ -11,6 +11,7 @@ simulate_losses(
   upper = NULL,
   slope = 100,
   intercept = 11142.94,
+  parameter_mode = c("uniform", "values", "draws"),
   attainable_yield = seq(4000, 12000, by = 50),
   price = seq(100, 300, by = 10),
   n = 1,
@@ -38,25 +39,41 @@ supplied, `upper` must also be supplied.}
   not automatically a joint confidence/credible interval after combining
   response uncertainty with yield-model parameter uncertainty.}
 
-\item{slope}{Numeric specification for the non-negative yield-loss slope.
+\item{slope}{Finite non-negative numeric slope specification. Interpretation
+  depends on `parameter_mode`:
 
-  - length 1: fixed slope used in every loss simulation;
-  - length 2: lower and upper limits of an independent Uniform distribution;
-  - length `n`: user-supplied slope draws, paired by simulation index with
-    `intercept`.
+  - `"values"`: every supplied value is evaluated exactly;
+  - `"uniform"`: length 1 is fixed and length 2 defines Uniform bounds;
+  - `"draws"`: values are user-supplied draws paired by simulation index.
 
-  The response-yield relationship assumes increasing response cannot improve
-  yield, so all supplied slope values must be non-negative.}
+  Increasing response is assumed not to improve yield, so slope values must
+  be non-negative.}
 
-\item{intercept}{Numeric specification for the positive reference-yield
-  intercept.
+\item{intercept}{Finite positive reference-yield intercept specification.
+  Interpretation follows the same `parameter_mode` contract as `slope`.
 
-  - length 1: fixed intercept;
-  - length 2: lower and upper limits of an independent Uniform distribution;
-  - length `n`: user-supplied intercept draws, paired by simulation index
-    with `slope`.
+  In `"values"` mode, all exact slope-intercept combinations are evaluated.
+  In `"uniform"` mode, two-value ranges are sampled independently. In
+  `"draws"` mode, non-scalar slope and intercept vectors must have the same
+  length and are paired by position; scalar parameters are recycled.}
 
-  All supplied intercept values must be strictly positive.}
+\item{parameter_mode}{Character controlling interpretation of `slope` and
+  `intercept`. One of `"uniform"` (default, preserving the historical
+  interface), `"values"`, or `"draws"`.
+
+  `"values"` evaluates exact supplied parameter values. For example,
+  `slope = c(49.3, 80)` evaluates both slopes exactly rather than sampling
+  between them. If both `slope` and `intercept` contain multiple exact values,
+  all combinations are evaluated and `n` is ignored.
+
+  `"uniform"` uses `n` simulations. A scalar parameter is fixed, whereas a
+  two-value vector defines the lower and upper limits of an independent
+  Uniform distribution.
+
+  `"draws"` treats supplied vectors as paired external parameter draws.
+  Scalars are recycled. If `n` is omitted, it is inferred from the common
+  non-scalar draw length; if `n` is supplied explicitly, it must match that
+  length.}
 
 \item{attainable_yield}{Unique non-negative numeric vector of attainable
   yields in kg/ha, used to scale the disease-attributable proportional
@@ -71,16 +88,12 @@ supplied, `upper` must also be supplied.}
 USD per metric ton (USD/t).}
 
 \item{n}{Positive integer number of loss-model parameter simulations.
-  Default is 1.
-
-  `n > 1` is useful only when at least one component of the external
-  yield-loss model varies across simulations: `slope`, `intercept`, or the
-  Gaussian intercept deviation controlled by `random_sd`.
-
-  If `n > 1` is requested but all three components are effectively fixed,
-  the function returns the requested repeated simulation rows but emits a
-  warning that they are identical and do not represent uncertainty
-  propagation.
+  Default is 1. It controls the number of simulations in
+  `parameter_mode = "uniform"`. In `parameter_mode = "draws"`, it may be
+  supplied explicitly to validate the paired draw length; when omitted, the
+  length is inferred from non-scalar supplied draws. In
+  `parameter_mode = "values"`, the exact parameter grid determines the
+  number of simulations and `n` is ignored.
 
   `n` does not represent EpiExposure model-coefficient draws unless the user
   explicitly supplies such external parameter draws through `slope` and
@@ -135,30 +148,28 @@ A data frame containing all original columns plus:
     \item{`.sim`}{Loss-model simulation index.}
     \item{`slope_sim`, `intercept_sim`}{External yield-model parameters used
       in that simulation.}
-    \item{`random_effect`}{Simulation-level external yield-intercept
-      deviation. Retained under the historical column name for backward
-      compatibility.}
-    \item{`reference_yield`}{Zero-response yield for that loss simulation:
-      `intercept_sim + random_effect`.}
-    \item{`response_used`}{Scaled response `y * y_multiplier`.}
-    \item{`yield_loss_proportion_raw`}{Unconstrained proportional loss
-      `slope_sim * response_used / reference_yield`.}
-    \item{`loss_constrained`}{Whether the raw proportional loss required
+    \item{`rand_eff`}{Simulation-level external yield-intercept deviation.}
+    \item{`ref_yield`}{Zero-response yield for that loss simulation:
+      `intercept_sim + rand_eff`.}
+    \item{`y_used`}{Scaled response `y * y_multiplier`.}
+    \item{`yl_prop_raw`}{Unconstrained proportional loss
+      `slope_sim * y_used / ref_yield`.}
+    \item{`yl_capped`}{Whether the raw proportional loss required
       constraining to `[0, 1]`.}
-    \item{`yield_loss_proportion`, `yield_loss_pct`}{Constrained
+    \item{`yl_prop`, `yl_pct`}{Constrained
       disease-attributable loss proportion and percent.}
-    \item{`relative_yield_proportion`, `relative_yield_pct`}{Remaining yield
+    \item{`rl_prop`, `rl_pct`}{Remaining yield
       relative to the simulation-specific reference yield. By construction,
-      `relative_yield_proportion = 1 - yield_loss_proportion`.}
-    \item{`predicted_yield`}{Yield on the external calibration-model scale:
-      `reference_yield * relative_yield_proportion`.}
-    \item{`attainable_yield`}{User-specified attainable yield in kg/ha.}
-    \item{`attainable_predicted_yield`}{Attainable yield remaining after the
+      `rl_prop = 1 - yl_prop`.}
+    \item{`pred_yield`}{Yield on the external calibration-model scale:
+      `ref_yield * rl_prop`.}
+    \item{`att_yield`}{User-specified attainable yield in kg/ha.}
+    \item{`ap_yield`}{Attainable yield remaining after the
       same proportional loss.}
     \item{`yield_loss`}{Absolute attributable yield loss in kg/ha:
-      `attainable_yield * yield_loss_proportion`.}
+      `att_yield * yl_prop`.}
     \item{`price`}{Commodity price in USD per metric ton (USD/t).}
-    \item{`economic_loss`}{Economic loss in USD/ha:
+    \item{`econ_loss`}{Economic loss in USD/ha:
       `(yield_loss / 1000) * price`.}
   }
 
@@ -175,12 +186,13 @@ using an externally supplied linear yield-response relationship.
 }
 \details{
 Each row of `data` is retained and expanded across all combinations of
-`attainable_yield`, `price`, and `n` loss-model parameter simulations.
+`attainable_yield`, `price`, and resolved loss-model parameter simulations.
 
 `simulate_losses()` does not fit an epidemiological model and does not draw
 coefficients from an EpiExposure fit. The response supplied in `y` is treated
-as already available. The `n` simulations refer only to uncertainty or
-variability explicitly supplied for the external yield-loss relationship.
+as already available. Parameter simulations refer only to exact external
+values, user-requested Uniform draws, supplied parameter draws, and/or the
+optional external intercept deviation.
 
 
 ## Loss equations
@@ -198,7 +210,7 @@ For loss simulation \eqn{s}, the zero-response reference yield is
 }
 
 where \eqn{\alpha_s} is `intercept_sim` and \eqn{b_s} is the optional
-simulation-level `random_effect`.
+simulation-level `rand_eff`.
 
 The raw disease-attributable proportional loss is
 
@@ -228,10 +240,10 @@ and the calibration-scale predicted yield is
   Y_{0,s}(1-L).
 }
 
-This construction deliberately keeps `predicted_yield`,
-`relative_yield_proportion`, and `yield_loss_proportion` internally
+This construction deliberately keeps `pred_yield`,
+`rl_prop`, and `yl_prop` internally
 consistent. Earlier code subtracted the simulated intercept deviation from
-`predicted_yield` but omitted it from the proportional-loss denominator,
+`pred_yield` but omitted it from the proportional-loss denominator,
 allowing those quantities to disagree.
 
 ## Attainable-yield scaling
@@ -255,9 +267,9 @@ tolerance.
 
 The unit contract of `simulate_losses()` is fixed:
 
-- `attainable_yield` and `yield_loss` are in kg/ha;
+- `att_yield` and `yield_loss` are in kg/ha;
 - `price` is in USD per metric ton (USD/t);
-- `economic_loss` is returned in USD/ha.
+- `econ_loss` is returned in USD/ha.
 
 Because one metric ton equals 1000 kg,
 
@@ -272,25 +284,25 @@ a tunable modeling parameter.
 
 ## Parameter simulations
 
-`n` controls only simulations of the external loss relationship. Scalar
-parameters are fixed. A numeric vector of length two is interpreted as a
-Uniform range, preserving the historical EpiExposure interface. Longer
-vectors of length `n` are treated as user-supplied paired parameter draws.
+`parameter_mode` removes the historical ambiguity of two-value parameter
+vectors.
 
-When both `slope` and `intercept` are supplied as two-value ranges, they are
-drawn independently. This does **not** preserve slope-intercept covariance
-from an external fitted yield model. If joint parameter uncertainty is
-available, provide paired user-supplied vectors of length `n` instead.
+With `"values"`, supplied parameter values are exact. All slope-intercept
+combinations are evaluated, so `slope = c(49.3, 80)` represents two exact
+slope scenarios when `intercept` is scalar.
 
-Because a two-value numeric input is reserved for a Uniform range, exactly
-two externally paired draws cannot be distinguished from a range under this
-backward-compatible interface. Use `n > 2` for supplied paired draws if that
-distinction matters.
+With `"uniform"`, scalar parameters remain fixed and two-value vectors define
+Uniform bounds. `n` controls the number of independently sampled parameter
+realizations. If both slope and intercept are ranges, they are sampled
+independently and therefore do not preserve covariance from an external
+fitted yield model.
 
-If `n > 1` but `slope`, `intercept`, and the `random_sd` component all
-produce the same values in every simulation, `.sim` merely repeats identical
-loss-model calculations. The function warns explicitly in this situation so
-repeated rows are not mistaken for propagated uncertainty.
+With `"draws"`, supplied non-scalar vectors are treated as externally
+generated paired draws and are matched by simulation index. This mode should
+be used when joint slope-intercept uncertainty has already been estimated.
+
+`random_sd`, when positive, remains an optional simulation-level Gaussian
+deviation in the external yield-model intercept under every parameter mode.
 
 ## Propagating response bounds
 
@@ -300,8 +312,8 @@ attainable yield, and price. Metric-specific minima and maxima are then
 reported as `_lower` and `_upper`.
 
 These are propagated endpoint bounds. If `lower` and `upper` are marginal
-prediction intervals and `n > 1` simultaneously represents uncertainty in an
-external yield model, the resulting endpoint columns are not automatically a
+prediction intervals and multiple external parameter simulations simultaneously
+represent uncertainty in a yield model, the resulting endpoint columns are not automatically a
 calibrated joint probability interval. For fully joint Monte Carlo
 propagation, supply draw-level response values as rows of `data` and preserve
 their draw identifiers.

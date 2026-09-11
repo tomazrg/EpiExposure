@@ -4,12 +4,13 @@
 #' using an externally supplied linear yield-response relationship.
 #'
 #' Each row of `data` is retained and expanded across all combinations of
-#' `attainable_yield`, `price`, and `n` loss-model parameter simulations.
+#' `attainable_yield`, `price`, and resolved loss-model parameter simulations.
 #'
 #' `simulate_losses()` does not fit an epidemiological model and does not draw
 #' coefficients from an EpiExposure fit. The response supplied in `y` is treated
-#' as already available. The `n` simulations refer only to uncertainty or
-#' variability explicitly supplied for the external yield-loss relationship.
+#' as already available. Parameter simulations refer only to exact external
+#' values, user-requested Uniform draws, supplied parameter draws, and/or the
+#' optional external intercept deviation.
 #'
 #' @param data Non-empty data frame containing the response variable and any
 #'   additional scenario/prediction identifiers that should be retained.
@@ -24,24 +25,40 @@
 #'   each loss-model simulation. They are therefore endpoint-propagated bounds,
 #'   not automatically a joint confidence/credible interval after combining
 #'   response uncertainty with yield-model parameter uncertainty.
-#' @param slope Numeric specification for the non-negative yield-loss slope.
+#' @param slope Finite non-negative numeric slope specification. Interpretation
+#'   depends on `parameter_mode`:
 #'
-#'   - length 1: fixed slope used in every loss simulation;
-#'   - length 2: lower and upper limits of an independent Uniform distribution;
-#'   - length `n`: user-supplied slope draws, paired by simulation index with
-#'     `intercept`.
+#'   - `"values"`: every supplied value is evaluated exactly;
+#'   - `"uniform"`: length 1 is fixed and length 2 defines Uniform bounds;
+#'   - `"draws"`: values are user-supplied draws paired by simulation index.
 #'
-#'   The response-yield relationship assumes increasing response cannot improve
-#'   yield, so all supplied slope values must be non-negative.
-#' @param intercept Numeric specification for the positive reference-yield
-#'   intercept.
+#'   Increasing response is assumed not to improve yield, so slope values must
+#'   be non-negative.
+#' @param intercept Finite positive reference-yield intercept specification.
+#'   Interpretation follows the same `parameter_mode` contract as `slope`.
 #'
-#'   - length 1: fixed intercept;
-#'   - length 2: lower and upper limits of an independent Uniform distribution;
-#'   - length `n`: user-supplied intercept draws, paired by simulation index
-#'     with `slope`.
+#'   In `"values"` mode, all exact slope-intercept combinations are evaluated.
+#'   In `"uniform"` mode, two-value ranges are sampled independently. In
+#'   `"draws"` mode, non-scalar slope and intercept vectors must have the same
+#'   length and are paired by position; scalar parameters are recycled.
+#' @param parameter_mode Character controlling interpretation of `slope` and
+#'   `intercept`. One of `"uniform"` (default, preserving the historical
+#'   interface), `"values"`, or `"draws"`.
 #'
-#'   All supplied intercept values must be strictly positive.
+#'   `"values"` evaluates exact supplied parameter values. For example,
+#'   `slope = c(49.3, 80)` evaluates both slopes exactly rather than sampling
+#'   between them. If both `slope` and `intercept` contain multiple exact values,
+#'   all combinations are evaluated and `n` is ignored.
+#'
+#'   `"uniform"` uses `n` simulations. A scalar parameter is fixed, whereas a
+#'   two-value vector defines the lower and upper limits of an independent
+#'   Uniform distribution.
+#'
+#'   `"draws"` treats supplied vectors as paired external parameter draws.
+#'   Scalars are recycled. If `n` is omitted, it is inferred from the common
+#'   non-scalar draw length; if `n` is supplied explicitly, it must match that
+#'   length.
+
 #' @param attainable_yield Unique non-negative numeric vector of attainable
 #'   yields in kg/ha, used to scale the disease-attributable proportional
 #'   loss into absolute yield loss in kg/ha.
@@ -53,16 +70,12 @@
 #' @param price Unique non-negative numeric vector of commodity prices in
 #'   USD per metric ton (USD/t).
 #' @param n Positive integer number of loss-model parameter simulations.
-#'   Default is 1.
-#'
-#'   `n > 1` is useful only when at least one component of the external
-#'   yield-loss model varies across simulations: `slope`, `intercept`, or the
-#'   Gaussian intercept deviation controlled by `random_sd`.
-#'
-#'   If `n > 1` is requested but all three components are effectively fixed,
-#'   the function returns the requested repeated simulation rows but emits a
-#'   warning that they are identical and do not represent uncertainty
-#'   propagation.
+#'   Default is 1. It controls the number of simulations in
+#'   `parameter_mode = "uniform"`. In `parameter_mode = "draws"`, it may be
+#'   supplied explicitly to validate the paired draw length; when omitted, the
+#'   length is inferred from non-scalar supplied draws. In
+#'   `parameter_mode = "values"`, the exact parameter grid determines the
+#'   number of simulations and `n` is ignored.
 #'
 #'   `n` does not represent EpiExposure model-coefficient draws unless the user
 #'   explicitly supplies such external parameter draws through `slope` and
@@ -112,30 +125,28 @@
 #'     \item{`.sim`}{Loss-model simulation index.}
 #'     \item{`slope_sim`, `intercept_sim`}{External yield-model parameters used
 #'       in that simulation.}
-#'     \item{`random_effect`}{Simulation-level external yield-intercept
-#'       deviation. Retained under the historical column name for backward
-#'       compatibility.}
-#'     \item{`reference_yield`}{Zero-response yield for that loss simulation:
-#'       `intercept_sim + random_effect`.}
-#'     \item{`response_used`}{Scaled response `y * y_multiplier`.}
-#'     \item{`yield_loss_proportion_raw`}{Unconstrained proportional loss
-#'       `slope_sim * response_used / reference_yield`.}
-#'     \item{`loss_constrained`}{Whether the raw proportional loss required
+#'     \item{`rand_eff`}{Simulation-level external yield-intercept deviation.}
+#'     \item{`ref_yield`}{Zero-response yield for that loss simulation:
+#'       `intercept_sim + rand_eff`.}
+#'     \item{`y_used`}{Scaled response `y * y_multiplier`.}
+#'     \item{`yl_prop_raw`}{Unconstrained proportional loss
+#'       `slope_sim * y_used / ref_yield`.}
+#'     \item{`yl_capped`}{Whether the raw proportional loss required
 #'       constraining to `[0, 1]`.}
-#'     \item{`yield_loss_proportion`, `yield_loss_pct`}{Constrained
+#'     \item{`yl_prop`, `yl_pct`}{Constrained
 #'       disease-attributable loss proportion and percent.}
-#'     \item{`relative_yield_proportion`, `relative_yield_pct`}{Remaining yield
+#'     \item{`rl_prop`, `rl_pct`}{Remaining yield
 #'       relative to the simulation-specific reference yield. By construction,
-#'       `relative_yield_proportion = 1 - yield_loss_proportion`.}
-#'     \item{`predicted_yield`}{Yield on the external calibration-model scale:
-#'       `reference_yield * relative_yield_proportion`.}
-#'     \item{`attainable_yield`}{User-specified attainable yield in kg/ha.}
-#'     \item{`attainable_predicted_yield`}{Attainable yield remaining after the
+#'       `rl_prop = 1 - yl_prop`.}
+#'     \item{`pred_yield`}{Yield on the external calibration-model scale:
+#'       `ref_yield * rl_prop`.}
+#'     \item{`att_yield`}{User-specified attainable yield in kg/ha.}
+#'     \item{`ap_yield`}{Attainable yield remaining after the
 #'       same proportional loss.}
 #'     \item{`yield_loss`}{Absolute attributable yield loss in kg/ha:
-#'       `attainable_yield * yield_loss_proportion`.}
+#'       `att_yield * yl_prop`.}
 #'     \item{`price`}{Commodity price in USD per metric ton (USD/t).}
-#'     \item{`economic_loss`}{Economic loss in USD/ha:
+#'     \item{`econ_loss`}{Economic loss in USD/ha:
 #'       `(yield_loss / 1000) * price`.}
 #'   }
 #'
@@ -162,7 +173,7 @@
 #' }
 #'
 #' where \eqn{\alpha_s} is `intercept_sim` and \eqn{b_s} is the optional
-#' simulation-level `random_effect`.
+#' simulation-level `rand_eff`.
 #'
 #' The raw disease-attributable proportional loss is
 #'
@@ -192,10 +203,10 @@
 #'   Y_{0,s}(1-L).
 #' }
 #'
-#' This construction deliberately keeps `predicted_yield`,
-#' `relative_yield_proportion`, and `yield_loss_proportion` internally
+#' This construction deliberately keeps `pred_yield`,
+#' `rl_prop`, and `yl_prop` internally
 #' consistent. Earlier code subtracted the simulated intercept deviation from
-#' `predicted_yield` but omitted it from the proportional-loss denominator,
+#' `pred_yield` but omitted it from the proportional-loss denominator,
 #' allowing those quantities to disagree.
 #'
 #' ## Attainable-yield scaling
@@ -219,9 +230,9 @@
 #'
 #' The unit contract of `simulate_losses()` is fixed:
 #'
-#' - `attainable_yield` and `yield_loss` are in kg/ha;
+#' - `att_yield` and `yield_loss` are in kg/ha;
 #' - `price` is in USD per metric ton (USD/t);
-#' - `economic_loss` is returned in USD/ha.
+#' - `econ_loss` is returned in USD/ha.
 #'
 #' Because one metric ton equals 1000 kg,
 #'
@@ -236,25 +247,25 @@
 #'
 #' ## Parameter simulations
 #'
-#' `n` controls only simulations of the external loss relationship. Scalar
-#' parameters are fixed. A numeric vector of length two is interpreted as a
-#' Uniform range, preserving the historical EpiExposure interface. Longer
-#' vectors of length `n` are treated as user-supplied paired parameter draws.
+#' `parameter_mode` removes the historical ambiguity of two-value parameter
+#' vectors.
 #'
-#' When both `slope` and `intercept` are supplied as two-value ranges, they are
-#' drawn independently. This does **not** preserve slope-intercept covariance
-#' from an external fitted yield model. If joint parameter uncertainty is
-#' available, provide paired user-supplied vectors of length `n` instead.
+#' With `"values"`, supplied parameter values are exact. All slope-intercept
+#' combinations are evaluated, so `slope = c(49.3, 80)` represents two exact
+#' slope scenarios when `intercept` is scalar.
 #'
-#' Because a two-value numeric input is reserved for a Uniform range, exactly
-#' two externally paired draws cannot be distinguished from a range under this
-#' backward-compatible interface. Use `n > 2` for supplied paired draws if that
-#' distinction matters.
+#' With `"uniform"`, scalar parameters remain fixed and two-value vectors define
+#' Uniform bounds. `n` controls the number of independently sampled parameter
+#' realizations. If both slope and intercept are ranges, they are sampled
+#' independently and therefore do not preserve covariance from an external
+#' fitted yield model.
 #'
-#' If `n > 1` but `slope`, `intercept`, and the `random_sd` component all
-#' produce the same values in every simulation, `.sim` merely repeats identical
-#' loss-model calculations. The function warns explicitly in this situation so
-#' repeated rows are not mistaken for propagated uncertainty.
+#' With `"draws"`, supplied non-scalar vectors are treated as externally
+#' generated paired draws and are matched by simulation index. This mode should
+#' be used when joint slope-intercept uncertainty has already been estimated.
+#'
+#' `random_sd`, when positive, remains an optional simulation-level Gaussian
+#' deviation in the external yield-model intercept under every parameter mode.
 #'
 #' ## Propagating response bounds
 #'
@@ -264,8 +275,8 @@
 #' reported as `_lower` and `_upper`.
 #'
 #' These are propagated endpoint bounds. If `lower` and `upper` are marginal
-#' prediction intervals and `n > 1` simultaneously represents uncertainty in an
-#' external yield model, the resulting endpoint columns are not automatically a
+#' prediction intervals and multiple external parameter simulations simultaneously
+#' represent uncertainty in a yield model, the resulting endpoint columns are not automatically a
 #' calibrated joint probability interval. For fully joint Monte Carlo
 #' propagation, supply draw-level response values as rows of `data` and preserve
 #' their draw identifiers.
@@ -289,6 +300,7 @@ simulate_losses <- function(
     upper = NULL,
     slope = 100,
     intercept = 11142.94,
+    parameter_mode = c("uniform", "values", "draws"),
     attainable_yield = seq(4000, 12000, by = 50),
     price = seq(100, 300, by = 10),
     n = 1,
@@ -297,6 +309,8 @@ simulate_losses <- function(
     constraint_action = c("warn", "error"),
     seed = NULL
 ) {
+
+  n_was_supplied <- !missing(n)
 
   # ==========================================================================
   # HELPERS
@@ -439,6 +453,10 @@ simulate_losses <- function(
     )
   }
 
+  parameter_mode <- match.arg(
+    parameter_mode
+  )
+
   constraint_action <- match.arg(
     constraint_action
   )
@@ -573,58 +591,37 @@ simulate_losses <- function(
     unique_required = TRUE
   )
 
-  valid_parameter_length <- function(
-    x,
-    parameter
-  ) {
-    allowed <- unique(
-      c(
-        1L,
-        2L,
-        n
-      )
-    )
-
-    if (!length(x) %in%
-        allowed) {
-      stop(
-        "`", parameter,
-        "` must have length 1, 2, or `n` (",
-        n, ").",
-        call. = FALSE
-      )
-    }
-  }
-
-  valid_parameter_length(
-    slope,
-    "slope"
-  )
-
-  valid_parameter_length(
-    intercept,
-    "intercept"
-  )
+  # Parameter lengths are resolved explicitly by `parameter_mode`.
+  #
+  # values:
+  #   exact slope/intercept values; all exact combinations are evaluated.
+  # uniform:
+  #   scalars are fixed and length-2 vectors define Uniform bounds; `n`
+  #   controls the number of simulations.
+  # draws:
+  #   supplied slope/intercept vectors are paired by simulation index; scalars
+  #   are recycled. When `n` is omitted, it is inferred from the non-scalar
+  #   draw vector length.
 
   # ==========================================================================
   # 4. RESPONSE SCALE VALIDATION
   # ==========================================================================
 
-  response_used <-
+  y_used <-
     as.numeric(
       data[[y]]
     ) *
     y_multiplier
 
-  if (anyNA(response_used) ||
-      any(!is.finite(response_used))) {
+  if (anyNA(y_used) ||
+      any(!is.finite(y_used))) {
     stop(
       "Scaling `y` by `y_multiplier` produced non-finite values.",
       call. = FALSE
     )
   }
 
-  if (any(response_used < 0)) {
+  if (any(y_used < 0)) {
     stop(
       "`simulate_losses()` requires a non-negative response after applying ",
       "`y_multiplier`, because the supplied slope is interpreted as an ",
@@ -679,46 +676,46 @@ simulate_losses <- function(
     ".sim",
     "slope_sim",
     "intercept_sim",
-    "random_effect",
-    "reference_yield",
-    "response_used",
-    "yield_loss_proportion_raw",
-    "loss_constrained",
-    "predicted_yield",
-    "relative_yield_proportion",
-    "relative_yield_pct",
-    "yield_loss_proportion",
-    "yield_loss_pct",
-    "attainable_yield",
-    "attainable_predicted_yield",
+    "rand_eff",
+    "ref_yield",
+    "y_used",
+    "yl_prop_raw",
+    "yl_capped",
+    "pred_yield",
+    "rl_prop",
+    "rl_pct",
+    "yl_prop",
+    "yl_pct",
+    "att_yield",
+    "ap_yield",
     "yield_loss",
     "price",
-    "economic_loss"
+    "econ_loss"
   )
 
   bound_output_columns <- c(
-    "response_lower_used",
-    "response_upper_used",
-    "yield_loss_proportion_raw_lower",
-    "yield_loss_proportion_raw_upper",
-    "loss_constrained_lower",
-    "loss_constrained_upper",
-    "predicted_yield_lower",
-    "predicted_yield_upper",
-    "relative_yield_proportion_lower",
-    "relative_yield_proportion_upper",
-    "relative_yield_pct_lower",
-    "relative_yield_pct_upper",
-    "yield_loss_proportion_lower",
-    "yield_loss_proportion_upper",
-    "yield_loss_pct_lower",
-    "yield_loss_pct_upper",
-    "attainable_predicted_yield_lower",
-    "attainable_predicted_yield_upper",
+    "y_lower",
+    "y_upper",
+    "yl_prop_raw_lower",
+    "yl_prop_raw_upper",
+    "yl_capped_lower",
+    "yl_capped_upper",
+    "pred_yield_lower",
+    "pred_yield_upper",
+    "rl_prop_lower",
+    "rl_prop_upper",
+    "rl_pct_lower",
+    "rl_pct_upper",
+    "yl_prop_lower",
+    "yl_prop_upper",
+    "yl_pct_lower",
+    "yl_pct_upper",
+    "ap_yield_lower",
+    "ap_yield_upper",
     "yield_loss_lower",
     "yield_loss_upper",
-    "economic_loss_lower",
-    "economic_loss_upper"
+    "econ_loss_lower",
+    "econ_loss_upper"
   )
 
   new_columns <- if (has_bounds) {
@@ -748,13 +745,117 @@ simulate_losses <- function(
   }
 
   # ==========================================================================
-  # 6. RNG CONTRACT
+  # 6. RESOLVE PARAMETER MODE AND NUMBER OF SIMULATIONS
   # ==========================================================================
 
+  if (identical(parameter_mode, "values")) {
+
+    if (n_was_supplied && n != 1L) {
+      warning(
+        "`n` is ignored when `parameter_mode = 'values'`; exact parameter ",
+        "combinations determine the number of loss-model simulations.",
+        call. = FALSE
+      )
+    }
+
+    parameter_grid <- expand.grid(
+      slope_sim = slope,
+      intercept_sim = intercept,
+      KEEP.OUT.ATTRS = FALSE,
+      stringsAsFactors = FALSE
+    )
+
+    n_sim <- nrow(parameter_grid)
+
+  } else if (identical(parameter_mode, "uniform")) {
+
+    if (!length(slope) %in% c(1L, 2L)) {
+      stop(
+        "With `parameter_mode = 'uniform'`, `slope` must have length 1 ",
+        "(fixed) or 2 (Uniform lower/upper bounds).",
+        call. = FALSE
+      )
+    }
+
+    if (!length(intercept) %in% c(1L, 2L)) {
+      stop(
+        "With `parameter_mode = 'uniform'`, `intercept` must have length 1 ",
+        "(fixed) or 2 (Uniform lower/upper bounds).",
+        call. = FALSE
+      )
+    }
+
+    n_sim <- n
+
+  } else {
+
+    non_scalar_lengths <- c(
+      if (length(slope) > 1L) length(slope),
+      if (length(intercept) > 1L) length(intercept)
+    )
+
+    if (length(non_scalar_lengths) &&
+        length(unique(non_scalar_lengths)) != 1L) {
+      stop(
+        "With `parameter_mode = 'draws'`, non-scalar `slope` and `intercept` ",
+        "vectors must have the same length so draws can be paired by index.",
+        call. = FALSE
+      )
+    }
+
+    inferred_n <- if (length(non_scalar_lengths)) {
+      unique(non_scalar_lengths)[1L]
+    } else {
+      n
+    }
+
+    if (n_was_supplied &&
+        length(non_scalar_lengths) &&
+        n != inferred_n) {
+      stop(
+        "With `parameter_mode = 'draws'`, explicit `n` (", n,
+        ") must equal the supplied draw-vector length (", inferred_n, ").",
+        call. = FALSE
+      )
+    }
+
+    n_sim <- as.integer(inferred_n)
+
+    if (!length(slope) %in% c(1L, n_sim)) {
+      stop(
+        "With `parameter_mode = 'draws'`, `slope` must have length 1 or ",
+        "the number of paired draws (", n_sim, ").",
+        call. = FALSE
+      )
+    }
+
+    if (!length(intercept) %in% c(1L, n_sim)) {
+      stop(
+        "With `parameter_mode = 'draws'`, `intercept` must have length 1 or ",
+        "the number of paired draws (", n_sim, ").",
+        call. = FALSE
+      )
+    }
+  }
+
+  if (!valid_integer_scalar(n_sim) ||
+      n_sim < 1L) {
+    stop(
+      "Internal error while resolving the number of loss-model simulations.",
+      call. = FALSE
+    )
+  }
+
+  n_sim <- as.integer(n_sim)
+
   stochastic_parameters <-
-    length(slope) == 2L ||
-    length(intercept) == 2L ||
+    (identical(parameter_mode, "uniform") &&
+       (length(slope) == 2L || length(intercept) == 2L)) ||
     random_sd > 0
+
+  # ==========================================================================
+  # 7. RNG CONTRACT AND PARAMETER REALIZATIONS
+  # ==========================================================================
 
   if (!is.null(seed)) {
     seed_existed <- exists(
@@ -796,65 +897,53 @@ simulate_losses <- function(
     set.seed(seed)
   }
 
-  # ==========================================================================
-  # 7. LOSS-PARAMETER SIMULATIONS
-  # ==========================================================================
+  if (identical(parameter_mode, "values")) {
 
-  draw_parameter <- function(
-    x,
-    n_use,
-    parameter
-  ) {
-    if (length(x) == 1L) {
-      return(
-        rep(
-          as.numeric(x),
-          n_use
-        )
+    slope_sim <- as.numeric(parameter_grid$slope_sim)
+    intercept_sim <- as.numeric(parameter_grid$intercept_sim)
+
+  } else if (identical(parameter_mode, "uniform")) {
+
+    slope_sim <- if (length(slope) == 1L) {
+      rep(as.numeric(slope), n_sim)
+    } else {
+      stats::runif(
+        n_sim,
+        min = min(slope),
+        max = max(slope)
       )
     }
 
-    if (length(x) == 2L) {
-      return(
-        stats::runif(
-          n_use,
-          min = min(x),
-          max = max(x)
-        )
+    intercept_sim <- if (length(intercept) == 1L) {
+      rep(as.numeric(intercept), n_sim)
+    } else {
+      stats::runif(
+        n_sim,
+        min = min(intercept),
+        max = max(intercept)
       )
     }
 
-    if (length(x) == n_use) {
-      return(
-        as.numeric(x)
-      )
+  } else {
+
+    slope_sim <- if (length(slope) == 1L) {
+      rep(as.numeric(slope), n_sim)
+    } else {
+      as.numeric(slope)
     }
 
-    stop(
-      "Internal error while resolving `",
-      parameter,
-      "`.",
-      call. = FALSE
-    )
+    intercept_sim <- if (length(intercept) == 1L) {
+      rep(as.numeric(intercept), n_sim)
+    } else {
+      as.numeric(intercept)
+    }
   }
-
-  slope_sim <- draw_parameter(
-    slope,
-    n,
-    "slope"
-  )
-
-  intercept_sim <- draw_parameter(
-    intercept,
-    n,
-    "intercept"
-  )
 
   if (anyNA(slope_sim) ||
       any(!is.finite(slope_sim)) ||
       any(slope_sim < 0)) {
     stop(
-      "Generated/supplied slope simulations must be finite and non-negative.",
+      "Resolved slope values must be finite and non-negative.",
       call. = FALSE
     )
   }
@@ -863,26 +952,26 @@ simulate_losses <- function(
       any(!is.finite(intercept_sim)) ||
       any(intercept_sim <= 0)) {
     stop(
-      "Generated/supplied intercept simulations must be finite and positive.",
+      "Resolved intercept values must be finite and positive.",
       call. = FALSE
     )
   }
 
-  random_effect <- if (random_sd > 0) {
+  rand_eff <- if (random_sd > 0) {
     stats::rnorm(
-      n,
+      n_sim,
       mean = 0,
       sd = random_sd
     )
   } else {
     rep(
       0,
-      n
+      n_sim
     )
   }
 
-  if (anyNA(random_effect) ||
-      any(!is.finite(random_effect))) {
+  if (anyNA(rand_eff) ||
+      any(!is.finite(rand_eff))) {
     stop(
       "The external yield-intercept deviations are non-finite.",
       call. = FALSE
@@ -891,7 +980,7 @@ simulate_losses <- function(
 
   reference_yield_sim <-
     intercept_sim +
-    random_effect
+    rand_eff
 
   if (any(reference_yield_sim <= 0) ||
       any(!is.finite(reference_yield_sim))) {
@@ -902,7 +991,7 @@ simulate_losses <- function(
 
     stop(
       "At least one external yield-model simulation produced a non-positive ",
-      "`reference_yield = intercept + random_effect` (simulation(s): ",
+      "`ref_yield = intercept + rand_eff` (simulation(s): ",
       paste(
         utils::head(
           bad,
@@ -920,16 +1009,15 @@ simulate_losses <- function(
   no_loss_parameter_variation <-
     length(unique(slope_sim)) == 1L &&
     length(unique(intercept_sim)) == 1L &&
-    length(unique(random_effect)) == 1L
+    length(unique(rand_eff)) == 1L
 
-  if (n > 1L &&
+  if (n_sim > 1L &&
       no_loss_parameter_variation) {
     warning(
-      "`n > 1` was requested, but there is no variation across simulations in ",
-      "`slope`, `intercept`, or the component controlled by `random_sd`. ",
-      "All `.sim` replicates therefore use the same external yield-loss model ",
-      "parameters and do not represent uncertainty propagation. Use `n = 1` ",
-      "unless repeated identical simulation rows are intentionally required.",
+      "Multiple loss-model simulations were generated, but there is no ",
+      "variation across `slope`, `intercept`, or the component controlled by ",
+      "`random_sd`. All `.sim` replicates therefore use the same external ",
+      "yield-loss model parameters and do not represent uncertainty propagation.",
       call. = FALSE
     )
   }
@@ -944,7 +1032,7 @@ simulate_losses <- function(
     price =
       price,
     .sim =
-      seq_len(n),
+      seq_len(n_sim),
     KEEP.OUT.ATTRS = FALSE,
     stringsAsFactors = FALSE
   )
@@ -959,12 +1047,12 @@ simulate_losses <- function(
       simulation_grid$.sim
     ]
 
-  simulation_grid$random_effect <-
-    random_effect[
+  simulation_grid$rand_eff <-
+    rand_eff[
       simulation_grid$.sim
     ]
 
-  simulation_grid$reference_yield <-
+  simulation_grid$ref_yield <-
     reference_yield_sim[
       simulation_grid$.sim
     ]
@@ -1013,17 +1101,17 @@ simulate_losses <- function(
       simulation_index
     ]
 
-  out$random_effect <-
-    simulation_grid$random_effect[
+  out$rand_eff <-
+    simulation_grid$rand_eff[
       simulation_index
     ]
 
-  out$reference_yield <-
-    simulation_grid$reference_yield[
+  out$ref_yield <-
+    simulation_grid$ref_yield[
       simulation_index
     ]
 
-  out$attainable_yield <-
+  out$att_yield <-
     simulation_grid$attainable_yield[
       simulation_index
     ]
@@ -1033,18 +1121,18 @@ simulate_losses <- function(
       simulation_index
     ]
 
-  out$response_used <-
-    response_used[
+  out$y_used <-
+    y_used[
       original_index
     ]
 
   if (has_bounds) {
-    out$response_lower_used <-
+    out$y_lower <-
       response_lower_used[
         original_index
       ]
 
-    out$response_upper_used <-
+    out$y_upper <-
       response_upper_used[
         original_index
       ]
@@ -1063,7 +1151,7 @@ simulate_losses <- function(
         out$slope_sim *
           response
       ) /
-      out$reference_yield
+      out$ref_yield
 
     if (anyNA(raw_loss_proportion) ||
         any(!is.finite(
@@ -1124,31 +1212,31 @@ simulate_losses <- function(
       1
     )
 
-    relative_yield_proportion <-
+    rl_prop <-
       1 -
       loss_proportion
 
-    predicted_yield <-
-      out$reference_yield *
-      relative_yield_proportion
+    pred_yield <-
+      out$ref_yield *
+      rl_prop
 
-    relative_yield_pct <-
+    rl_pct <-
       100 *
-      relative_yield_proportion
+      rl_prop
 
-    yield_loss_pct <-
+    yl_pct <-
       100 *
       loss_proportion
 
-    attainable_predicted_yield <-
-      out$attainable_yield *
-      relative_yield_proportion
+    ap_yield <-
+      out$att_yield *
+      rl_prop
 
     yield_loss <-
-      out$attainable_yield *
+      out$att_yield *
       loss_proportion
 
-    economic_loss <-
+    econ_loss <-
       (
         yield_loss /
           1000
@@ -1157,26 +1245,26 @@ simulate_losses <- function(
 
     if (anyNA(
       c(
-        predicted_yield,
-        relative_yield_proportion,
-        relative_yield_pct,
+        pred_yield,
+        rl_prop,
+        rl_pct,
         loss_proportion,
-        yield_loss_pct,
-        attainable_predicted_yield,
+        yl_pct,
+        ap_yield,
         yield_loss,
-        economic_loss
+        econ_loss
       )
     ) ||
     any(!is.finite(
       c(
-        predicted_yield,
-        relative_yield_proportion,
-        relative_yield_pct,
+        pred_yield,
+        rl_prop,
+        rl_pct,
         loss_proportion,
-        yield_loss_pct,
-        attainable_predicted_yield,
+        yl_pct,
+        ap_yield,
         yield_loss,
-        economic_loss
+        econ_loss
       )
     ))) {
       stop(
@@ -1188,26 +1276,26 @@ simulate_losses <- function(
     }
 
     list(
-      yield_loss_proportion_raw =
+      yl_prop_raw =
         raw_loss_proportion,
-      loss_constrained =
+      yl_capped =
         outside_constraints,
-      predicted_yield =
-        predicted_yield,
-      relative_yield_proportion =
-        relative_yield_proportion,
-      relative_yield_pct =
-        relative_yield_pct,
-      yield_loss_proportion =
+      pred_yield =
+        pred_yield,
+      rl_prop =
+        rl_prop,
+      rl_pct =
+        rl_pct,
+      yl_prop =
         loss_proportion,
-      yield_loss_pct =
-        yield_loss_pct,
-      attainable_predicted_yield =
-        attainable_predicted_yield,
+      yl_pct =
+        yl_pct,
+      ap_yield =
+        ap_yield,
       yield_loss =
         yield_loss,
-      economic_loss =
-        economic_loss
+      econ_loss =
+        econ_loss
     )
   }
 
@@ -1216,7 +1304,7 @@ simulate_losses <- function(
   # ==========================================================================
 
   central_metrics <- calculate_metrics(
-    out$response_used,
+    out$y_used,
     context = "central"
   )
 
@@ -1238,25 +1326,25 @@ simulate_losses <- function(
 
   if (has_bounds) {
     metrics_at_lower <- calculate_metrics(
-      out$response_lower_used,
+      out$y_lower,
       context = "lower-bound"
     )
 
     metrics_at_upper <- calculate_metrics(
-      out$response_upper_used,
+      out$y_upper,
       context = "upper-bound"
     )
 
     response_dependent_metrics <- c(
-      "yield_loss_proportion_raw",
-      "predicted_yield",
-      "relative_yield_proportion",
-      "relative_yield_pct",
-      "yield_loss_proportion",
-      "yield_loss_pct",
-      "attainable_predicted_yield",
+      "yl_prop_raw",
+      "pred_yield",
+      "rl_prop",
+      "rl_pct",
+      "yl_prop",
+      "yl_pct",
+      "ap_yield",
       "yield_loss",
-      "economic_loss"
+      "econ_loss"
     )
 
     for (metric_name in response_dependent_metrics) {
@@ -1293,11 +1381,11 @@ simulate_losses <- function(
       ]] <- upper_values
     }
 
-    out$loss_constrained_lower <-
-      metrics_at_lower$loss_constrained
+    out$yl_capped_lower <-
+      metrics_at_lower$yl_capped
 
-    out$loss_constrained_upper <-
-      metrics_at_upper$loss_constrained
+    out$yl_capped_upper <-
+      metrics_at_upper$yl_capped
 
     lower_metrics <-
       metrics_at_lower
@@ -1313,8 +1401,8 @@ simulate_losses <- function(
     .Machine$double.eps
 
   complement_check <-
-    out$relative_yield_proportion +
-    out$yield_loss_proportion
+    out$rl_prop +
+    out$yl_prop
 
   if (any(
     !nearly_equal(
@@ -1336,13 +1424,13 @@ simulate_losses <- function(
   }
 
   attainable_check <-
-    out$attainable_predicted_yield +
+    out$ap_yield +
     out$yield_loss
 
   if (any(
     !nearly_equal(
       attainable_check,
-      out$attainable_yield,
+      out$att_yield,
       tolerance
     )
   )) {
@@ -1354,10 +1442,10 @@ simulate_losses <- function(
   }
 
   calibration_check <-
-    out$predicted_yield -
+    out$pred_yield -
     (
-      out$reference_yield *
-        out$relative_yield_proportion
+      out$ref_yield *
+        out$rl_prop
     )
 
   if (any(
@@ -1366,10 +1454,10 @@ simulate_losses <- function(
     pmax(
       1,
       abs(
-        out$predicted_yield
+        out$pred_yield
       ),
       abs(
-        out$reference_yield
+        out$ref_yield
       )
     )
   )) {
@@ -1386,14 +1474,14 @@ simulate_losses <- function(
 
   central_constrained_count <-
     sum(
-      out$loss_constrained
+      out$yl_capped
     )
 
   lower_constrained_count <- if (
     has_bounds
   ) {
     sum(
-      out$loss_constrained_lower
+      out$yl_capped_lower
     )
   } else {
     0L
@@ -1403,7 +1491,7 @@ simulate_losses <- function(
     has_bounds
   ) {
     sum(
-      out$loss_constrained_upper
+      out$yl_capped_upper
     )
   } else {
     0L
@@ -1434,7 +1522,7 @@ simulate_losses <- function(
       } else {
         ""
       },
-      ". Inspect `yield_loss_proportion_raw` and the `loss_constrained` ",
+      ". Inspect `yl_prop_raw` and the `yl_capped` ",
       "columns before interpreting extrapolated scenarios.",
       call. = FALSE
     )
@@ -1456,11 +1544,13 @@ simulate_losses <- function(
     y_multiplier =
       y_multiplier,
     n =
-      n,
+      n_sim,
     slope =
       slope,
     intercept =
       intercept,
+    parameter_mode =
+      parameter_mode,
     random_sd =
       random_sd,
     attainable_yield =
@@ -1482,7 +1572,12 @@ simulate_losses <- function(
     response_contract =
       "nonnegative_response_on_external_yield_model_scale",
     parameter_contract =
-      "fixed_uniform_or_user_supplied_loss_model_draws",
+      switch(
+        parameter_mode,
+        values = "exact_parameter_value_grid",
+        uniform = "fixed_or_uniform_parameter_simulations",
+        draws = "paired_user_supplied_parameter_draws"
+      ),
     random_effect_contract =
       "simulation_level_external_yield_intercept_deviation",
     loss_contract =
@@ -1510,7 +1605,7 @@ simulate_losses <- function(
     parameter_variation_present =
       !no_loss_parameter_variation,
     repeated_identical_simulations =
-      n > 1L &&
+      n_sim > 1L &&
       no_loss_parameter_variation
   )
 
@@ -1522,7 +1617,12 @@ simulate_losses <- function(
   attr(
     out,
     "epiexposure_loss_n"
-  ) <- n
+  ) <- n_sim
+
+  attr(
+    out,
+    "epiexposure_loss_parameter_mode"
+  ) <- parameter_mode
 
   attr(
     out,
@@ -1541,14 +1641,19 @@ simulate_losses <- function(
   attr(
     out,
     "epiexposure_loss_parameter_dependence"
-  ) <- if (
-    length(slope) == 2L ||
-    length(intercept) == 2L
-  ) {
-    "uniform_ranges_sampled_independently_unless_user_supplies_paired_draws"
-  } else {
-    "user_supplied_or_fixed_parameters_paired_by_simulation_index"
-  }
+  ) <- switch(
+    parameter_mode,
+    values = "exact_slope_intercept_combinations",
+    uniform = if (
+      length(slope) == 2L ||
+      length(intercept) == 2L
+    ) {
+      "uniform_ranges_sampled_independently"
+    } else {
+      "fixed_parameters"
+    },
+    draws = "user_supplied_parameters_paired_by_simulation_index"
+  )
 
   attr(
     out,
@@ -1567,7 +1672,7 @@ simulate_losses <- function(
   attr(
     out,
     "epiexposure_loss_repeated_identical_simulations"
-  ) <- n > 1L &&
+  ) <- n_sim > 1L &&
     no_loss_parameter_variation
 
   out

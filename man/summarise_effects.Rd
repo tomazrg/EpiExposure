@@ -46,6 +46,9 @@ intervals.}
 
 \item{lag_periods}{Optional data frame containing `period`, `lag_start`, and
 `lag_end`. Required when `scale = "period"` and `incremental = FALSE`.
+Both `lag_start` and `lag_end` are interpreted on the retrospective lag
+scale, where lag 0 is the most recent exposure and increasing lag values
+correspond to older exposure observations. Period bounds are inclusive.
 Periods may be non-overlapping or overlapping; each period is interpreted
 independently.}
 
@@ -182,9 +185,13 @@ it to a joint reference exposure profile, allowing the same association to
 be reported as `baseline`, `predicted`, and `delta` on the response scale.
 }
 \details{
-Exposure histories are interpreted chronologically. The oldest exposure is
-first and the most recent exposure is last; the final exposure corresponds
-internally to lag 0.
+Exposure histories are supplied chronologically: the oldest exposure is
+first and the most recent exposure is last. Internally, EpiExposure converts
+these histories to the retrospective lag scale used by DLNMs, where lag 0
+represents the most recent exposure observation and increasing lag values
+represent progressively older exposure observations. All lag-specific and
+period-specific summaries reported by `summarise_effects()` are therefore
+indexed on this retrospective lag scale.
 
 
 ## DLNM contrast and the EpiExposure response-scale extension
@@ -262,6 +269,14 @@ validated long-format history and missing/non-finite exposure values are not
 permitted, all fitted exposures necessarily use the same time support.
 
 ## Period effects
+
+Period definitions always use the retrospective lag scale employed by
+EpiExposure and DLNMs. Thus, lag 0 corresponds to the most recent exposure
+observation and increasing lag values correspond to progressively older
+exposure observations. For example, if `max_lag = 85`, a period defined as
+`0--14` represents the 15 most recent exposure observations, whereas a
+period defined as `71--85` represents the oldest portion of the fitted
+exposure history.
 
 DLNM contributions are additive on the linear-predictor scale. Period
 summaries therefore sum lag-specific `eta` contrasts first and only then
