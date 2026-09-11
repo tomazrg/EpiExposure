@@ -2260,27 +2260,6 @@ losses = simulate_losses(
 )
 
 losses
-
-unique(losses$slope_sim)
-
-losses |>
-  #filter(slope_sim == 49.3) |> 
-  filter(att_yield == 12000) |> 
-  ggplot()+
-  geom_smooth(aes(rain,rl_pct, group = sample, color = sample), se = F)+
-  scale_color_viridis_b()+
-  facet_wrap(~tmean+wetness, ncol = 2)+
-  theme_bw()+
-  theme(legend.position = "none",
-        strip.background = element_rect(fill = "white", color = "black"),
-        strip.text = element_text(face = "bold"))
-
-
-  #geom_smooth(aes(prediction_upper,relative_yield_pct_upper),
-   #           linetype = 2, color = "black", method = "lm",se = F)+
-  geom_smooth(aes(prediction_lower,relative_yield_pct_lower),
-              linetype = 2, color = "black", method = "lm", se = F)+
-  theme_bw()
 ```
 
 ```{r}
@@ -2333,64 +2312,13 @@ losses_s = simulate_losses(
   plot_losses(
   data = losses_s,
   x = "rain",
+  y = "Attainable yield",
   facet = c("tmean", "wetness"),
   type = "regression",
   reg_y = "ap_yield",
   att_yield = 9000,
   x_breaks = seq(0, 15, by = 3),
   x_label = "Daily precipitation (mm)")
-```
-
-```{r}
-losses_plot <- losses |>
-  filter(att_yield == 9000) |>
-  mutate(
-    yield_model = paste0(
-      "B0 = ", intercept_sim,
-      " | B1 = ", slope_sim
-    )
-  )
-
-ggplot(losses_plot) +
-  geom_smooth(
-    aes(rain, ap_yield),
-    se = FALSE,
-    color = "black"
-  ) +
-  geom_smooth(
-    aes(rain, ap_yield_lower),
-    se = FALSE,
-    color = "black",
-    linetype = 2
-  ) +
-  geom_smooth(
-    aes(rain, ap_yield_upper),
-    se = FALSE,
-    color = "black",
-    linetype = 2
-  ) +
-  facet_grid(
-    rows = vars(tmean),
-    cols = vars(wetness, yield_model),
-    labeller = labeller(
-      tmean = function(x) paste0("tmean = ", x),
-      wetness = function(x) paste0("wetness = ", x)
-    )
-  ) +
-  theme_bw() +
-  theme(
-    legend.position = "none",
-    strip.background = element_rect(
-      fill = "white",
-      color = "black"
-    ),
-    strip.text = element_text(
-      face = "bold"
-    )
-  )
-
-ggsave("figure/loss_s.png", dpi = 600, height = 6, width = 12)
-
 ```
 
 ```{r}
