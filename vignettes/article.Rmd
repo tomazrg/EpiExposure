@@ -2316,7 +2316,7 @@ losses_s = simulate_losses(
   facet = c("tmean", "wetness"),
   type = "regression",
   reg_y = "ap_yield",
-  att_yield = 9000,
+  att_yield = 12000,
   x_breaks = seq(0, 15, by = 3),
   x_label = "Daily precipitation (mm)")
 ```
