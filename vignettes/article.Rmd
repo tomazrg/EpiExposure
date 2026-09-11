@@ -396,7 +396,7 @@ exposure_tmean_01 <- simulate_exposures(max_lag = 85,
                   #pattern = "alternating_times",
                   #alternating_values = c(20,24),
                   #background = list(dist = "normal", mean = 25, sd = 10),
-                  background = list(dist = "ar1", mean = 25, sd = 4, phi = 0.90),
+                  background = list(dist = "ar1", mean = 30, sd = 4, phi = 0.90),
                   n = 1)
 
 exposure_rain_01 <- simulate_exposures(max_lag = 85,
@@ -408,10 +408,10 @@ exposure_rain_01 <- simulate_exposures(max_lag = 85,
                   n = 1)
 
 exposure_wetness_01 <- simulate_exposures(max_lag = 85,
-                  mode = "profile", seed = 123,
+                  mode = "profile", seed = 1234,
                   #alternating_values = c(5,15),
-                  background = list(dist = "AR1", mean = 15, sd = 4, phi = 0.10),
-                  n = 1)
+                  background = list(dist = "ar1", mean = 20,
+                  sd = 4, phi = 0.90),n = 1)
 
 #head(exposure_tmean$profiles)
 ```
@@ -533,20 +533,19 @@ pred_01
 
 pred_011 = pred_01 |> 
   summarise(
-    mean = mean(prediction*100),
-    median = median(prediction*100)
+    mean = mean(prediction),
+    median = median(prediction)
   )
 
 sev_01  = pred_01 |> 
-  ggplot(aes(prediction*100))+
+  ggplot(aes(prediction))+
   geom_histogram(color = "white", fill = "black", bins = 10)+
     geom_vline(data = pred_011, aes(xintercept = mean), color = "orange",size =1)+
   geom_vline(data = pred_011, aes(xintercept = median), color = "red",size =1)+
   theme_bw()+
-  labs(x = "",
+  labs(x = "Predicted",
        y = "Frequency")+
-  theme(text = element_text(size = 10, face = "bold"),
-        axis.text.x = element_blank())
+  theme(text = element_text(size = 10, face = "bold"))
 
 sev_01
 ```
@@ -564,7 +563,7 @@ exposure_tmean_02 <- simulate_exposures(max_lag = 85,
                   #pattern = "alternating_times",
                   #alternating_values = c(20,24),
                   #background = list(dist = "normal", mean = 25, sd = 10),
-                  background = list(dist = "ar1", mean = 25, sd = 4, phi = 0.90),
+                  background = list(dist = "ar1", mean = 34, sd = 4, phi = 0.90),
                   n = 1)
 
 exposure_rain_02 <- simulate_exposures(max_lag = 85,
@@ -578,7 +577,7 @@ exposure_rain_02 <- simulate_exposures(max_lag = 85,
 exposure_wetness_02 <- simulate_exposures(max_lag = 85,
                   mode = "profile", seed = 123,
                   #alternating_values = c(5,15),
-                  background = list(dist = "ar1", mean = 20, sd = 4, phi = 0.90),
+                  background = list(dist = "ar1", mean = 10, sd = 10, phi = 0.90),
                   n = 1)
 
 #head(exposure_tmean$profiles)
@@ -711,13 +710,14 @@ plot_wetness_simu_02
 pred_02 <- predict_outcomes(
   fit = fit,
   profiles = list(
-    tmean = exposure_tmean_02$profile,
+    tmean = exposure_tmean_01$profile,
     rain = exposure_rain_02$profile,
-    wetness = exposure_wetness_02$profile
+    wetness = exposure_wetness_01$profile
   ),
   uncertainty = TRUE,
   n_samples = 100,
-  output = "samples"
+  output = "samples",
+  seed = 1234
 )
 
 pred_02
@@ -727,11 +727,11 @@ pred_02
 
 pred_022 = pred_02 |> 
   summarise(
-    mean = mean(prediction*100),
-    median = median(prediction*100)
+    mean = mean(prediction),
+    median = median(prediction)
   )
 sev_02  = pred_02 |> 
-  ggplot(aes(prediction*100))+
+  ggplot(aes(prediction))+
   geom_histogram(color = "white", fill = "black", bins = 10)+
   geom_vline(data = pred_022, aes(xintercept = mean), color = "orange",size =1)+
   geom_vline(data = pred_022, aes(xintercept = median), color = "red",size =1)+
@@ -785,7 +785,7 @@ pred_scenarios = simulate_scenarios(
   uncertainty = TRUE,
   output = "samples",
   n_samples = 20,
-  seed = 1234)
+  seed = 123)
 
 pred_scenarios
 ```
@@ -1015,6 +1015,7 @@ exp01 <- simulate_exposures(max_lag = 85,
 head(exp01$simulation_data)
 ```
 
+
 ```{r}
 compare_pred = compare_predictions(
   fit = fit,
@@ -1064,14 +1065,14 @@ compare_pred2
 
 ```{r}
 ggplot(compare_pred,
-       aes(reorder(scenario, diff*100),
-           y = diff*100)) +
+       aes(reorder(scenario, diff),
+           y = diff)) +
 
   geom_jitter(
     data = compare_pred2,
     aes(
-      reorder(scenario, diff*100),
-      y = diff*100, color = sample
+      reorder(scenario, diff),
+      y = diff, color = sample
     ),
     alpha = 0.4,
     size = 2,
@@ -1080,8 +1081,8 @@ ggplot(compare_pred,
   scale_color_viridis_b()+
   geom_pointrange(
     aes(
-      ymin = diff_lower*100,
-      ymax = diff_upper*100
+      ymin = diff_lower,
+      ymax = diff_upper
     ),
     linewidth = 0.6
   )+
@@ -1094,6 +1095,763 @@ ggplot(compare_pred,
         legend.position = "none")
 
 ggsave("figure/compare_predictions.png", dpi = 600, height = 4, width = 6)
+```
+
+```{r}
+compare_pred2 |> 
+  ggplot(aes(ratio))+
+  geom_histogram(fill = "steelblue", color = "white")+
+  facet_wrap(~scenario)+
+  theme_bw()
+```
+### Scenario A
+```{r}
+exposure_tmean_A <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 101,
+  background = list(
+    dist = "ar1",
+    mean = 25,
+    sd = 2,
+    phi = 0.90
+  ),
+  n = 1
+)
+
+exposure_rain_A <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 102,
+  background = list(
+    dist = "ar1",
+    mean = 5,
+    sd = 2,
+    phi = 0.50
+  ),
+  n = 1
+)
+
+exposure_wetness_A <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 103,
+  background = list(
+    dist = "ar1",
+    mean = 15,
+    sd = 3,
+    phi = 0.70
+  ),
+  n = 1
+)
+
+scenario_A <- list(
+  tmean = exposure_tmean_A,
+  rain = exposure_rain_A,
+  wetness = exposure_wetness_A
+)
+```
+
+### Scenario B
+```{r}
+exposure_tmean_B <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 201,
+  background = list(
+    dist = "ar1",
+    mean = 34,
+    sd = 2,
+    phi = 0.95
+  ),
+  n = 1
+)
+
+exposure_rain_B <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 202,
+  background = list(
+    dist = "ar1",
+    mean = 5,
+    sd = 1.5,
+    phi = 0.40
+  ),
+  n = 1
+)
+
+exposure_wetness_B <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 203,
+  background = list(
+    dist = "ar1",
+    mean = 2,
+    sd = 0.7,
+    phi = 0.60
+  ),
+  n = 1
+)
+
+scenario_B <- list(
+  tmean = exposure_tmean_B,
+  rain = exposure_rain_B,
+  wetness = exposure_wetness_B
+)
+```
+
+### Scenario C
+```{r}
+exposure_tmean_C <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 301,
+  background = list(
+    dist = "ar1",
+    mean = 15,
+    sd = 2,
+    phi = 0.90
+  ),
+  n = 1
+)
+
+exposure_rain_C <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 302,
+  background = list(
+    dist = "ar1",
+    mean = 0.5,
+    sd = 0.5,
+    phi = 0.40
+  ),
+  n = 1
+)
+
+exposure_wetness_C <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 303,
+  background = list(
+    dist = "ar1",
+    mean = 2,
+    sd = 0.8,
+    phi = 0.60
+  ),
+  n = 1
+)
+
+scenario_C <- list(
+  tmean = exposure_tmean_C,
+  rain = exposure_rain_C,
+  wetness = exposure_wetness_C
+)
+```
+
+### Scenario D
+
+```{r}
+exposure_tmean_D <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 401,
+  background = list(
+    dist = "ar1",
+    mean = 10,
+    sd = 2,
+    phi = 0.90
+  ),
+  n = 1
+)
+
+exposure_rain_D <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 402,
+  background = list(
+    dist = "ar1",
+    mean = 15,
+    sd = 4,
+    phi = 0.60
+  ),
+  n = 1
+)
+
+exposure_wetness_D <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 403,
+  background = list(
+    dist = "ar1",
+    mean = 20,
+    sd = 3,
+    phi = 0.70
+  ),
+  n = 1
+)
+
+scenario_D <- list(
+  tmean = exposure_tmean_D,
+  rain = exposure_rain_D,
+  wetness = exposure_wetness_D
+)
+```
+
+```{r}
+comp_pred = compare_predictions(
+  fit = fit,
+  profiles = list(
+    A = scenario_A,
+    B = scenario_B,
+    C = scenario_C,
+    D = scenario_D
+  ),
+  uncertainty = TRUE,
+  output =  "summary",
+  n_samples = 100
+)
+
+
+comp_pred <- comp_pred %>%
+  dplyr::mutate(
+    scenario = paste(scenario1, scenario2, sep = " x ")
+  )
+
+comp_pred
+
+```
+
+```{r}
+comp_pred2 = compare_predictions(
+  fit = fit,
+  profiles = list(
+    A = scenario_A,
+    B = scenario_B,
+    C = scenario_C,
+    D = scenario_D
+  ),
+  uncertainty = TRUE,
+  output =  "samples",
+  n_samples = 100
+)
+
+comp_pred2 <- comp_pred2 %>%
+  dplyr::mutate(
+    scenario = paste(scenario1, scenario2, sep = " x ")
+  )
+
+comp_pred2
+
+```
+
+```{r}
+sc_simu_plot = ggplot(comp_pred,
+       aes(reorder(scenario, diff),
+           y = diff)) +
+
+  geom_jitter(
+    data = comp_pred2,
+    aes(
+      reorder(scenario, diff),
+      y = diff, color = sample
+    ),
+    alpha = 0.4,
+    size = 2,
+    width = 0.2
+  ) +
+  scale_color_viridis_b()+
+  geom_pointrange(
+    aes(
+      ymin = diff_lower,
+      ymax = diff_upper
+    ),
+    linewidth = 0.6
+  )+
+  theme_bw() +
+  labs(
+    x = "Scenarios comparison",
+    y = "Difference"
+  )+
+  theme(text = element_text(size = 10, face = "bold"),
+        legend.position = "none")
+
+```
+#### tmean
+```{r}
+df_tmean_A <- purrr::imap_dfr(
+  exposure_tmean_A$profile,
+  ~ tibble(
+      simulation = .y,
+      time = 0:85,
+      value = as.numeric(.x)
+    )
+)
+
+
+
+df_tmean_A <- data.frame(
+  time = 0:85,
+  value = as.numeric(exposure_tmean_A$profile)
+)
+
+plot_tmean_simu_A  = df_tmean_A%>% 
+  ggplot(aes(time,value))+
+  #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
+  geom_line(color = "#C44E52", size = 1.4)+
+  theme_bw()+
+  labs(x = "",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10)
+)+
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.text.x = element_blank())
+
+plot_tmean_simu_A
+```
+
+```{r}
+df_tmean_B <- purrr::imap_dfr(
+  exposure_tmean_B$profile,
+  ~ tibble(
+      simulation = .y,
+      time = 0:85,
+      value = as.numeric(.x)
+    )
+)
+
+
+
+df_tmean_B <- data.frame(
+  time = 0:85,
+  value = as.numeric(exposure_tmean_B$profile)
+)
+
+plot_tmean_simu_B  = df_tmean_B%>% 
+  ggplot(aes(time,value))+
+  #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
+  geom_line(color = "#C44E52", size = 1.4)+
+  theme_bw()+
+  labs(x = "",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10)
+)+
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.text.x = element_blank())
+
+plot_tmean_simu_B
+```
+```{r}
+df_tmean_C <- purrr::imap_dfr(
+  exposure_tmean_C$profile,
+  ~ tibble(
+      simulation = .y,
+      time = 0:85,
+      value = as.numeric(.x)
+    )
+)
+
+
+
+df_tmean_C <- data.frame(
+  time = 0:85,
+  value = as.numeric(exposure_tmean_C$profile)
+)
+
+plot_tmean_simu_C  = df_tmean_C%>% 
+  ggplot(aes(time,value))+
+  #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
+  geom_line(color = "#C44E52", size = 1.4)+
+  theme_bw()+
+  labs(x = "",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10)
+)+
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.text.x = element_blank())
+
+plot_tmean_simu_C
+```
+```{r}
+df_tmean_D <- purrr::imap_dfr(
+  exposure_tmean_D$profile,
+  ~ tibble(
+      simulation = .y,
+      time = 0:85,
+      value = as.numeric(.x)
+    )
+)
+
+
+
+df_tmean_D <- data.frame(
+  time = 0:85,
+  value = as.numeric(exposure_tmean_D$profile)
+)
+
+plot_tmean_simu_D  = df_tmean_D%>% 
+  ggplot(aes(time,value))+
+  #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
+  geom_line(color = "#C44E52", size = 1.4)+
+  theme_bw()+
+  labs(x = "",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10)
+)+
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.text.x = element_blank())
+
+plot_tmean_simu_D
+```
+#### rain
+```{r}
+df_rain_A <- purrr::imap_dfr(
+  exposure_rain_A$profile,
+  ~ tibble(
+      simulation = .y,
+      time = 0:85,
+      value = as.numeric(.x)
+    )
+)
+
+df_rain_A <- data.frame(
+  time = 0:85,
+  value = as.numeric(exposure_rain_A$profile)
+)
+
+plot_rain_simu_A  = df_rain_A%>% 
+  ggplot(aes(time,value))+
+  #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
+  geom_line(color = "#4C72B0", size = 1.4)+
+  theme_bw()+
+  labs(x = "",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10))+
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.text.x = element_blank())
+
+plot_rain_simu_A
+```
+```{r}
+df_rain_B <- purrr::imap_dfr(
+  exposure_rain_B$profile,
+  ~ tibble(
+      simulation = .y,
+      time = 0:85,
+      value = as.numeric(.x)
+    )
+)
+
+df_rain_B <- data.frame(
+  time = 0:85,
+  value = as.numeric(exposure_rain_B$profile)
+)
+
+plot_rain_simu_B  = df_rain_B%>% 
+  ggplot(aes(time,value))+
+  #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
+  geom_line(color = "#4C72B0", size = 1.4)+
+  theme_bw()+
+  labs(x = "",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10))+
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.text.x = element_blank())
+
+plot_rain_simu_B
+
+```
+```{r}
+df_rain_C <- purrr::imap_dfr(
+  exposure_rain_C$profile,
+  ~ tibble(
+      simulation = .y,
+      time = 0:85,
+      value = as.numeric(.x)
+    )
+)
+
+df_rain_C <- data.frame(
+  time = 0:85,
+  value = as.numeric(exposure_rain_C$profile)
+)
+
+plot_rain_simu_C  = df_rain_C%>% 
+  ggplot(aes(time,value))+
+  #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
+  geom_line(color = "#4C72B0", size = 1.4)+
+  theme_bw()+
+  labs(x = "",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10))+
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.text.x = element_blank())
+
+plot_rain_simu_C
+
+```
+```{r}
+df_rain_D <- purrr::imap_dfr(
+  exposure_rain_D$profile,
+  ~ tibble(
+      simulation = .y,
+      time = 0:85,
+      value = as.numeric(.x)
+    )
+)
+
+df_rain_D <- data.frame(
+  time = 0:85,
+  value = as.numeric(exposure_rain_D$profile)
+)
+
+plot_rain_simu_D  = df_rain_D%>% 
+  ggplot(aes(time,value))+
+  #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
+  geom_line(color = "#4C72B0", size = 1.4)+
+  theme_bw()+
+  labs(x = "",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10))+
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.text.x = element_blank())
+
+plot_rain_simu_D
+
+```
+#### wetness
+```{r}
+df_wetness_A <- purrr::imap_dfr(
+  exposure_wetness_A$profile,
+  ~ tibble(
+      simulation = .y,
+      time = 0:85,
+      value = as.numeric(.x)
+    )
+)
+
+df_wetness_A <- data.frame(
+  time = 0:85,
+  value = as.numeric(exposure_wetness_A$profile)
+)
+
+plot_wetness_simu_A  = df_wetness_A%>% 
+  ggplot(aes(time,value))+
+  #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
+  geom_line(color = "#55A868", size = 1.4)+
+  theme_bw()+
+  labs(x = "",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10))+
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.text.x = element_blank())
+
+plot_wetness_simu_A
+```
+```{r}
+df_wetness_B <- purrr::imap_dfr(
+  exposure_wetness_B$profile,
+  ~ tibble(
+      simulation = .y,
+      time = 0:85,
+      value = as.numeric(.x)
+    )
+)
+
+df_wetness_B <- data.frame(
+  time = 0:85,
+  value = as.numeric(exposure_wetness_B$profile)
+)
+
+plot_wetness_simu_B  = df_wetness_B%>% 
+  ggplot(aes(time,value))+
+  #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
+  geom_line(color = "#55A868", size = 1.4)+
+  theme_bw()+
+  labs(x = "",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10))+
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.text.x = element_blank())
+
+plot_wetness_simu_B
+```
+```{r}
+df_wetness_C <- purrr::imap_dfr(
+  exposure_wetness_C$profile,
+  ~ tibble(
+      simulation = .y,
+      time = 0:85,
+      value = as.numeric(.x)
+    )
+)
+
+df_wetness_C <- data.frame(
+  time = 0:85,
+  value = as.numeric(exposure_wetness_C$profile)
+)
+
+plot_wetness_simu_C  = df_wetness_C%>% 
+  ggplot(aes(time,value))+
+  #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
+  geom_line(color = "#55A868", size = 1.4)+
+  theme_bw()+
+  labs(x = "",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10))+
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.text.x = element_blank())
+
+plot_wetness_simu_C
+```
+```{r}
+df_wetness_D <- purrr::imap_dfr(
+  exposure_wetness_D$profile,
+  ~ tibble(
+      simulation = .y,
+      time = 0:85,
+      value = as.numeric(.x)
+    )
+)
+
+df_wetness_D <- data.frame(
+  time = 0:85,
+  value = as.numeric(exposure_wetness_D$profile)
+)
+
+plot_wetness_simu_D  = df_wetness_D%>% 
+  ggplot(aes(time,value))+
+  #geom_smooth(se = F, color = "#4C72B0",linewidth = 1.4)+
+  geom_line(color = "#55A868", size = 1.4)+
+  theme_bw()+
+  labs(x = "",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10))+
+  theme(text = element_text(size = 10, face = "bold"),
+        axis.text.x = element_blank())
+
+plot_wetness_simu_D
+```
+```{r}
+df_tmean_A$var = "tmean"
+df_tmean_A$scenario = "A"
+
+df_tmean_B$var = "tmean"
+df_tmean_B$scenario = "B"
+
+df_tmean_C$var = "tmean"
+df_tmean_C$scenario = "C"
+
+df_tmean_D$var = "tmean"
+df_tmean_D$scenario = "D"
+
+df_rain_A$var = "rain"
+df_rain_A$scenario = "A"
+
+df_rain_B$var = "rain"
+df_rain_B$scenario = "B"
+
+df_rain_C$var = "rain"
+df_rain_C$scenario = "C"
+
+df_rain_D$var = "rain"
+df_rain_D$scenario = "D"
+
+df_wetness_A$var = "wetness"
+df_wetness_A$scenario = "A"
+
+df_wetness_B$var = "wetness"
+df_wetness_B$scenario = "B"
+
+df_wetness_C$var = "wetness"
+df_wetness_C$scenario = "C"
+
+df_wetness_D$var = "wetness"
+df_wetness_D$scenario = "D"
+
+df_simulations = rbind(df_tmean_A, df_tmean_B, df_tmean_C, df_tmean_D,
+                       df_rain_A, df_rain_B, df_rain_C, df_rain_D,
+                       df_wetness_A, df_wetness_B, df_wetness_C, df_wetness_D)
+```
+
+
+```{r}
+df_simulations <- df_simulations %>%
+  dplyr::mutate(
+    lag = max(time) - time
+  )
+
+simu_plot = df_simulations %>%
+  ggplot(aes(time, value, color = var)) +
+  geom_line(linewidth = 1.0) +
+  facet_grid(var ~ scenario, scale = "free_y") +
+  theme_bw() +
+  labs(
+    x = "Lag",
+    y = "Exposure",
+    color = "Variable"
+  ) +
+  scale_x_continuous(
+    limits = c(0, 85),
+    breaks = seq(0, 85, by = 15)
+  ) +
+  scale_color_manual(
+    values = c(
+      tmean = "#C44E52",
+      rain = "#4C72B0",
+      wetness = "#55A868"
+    )
+  ) +
+  theme(
+    text = element_text(size = 10, face = "bold"),
+    legend.position = "none",
+    strip.background = element_rect(color = "black", fill = "white"),
+    strip.text = element_text(face = "bold")
+  )
+
+simu_plot
+```
+
+```{r}
+combined_plot <- cowplot::plot_grid(
+  sc_simu_plot,
+  simu_plot,
+  nrow = 1,
+  labels = c("(a)", "(b)"),
+  label_size = 12,
+  label_fontface = "bold",
+  label_x = 0.01,
+  label_y = 0.99,
+  hjust = 0,
+  vjust = 1
+)
+
+combined_plot
+
+ggsave("figure/compare_predictions2.png", dpi = 600, width = 10, height = 5.6)
 ```
 
 # Prediction
@@ -1552,7 +2310,7 @@ sens_rain = epi_sensitivity(
   scenario_var = "sample",
   elasticity = TRUE,
   critical = TRUE,
-  method = "analytical",
+  method = "finite",
   k = 3)
 
 sens_rain |> 
@@ -1629,7 +2387,7 @@ losses
 losses |>
   filter(attainable_yield == 12000) |> 
   ggplot()+
-  geom_smooth(aes(rain,yield_loss, group = sample, color = sample), se = F, method = "lm")+
+  geom_smooth(aes(rain,relative_yield_pct, group = sample, color = sample), se = F)+
   scale_color_viridis_b()+
   facet_wrap(~tmean+wetness)+
   theme_bw()+
@@ -1665,7 +2423,7 @@ ggsave("figure/simulation_yld_ec_losses.png", dpi = 600, bg = "white", height = 
 
 ```{r}
 losses |> 
-filter(attainable_yield == 6000) |> 
+filter(attainable_yield == 9000) |> 
   ggplot()+
   geom_smooth(aes(rain,attainable_predicted_yield), se = F,
               color = "black")+
