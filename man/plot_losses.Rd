@@ -7,9 +7,12 @@
 plot_losses(
   data,
   x,
-  y = "attainable_yield",
+  type = c("heatmap", "regression"),
+  y = "att_yield",
   yield_loss = "yield_loss",
-  economic_loss = "economic_loss",
+  economic_loss = "econ_loss",
+  reg_y = "ap_yield",
+  att_yield = NULL,
   facet = NULL,
   plots = c("yield", "economic"),
   ncol = NULL,
@@ -32,6 +35,7 @@ plot_losses(
   y_limits = NULL,
   x_label = NULL,
   y_label = "Attainable yield (kg/ha)",
+  reg_y_label = NULL,
   yield_title = NULL,
   economic_title = NULL,
   show_yield_x_text = FALSE,
@@ -65,33 +69,49 @@ plot_losses(
 
 \item{x}{Character scalar naming the variable displayed on the x-axis.}
 
-\item{y}{Character scalar naming the variable displayed on the y-axis.
-Default is `"attainable_yield"`.}
+\item{type}{Character scalar selecting `"heatmap"` or `"regression"`.
+Default is `"heatmap"`.}
 
-\item{yield_loss}{Character scalar naming the yield-loss column.}
+\item{y}{Character scalar naming the y-axis variable for heatmaps.
+Default is `"att_yield"`, the shortened output name returned by the current
+`simulate_losses()`.}
 
-\item{economic_loss}{Character scalar naming the economic-loss column.}
+\item{yield_loss}{Character scalar naming the yield-loss column used by the
+heatmap. Default is `"yield_loss"`.}
 
-\item{facet}{Optional character vector naming facet variables.}
+\item{economic_loss}{Character scalar naming the economic-loss column used by
+the heatmap. Default is `"econ_loss"`.}
 
-\item{plots}{Character vector selecting `"yield"`, `"economic"`, or both.}
+\item{reg_y}{Character scalar naming the y-axis variable when
+`type = "regression"`. Default is `"ap_yield"`.}
+
+\item{att_yield}{Optional finite numeric scalar used only with
+`type = "regression"`. When supplied, rows are filtered to the selected
+`att_yield` value before plotting.}
+
+\item{facet}{Optional character vector naming scenario variables used as
+facets. For heatmaps, `facet_wrap()` is used as in the historical function.
+For regression plots, the first facet variable is placed in rows and any
+remaining facet variables are placed in columns together with the
+automatically generated `yield_model` facet. Thus
+`facet = c("tmean", "wetness")` reproduces
+`facet_grid(rows = vars(tmean), cols = vars(wetness, yield_model))`.}
+
+\item{plots}{Character vector selecting `"yield"`, `"economic"`, or both.
+Used only when `type = "heatmap"` and ignored for regression plots.}
 
 \item{ncol, nrow}{Optional positive integers controlling the arrangement of
-the main loss plots. When both are `NULL` and both plots are requested,
+the main heatmap plots. When both are `NULL` and both plots are requested,
 `nrow = 2` is used.}
 
 \item{facet_ncol, facet_nrow}{Optional positive integers controlling the
-arrangement of facets within each plot.}
+arrangement of heatmap facets.}
 
 \item{yield_fill_scale, economic_fill_scale}{Optional continuous ggplot2 fill
-scales. When `NULL`, `ggplot2::scale_fill_viridis_b()` is used. Any
-compatible scale may be supplied, including `scale_fill_gradient()`,
-`scale_fill_gradientn()`, `scale_fill_distiller()`, or a customized
-`scale_fill_viridis_b()`.}
+scales for heatmaps. When `NULL`, `ggplot2::scale_fill_viridis_b()` is used.}
 
 \item{yield_fill_label, economic_fill_label}{Legend titles used by the default
-fill scales. Defaults are `kg ha^-1` and `USD ha^-1`, respectively.
-Character values and plotmath expressions are accepted.}
+heatmap fill scales.}
 
 \item{x_breaks, y_breaks}{Optional numeric axis breaks.}
 
@@ -99,19 +119,25 @@ Character values and plotmath expressions are accepted.}
 
 \item{x_limits, y_limits}{Optional numeric vectors of length two.}
 
-\item{x_label, y_label}{Axis labels. If `x_label = NULL`, a title-case label
-is generated from `x`.}
+\item{x_label}{Axis label. If `NULL`, a title-case label is generated from
+`x`.}
 
-\item{yield_title, economic_title}{Optional panel titles.}
+\item{y_label}{Y-axis label used for heatmaps.}
+
+\item{reg_y_label}{Optional y-axis label used for regression plots. If `NULL`,
+a label is generated from `reg_y`, with informative defaults for standard
+`simulate_losses()` output columns.}
+
+\item{yield_title, economic_title}{Optional heatmap panel titles.}
 
 \item{show_yield_x_text}{Logical. Show x-axis text and ticks in the yield
+heatmap panel. Default is `FALSE`.}
+
+\item{show_yield_x_label}{Logical. Show the x-axis title in the yield heatmap
 panel. Default is `FALSE`.}
 
-\item{show_yield_x_label}{Logical. Show the x-axis title in the yield panel.
-Default is `FALSE`.}
-
-\item{show_economic_strips}{Logical. Show facet strips in the economic panel.
-Default is `FALSE`.}
+\item{show_economic_strips}{Logical. Show facet strips in the economic
+heatmap panel. Default is `FALSE`.}
 
 \item{raster_interpolate}{Logical passed to `ggplot2::geom_raster()`.}
 
@@ -120,18 +146,20 @@ Default is `FALSE`.}
 \item{yield_raster_args, economic_raster_args}{Named lists of panel-specific
 raster arguments. Panel-specific arguments override `raster_args` and `...`.}
 
-\item{theme}{A ggplot2 theme applied to both plots. The default is
+\item{theme}{A ggplot2 theme. The default is
 `ggplot2::theme_bw(base_size = base_size)`.}
 
 \item{base_size}{Base font size used by the default theme.}
 
-\item{text_face}{Font face used for common plot text.}
+\item{text_face}{Font face used for common heatmap text.}
 
 \item{axis_title_size}{Axis-title size.}
 
-\item{strip_background}{Facet-strip background in the yield panel.}
+\item{strip_background}{Facet-strip background in heatmaps and regression
+plots.}
 
-\item{legend_position}{Legend position used in both panels.}
+\item{legend_position}{Legend position used in heatmaps. Regression plots
+intentionally suppress the legend, matching the requested display.}
 
 \item{tag_levels}{Tag sequence passed to `patchwork::plot_annotation()`.}
 
@@ -142,35 +170,61 @@ raster arguments. Panel-specific arguments override `raster_args` and `...`.}
 \item{collect_guides}{Logical. Collect compatible guides with patchwork.}
 
 \item{yield_add, economic_add}{Optional ggplot2 component or list of
-components added to the corresponding panel.}
+components added to the corresponding heatmap panel.}
 
 \item{combined_add}{Optional patchwork-compatible component added to the
-combined plot.}
+combined heatmap.}
 
-\item{...}{Additional named arguments passed to both raster layers.}
+\item{...}{Additional named arguments passed to both heatmap raster layers.}
 }
 \value{
-A `patchwork` object when both plots are requested, or a `ggplot`
-  object when only one plot is requested. Individual panels are retained as
+With `type = "regression"`, a `ggplot` object. With
+  `type = "heatmap"`, a `patchwork` object when both heatmaps are requested or
+  a `ggplot` object when only one is requested. Heatmap panels are retained as
   `"yield_plot"` and `"economic_plot"` attributes.
 }
 \description{
-Creates coordinated raster plots of yield and economic losses from an object
-returned by `simulate_losses()`. By default, yield loss is shown above
-economic loss, both use `ggplot2::scale_fill_viridis_b()`, and scenario
-variables can be displayed as facets.
+Creates either coordinated heatmaps of yield and economic losses or a
+regression-style visualization from an object returned by `simulate_losses()`.
 }
 \details{
-Custom fill scales are used exactly as supplied. Therefore, when passing a
-custom scale, define its `name` argument when a custom legend title is needed.
-The default scales receive `yield_fill_label` and `economic_fill_label`
-automatically.
+With `type = "heatmap"` (default), the function preserves the historical
+raster-plot workflow. Yield loss and economic loss can be displayed alone or
+together, and scenario variables can be shown as facets.
+
+With `type = "regression"`, `plots` is not used and a single regression plot
+is returned. The response plotted on the y-axis is selected with `reg_y`.
+Optionally, `att_yield` filters the data to one attainable-yield scenario
+before plotting. A `yield_model` facet is generated automatically from
+`intercept_sim` and `slope_sim`.
+
+Regression input is recognized as draw-level when a `sample` column is
+present. In that case, one `geom_smooth(se = FALSE)` curve is drawn for each
+sample using `group = sample` and `color = sample`. Otherwise, the data are
+treated as summary output. The central response is drawn as a solid black
+smooth and, when `<reg_y>_lower` and `<reg_y>_upper` are present, the lower
+and upper curves are drawn as dashed black smooths.
+
+
+## Regression mode
+
+For summary-style data, the function plots the central column selected by
+`reg_y`. If columns named `<reg_y>_lower` and `<reg_y>_upper` are available,
+they are plotted using dashed black `geom_smooth(se = FALSE)` curves. These
+bounds are used exactly as returned by `simulate_losses()`; no interval is
+recalculated by `plot_losses()`.
+
+For draw-level data containing `sample`, the function plots one smooth curve
+per sample and maps both `group` and `color` to `sample`. No summary interval
+is calculated.
 }
 \examples{
 \dontrun{
+# Heatmaps using the shortened simulate_losses() output names
 plot_losses(
   losses,
   x = "rain",
+  type = "heatmap",
   facet = c("tmean", "wetness"),
   x_breaks = seq(0, 15, by = 3),
   y_breaks = seq(4000, 12000, by = 2000),
@@ -179,18 +233,24 @@ plot_losses(
   facet_ncol = 4
 )
 
+# Regression from summary-style output
 plot_losses(
   losses,
   x = "rain",
-  facet = c("tmean", "wetness"),
-  yield_fill_scale = ggplot2::scale_fill_gradientn(
-    colours = c("white", "gold", "firebrick"),
-    name = expression(kg ~ ha^{-1})
-  ),
-  economic_fill_scale = ggplot2::scale_fill_viridis_b(
-    option = "magma",
-    name = expression(USD ~ ha^{-1})
-  )
+  type = "regression",
+  reg_y = "ap_yield",
+  att_yield = 9000,
+  facet = c("tmean", "wetness")
+)
+
+# Regression from draw-level output containing `sample`
+plot_losses(
+  losses_samples,
+  x = "rain",
+  type = "regression",
+  reg_y = "ap_yield",
+  att_yield = 9000,
+  facet = c("tmean", "wetness")
 )
 }
 

@@ -2252,7 +2252,7 @@ losses = simulate_losses(
              lower = "prediction_lower",
              upper = "prediction_upper",
              y = "prediction",
-             slope = c(49.3,80),
+             slope = 49.3,
              parameter_mode = "values",
              intercept = 9691.0,
              attainable_yield = seq(4000,12000, by = 50),
@@ -2264,12 +2264,12 @@ losses
 unique(losses$slope_sim)
 
 losses |>
-  filter(slope_sim == 49.3) |> 
-  filter(attainable_yield == 12000) |> 
+  #filter(slope_sim == 49.3) |> 
+  filter(att_yield == 12000) |> 
   ggplot()+
-  geom_smooth(aes(rain,relative_yield_pct, group = sample, color = sample), se = F)+
+  geom_smooth(aes(rain,rl_pct, group = sample, color = sample), se = F)+
   scale_color_viridis_b()+
-  facet_wrap(~tmean+wetness)+
+  facet_wrap(~tmean+wetness, ncol = 2)+
   theme_bw()+
   theme(legend.position = "none",
         strip.background = element_rect(fill = "white", color = "black"),
@@ -2287,8 +2287,9 @@ losses |>
 losses_plot <- plot_losses(
   data = losses,
   x = "rain",
-  y = "attainable_yield",
+  y = "att_yield",
   facet = c("tmean", "wetness"),
+  type = "heatmap",
   x_breaks = seq(0, 15, by = 3),
   y_breaks = seq(4000, 12000, by = 2000),
   x_label = "Daily precipitation (mm)",
@@ -2300,22 +2301,96 @@ losses_plot
 
 ggsave("figure/simulation_yld_ec_losses.png", dpi = 600, bg = "white", height = 6, width = 10)
 ```
+```{r}
+scenarios_losses_s = simulate_scenarios(
+  fit = fit,
+  scenarios = range_losses,
+  data = sim_data,
+  uncertainty = TRUE,
+  output = "summary",
+  n_samples = 20,
+  seed = 123)
+
+scenarios_losses_s$prediction = scenarios_losses_s$prediction*100
+scenarios_losses_s$prediction_lower = scenarios_losses_s$prediction_lower*100
+scenarios_losses_s$prediction_upper = scenarios_losses_s$prediction_upper*100
+
+losses_s = simulate_losses(
+             data = scenarios_losses_s,
+             lower = "prediction_lower",
+             upper = "prediction_upper",
+             y = "prediction",
+             slope = c(49.3,80),
+             parameter_mode = "values",
+             intercept = c(9691.0,12000),
+             attainable_yield = seq(4000,12000, by = 50),
+             price = 300
+)
+```
+
 
 ```{r}
-losses |> 
-  filter(slope_sim == 80) |> 
- filter(att_yield == 9000) |> 
-  ggplot()+
-  geom_smooth(aes(rain,ap_yield), se = F,
-              color = "black")+
-  geom_smooth(aes(rain,
-              ap_yield_lower), se = F,
-              color = "black", linetype = 2)+
-  geom_smooth(aes(rain,
-                  ap_yield_upper), se = F,
-              color = "black", linetype = 2)+
-  facet_wrap(~tmean+wetness, ncol = 2)+
-  theme_bw()
+  plot_losses(
+  data = losses_s,
+  x = "rain",
+  facet = c("tmean", "wetness"),
+  type = "regression",
+  reg_y = "ap_yield",
+  att_yield = 9000,
+  x_breaks = seq(0, 15, by = 3),
+  x_label = "Daily precipitation (mm)")
+```
+
+```{r}
+losses_plot <- losses |>
+  filter(att_yield == 9000) |>
+  mutate(
+    yield_model = paste0(
+      "B0 = ", intercept_sim,
+      " | B1 = ", slope_sim
+    )
+  )
+
+ggplot(losses_plot) +
+  geom_smooth(
+    aes(rain, ap_yield),
+    se = FALSE,
+    color = "black"
+  ) +
+  geom_smooth(
+    aes(rain, ap_yield_lower),
+    se = FALSE,
+    color = "black",
+    linetype = 2
+  ) +
+  geom_smooth(
+    aes(rain, ap_yield_upper),
+    se = FALSE,
+    color = "black",
+    linetype = 2
+  ) +
+  facet_grid(
+    rows = vars(tmean),
+    cols = vars(wetness, yield_model),
+    labeller = labeller(
+      tmean = function(x) paste0("tmean = ", x),
+      wetness = function(x) paste0("wetness = ", x)
+    )
+  ) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    strip.background = element_rect(
+      fill = "white",
+      color = "black"
+    ),
+    strip.text = element_text(
+      face = "bold"
+    )
+  )
+
+ggsave("figure/loss_s.png", dpi = 600, height = 6, width = 12)
+
 ```
 
 ```{r}
