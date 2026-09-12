@@ -30,8 +30,8 @@
 #'   ensemble metrics would otherwise be evaluated on a different sample from
 #'   the individual-model ranking.
 #' @param lag_data Optional data frame of deterministic lag-specific
-#'   contributions. Required columns are `model_col`, all `lag_group_cols`, and
-#'   `contribution`. If `NULL` and a lag ensemble is requested, contributions
+#'   ECI decompositions. Required columns are `model_col`, all `lag_group_cols`, and
+#'   `ECI_weighted`. If `NULL` and a lag ensemble is requested, contributions
 #'   are generated with `compute_ecilag()` from retained full-data fits.
 #' @param fit_list Optional named list of fitted models used for automatic lag
 #'   decomposition. If `NULL`, `attr(bestfit, "fits")` is used.
@@ -135,7 +135,7 @@
 #'       method.}
 #'     \item{`ensemble_predictions`}{OOF ensemble predictions with an explicit
 #'       `method` column and the aligned individual-model predictions.}
-#'     \item{`ensemble_by_lag`}{Weighted deterministic lag contributions.}
+#'     \item{`ensemble_by_lag`}{Ensemble lag-specific ECI decomposition.}
 #'     \item{`lag_data`}{Lag data used for aggregation.}
 #'     \item{`model_weights`}{Method-specific model weights. For stacking,
 #'       these are the **final** level-2 weights fitted to all available OOF
@@ -222,20 +222,19 @@
 #'
 #' ## Lag ensembles
 #'
-#' Lag ensembles combine lag-specific **contributions**, not raw DLNM
+#' Lag ensembles combine lag-specific ECI contributions, not raw DLNM
 #' coefficients:
 #'
-#' \deqn{C_{ens,l} = \sum_m \alpha_m C_{m,l}.}
+#' \deqn{ECI_{ens,l} = \sum_m \alpha_m ECI_{m,l}.}
 #'
 #' The model weights \eqn{\alpha_m} come from OOF model performance, while
-#' automatically generated lag contributions come from the selected models
-#' refitted on the complete data. Thus lag ensembles are explanatory summaries
-#' of the final fitted models, not additional OOF predictions.
+#' lag-specific ECI values are obtained from `compute_ecilag()` applied to the selected models
+#' refitted on the complete dataset.
 #'
 #' Percent contribution is based on the absolute contribution magnitude within
 #' each non-lag grouping unit:
 #'
-#' \deqn{100 |C_{ens,l}| / \sum_l |C_{ens,l}|.}
+#' \deqn{100 |ECI_{ens,l}| / \sum_l |ECI_{ens,l}|.}
 #'
 #' Ensemble uncertainty for lag contributions is deliberately not produced in
 #' EpiExposure v1. Independently sampled coefficient/posterior draws from
@@ -321,7 +320,7 @@ ensemble_bestfit <- function(
   prediction_group_col <- "group"
   prediction_fold_col <- "fold"
   lag_col <- "lag"
-  lag_contribution_col <- "contribution"
+  lag_contribution_col <- "ECI_weighted"
   lag_weight_col <- "weight"
 
   valid_names <- function(x) {
@@ -3476,7 +3475,7 @@ ensemble_bestfit <- function(
           ]
 
           output$method <- method_name
-          output$ensemble_contribution <-
+          output$ECI_weighted_ens <-
             sum(
               temporary[[
                 lag_contribution_col
@@ -3545,21 +3544,21 @@ ensemble_bestfit <- function(
         lag_col
       )
 
-      method_lag$ensemble_percent_contribution <-
+      method_lag$ECI_percent_ens <-
         NA_real_
 
       if (!length(percent_groups)) {
         denominator <- sum(
           abs(
-            method_lag$ensemble_contribution
+            method_lag$ECI_weighted_ens
           )
         )
 
         if (denominator > 0) {
-          method_lag$ensemble_percent_contribution <-
+          method_lag$ECI_percent_ens <-
             100 *
             abs(
-              method_lag$ensemble_contribution
+              method_lag$ECI_weighted_ens
             ) /
             denominator
         }
@@ -3579,19 +3578,19 @@ ensemble_bestfit <- function(
 
           denominator <- sum(
             abs(
-              method_lag$ensemble_contribution[
+              method_lag$ECI_weighted_ens[
                 rows
               ]
             )
           )
 
           if (denominator > 0) {
-            method_lag$ensemble_percent_contribution[
+            method_lag$ECI_percent_ens[
               rows
             ] <-
               100 *
               abs(
-                method_lag$ensemble_contribution[
+                method_lag$ECI_percent_ens[
                   rows
                 ]
               ) /

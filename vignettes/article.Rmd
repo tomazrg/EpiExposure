@@ -1218,6 +1218,18 @@ comp_pred2 <- comp_pred2 %>%
 comp_pred2
 
 ```
+```{r}
+comp_pred22 = comp_pred2 |> 
+  filter(scenario == "B x C")
+
+t.test(comp_pred22$pred1, comp_pred22$pred2)
+
+
+test_result <- wilcox.test(comp_pred22$pred1, comp_pred22$pred2,
+                           alternative = "two.sided", 
+                           exact = FALSE,
+                           conf.int = TRUE)
+```
 
 ```{r}
 sc_simu_plot = ggplot(comp_pred,
