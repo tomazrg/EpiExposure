@@ -16,7 +16,7 @@ ensemble_bestfit(
   ensemble_scope = c("model", "lag", "both"),
   method = "unweighted",
   top_n = 3,
-  model_ids = NULL,
+  model_id = NULL,
   weight_metric = NULL,
   threshold = NULL,
   weight_transform = c("softmax", "positive", "rank_inverse", "uniform"),
@@ -91,9 +91,9 @@ separately fitted models do not form a defined joint draw distribution.}
   `"hard_voting"` additionally requires a binomial outcome.}
 
 \item{top_n}{Positive integer number of top-ranked models selected when
-`model_ids = NULL`.}
+`model_id = NULL`.}
 
-\item{model_ids}{Optional vector of unique model identifiers. When supplied,
+\item{model_id}{Optional vector of unique model identifiers. When supplied,
 `top_n` is ignored. Every requested model must have a finite value for
 `weight_metric`.}
 

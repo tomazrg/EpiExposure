@@ -1955,7 +1955,7 @@ ens_mean <- ensemble_bestfit(
   bestfit = best_models,
   ensemble_scope = "model",
   method = "unweighted",
-  model_ids = c(63, 23, 44),
+  model_id = c(63, 23, 44),
   weight_metric = "CCC",
   hb = TRUE,
   verbose = TRUE
@@ -1965,7 +1965,7 @@ ens_weighted <- ensemble_bestfit(
   bestfit = best_models,
   ensemble_scope = "model",
   method = "weighted",
-  model_ids = c(63, 23, 44),
+  model_id = c(63, 23, 44),
   weight_metric = "CCC",
   weight_transform = "rank_inverse",
   hb = TRUE
@@ -1975,7 +1975,7 @@ ens_stack <- ensemble_bestfit(
   bestfit = best_models,
   ensemble_scope = "model",
   method = "stacked",
-  model_ids = c(63, 23, 44),
+  model_id = c(63, 23, 44),
   stacking_model = "ridge",
   stack_objective = "regularized",
   lambda = 1e-6,

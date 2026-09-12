@@ -60,8 +60,8 @@
 #'   `"stacked"` and `"hard_voting"` are model-level methods only.
 #'   `"hard_voting"` additionally requires a binomial outcome.
 #' @param top_n Positive integer number of top-ranked models selected when
-#'   `model_ids = NULL`.
-#' @param model_ids Optional vector of unique model identifiers. When supplied,
+#'   `model_id = NULL`.
+#' @param model_id Optional vector of unique model identifiers. When supplied,
 #'   `top_n` is ignored. Every requested model must have a finite value for
 #'   `weight_metric`.
 #' @param weight_metric Optional performance metric used to rank/select models
@@ -254,7 +254,7 @@ ensemble_bestfit <- function(
     ensemble_scope = c("model", "lag", "both"),
     method = "unweighted",
     top_n = 3,
-    model_ids = NULL,
+    model_id = NULL,
     weight_metric = NULL,
     threshold = NULL,
     weight_transform = c("softmax", "positive", "rank_inverse", "uniform"),
@@ -518,11 +518,11 @@ ensemble_bestfit <- function(
     }
   }
 
-  if (!is.null(model_ids)) {
-    if (!length(model_ids) || anyNA(model_ids) ||
-        anyDuplicated(as.character(model_ids))) {
+  if (!is.null(model_id)) {
+    if (!length(model_id) || anyNA(model_id) ||
+        anyDuplicated(as.character(model_id))) {
       stop(
-        "`model_ids` must be NULL or contain unique non-missing model ",
+        "`model_id` must be NULL or contain unique non-missing model ",
         "identifiers.",
         call. = FALSE
       )
@@ -1134,8 +1134,8 @@ ensemble_bestfit <- function(
     bestfit[[model_col]]
   )
 
-  if (!is.null(model_ids)) {
-    requested_ids_chr <- as.character(model_ids)
+  if (!is.null(model_id)) {
+    requested_ids_chr <- as.character(model_id)
 
     missing_models <- setdiff(
       requested_ids_chr,
@@ -1144,7 +1144,7 @@ ensemble_bestfit <- function(
 
     if (length(missing_models)) {
       stop(
-        "The following `model_ids` were not found in `bestfit`: ",
+        "The following `model_id` were not found in `bestfit`: ",
         paste(missing_models, collapse = ", "),
         ".",
         call. = FALSE
