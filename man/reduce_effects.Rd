@@ -7,7 +7,7 @@
 reduce_effects(
   fit,
   data,
-  var,
+  vars,
   group = "epi_id",
   time = "time",
   type = c("overall", "lag", "var"),
@@ -46,7 +46,7 @@ reduce_effects(
   rows, with finite complete exposure histories, unique chronological times,
   regular spacing within groups, and the same spacing across groups.}
 
-\item{var}{Character scalar naming one exposure variable that was fitted in
+\item{vars}{Character scalar naming one exposure variable that was fitted in
 `fit`.}
 
 \item{group}{Character scalar naming the grouping column in `data`. Default

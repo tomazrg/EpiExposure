@@ -26,7 +26,7 @@
 #'   histories are not truncated and shorter histories are not padded. `data`
 #'   is **not** used to re-estimate spline knots, boundary knots, lag bases, or
 #'   any other fitted cross-basis component.
-#' @param var Exposure-variable name or names to summarise, or `NULL` to
+#' @param vars Exposure-variable name or names to summarise, or `NULL` to
 #'   summarise all fitted exposures.
 #' @param scale Character. `"lag"` returns lag-specific associations.
 #'   `"period"` aggregates lag-specific linear-predictor contrasts over
@@ -244,7 +244,7 @@
 summarise_effects <- function(
     fit,
     data,
-    var = NULL,
+    vars = NULL,
     scale = c("lag", "period"),
     lag_periods = NULL,
     probs = seq(0.05, 0.95, by = 0.01),
@@ -458,18 +458,18 @@ summarise_effects <- function(
   # VARIABLE SELECTION
   # ==========================================================================
 
-  if (is.null(var)) {
+  if (is.null(vars)) {
     variables <- metadata$vars
   } else {
-    if (!is.character(var) || !length(var) || anyNA(var) ||
-        any(!nzchar(var)) || anyDuplicated(var)) {
+    if (!is.character(vars) || !length(vars) || anyNA(vars) ||
+        any(!nzchar(vars)) || anyDuplicated(vars)) {
       stop(
-        "`var` must be NULL or a character vector of unique non-empty ",
+        "`vars` must be NULL or a character vector of unique non-empty ",
         "fitted exposure names.",
         call. = FALSE
       )
     }
-    unknown <- setdiff(var, metadata$vars)
+    unknown <- setdiff(vars, metadata$vars)
     if (length(unknown)) {
       stop(
         "Variable(s) not found in the fitted model: ",
@@ -477,7 +477,7 @@ summarise_effects <- function(
         call. = FALSE
       )
     }
-    variables <- var
+    variables <- vars
   }
 
   # ==========================================================================
@@ -745,7 +745,7 @@ summarise_effects <- function(
     unknown_at <- setdiff(names(at), variables)
     if (length(unknown_at)) {
       stop(
-        "`at` contains variable(s) not requested in `var`: ",
+        "`at` contains variable(s) not requested in `vars`: ",
         paste(unknown_at, collapse = ", "), ".",
         call. = FALSE
       )

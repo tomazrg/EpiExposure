@@ -11,7 +11,7 @@ compute_ecilag(
   time = "time",
   group_level = NULL,
   fit,
-  var = NULL,
+  vars = NULL,
   ref = list(method = "median", value = NULL),
   absolute = TRUE,
   uncertainty = FALSE,
@@ -29,7 +29,7 @@ compute_ecilag(
   For a single focal exposure, `profile` may be one finite numeric vector.
   For multiple focal exposures, supply a list containing one numeric vector
   per variable. A named list is recommended; if unnamed, its order must match
-  `var`.
+  `vars`.
 
   Exposure histories must be chronological from the oldest observation to the
   most recent observation. Under the EpiExposure exact-history contract, every
@@ -40,7 +40,7 @@ compute_ecilag(
 \item{data}{Optional non-empty long-format data frame containing observed
   exposure histories. Supply exactly one of `profile` or `data`.
 
-  `data` must contain `group`, `time`, and every exposure requested in `var`.
+  `data` must contain `group`, `time`, and every exposure requested in `vars`.
   Each evaluated group must contain exactly `max_lag + 1` observations, with
   unique and equally spaced time values. All evaluated groups must use the
   same temporal spacing.
@@ -63,11 +63,11 @@ evaluate. If `NULL`, all groups are evaluated in first-occurrence order.}
 population-level expected-response, central-parameter, uncertainty, and
 exact-history metadata contracts.}
 
-\item{var}{Optional character vector naming fitted exposure variables to
+\item{vars}{Optional character vector naming fitted exposure variables to
   decompose.
 
-  If the fitted model contains only one exposure, `var = NULL` uses that
-  exposure automatically. For multivariable fits, `var` must be supplied
+  If the fitted model contains only one exposure, `vars = NULL` uses that
+  exposure automatically. For multivariable fits, `vars` must be supplied
   explicitly.
 
   Each requested variable is decomposed separately. When one focal variable

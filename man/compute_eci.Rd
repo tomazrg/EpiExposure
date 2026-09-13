@@ -11,7 +11,7 @@ compute_eci(
   time = "time",
   group_level = NULL,
   fit = NULL,
-  var = NULL,
+  vars = NULL,
   ref = list(method = "median", value = NULL),
   scale = c("link", "response", "percent"),
   uncertainty = FALSE,
@@ -29,7 +29,7 @@ compute_eci(
   When one exposure variable is evaluated, `profile` may be a finite numeric
   vector. For multiple variables, supply a list with one numeric vector per
   requested variable. A named list is recommended. If the list is unnamed,
-  its order must match `var`.
+  its order must match `vars`.
 
   Profiles must be chronological from oldest to most recent. When `fit` is
   supplied, every focal exposure profile must contain **exactly**
@@ -46,7 +46,7 @@ compute_eci(
   `data`.
 
   `data` must contain the grouping column named by `group`, the time column
-  named by `time`, and every exposure requested in `var`. Every evaluated
+  named by `time`, and every exposure requested in `vars`. Every evaluated
   group must contain exactly `max_lag + 1` equally spaced observations for
   the requested focal exposure(s). Groups with either fewer or more rows are
   rejected. If a method-based reference is used, `data` must additionally
@@ -68,11 +68,11 @@ If `NULL`, all group levels are evaluated in first-occurrence order.}
 If `NULL`, only `ECI_raw` is calculated and model-weighted ECI,
 uncertainty, and response-scale quantities are unavailable.}
 
-\item{var}{Optional character vector naming fitted exposure variables to
+\item{vars}{Optional character vector naming fitted exposure variables to
   evaluate.
 
-  If `fit` contains one exposure and `var = NULL`, that exposure is used.
-  For a multivariable fit, `var` must be supplied explicitly. Each requested
+  If `fit` contains one exposure and `vars = NULL`, that exposure is used.
+  For a multivariable fit, `vars` must be supplied explicitly. Each requested
   variable is evaluated separately against the same joint reference profile;
   the function does not sum impacts from different exposure variables.}
 

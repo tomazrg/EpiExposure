@@ -24,7 +24,7 @@
 #'   For a single focal exposure, `profile` may be one finite numeric vector.
 #'   For multiple focal exposures, supply a list containing one numeric vector
 #'   per variable. A named list is recommended; if unnamed, its order must match
-#'   `var`.
+#'   `vars`.
 #'
 #'   Exposure histories must be chronological from the oldest observation to the
 #'   most recent observation. Under the EpiExposure exact-history contract, every
@@ -35,7 +35,7 @@
 #' @param data Optional non-empty long-format data frame containing observed
 #'   exposure histories. Supply exactly one of `profile` or `data`.
 #'
-#'   `data` must contain `group`, `time`, and every exposure requested in `var`.
+#'   `data` must contain `group`, `time`, and every exposure requested in `vars`.
 #'   Each evaluated group must contain exactly `max_lag + 1` observations, with
 #'   unique and equally spaced time values. All evaluated groups must use the
 #'   same temporal spacing.
@@ -58,11 +58,11 @@
 #'   population-level expected-response, central-parameter, uncertainty, and
 #'   exact-history metadata contracts.
 #'
-#' @param var Optional character vector naming fitted exposure variables to
+#' @param vars Optional character vector naming fitted exposure variables to
 #'   decompose.
 #'
-#'   If the fitted model contains only one exposure, `var = NULL` uses that
-#'   exposure automatically. For multivariable fits, `var` must be supplied
+#'   If the fitted model contains only one exposure, `vars = NULL` uses that
+#'   exposure automatically. For multivariable fits, `vars` must be supplied
 #'   explicitly.
 #'
 #'   Each requested variable is decomposed separately. When one focal variable
@@ -291,7 +291,7 @@ compute_ecilag <- function(
     time = "time",
     group_level = NULL,
     fit,
-    var = NULL,
+    vars = NULL,
     ref = list(method = "median", value = NULL),
     absolute = TRUE,
     uncertainty = FALSE,
@@ -353,30 +353,30 @@ compute_ecilag <- function(
     stopf("All fitted exposures must have the same valid `max_lag`.")
   max_lag <- unname(fitted_lags[1L]); history_length <- max_lag + 1L
 
-  if (is.null(var)) {
-    if (length(metadata$vars) != 1L) stopf("Supply `var` explicitly for a multivariable fit.")
+  if (is.null(vars)) {
+    if (length(metadata$vars) != 1L) stopf("Supply `vars` explicitly for a multivariable fit.")
     variables <- metadata$vars
   } else {
-    if (!is.character(var) || !length(var) || anyNA(var) || any(!nzchar(var)) || anyDuplicated(var))
-      stopf("`var` must contain unique fitted exposure names.")
-    unknown <- setdiff(var, metadata$vars)
+    if (!is.character(vars) || !length(vars) || anyNA(vars) || any(!nzchar(vars)) || anyDuplicated(vars))
+      stopf("`vars` must contain unique fitted exposure names.")
+    unknown <- setdiff(vars, metadata$vars)
     if (length(unknown)) stopf("Unknown fitted exposure(s): ", paste(unknown, collapse=", "), ".")
-    variables <- var
+    variables <- vars
   }
 
   # Validate input and create chronological profile records (oldest to newest).
   records <- list()
   if (using_profile) {
     if (is.numeric(profile) && is.null(dim(profile))) {
-      if (length(variables)!=1L) stopf("A numeric `profile` requires exactly one `var`.")
+      if (length(variables)!=1L) stopf("A numeric `profile` requires exactly one `vars`.")
       profile <- stats::setNames(list(as.numeric(profile)), variables)
     }
     if (!is.list(profile)) stopf("`profile` must be a numeric vector or list.")
     if (is.null(names(profile))) {
-      if (length(profile)!=length(variables)) stopf("Unnamed `profile` must follow `var` exactly.")
+      if (length(profile)!=length(variables)) stopf("Unnamed `profile` must follow `vars` exactly.")
       names(profile) <- variables
     }
-    if (!setequal(names(profile), variables)) stopf("`profile` names must match `var` exactly.")
+    if (!setequal(names(profile), variables)) stopf("`profile` names must match `vars` exactly.")
     profile <- profile[variables]
     for (v in variables) {
       x <- profile[[v]]

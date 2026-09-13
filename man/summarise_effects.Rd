@@ -7,7 +7,7 @@
 summarise_effects(
   fit,
   data,
-  var = NULL,
+  vars = NULL,
   scale = c("lag", "period"),
   lag_periods = NULL,
   probs = seq(0.05, 0.95, by = 0.01),
@@ -37,7 +37,7 @@ histories are not truncated and shorter histories are not padded. `data`
 is **not** used to re-estimate spline knots, boundary knots, lag bases, or
 any other fitted cross-basis component.}
 
-\item{var}{Exposure-variable name or names to summarise, or `NULL` to
+\item{vars}{Exposure-variable name or names to summarise, or `NULL` to
 summarise all fitted exposures.}
 
 \item{scale}{Character. `"lag"` returns lag-specific associations.

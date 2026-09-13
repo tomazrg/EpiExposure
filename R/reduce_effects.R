@@ -35,7 +35,7 @@
 #'   rows, with finite complete exposure histories, unique chronological times,
 #'   regular spacing within groups, and the same spacing across groups.
 #'
-#' @param var Character scalar naming one exposure variable that was fitted in
+#' @param vars Character scalar naming one exposure variable that was fitted in
 #'   `fit`.
 #'
 #' @param group Character scalar naming the grouping column in `data`. Default
@@ -263,7 +263,7 @@
 reduce_effects <- function(
     fit,
     data,
-    var,
+    vars,
     group = "epi_id",
     time = "time",
     type = c("overall", "lag", "var"),
@@ -332,9 +332,9 @@ reduce_effects <- function(
     )
   }
 
-  if (!scalar_name(var)) {
+  if (!scalar_name(vars)) {
     stop(
-      "`var` must be one non-empty fitted exposure-variable name.",
+      "`vars` must be one non-empty fitted exposure-variable name.",
       call. = FALSE
     )
   }
@@ -475,11 +475,11 @@ reduce_effects <- function(
     )
   }
 
-  if (!var %in%
+  if (!vars %in%
       metadata$vars) {
     stop(
       "Variable '",
-      var,
+      vars,
       "' was not fitted by the model.",
       call. = FALSE
     )
@@ -960,18 +960,18 @@ reduce_effects <- function(
   # STORED FOCAL CROSS-BASIS AND NAME-BASED COEFFICIENT MAPPING
   # ==========================================================================
 
-  basis <- metadata$basis_objects[[var]]
+  basis <- metadata$basis_objects[[vars]]
 
   cb_names <- .epix_cb_cols_for_var(
     metadata$cb_cols,
-    var
+    vars
   )
 
   if (!length(cb_names)) {
     stop(
       "No canonical fitted cross-basis coefficient names were found for ",
       "variable '",
-      var,
+      vars,
       "'.",
       call. = FALSE
     )
@@ -991,7 +991,7 @@ reduce_effects <- function(
       )) {
     stop(
       "Stored canonical cross-basis column metadata for variable '",
-      var,
+      vars,
       "' is missing or inconsistent. Coefficients are not aligned by ",
       "position. Refit with the current EpiExposure implementation.",
       call. = FALSE
@@ -1002,7 +1002,7 @@ reduce_effects <- function(
       length(cb_names)) {
     stop(
       "Stored cross-basis dimension for variable '",
-      var,
+      vars,
       "' does not match its canonical fitted coefficient block.",
       call. = FALSE
     )
@@ -1020,7 +1020,7 @@ reduce_effects <- function(
       anyDuplicated(native_basis_names)) {
     stop(
       "Stored cross-basis for variable '",
-      var,
+      vars,
       "' must contain unique native dlnm column names.",
       call. = FALSE
     )
@@ -1044,7 +1044,7 @@ reduce_effects <- function(
       is.null(arglag$fun)) {
     stop(
       "Stored cross-basis for variable '",
-      var,
+      vars,
       "' lacks valid effective `argvar`/`arglag` metadata.",
       call. = FALSE
     )
@@ -1055,7 +1055,7 @@ reduce_effects <- function(
   )) {
     stop(
       "The stored exposure basis for '",
-      var,
+      vars,
       "' includes an intercept, which violates the EpiExposure v1 ",
       "cross-basis identifiability contract.",
       call. = FALSE
@@ -1076,7 +1076,7 @@ reduce_effects <- function(
       basis_range[2L]) {
     stop(
       "Stored exposure range for fitted variable '",
-      var,
+      vars,
       "' is missing or invalid.",
       call. = FALSE
     )
@@ -1142,7 +1142,7 @@ reduce_effects <- function(
   )
 
   focal_exposure <- as.numeric(
-    data[[var]]
+    data[[vars]]
   )
 
   if (identical(
@@ -1204,7 +1204,7 @@ reduce_effects <- function(
   )) {
     stop(
       "Could not resolve a finite reference value for variable '",
-      var,
+      vars,
       "'.",
       call. = FALSE
     )
@@ -1248,7 +1248,7 @@ reduce_effects <- function(
     message_text <- paste0(
       label,
       " for variable '",
-      var,
+      vars,
       "' extends outside the fitted exposure range [",
       format(basis_range[1L]),
       ", ",
@@ -1411,7 +1411,7 @@ reduce_effects <- function(
   if (length(missing_central)) {
     stop(
       "Central parameter vector is missing cross-basis coefficient(s) for '",
-      var,
+      vars,
       "': ",
       paste(
         missing_central,
@@ -1432,7 +1432,7 @@ reduce_effects <- function(
       any(!is.finite(beta_sub))) {
     stop(
       "Central cross-basis coefficient block for variable '",
-      var,
+      vars,
       "' is invalid.",
       call. = FALSE
     )
@@ -1525,7 +1525,7 @@ reduce_effects <- function(
       error = function(e) {
         stop(
           "`dlnm::crossreduce()` failed for fitted exposure '",
-          var,
+          vars,
           "': ",
           conditionMessage(e),
           call. = FALSE
@@ -1721,7 +1721,7 @@ reduce_effects <- function(
     if (length(missing_draw_columns)) {
       stop(
         "Parameter-draw matrix is missing cross-basis coefficient(s) for '",
-        var,
+        vars,
         "': ",
         paste(
           missing_draw_columns,
@@ -2000,7 +2000,7 @@ reduce_effects <- function(
   )
 
   result$var <- rep(
-    var,
+    vars,
     nrow(result)
   )
 
@@ -2059,7 +2059,7 @@ reduce_effects <- function(
   attr(
     result,
     "epiexposure_reduction_variable"
-  ) <- var
+  ) <- vars
 
   attr(
     result,

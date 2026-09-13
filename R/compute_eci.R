@@ -19,7 +19,7 @@
 #'   When one exposure variable is evaluated, `profile` may be a finite numeric
 #'   vector. For multiple variables, supply a list with one numeric vector per
 #'   requested variable. A named list is recommended. If the list is unnamed,
-#'   its order must match `var`.
+#'   its order must match `vars`.
 #'
 #'   Profiles must be chronological from oldest to most recent. When `fit` is
 #'   supplied, every focal exposure profile must contain **exactly**
@@ -35,7 +35,7 @@
 #'   `data`.
 #'
 #'   `data` must contain the grouping column named by `group`, the time column
-#'   named by `time`, and every exposure requested in `var`. Every evaluated
+#'   named by `time`, and every exposure requested in `vars`. Every evaluated
 #'   group must contain exactly `max_lag + 1` equally spaced observations for
 #'   the requested focal exposure(s). Groups with either fewer or more rows are
 #'   rejected. If a method-based reference is used, `data` must additionally
@@ -52,11 +52,11 @@
 #' @param fit Optional fitted model returned by the current `fit_epidlnm()`.
 #'   If `NULL`, only `ECI_raw` is calculated and model-weighted ECI,
 #'   uncertainty, and response-scale quantities are unavailable.
-#' @param var Optional character vector naming fitted exposure variables to
+#' @param vars Optional character vector naming fitted exposure variables to
 #'   evaluate.
 #'
-#'   If `fit` contains one exposure and `var = NULL`, that exposure is used.
-#'   For a multivariable fit, `var` must be supplied explicitly. Each requested
+#'   If `fit` contains one exposure and `vars = NULL`, that exposure is used.
+#'   For a multivariable fit, `vars` must be supplied explicitly. Each requested
 #'   variable is evaluated separately against the same joint reference profile;
 #'   the function does not sum impacts from different exposure variables.
 #' @param ref Reference exposure specification used when `fit` is supplied.
@@ -393,7 +393,7 @@ compute_eci <- function(
     time = "time",
     group_level = NULL,
     fit = NULL,
-    var = NULL,
+    vars = NULL,
     ref = list(
       method = "median",
       value = NULL
@@ -873,7 +873,7 @@ compute_eci <- function(
   # RESOLVE FOCAL VARIABLES
   # ==========================================================================
 
-  if (is.null(var)) {
+  if (is.null(vars)) {
     if (length(
       metadata$vars
     ) == 1L) {
@@ -886,25 +886,25 @@ compute_eci <- function(
           metadata$vars,
           collapse = ", "
         ),
-        ". Supply `var` explicitly.",
+        ". Supply `vars` explicitly.",
         call. = FALSE
       )
     }
 
   } else {
-    if (!is.character(var) ||
-        !length(var) ||
-        anyNA(var) ||
-        any(!nzchar(var)) ||
-        anyDuplicated(var)) {
+    if (!is.character(vars) ||
+        !length(vars) ||
+        anyNA(vars) ||
+        any(!nzchar(vars)) ||
+        anyDuplicated(vars)) {
       stop(
-        "`var` must be NULL or contain unique, non-empty exposure names.",
+        "`vars` must be NULL or contain unique, non-empty exposure names.",
         call. = FALSE
       )
     }
 
     unknown <- setdiff(
-      var,
+      vars,
       metadata$vars
     )
 
@@ -920,7 +920,7 @@ compute_eci <- function(
       )
     }
 
-    variables <- var
+    variables <- vars
   }
 
   focal_history_lengths <- vapply(
@@ -1000,7 +1000,7 @@ compute_eci <- function(
             length(variables)) {
           stop(
             "An unnamed `profile` list must contain exactly one vector for ",
-            "each requested variable, in the same order as `var`.",
+            "each requested variable, in the same order as `vars`.",
             call. = FALSE
           )
         }
@@ -1062,7 +1062,7 @@ compute_eci <- function(
           )
 
           stop(
-            "`profile` names must match `var` exactly (",
+            "`profile` names must match `vars` exactly (",
             paste(
               details,
               collapse = "; "

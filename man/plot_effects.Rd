@@ -7,13 +7,13 @@
 plot_effects(
   data,
   scale = c("lag", "period"),
-  var = NULL,
+  vars = NULL,
   metric = c("effect", "delta"),
   delta_multiplier = 100,
   metric_labels = c(effect = "Effect (\%)", delta = "Δ"),
   ylab = NULL,
   metric_ncol = 1,
-  var_ncol = NULL,
+  vars_ncol = NULL,
   effect_palette = c(low = "#3B4CC0", mid = "white", high = "#B40426"),
   delta_palette = NULL,
   delta_viridis_option = "D",
@@ -34,7 +34,7 @@ plot_effects(
   delta_zero_text_size = 3,
   interpolate = TRUE,
   period_order = NULL,
-  var_order = NULL,
+  vars_order = NULL,
   period_response = "eta",
   period_exclude_samples = 10,
   period_palette = NULL,
@@ -45,6 +45,8 @@ plot_effects(
   period_base_size = 11,
   period_linewidth = 1,
   period_show_legend = FALSE,
+  panel_labels = c("(a)", "(b)"),
+  label_size = 12,
   output = c("plot", "list")
 )
 }
@@ -53,7 +55,7 @@ plot_effects(
 
 \item{scale}{Plot scale. Use only \"lag\" or \"period\".}
 
-\item{var}{Character vector with variables to plot. NULL uses all variables.}
+\item{vars}{Character vector with variables to plot. NULL uses all variables.}
 
 \item{metric}{For lag plots, one or both of c("effect", "delta").}
 
@@ -66,7 +68,7 @@ plot_effects(
 \item{metric_ncol}{Number of metric blocks per row. Default 1 places effect
 above delta, matching the manual figure.}
 
-\item{var_ncol}{Number of variable panels per metric block. NULL uses all
+\item{vars_ncol}{Number of variable panels per metric block. NULL uses all
 selected variables in one row.}
 
 \item{effect_palette}{Three colors: low, mid, high.}
@@ -109,7 +111,7 @@ selected variables in one row.}
 
 \item{period_order}{Period facet order. NULL reproduces reversed PeriodN order.}
 
-\item{var_order}{Period variable order. NULL follows `var`.}
+\item{vars_order}{Period variable order. NULL follows `vars`.}
 
 \item{period_response}{Response column for period plots; default "eta".}
 
@@ -131,6 +133,14 @@ reproduces the supplied manual plot; use NULL to keep every sample.}
 \item{period_linewidth}{Line width passed to geom_smooth().}
 
 \item{period_show_legend}{Whether to show the period color legend.}
+
+\item{panel_labels}{Character vector used to label the lag-specific metric
+blocks in the combined plot. Default is `c("(a)", "(b)")`, so the
+first selected metric block is labelled "(a)" and the second "(b)".
+Labels are applied only when `scale = "lag"` and `output = "plot"`;
+`output = "list"` returns the original unlabelled component plots.}
+
+\item{label_size}{Positive finite size used for `panel_labels`. Default is `12`.}
 
 \item{output}{Either "plot" or "list". For lag, "list" returns every panel.}
 }

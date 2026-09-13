@@ -6,7 +6,7 @@
 \usage{
 check_identifiability(
   data,
-  var,
+  vars,
   max_lag,
   df_var = 4,
   df_lag = 4,
@@ -24,7 +24,7 @@ check_identifiability(
 }
 \arguments{
 \item{data}{Non-empty long-format exposure data frame containing `epi_id`,
-  `time`, and every exposure named in `var`.
+  `time`, and every exposure named in `vars`.
 
   EpiExposure v1 uses a strict exact-history contract. If `max_lag = L`,
   every epidemic must contain exactly `L + 1` rows. Histories with fewer or
@@ -39,7 +39,7 @@ check_identifiability(
   and use the same spacing across epidemics. Missing or non-finite exposure
   values are not dropped in EpiExposure v1; they are errors.}
 
-\item{var}{Character vector with one or more unique exposure-variable names.
+\item{vars}{Character vector with one or more unique exposure-variable names.
 The reserved EpiExposure names `"epi_id"`, `"time"`, and `"y"` cannot be
 used as exposure names.}
 

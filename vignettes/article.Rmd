@@ -134,7 +134,7 @@ summary(fit)
 ```{r}
 
 check_identifiability(data = sim_data,
-                      var = c("tmean","rain","wetness"),
+                      vars = c("tmean","rain","wetness"),
                       df_var = 3, df_lag = 2, max_lag = 85)
 
 ```
@@ -200,15 +200,14 @@ epi_l |>
 lag_plot <- plot_effects(
   data = epi_l,
   scale = "lag",
-  var = c("tmean", "rain", "wetness"),
+  vars = c("tmean", "rain", "wetness"),
   metric = c("effect", "delta"),
   delta_multiplier = 100,
   ylab = c(
     tmean   = "Mean temperature (°C)",
     rain    = "Daily precipitation (mm)",
     wetness = "Leaf wetness (hours)"
-  )
-)
+  ))
 
 lag_plot
 
@@ -239,21 +238,22 @@ epi_p
 period_plot <- plot_effects(
   data = epi_p,
   scale = "period",
-  var = c("tmean", "rain", "wetness"),
+  vars = c("tmean", "rain", "wetness"),
   period_order = c(
     "Period4",
     "Period3",
     "Period2",
     "Period1"
   ),
-  var_order = c(
+  vars_order = c(
     "tmean",
     "rain",
     "wetness"
-  )
-)
+  ))
 
 period_plot
+
+max(epi_p$predicted)
 
 ggsave("figure/phase_effect.png",dpi = 600, width = 8, height = 6)
 
@@ -755,7 +755,7 @@ mean(pred_02$prediction)
 plot_grid(plot_tmean_simu_01,plot_rain_simu_01,plot_wetness_simu_01,sev_01,
           plot_tmean_simu_02,plot_rain_simu_02,plot_wetness_simu_02,sev_02,nrow =2)
 
-ggsave("figure/simu_plot2.png", dpi = 600, height = 6, width = 12)
+ggsave("figure/simu_plot.png", dpi = 600, height = 6, width = 12)
 ```
 
 

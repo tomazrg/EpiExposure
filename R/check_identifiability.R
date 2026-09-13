@@ -17,7 +17,7 @@
 #' workflow.
 #'
 #' @param data Non-empty long-format exposure data frame containing `epi_id`,
-#'   `time`, and every exposure named in `var`.
+#'   `time`, and every exposure named in `vars`.
 #'
 #'   EpiExposure v1 uses a strict exact-history contract. If `max_lag = L`,
 #'   every epidemic must contain exactly `L + 1` rows. Histories with fewer or
@@ -31,7 +31,7 @@
 #'   strictly increasing after ordering, equally spaced within each epidemic,
 #'   and use the same spacing across epidemics. Missing or non-finite exposure
 #'   values are not dropped in EpiExposure v1; they are errors.
-#' @param var Character vector with one or more unique exposure-variable names.
+#' @param vars Character vector with one or more unique exposure-variable names.
 #'   The reserved EpiExposure names `"epi_id"`, `"time"`, and `"y"` cannot be
 #'   used as exposure names.
 #' @param max_lag Non-negative integer maximum lag. The legacy form `c(0, L)` is
@@ -193,7 +193,7 @@
 #' @export
 check_identifiability <- function(
     data,
-    var,
+    vars,
     max_lag,
     df_var = 4,
     df_lag = 4,
@@ -208,6 +208,15 @@ check_identifiability <- function(
     tol = 1e-7,
     keep_design = FALSE
 ) {
+
+  call_args <- names(as.list(sys.call())[-1L])
+
+  if ("var" %in% call_args){
+    stop(
+      "`var` is no longer supported. Use `vars` instead.",
+      call. = FALSE
+    )
+  }
 
   # ==========================================================================
   # LOCAL VALIDATORS
@@ -291,19 +300,19 @@ check_identifiability <- function(
     )
   }
 
-  if (!is.character(var) || !length(var) || anyNA(var) ||
-      any(!nzchar(var)) || anyDuplicated(var)) {
-    stopf("`var` must contain unique non-empty exposure-variable names.")
+  if (!is.character(vars) || !length(vars) || anyNA(vars) ||
+      any(!nzchar(vars)) || anyDuplicated(vars)) {
+    stopf("`vars` must contain unique non-empty exposure-variable names.")
   }
 
-  if (any(var %in% c("epi_id", "time", "y"))) {
+  if (any(vars %in% c("epi_id", "time", "y"))) {
     stopf(
       "Exposure variables cannot use the reserved EpiExposure names ",
       "'epi_id', 'time', or 'y'."
     )
   }
 
-  missing_variables <- setdiff(var, names(data))
+  missing_variables <- setdiff(vars, names(data))
   if (length(missing_variables)) {
     stopf(
       "Exposure variable(s) not found in `data`: ",
@@ -321,7 +330,7 @@ check_identifiability <- function(
     stopf("`data$time` must contain only finite numeric values.")
   }
 
-  for (variable in var) {
+  for (variable in vars) {
     values <- data[[variable]]
 
     if (!is.numeric(values) || anyNA(values) ||
@@ -453,7 +462,7 @@ check_identifiability <- function(
   templates <- tryCatch(
     define_exposures(
       data = data,
-      vars = var,
+      vars = vars,
       max_lag = maximum_lag,
       df_var = df_var,
       df_lag = df_lag,
@@ -546,7 +555,7 @@ check_identifiability <- function(
     stopf("Internal design metadata do not use chronological profile order.")
   }
 
-  if (!identical(as.character(design_vars), as.character(var))) {
+  if (!identical(as.character(design_vars), as.character(vars))) {
     stopf(
       "Internal design exposure order does not match the requested variables."
     )
@@ -779,7 +788,7 @@ check_identifiability <- function(
   cb_variable <- rep(NA_character_, length(cb_cols))
   names(cb_variable) <- cb_cols
 
-  for (variable in var) {
+  for (variable in vars) {
     template <- templates[[variable]]
 
     if (is.null(template) || !inherits(template, "crossbasis") ||
@@ -841,7 +850,7 @@ check_identifiability <- function(
 
   by_variable <- do.call(
     rbind,
-    lapply(var, function(variable) {
+    lapply(vars, function(variable) {
       variable_cols <- names(cb_variable)[cb_variable == variable]
       B <- X_cb[, variable_cols, drop = FALSE]
 
@@ -883,8 +892,8 @@ check_identifiability <- function(
     stringsAsFactors = FALSE
   )
 
-  if (length(var) >= 2L) {
-    pairs <- utils::combn(var, 2L, simplify = FALSE)
+  if (length(vars) >= 2L) {
+    pairs <- utils::combn(vars, 2L, simplify = FALSE)
 
     pairwise_exposure_correlation <- do.call(
       rbind,
@@ -939,8 +948,8 @@ check_identifiability <- function(
     stringsAsFactors = FALSE
   )
 
-  if (length(var) >= 2L) {
-    pairs <- utils::combn(var, 2L, simplify = FALSE)
+  if (length(vars) >= 2L) {
+    pairs <- utils::combn(vars, 2L, simplify = FALSE)
 
     pairwise_crossbasis_correlation <- do.call(
       rbind,
@@ -1263,7 +1272,7 @@ check_identifiability <- function(
     n_epidemics_total = n_total,
     n_epidemics_complete = n_complete,
     n_epidemics_excluded = n_excluded,
-    n_exposures = length(var),
+    n_exposures = length(vars),
     max_lag = maximum_lag,
     history_length = history_length,
     crossbasis_columns = ncol(X_cb),
@@ -1302,7 +1311,7 @@ check_identifiability <- function(
     diagnostic_flags = diagnostic_flags,
     recommendations = unique(recommendations),
     settings = list(
-      variables = var,
+      variables = vars,
       max_lag = maximum_lag,
       history_length = history_length,
       history_contract = history_contract,

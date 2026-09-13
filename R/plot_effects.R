@@ -117,14 +117,14 @@
 #'
 #' @param data Data frame returned by summarise_effects().
 #' @param scale Plot scale. Use only \"lag\" or \"period\".
-#' @param var Character vector with variables to plot. NULL uses all variables.
+#' @param vars Character vector with variables to plot. NULL uses all variables.
 #' @param metric For lag plots, one or both of c("effect", "delta").
 #' @param delta_multiplier Multiplier applied to delta before plotting.
 #' @param metric_labels Named labels for the lag color legends.
 #' @param ylab Lag y-axis labels. Prefer a named vector keyed by variable.
 #' @param metric_ncol Number of metric blocks per row. Default 1 places effect
 #'   above delta, matching the manual figure.
-#' @param var_ncol Number of variable panels per metric block. NULL uses all
+#' @param vars_ncol Number of variable panels per metric block. NULL uses all
 #'   selected variables in one row.
 #' @param effect_palette Three colors: low, mid, high.
 #' @param delta_palette NULL uses viridis; otherwise a vector of >= 2 colors.
@@ -146,7 +146,7 @@
 #' @param delta_zero_text_size Delta zero-contour label size.
 #' @param interpolate Passed to geom_raster().
 #' @param period_order Period facet order. NULL reproduces reversed PeriodN order.
-#' @param var_order Period variable order. NULL follows `var`.
+#' @param vars_order Period variable order. NULL follows `vars`.
 #' @param period_response Response column for period plots; default "eta".
 #' @param period_exclude_samples Samples removed from period plot. Default 10
 #'   reproduces the supplied manual plot; use NULL to keep every sample.
@@ -158,6 +158,12 @@
 #' @param period_base_size Base size for period theme. Default 11 matches theme_bw().
 #' @param period_linewidth Line width passed to geom_smooth().
 #' @param period_show_legend Whether to show the period color legend.
+#' @param panel_labels Character vector used to label the lag-specific metric
+#'   blocks in the combined plot. Default is `c("(a)", "(b)")`, so the
+#'   first selected metric block is labelled "(a)" and the second "(b)".
+#'   Labels are applied only when `scale = "lag"` and `output = "plot"`;
+#'   `output = "list"` returns the original unlabelled component plots.
+#' @param label_size Positive finite size used for `panel_labels`. Default is `12`.
 #' @param output Either "plot" or "list". For lag, "list" returns every panel.
 #'
 #' @return A ggplot/cowplot object, or a list of ggplots when output = "list".
@@ -165,13 +171,13 @@
 plot_effects <- function(
     data,
     scale = c("lag", "period"),
-    var = NULL,
+    vars = NULL,
     metric = c("effect", "delta"),
     delta_multiplier = 100,
     metric_labels = c(effect = "Effect (%)", delta = "Δ"),
     ylab = NULL,
     metric_ncol = 1,
-    var_ncol = NULL,
+    vars_ncol = NULL,
     effect_palette = c(low = "#3B4CC0", mid = "white", high = "#B40426"),
     delta_palette = NULL,
     delta_viridis_option = "D",
@@ -192,7 +198,7 @@ plot_effects <- function(
     delta_zero_text_size = 3,
     interpolate = TRUE,
     period_order = NULL,
-    var_order = NULL,
+    vars_order = NULL,
     period_response = "eta",
     period_exclude_samples = 10,
     period_palette = NULL,
@@ -203,6 +209,8 @@ plot_effects <- function(
     period_base_size = 11,
     period_linewidth = 1,
     period_show_legend = FALSE,
+    panel_labels = c("(a)", "(b)"),
+    label_size = 12,
     output = c("plot", "list")
 ) {
 
@@ -213,6 +221,23 @@ plot_effects <- function(
   scale <- match.arg(scale)
   output <- match.arg(output)
 
+  if (!is.character(panel_labels) ||
+      !length(panel_labels) ||
+      anyNA(panel_labels)) {
+    stop(
+      "`panel_labels` must contain at least one non-missing character label.",
+      call. = FALSE
+    )
+  }
+
+  if (!is.numeric(label_size) ||
+      length(label_size) != 1L ||
+      is.na(label_size) ||
+      !is.finite(label_size) ||
+      label_size <= 0) {
+    stop("`label_size` must be one positive finite number.", call. = FALSE)
+  }
+
   if (!"var" %in% names(data)) {
     stop("`data` must contain a `var` column.", call. = FALSE)
   }
@@ -220,15 +245,15 @@ plot_effects <- function(
   available_vars <- unique(as.character(data$var))
   available_vars <- available_vars[!is.na(available_vars)]
 
-  if (is.null(var)) {
+  if (is.null(vars)) {
     preferred <- c("tmean", "rain", "wetness")
-    var <- c(
+    vars <- c(
       intersect(preferred, available_vars),
       setdiff(available_vars, preferred)
     )
   } else {
-    var <- unique(as.character(var))
-    missing_vars <- setdiff(var, available_vars)
+    vars <- unique(as.character(vars))
+    missing_vars <- setdiff(vars, available_vars)
     if (length(missing_vars) > 0L) {
       stop(
         "Variable(s) not found in `data`: ",
@@ -238,7 +263,7 @@ plot_effects <- function(
     }
   }
 
-  dat <- data[as.character(data$var) %in% var, , drop = FALSE]
+  dat <- data[as.character(data$var) %in% vars, , drop = FALSE]
 
   # ==========================================================================
   # LAG-SPECIFIC EFFECTS
@@ -305,14 +330,14 @@ plot_effects <- function(
     }
     metric_ncol <- as.integer(metric_ncol)
 
-    if (is.null(var_ncol)) {
-      var_ncol <- length(var)
+    if (is.null(vars_ncol)) {
+      vars_ncol <- length(vars)
     }
-    if (!is.numeric(var_ncol) || length(var_ncol) != 1L ||
-        !is.finite(var_ncol) || var_ncol < 1) {
-      stop("`var_ncol` must be a positive integer.", call. = FALSE)
+    if (!is.numeric(vars_ncol) || length(vars_ncol) != 1L ||
+        !is.finite(vars_ncol) || vars_ncol < 1) {
+      stop("`vars_ncol` must be a positive integer.", call. = FALSE)
     }
-    var_ncol <- as.integer(var_ncol)
+    vars_ncol <- as.integer(vars_ncol)
 
     default_ylab <- c(
       tmean = "Mean temperature (°C)",
@@ -322,7 +347,7 @@ plot_effects <- function(
 
     ylab_use <- .resolve_named_labels(
       x = ylab,
-      keys = var,
+      keys = vars,
       defaults = default_ylab,
       arg = "ylab"
     )
@@ -479,7 +504,7 @@ plot_effects <- function(
     # tmean effect, rain effect, wetness effect,
     # tmean delta,  rain delta,  wetness delta.
     for (m in metric) {
-      for (v in var) {
+      for (v in vars) {
         hide_x <- length(metric) > 1L &&
           metric_ncol == 1L &&
           m != metric[length(metric)]
@@ -495,14 +520,37 @@ plot_effects <- function(
       return(panels)
     }
 
-    # With metric_ncol = 1 and var_ncol = length(var), this is exactly the
+    # With metric_ncol = 1 and vars_ncol = length(vars), this is exactly the
     # manual 2-row layout. metric_ncol = 2 can place two metric blocks side by side.
-    final_ncol <- min(length(panels), var_ncol * metric_ncol)
+    final_ncol <- min(length(panels), vars_ncol * metric_ncol)
+
+    # Label metric blocks without changing panel order, panel content, scales,
+    # smoothing, or layout. Because panels are stored in metric-major order, the
+    # first panel of each metric block receives the corresponding label.
+    labels_use <- if (length(panel_labels) >= length(metric)) {
+      panel_labels[seq_along(metric)]
+    } else {
+      c(
+        panel_labels,
+        rep("", length(metric) - length(panel_labels))
+      )
+    }
+
+    panel_labels_use <- rep("", length(panels))
+    metric_start <- seq.int(
+      from = 1L,
+      by = length(vars),
+      length.out = length(metric)
+    )
+    panel_labels_use[metric_start] <- labels_use
 
     return(
       cowplot::plot_grid(
         plotlist = panels,
-        ncol = final_ncol
+        ncol = final_ncol,
+        labels = panel_labels_use,
+        label_size = label_size,
+        label_x = -0.02
       )
     )
   }
@@ -537,16 +585,16 @@ plot_effects <- function(
     )
   }
 
-  if (is.null(var_order)) {
-    var_order <- var
+  if (is.null(vars_order)) {
+    vars_order <- vars
   } else {
-    var_order <- as.character(var_order)
+    vars_order <- as.character(vars_order)
   }
 
-  missing_period_vars_sel <- setdiff(var_order, var)
+  missing_period_vars_sel <- setdiff(vars_order, vars)
   if (length(missing_period_vars_sel) > 0L) {
     stop(
-      "Variable(s) in `var_order` were not selected in `var`: ",
+      "Variable(s) in `vars_order` were not selected in `vars`: ",
       paste(missing_period_vars_sel, collapse = ", "),
       call. = FALSE
     )
@@ -559,7 +607,7 @@ plot_effects <- function(
   }
 
   df$period <- factor(as.character(df$period), levels = period_order)
-  df$var <- factor(as.character(df$var), levels = var_order)
+  df$var <- factor(as.character(df$var), levels = vars_order)
   df$response_value <- df[[period_response]]
 
   theme_period <- .resolve_plot_theme(period_theme, period_base_size)
