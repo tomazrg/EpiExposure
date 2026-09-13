@@ -785,7 +785,7 @@ pred_scenarios = simulate_scenarios(
   scenarios = range,
   data = sim_data,
   uncertainty = TRUE,
-  output = "samples",
+  output = "summary",
   n_samples = 20,
   seed = 123)
 
@@ -799,11 +799,11 @@ plot_scenarios(
   facet = c("wetness", "tmean"),
   #scale_factor = 100,
   x_limits = c(0, 15),
-  output = "samples"
+  output = "summary"
 )
 
 
-ggsave("figure/simulate_scenarios2.png", dpi = 600, height = 6, width = 8)
+ggsave("figure/simulate_scenarios22.png", dpi = 600, height = 6, width = 8)
 ```
 
 ## Fixed

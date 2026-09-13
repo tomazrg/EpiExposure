@@ -10,7 +10,8 @@
 #' * `scenario_type = "grid"` + `output = "samples"`:
 #'   sample-specific trajectories using `geom_smooth()` (or `geom_line()`).
 #' * `scenario_type = "grid"` + `output = "summary"`:
-#'   one central trajectory, optionally with a lower/upper uncertainty ribbon.
+#'   one central trajectory, optionally with dashed lower/upper uncertainty
+#'   curves.
 #' * `scenario_type = "paired"` + `output = "samples"`:
 #'   the distribution of sample predictions at each paired scenario using
 #'   `geom_boxplot()` by default.
@@ -72,11 +73,15 @@
 #'
 #' @param line_color Color of the central trajectory for grid-summary plots.
 #'
-#' @param ribbon_fill,ribbon_alpha Fill and transparency of the uncertainty
-#'   ribbon for grid-summary plots.
+#' @param ribbon_fill,ribbon_alpha Legacy argument names retained for backward
+#'   compatibility. In grid-summary plots, `ribbon_fill` now controls the
+#'   color of the dashed lower/upper interval curves and `ribbon_alpha`
+#'   controls their transparency. Defaults reproduce the black dashed
+#'   interval curves used by `plot_losses()`.
 #'
-#' @param show_ribbon Logical. If `TRUE`, a grid-summary plot shows the
-#'   uncertainty ribbon when lower and upper columns are available.
+#' @param show_ribbon Logical. Legacy argument name retained for backward
+#'   compatibility. If `TRUE`, a grid-summary plot shows dashed lower/upper
+#'   uncertainty curves when interval columns are available.
 #'
 #' @param smooth Logical. For grid plots, use `ggplot2::geom_smooth()` when
 #'   `TRUE` (default) or `ggplot2::geom_line()` when `FALSE`.
@@ -173,7 +178,8 @@
 #'   active grid trajectory layer (`geom_smooth()` or `geom_line()`).
 #'
 #' @param ribbon_args Optional named list of additional arguments passed to
-#'   `ggplot2::geom_ribbon()` in grid-summary mode.
+#'   both lower and upper uncertainty-curve layers in grid-summary mode.
+#'   The legacy argument name is retained for backward compatibility.
 #'
 #' @param boxplot_args Optional named list of additional arguments passed to
 #'   `ggplot2::geom_boxplot()` in paired-samples mode.
@@ -211,7 +217,7 @@
 #'
 #' For summary output, lower and upper limits are used when available:
 #'
-#' * grid + summary: the limits define the uncertainty ribbon;
+#' * grid + summary: the limits define dashed lower/upper uncertainty curves;
 #' * paired + summary: the limits define the vertical point-range.
 #'
 #' If summary output does not contain lower/upper limits, the function still
@@ -325,8 +331,8 @@ plot_scenarios <- function(
     color_scale = NULL,
     color_label = "Sample",
     line_color = "black",
-    ribbon_fill = "grey70",
-    ribbon_alpha = 0.25,
+    ribbon_fill = "black",
+    ribbon_alpha = 1,
     show_ribbon = TRUE,
     smooth = TRUE,
     smooth_method = NULL,
@@ -982,32 +988,92 @@ plot_scenarios <- function(
 
   if (scenario_type == "grid") {
     # -----------------------------------------------------------------------
-    # GRID + SUMMARY: uncertainty ribbon when available
+    # GRID + SUMMARY: dashed lower/upper uncertainty curves when available
     # -----------------------------------------------------------------------
     if (output == "summary" &&
         show_ribbon &&
         has_interval) {
-      ribbon_layer <- list(
+
+      lower_interval_args <- list(
         mapping = ggplot2::aes(
           x = .data$.plot_x,
-          ymin = .data$.plot_lower,
-          ymax = .data$.plot_upper
+          y = .data$.plot_lower
         ),
-        fill = ribbon_fill,
+        colour = ribbon_fill,
         alpha = ribbon_alpha,
+        linetype = 2,
+        linewidth = 0.5,
         inherit.aes = FALSE
       )
 
-      ribbon_layer[
+      upper_interval_args <- list(
+        mapping = ggplot2::aes(
+          x = .data$.plot_x,
+          y = .data$.plot_upper
+        ),
+        colour = ribbon_fill,
+        alpha = ribbon_alpha,
+        linetype = 2,
+        linewidth = 0.5,
+        inherit.aes = FALSE
+      )
+
+      lower_interval_args[
         names(ribbon_args)
       ] <- ribbon_args
 
-      plot_object <-
-        plot_object +
-        do.call(
-          ggplot2::geom_ribbon,
-          ribbon_layer
-        )
+      upper_interval_args[
+        names(ribbon_args)
+      ] <- ribbon_args
+
+      if (smooth) {
+        lower_interval_args$se <- FALSE
+        upper_interval_args$se <- FALSE
+
+        if (!is.null(smooth_method)) {
+          lower_interval_args$method <-
+            smooth_method
+          upper_interval_args$method <-
+            smooth_method
+        }
+
+        if (!is.null(smooth_formula)) {
+          lower_interval_args$formula <-
+            smooth_formula
+          upper_interval_args$formula <-
+            smooth_formula
+        }
+
+        plot_object <-
+          plot_object +
+          do.call(
+            ggplot2::geom_smooth,
+            lower_interval_args
+          ) +
+          do.call(
+            ggplot2::geom_smooth,
+            upper_interval_args
+          )
+
+      } else {
+        lower_interval_args$se <- NULL
+        upper_interval_args$se <- NULL
+        lower_interval_args$method <- NULL
+        upper_interval_args$method <- NULL
+        lower_interval_args$formula <- NULL
+        upper_interval_args$formula <- NULL
+
+        plot_object <-
+          plot_object +
+          do.call(
+            ggplot2::geom_line,
+            lower_interval_args
+          ) +
+          do.call(
+            ggplot2::geom_line,
+            upper_interval_args
+          )
+      }
     }
 
     # -----------------------------------------------------------------------

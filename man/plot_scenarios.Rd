@@ -21,8 +21,8 @@ plot_scenarios(
   color_scale = NULL,
   color_label = "Sample",
   line_color = "black",
-  ribbon_fill = "grey70",
-  ribbon_alpha = 0.25,
+  ribbon_fill = "black",
+  ribbon_alpha = 1,
   show_ribbon = TRUE,
   smooth = TRUE,
   smooth_method = NULL,
@@ -124,11 +124,15 @@ trajectories. When `NULL`, `ggplot2::scale_color_viridis_c()` is used.}
 
 \item{line_color}{Color of the central trajectory for grid-summary plots.}
 
-\item{ribbon_fill, ribbon_alpha}{Fill and transparency of the uncertainty
-ribbon for grid-summary plots.}
+\item{ribbon_fill, ribbon_alpha}{Legacy argument names retained for backward
+compatibility. In grid-summary plots, `ribbon_fill` now controls the
+color of the dashed lower/upper interval curves and `ribbon_alpha`
+controls their transparency. Defaults reproduce the black dashed
+interval curves used by `plot_losses()`.}
 
-\item{show_ribbon}{Logical. If `TRUE`, a grid-summary plot shows the
-uncertainty ribbon when lower and upper columns are available.}
+\item{show_ribbon}{Logical. Legacy argument name retained for backward
+compatibility. If `TRUE`, a grid-summary plot shows dashed lower/upper
+uncertainty curves when interval columns are available.}
 
 \item{smooth}{Logical. For grid plots, use `ggplot2::geom_smooth()` when
 `TRUE` (default) or `ggplot2::geom_line()` when `FALSE`.}
@@ -225,7 +229,8 @@ EpiExposure text settings, allowing users to override them.}
 active grid trajectory layer (`geom_smooth()` or `geom_line()`).}
 
 \item{ribbon_args}{Optional named list of additional arguments passed to
-`ggplot2::geom_ribbon()` in grid-summary mode.}
+both lower and upper uncertainty-curve layers in grid-summary mode.
+The legacy argument name is retained for backward compatibility.}
 
 \item{boxplot_args}{Optional named list of additional arguments passed to
 `ggplot2::geom_boxplot()` in paired-samples mode.}
@@ -260,7 +265,8 @@ The default plotting behavior is:
 * `scenario_type = "grid"` + `output = "samples"`:
   sample-specific trajectories using `geom_smooth()` (or `geom_line()`).
 * `scenario_type = "grid"` + `output = "summary"`:
-  one central trajectory, optionally with a lower/upper uncertainty ribbon.
+  one central trajectory, optionally with dashed lower/upper uncertainty
+  curves.
 * `scenario_type = "paired"` + `output = "samples"`:
   the distribution of sample predictions at each paired scenario using
   `geom_boxplot()` by default.
@@ -284,7 +290,7 @@ uncertainty is represented by the multiple sample predictions themselves.
 
 For summary output, lower and upper limits are used when available:
 
-* grid + summary: the limits define the uncertainty ribbon;
+* grid + summary: the limits define dashed lower/upper uncertainty curves;
 * paired + summary: the limits define the vertical point-range.
 
 If summary output does not contain lower/upper limits, the function still
