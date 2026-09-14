@@ -22,9 +22,10 @@
 #'   }
 #'
 #'   Histories must be ordered from the oldest observation to the most recent
-#'   observation. The most recent value corresponds to lag 0. A history may be
-#'   longer than the fitted maximum lag but cannot be shorter than
-#'   `max_lag + 1`. When several fitted exposures are supplied, profiles are
+#'   observation. The most recent value corresponds to lag 0. Each history
+#'   must contain exactly `max_lag+1` observations. Longer histories are not
+#'   truncated and shorter histories are not padded.
+#'   When several fitted exposures are supplied, profiles are
 #'   matched by position rather than combined as a Cartesian product. An
 #'   exposure with one profile is recycled across exposures that contain
 #'   multiple profiles.
@@ -136,9 +137,7 @@
 #' Knots, boundary knots, spline definitions, and lag-basis parameters are not
 #' re-estimated from the new observations. Each prediction group is sorted by
 #' `time`, transformed with the fitted basis, and represented by the final
-#' cross-basis row. A history may contain more observations than required; the
-#' final prediction corresponds to the most recent observation and its fitted
-#' lag history.
+#' cross-basis row.
 #'
 #' This is the same train-to-test principle used for out-of-fold prediction in
 #' `find_bestfit()`: the fitted/training basis defines the transformation and

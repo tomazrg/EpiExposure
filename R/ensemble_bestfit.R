@@ -64,9 +64,13 @@
 #' @param model_id Optional vector of unique model identifiers. When supplied,
 #'   `top_n` is ignored. Every requested model must have a finite value for
 #'   `weight_metric`.
-#' @param weight_metric Optional performance metric used to rank/select models
-#'   and, for `method = "weighted"`, construct model weights. If `NULL`, the
-#'   function inherits `attr(bestfit, "rank_metric")`. Metric direction is
+#' @param weight_metric Optional performance metric used to rank/select models.
+#'   When `model_id = NULL`, the `top_n` models are selected according to this
+#'   metric. For `method = "weighted"`, it is also used to construct model
+#'   weights. For `method = "stacked"`, it determines which models are selected
+#'   but is not transformed directly into stacking weights; those weights are
+#'   estimated from the aligned OOF predictions by the level-2 model. If `NULL`,
+#'   the function inherits `attr(bestfit, "rank_metric")`. Metric direction is
 #'   determined by `.metric_direction()`.
 #' @param threshold Optional probability threshold strictly between 0 and 1 for
 #'   binomial classification metrics and `hard_voting`. If `NULL`,
@@ -192,10 +196,24 @@
 #' leave-one-row-out level-2 calculation. With grouped k-fold, every epidemic
 #' in the same validation fold is held out from level-2 fitting together.
 #'
-#' After cross-fitted performance is obtained, a final stacking model is fitted
-#' to the complete OOF prediction matrix. Its coefficients are returned for
-#' combining the selected base models after those base models have been refitted
-#' to all available data.
+#' In `method = "stacked"`, `weight_metric` is used to rank and select the base
+#' models when `model_id = NULL`; it is not transformed directly into stacking
+#' weights. Stacking weights are level-2 regression coefficients estimated from
+#' the aligned OOF predictions of the selected models. Therefore, a stacking
+#' weight represents the contribution of one model conditional on the other
+#' selected models and does not necessarily follow the individual-model ranking.
+#'
+#' During cross-fitted performance evaluation, these coefficients are
+#' re-estimated separately using the OOF rows outside each validation fold.
+#' After this evaluation, a final stacking model is fitted to the complete OOF
+#' prediction matrix. The resulting coefficients are reported in `model_weights`
+#' and `stacking_final_coefficients` and are intended for combining the selected
+#' base models after they have been refitted to all available data.
+#'
+#' For unconstrained ridge or least-squares stacking, these coefficients may be
+#' negative and are not required to sum to one. Only
+#' `stack_objective = "constrained"` enforces non-negative weights that sum to
+#' one, with no stacking intercept.
 #'
 #' This is a level-2 cross-fitting procedure based on the OOF prediction matrix
 #' already produced by `find_bestfit()`. It is not a fully nested re-fitting of

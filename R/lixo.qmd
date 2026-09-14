@@ -4,7 +4,6 @@ format: html
 editor: visual
 ---
 
-
 ```{r, eval = FALSE}
 # =========================================================
 # SIMULACAO: 520 epidemias x 86 dias
@@ -127,8 +126,8 @@ table(table(sim_data$epi_id))   # deve dar 86 por epi
 length(unique(sim_data$epi_id)) # 520 epidemias
 ```
 
-
 # ARTIGO
+
 ```{r}
 # =============================================================
 # SIMULACAO DLNM COM TRES VARIAVEIS
@@ -697,7 +696,6 @@ library(EpiExposure)
 sim_data
 ```
 
-
 ```{r}
 
 sim_data = sim_data %>%
@@ -751,7 +749,6 @@ cb <- define_exposure(
 
 ```
 
-
 ```{r}
 
 # construir design matrix
@@ -762,11 +759,11 @@ dat <- build_design(
 )
 
 ```
+
 ```{r}
 check_identifiability(wx_long = sim_data, var = "cum",
                       df_var = 2, df_lag = 2, lag_max = 85)
 ```
-
 
 ```{r}
 
@@ -774,7 +771,6 @@ check_identifiability(wx_long = sim_data, var = "cum",
 dat <- prepare_response(dat = dat, y_var = "y", family = "beta")
 
 ```
-
 
 ```{r}
 
@@ -1024,11 +1020,7 @@ ct_tmean %>%
   geom_histogram(bins = 20, color = "white")
 ```
 
-
-
-test 
-
-
+test
 
 ```{r}
 best <- find_bestfit(
@@ -1050,6 +1042,7 @@ best <- find_bestfit(
 
 attr(best, "predictions")
 ```
+
 ```{r}
 ens <- ensemble_bestfit(
   bestfit = best,
@@ -1069,6 +1062,7 @@ ens$lag_data
 ens$ensemble_by_lag
 ens$selected_models
 ```
+
 ```{r}
 best_model_id <- best$model_id[1]
 best_model_id
@@ -1212,4 +1206,3 @@ lag_compare |>
       mean(abs(best_model_contribution), na.rm = TRUE)
   )
 ```
-
