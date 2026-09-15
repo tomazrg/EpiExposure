@@ -8,10 +8,6 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-<img src="../reference/figures/sticker.png"
-     class="pkg-page-logo"
-     alt="EpiExposure logo">
-
 
 # Introduction
 
@@ -37,7 +33,7 @@ This section demonstrates:
 
 # Load example data
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 library(EpiExposure)
 library(dplyr)
 
@@ -57,7 +53,7 @@ Rather than selecting models manually, EpiExposure can evaluate large combinatio
 
 # Searching candidate models
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 library(future)
 
 future::plan(
@@ -68,7 +64,7 @@ future::plan(
 
 ## Run the model search
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 best_models <- find_bestfit(
   data = epi_data,
   response = "y",
@@ -85,7 +81,7 @@ best_models <- find_bestfit(
 
 Inspect results
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 head(best_models)
 ```
 
@@ -103,7 +99,7 @@ Typical output includes:
 
 ## Top-perfoming models
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 best_models %>%
   arrange(desc(CCC)) %>%
   select(
@@ -118,7 +114,7 @@ best_models %>%
 
 # Visualizing model performance
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 best_models %>%
   mutate(
     splines = paste(
@@ -162,20 +158,20 @@ It is often easier to interpret than RMSE because it is expressed in the origina
 
 Suppose the best model is:
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 top_model <- best_models %>%
   arrange(desc())
 ```
 
 Retrieve the fitted model:
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 fit_best <- best_models$fit[[which.max(best_models$CCC)]]
 ```
 
 Review model diagnostics:
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 summary(fit_best)
 ```
 
@@ -189,7 +185,7 @@ Combining predictions from multiple models often improves stability and predicti
 
 # Selecting ensemble candidates
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 candidate_models <- c(
   63,
   23,
@@ -201,7 +197,7 @@ Replace these identifiers with the best-performing models from your analysis
 
 # Unweighted ensemble
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 ens_unweighted <- ensemble_bestfit(
   bestfit = best_models,
 
@@ -217,13 +213,13 @@ ens_unweighted <- ensemble_bestfit(
 
 ## Inspect results
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 ens_unweighted$ensemble_summary
 ```
 
 # Weighted ensemble
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 ens_weighted <- ensemble_bestfit(
   bestfit = best_models,
 
@@ -241,13 +237,13 @@ ens_weighted <- ensemble_bestfit(
 
 ## Inspect results
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 ens_weighted$ensemble_summary
 ```
 
 # Stacked ensemble
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 ens_stacked <- ensemble_bestfit(
   bestfit = best_models,
 
@@ -265,14 +261,14 @@ ens_stacked <- ensemble_bestfit(
 
 ## Inspect results
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 ens_stacked$ensemble_summary
 ```
 
 
 # Comparing ensemble strategies
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 ensemble_metrics <- rbind(
 
   unweighted =
@@ -311,7 +307,7 @@ ensemble_metrics
 
 # Visualizing ensemble predictions
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 ensemble_all <- bind_rows(
 
   mutate(
@@ -331,7 +327,7 @@ ensemble_all <- bind_rows(
 )
 ```
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 ggplot(
   ensemble_all,
   aes(
@@ -418,7 +414,7 @@ The next section focuses on advanced sensitivity and scenario analyses.
 
 Topics include:
 
-- df_sensitivity()
+- epi_sensitivity()
 - elasticity analysis
 - critical thresholds
 - response gradients

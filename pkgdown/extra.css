@@ -1,99 +1,155 @@
-/* ========================= */
+/* ==================================================== */
+/* TYPOGRAPHY */
+/* ==================================================== */
+
+body {
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+}
+
+/* ==================================================== */
 /* NAVBAR */
-/* ========================= */
+/* ==================================================== */
 
 .navbar {
-  background-color: #458a3f !important;
-  padding-top: 0.55rem !important;
-  padding-bottom: 0.55rem !important;
+  background-color: #46784a !important;
+  padding-top: 0.45rem !important;
+  padding-bottom: 0.45rem !important;
 }
 
-.navbar .navbar-brand small,
 .navbar .navbar-brand,
-.navbar .navbar-brand * {
-  color: #ffffff !important;
-  opacity: 1 !important;
-}
-
+.navbar .navbar-brand *,
 .navbar .navbar-nav .nav-link {
   color: #ffffff !important;
-  opacity: 1 !important;
-}
-
-.navbar .navbar-nav .nav-link.active,
-.navbar .navbar-nav .show > .nav-link {
-  color: #b8ff9a !important;
 }
 
 .navbar .navbar-nav .nav-link:hover {
-  color: #d6ffbf !important;
+  color: #ddead7 !important;
 }
 
+.navbar .navbar-nav .nav-link.active {
+  color: #f3faf1 !important;
+}
 
-/* ========================= */
+/* ==================================================== */
 /* TITLES */
-/* ========================= */
+/* ==================================================== */
+
+h1 {
+  font-size: 2rem !important;
+  font-weight: 650 !important;
+  margin-bottom: 0.8rem;
+}
+
+.article-container h1 {
+  font-size: 2rem !important;
+  font-weight: 650 !important;
+}
+
+.page-home h1 {
+  font-size: 2.8rem !important;
+  font-weight: 700 !important;
+}
+
+h2 {
+  font-size: 1.6rem !important;
+  font-weight: 600 !important;
+}
+
+h3 {
+  font-size: 1.3rem !important;
+  font-weight: 600 !important;
+}
 
 [data-bs-theme="light"] h1,
 [data-bs-theme="light"] h2,
 [data-bs-theme="light"] h3 {
-  color: #000000 !important;
+  color: #212529 !important;
 }
 
 [data-bs-theme="dark"] h1,
 [data-bs-theme="dark"] h2,
 [data-bs-theme="dark"] h3 {
-  color: #ffffff !important;
+  color: #f5f5f5 !important;
 }
 
-h1 {
-  font-weight: 700 !important;
-}
-
-
-/* ========================= */
+/* ==================================================== */
 /* LINKS */
-/* ========================= */
+/* ==================================================== */
 
 a {
-  color: #458a3f !important;
+  color: #2b6a40 !important;
 }
 
 a:hover {
-  color: #2e5f2a !important;
+  color: #1f5030 !important;
 }
 
-.list-unstyled a {
-  color: #458a3f !important;
+[data-bs-theme="dark"] a {
+  color: #86d89a !important;
 }
 
-
-/* ===================================== */
-/* CODE BLOCKS - SEM SOMBRA / SEM CAIXAS */
-/* ===================================== */
-
-[data-bs-theme="light"] pre {
-  background: #f6f8fa !important;
-  color: #24292e !important;
-  border: 1px solid #d0d7de !important;
-  box-shadow: none !important;
+[data-bs-theme="dark"] a:hover {
+  color: #b0f0bd !important;
 }
 
-[data-bs-theme="dark"] pre {
-  background: #161b22 !important;
-  color: #c9d1d9 !important;
-  border: 1px solid #30363d !important;
-  box-shadow: none !important;
+/* ==================================================== */
+/* SIDEBAR / TOC */
+/* ==================================================== */
+
+.bd-sidebar a,
+.toc a {
+  color: #56785b !important;
+}
+
+[data-bs-theme="dark"] .bd-sidebar a,
+[data-bs-theme="dark"] .toc a {
+  color: #7fd08d !important;
+}
+
+/* ==================================================== */
+/* CODE BLOCKS */
+/* ==================================================== */
+
+pre,
+div.sourceCode {
+  border-radius: 8px !important;
 }
 
 pre {
-  border-radius: 8px;
-  padding: 16px;
   overflow-x: auto;
-  font-size: 0.95em;
+  scrollbar-width: none;
 }
 
-/* Remove fundos internos do código */
+pre::-webkit-scrollbar {
+  display: none;
+}
+
+[data-bs-theme="light"] div.sourceCode,
+[data-bs-theme="light"] pre {
+  background: #f6f8fa !important;
+  border: 1px solid #d8dee4 !important;
+  color: #24292e !important;
+}
+
+[data-bs-theme="dark"] div.sourceCode,
+[data-bs-theme="dark"] pre {
+  background: #161b22 !important;
+  border: 1px solid #30363d !important;
+  color: #c9d1d9 !important;
+}
+
+pre {
+  padding: 14px !important;
+  font-size: 0.92rem !important;
+}
+
+/* remove fundos internos */
 
 pre,
 pre *,
@@ -102,173 +158,73 @@ pre code *,
 .sourceCode,
 .sourceCode *,
 .hljs,
-.hljs *,
-div.sourceCode,
-div.sourceCode * {
-  background: transparent !important;
-  background-color: transparent !important;
-  box-shadow: none !important;
-  text-shadow: none !important;
-}
-
-pre code span,
-pre code span.line,
-pre code span.line * {
+.hljs * {
   background: transparent !important;
   background-color: transparent !important;
   box-shadow: none !important;
 }
 
-/* Mantém o fundo apenas no bloco externo */
-
-[data-bs-theme="light"] div.sourceCode {
-  background: #f6f8fa !important;
-  border: 1px solid #d0d7de !important;
-  border-radius: 8px;
-}
-
-[data-bs-theme="dark"] div.sourceCode {
-  background: #161b22 !important;
-  border: 1px solid #30363d !important;
-  border-radius: 8px;
-}
-
-
-/* ========================= */
+/* ==================================================== */
 /* INLINE CODE */
-/* ========================= */
-
-:not(pre) > code {
-  padding: 2px 6px;
-  border-radius: 5px;
-}
-
-/* LIGHT THEME - igual ao summarise_effects() */
+/* ==================================================== */
 
 [data-bs-theme="light"] :not(pre) > code {
-  background-color: #eef1f4 !important;
-  color: #116329 !important;
+  background-color: #eef2f5 !important;
+  color: #245f39 !important;
+  border-radius: 4px;
+  padding: 2px 6px;
 }
-
-/* DARK THEME */
 
 [data-bs-theme="dark"] :not(pre) > code {
-  background-color: #21262d !important;
-  color: #7ee787 !important;
+  background-color: #252a31 !important;
+  color: #8ce99a !important;
+  border-radius: 4px;
+  padding: 2px 6px;
 }
 
+/* ==================================================== */
+/* SYNTAX HIGHLIGHT */
+/* ==================================================== */
 
-/* ========================= */
-/* SYNTAX HIGHLIGHT COLORS */
-/* ========================= */
-
-/* LIGHT THEME */
-[data-bs-theme="light"] code span.co { color: #47721f !important; }
-[data-bs-theme="light"] code span.kw { color: #6639ba !important; }
+[data-bs-theme="light"] code span.co { color: #6a737d !important; }
+[data-bs-theme="light"] code span.kw { color: #8250df !important; }
 [data-bs-theme="light"] code span.st { color: #0a7f42 !important; }
-[data-bs-theme="light"] code span.fu { color: #0550ae !important; }
-[data-bs-theme="light"] code span.va { color: #116329 !important; }
+[data-bs-theme="light"] code span.fu { color: #0969da !important; }
+[data-bs-theme="light"] code span.va { color: #0550ae !important; }
 [data-bs-theme="light"] code span.dv { color: #953800 !important; }
-[data-bs-theme="light"] code span.ot { color: #0550ae !important; }
-[data-bs-theme="light"] code span.op { color: #24292f !important; }
 
-/* DARK THEME */
-[data-bs-theme="dark"] code span.co { color: #6a9955 !important; }
-[data-bs-theme="dark"] code span.kw { color: #569cd6 !important; }
-[data-bs-theme="dark"] code span.st { color: #ce9178 !important; }
-[data-bs-theme="dark"] code span.fu { color: #dcdcaa !important; }
-[data-bs-theme="dark"] code span.va { color: #9cdcfe !important; }
-[data-bs-theme="dark"] code span.dv { color: #b5cea8 !important; }
-[data-bs-theme="dark"] code span.ot { color: #4ec9b0 !important; }
-[data-bs-theme="dark"] code span.op { color: #d4d4d4 !important; }
+[data-bs-theme="dark"] code span.co { color: #8b949e !important; }
+[data-bs-theme="dark"] code span.kw { color: #d2a8ff !important; }
+[data-bs-theme="dark"] code span.st { color: #7ee787 !important; }
+[data-bs-theme="dark"] code span.fu { color: #79c0ff !important; }
+[data-bs-theme="dark"] code span.va { color: #a5d6ff !important; }
+[data-bs-theme="dark"] code span.dv { color: #ffa657 !important; }
 
-
-/* ========================= */
-/* BODY / PAGE */
-/* ========================= */
-
-body {
-  background-color: transparent !important;
-}
-
-[data-bs-theme="dark"] body {
-  background-color: #1e1e1e !important;
-  color: #d4d4d4 !important;
-}
-
-[data-bs-theme="light"] body {
-  background-color: #ffffff !important;
-  color: #212529 !important;
-}
-
-
-/* ========================= */
-/* CONTAINERS */
-/* ========================= */
-
-[data-bs-theme="dark"] .container-fluid,
-[data-bs-theme="dark"] .container-lg,
-[data-bs-theme="dark"] .container-xl,
-[data-bs-theme="dark"] .container-xxl {
-  background-color: #252526 !important;
-  border-radius: 8px;
-  padding: 10px;
-}
-
-.container-fluid,
-.container-lg,
-.container-xl,
-.container-xxl {
-  background-color: transparent !important;
-}
-
-/* ========================= */
-/* PACKAGE LOGO - README STYLE */
-/* ========================= */
-
-main,
-.page-main,
-.contents {
-  position: relative;
+.pkg-page-branding {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 220px;
+  height: 220px;
 }
 
 .pkg-page-logo {
   position: absolute;
-  top: 0px;
-  right: -80px;
-  width: 380px;
-  max-width: 100%;
-  height: auto;
-  z-index: 2;
+  inset: 0;
+  width: 100%;
+  z-index: 1;
 }
 
+.pkg-page-curve {
 
-.pkgdown-header {
-  position: relative;
+  position: absolute;
+
+  width: 90px;
+
+  left: 65px;
+  top: 88px;
+
+  z-index: 3;
 }
 
-@media (max-width: 900px) {
-  .pkg-page-logo {
-    position: static;
-    display: block;
-    width: 380px;
-    max-width: 100%;
-    margin: 5px auto;
-  }
-}
-
-
-.pkgdown-article-index .list-unstyled li a[href*="pkgdown.html"] {
-  display: none !important;
-}
-
-
-.navbar .dropdown-menu a[href*="pkgdown.html"] {
-  display: none !important;
-}
-
-.pkgdown-reference-index,
-.page-reference,
-.page-index {
-  position: relative;
-}
+/* ==================

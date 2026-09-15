@@ -11,12 +11,6 @@ editor_options:
     wrap: 72
 ---
 
-```{=html}
-<img src="../reference/figures/sticker.png"
-     class="pkg-page-logo"
-     alt="EpiExposure logo">
-```
-
 # Introduction
 
 Most `EpiExposure` workflows can be completed using the default model
@@ -53,7 +47,7 @@ Advantages:
 - negative binomial models;
 - good numerical stability.
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 fit_glmmTMB <- fit_epidlnm(
   data = dat,
   model_engine = "glmmTMB",
@@ -70,7 +64,7 @@ When DLNM predictors are fitted within a GAM framework, the DLNM basis
 functions should be interpreted as the exposure-lag representation,
 while GAM smoothing primarily acts as a penalization mechanism.
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 fit_gam <- fit_epidlnm(
   data = dat,
   model_engine = "gam",
@@ -92,7 +86,7 @@ Advantages include:
 - uncertainty propagation;
 - probabilistic inference.
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 fit_brms <- fit_epidlnm(
   data = dat,
   model_engine = "brms",
@@ -108,7 +102,7 @@ computational costs than MCMC approaches.
 For large exposure-lag datasets, INLA often offers an attractive
 compromise between speed and Bayesian inference.
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 fit_inla <- fit_epidlnm(
   data = dat,
   model_engine = "INLA",
@@ -130,19 +124,19 @@ estimation, prediction, simulation, and loss calculations.
 
 Most functions allow:
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 output = "summary"
 ```
 
 or
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 output = "samples"
 ```
 
 ## Summary output
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 epi_l <- summarise_effects(
   fit = fit,
   data = epi_data,
@@ -157,7 +151,7 @@ This returns:
 
 ## Sample output
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 epi_l_samples <- summarise_effects(
   fit = fit,
   data = epi_data,
@@ -176,7 +170,7 @@ visualization.
 
 # Uncertainty in predictions
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 pred <- predict_outcome(
   fit = fit,
   profiles = scenario,
@@ -188,7 +182,7 @@ pred <- predict_outcome(
 
 Visualizing uncertainty:
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 ggplot(
   pred,
   aes(prediction)
@@ -209,7 +203,7 @@ DLNM specification is likely to generate numerical problems.
 
 Example:
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 check_identifiability(
   data = epi_data,
 
@@ -260,21 +254,21 @@ lag-response functions.
 
 Typical starting point:
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 df_var = 3
 df_lag = 2
 ```
 
 Higher flexibility:
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 df_var = 4
 df_lag = 4
 ```
 
 Lower flexibility:
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 df_var = 2
 df_lag = 2
 ```
@@ -318,7 +312,7 @@ distributions may produce knot-placement warnings.
 
 Typical warning:
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 splines::ns()
 ```
 
@@ -348,7 +342,7 @@ For reproducible analyses:
 
 Example:
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 set.seed(123) # verificar se nao seria o "seed" usado nas funcoes ao inves de "set.seed(123")
 ```
 

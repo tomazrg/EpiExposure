@@ -1,0 +1,87 @@
+<svg width="1200" height="180"
+     viewBox="0 0 1200 180"
+     xmlns="http://www.w3.org/2000/svg">
+
+<style>
+.curve1{
+stroke:#D4AF37;
+stroke-width:3;
+fill:none;
+opacity:.90;
+animation: move1 8s ease-in-out infinite;
+}
+
+.curve2{
+stroke:#D4AF37;
+stroke-width:3;
+fill:none;
+opacity:.70;
+animation: move2 10s ease-in-out infinite;
+}
+
+.curve3{
+stroke:#D4AF37;
+stroke-width:3;
+fill:none;
+opacity:.55;
+animation: move3 12s ease-in-out infinite;
+}
+
+.curve4{
+stroke:#D4AF37;
+stroke-width:3;
+fill:none;
+opacity:.45;
+animation: move4 9s ease-in-out infinite;
+}
+
+@keyframes move1{
+0%{transform:translateY(0px);}
+50%{transform:translateY(-8px);}
+100%{transform:translateY(0px);}
+}
+
+@keyframes move2{
+0%{transform:translateY(0px);}
+50%{transform:translateY(10px);}
+100%{transform:translateY(0px);}
+}
+
+@keyframes move3{
+0%{transform:translateY(0px);}
+50%{transform:translateY(-12px);}
+100%{transform:translateY(0px);}
+}
+
+@keyframes move4{
+0%{transform:translateY(0px);}
+50%{transform:translateY(6px);}
+100%{transform:translateY(0px);}
+}
+</style>
+
+<path class="curve1"
+d="M0 90
+C120 20,240 160,360 90
+S600 20,720 90
+S960 160,1200 90"/>
+
+<path class="curve2"
+d="M0 100
+C120 170,240 30,360 100
+S600 170,720 100
+S960 30,1200 100"/>
+
+<path class="curve3"
+d="M0 75
+C150 140,300 30,450 75
+S750 140,900 75
+S1050 30,1200 75"/>
+
+<path class="curve4"
+d="M0 115
+C150 40,300 150,450 115
+S750 40,900 115
+S1050 150,1200 115"/>
+
+</svg>

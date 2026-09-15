@@ -2,7 +2,8 @@ url: https://tomazrg.github.io/EpiExposure/
 
 template:
   bootstrap: 5
-  bootswatch: flatly
+  bslib:
+    bootswatch: null
   light-switch: true
   includes:
     after_body: pkgdown/logo.html
@@ -40,50 +41,57 @@ articles:
     navbar: Articles
     contents:
       - pkgdown
-      - fungi
-      - nematode
-      - virus
-      - bacteria
+      - understading-effects
+      - sensitivity-decision
+      - simulation-prediction
+      - losses
+      - selection-ensemble
+      - advanced-topics
 
 reference:
 
   - title: "Data & Exposure Setup"
     contents:
-      - define_exposure
+      - epi_data
+      - define_exposures
       - check_identifiability
       - build_design
       - prepare_response
 
-  - title: "Model Fitting"
+  - title: "Model Fitting & Selection"
     contents:
       - fit_epidlnm
+      - find_bestfit
+      - ensemble_bestfit
 
   - title: "Predictions & Simulations"
     contents:
-      - predict_surface
-      - predict_outcome
-      - simulate_exposure
-      - simulate_range
-      - simulate_scenarios
+      - predict_outcomes
       - compare_exposures
       - compare_predictions
-      - compare_periods
+      - simulate_exposures
+      - simulate_ranges
+      - simulate_scenarios
+      - simulate_losses
+
 
   - title: "Periods & Summaries"
     contents:
       - define_periods
       - summarise_effects
-      - recenter_effects
       - reduce_effects
+      - compare_periods
 
   - title: "Effect Decomposition & Analysis"
     contents:
       - compute_eci
       - compute_ecilag
-      - identify_critical_lags
-      - lag_contribution
-      - df_sensitivity
+      - epi_sensitivity
 
-  - title: "Datasets"
+  - title: "Plotting"
     contents:
-      - TargetSpot
+      - plot_effects
+      - plot_eci
+      - plot_scenarios
+      - plot_losses
+      - plot_performance

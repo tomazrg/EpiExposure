@@ -1357,6 +1357,7 @@ check_identifiability <- function(
 #' @param ... Unused.
 #'
 #' @return `x`, invisibly.
+#' @keywords internal
 #' @export
 print.epiexposure_identifiability <- function(x, ...) {
   cat("EpiExposure DLNM identifiability diagnostics\n")

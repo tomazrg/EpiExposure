@@ -171,4 +171,9 @@ For spline bases, the user-supplied degrees of freedom determine the requested
 flexibility, but the returned `spec` records the effective basis arguments.
 For `"poly"`, the corresponding `df_*` argument is interpreted as polynomial
 degree. For `"lin"`, the corresponding `df_*` value has no effect.
+
+For predictors with highly skewed distributions or many repeated values,
+`splines::ns()` may issue a knot-placement warning when interior knots
+coincide with boundary values. This adjustment is handled automatically
+and does not prevent model fitting.
 }

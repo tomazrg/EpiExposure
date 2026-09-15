@@ -148,6 +148,11 @@
 #' For `"poly"`, the corresponding `df_*` argument is interpreted as polynomial
 #' degree. For `"lin"`, the corresponding `df_*` value has no effect.
 #'
+#' For predictors with highly skewed distributions or many repeated values,
+#' `splines::ns()` may issue a knot-placement warning when interior knots
+#' coincide with boundary values. This adjustment is handled automatically
+#' and does not prevent model fitting.
+#'
 #' @export
 define_exposures <- function(
     data,

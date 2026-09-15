@@ -8,11 +8,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-<img src="../reference/figures/sticker.png"
-     class="pkg-page-logo"
-     alt="EpiExposure logo">
-     
-     
+
 # Introduction
 
 Understanding historical exposure-lag relationships is important for epidemiological inference, but researchers are often interested in a different question:
@@ -28,11 +24,15 @@ EpiExposure provides a simulation and prediction framework that allows researche
 
 Unlike effect summaries, which evaluate isolated exposure-lag contributions, simulation tools operate on complete exposure histories and therefore allow epidemiological hypotheses to be tested directly.
 
+```{r}
+library(EpiExposure)
+library(ggplot2)
+library(dplyr)
+```
+
 # Load data and fit a model
 
 ```{r}
-library(EpiExposure)
-
 data("epi_data")
 ```
 
@@ -126,6 +126,21 @@ rain_profile <- simulate_exposures(
 )
 ```
 
+```{r}
+wetness_profile <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 123,
+  background = list(
+    dist = "ar1",
+    mean = 10,
+    sd = 4,
+    phi = 0.90
+  )
+)
+```
+
+
 This creates a prolonged rainfall event within a selected epidemiological period.
 
 # Predicting disease outcomes
@@ -137,7 +152,7 @@ Unlike lag-specific or period-specific effects, outcome prediction evaluates the
 Predictions therefore represent the cumulative consequence of all environmental conditions preceding disease assessment.
 
 ```{r}
-prediction <- predict_outcome(
+prediction <- predict_outcomes(
   fit = fit,
   profiles = list(
     tmean = temperature_profile$profile,
@@ -152,7 +167,7 @@ prediction
 # Prediction uncertainty
 
 ```{r}
-prediction <- predict_outcome(
+prediction <- predict_outcomes(
   fit = fit,
   profiles = list(
     tmean = temperature_profile$profile,
@@ -194,6 +209,17 @@ Examples include:
 Scenario simulation provides a systematic framework for evaluating these questions.
 
 ## Generating candidate scenarios
+
+```{r}
+periods <- define_periods(
+  max_lag = 85,
+  cuts = c(
+    20,
+    40,
+    60
+  )
+)
+```
 
 ```{r}
 scenarios <- simulate_ranges(

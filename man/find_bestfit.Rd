@@ -251,6 +251,11 @@ stored in those returned training cross-basis objects are then reused to
 transform every held-out exposure history. Held-out values therefore never
 determine the training basis parameterization.
 
+For predictors with highly skewed distributions or many repeated values,
+`splines::ns()` may issue a knot-placement warning when interior knots
+coincide with boundary values. This adjustment is handled automatically
+and does not prevent model fitting.
+
 Reusing the training basis does not mean reusing the same numerical
 cross-basis matrix. Held-out exposure values produce new matrix values, but
 they are transformed with the **same training basis parameterization**.

@@ -1206,3 +1206,116 @@ lag_compare |>
       mean(abs(best_model_contribution), na.rm = TRUE)
   )
 ```
+
+# Lag-specific animation
+
+## tmean
+```{r}
+
+library(ggplot2)
+library(gganimate)
+library(dplyr)
+
+epi_plot <- epi_l |>
+  filter(var == "tmean")
+
+tmean_ani = ggplot(
+  epi_plot,
+  aes(value, effect)
+) +
+  geom_line(
+    color = "#C44E52",
+    linewidth = 1.4
+  ) +
+  theme_bw() +
+  labs(
+    x = "Mean temperature (°C)",
+    y = "Effect (%)",
+    title = "Lag: {closest_state}"
+  ) +
+  transition_states(
+    lag,
+    transition_length = 1,
+    state_length = 1
+  ) +
+  ease_aes("linear")
+```
+
+## rain
+```{r}
+library(ggplot2)
+library(gganimate)
+library(dplyr)
+
+epi_plot <- epi_l |>
+  filter(var == "rain")
+
+rain_ani = ggplot(
+  epi_plot,
+  aes(value, effect)
+) +
+  geom_line(
+    color = "#4c72b0",
+    linewidth = 1.4
+  ) +
+  theme_bw() +
+  labs(
+    x = "Mean temperature (°C)",
+    y = "Effect (%)",
+    title = "Lag: {closest_state}"
+  ) +
+  transition_states(
+    lag,
+    transition_length = 1,
+    state_length = 1
+  ) +
+  ease_aes("linear")
+```
+
+## wetness
+```{r}
+
+library(ggplot2)
+library(gganimate)
+library(dplyr)
+
+epi_plot <- epi_l |>
+  filter(var == "wetness")
+
+wetness_ani = ggplot(
+  epi_plot,
+  aes(value, effect)
+) +
+  geom_line(
+    color = "#55A868",
+    linewidth = 1.4
+  ) +
+  theme_bw() +
+  labs(
+    x = "Leaf wetness (hours)",
+    y = "Effect (%)",
+    title = "Lag: {closest_state}"
+  ) +
+  transition_states(
+    lag,
+    transition_length = 1,
+    state_length = 1
+  ) +
+  ease_aes("linear")
+
+anim1 <- animate(tmean_ani, nframes = 85, renderer = magick_renderer())
+anim2 <- animate(rain_ani, nframes = 85, renderer = magick_renderer())
+anim3 <- animate(wetness_ani, nframes = 85, renderer = magick_renderer())
+
+```
+
+```{r}
+
+combined_frames <- image_append(c(anim1[1], anim2[1],anim3[1]))
+for (i in 3:length(anim1)) {
+  combined <- image_append(c(anim1[i], anim2[i],anim3[i]))
+  combined_frames <- c(combined_frames, combined)
+}
+
+anim_save("combined.gif", combined_frames)
+```

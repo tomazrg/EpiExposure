@@ -8,12 +8,6 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-```{=html}
-<img src="../reference/figures/sticker.png"
-     class="pkg-page-logo"
-     alt="EpiExposure logo">
-```
-
 # Introduction
 
 The primary goal of `EpiExposure` is not only to fit distributed lag nonlinear models (DLNMs), but also to translate exposure-lag-response surfaces into biologically meaningful epidemiological interpretations.
@@ -32,6 +26,7 @@ These approaches allow researchers to identify critical exposure periods, compar
 ```{r}
 library(EpiExposure)
 library(dplyr)
+library(ggplot2)
 
 data("epi_data")
 ```
@@ -101,7 +96,7 @@ epi_l <- summarise_effects(
 plot_effects(
   data = epi_l,
   scale = "lag",
-  var = c(
+  vars = c(
     "tmean",
     "rain",
     "wetness"
@@ -140,8 +135,7 @@ periods <- define_periods(
   cuts = c(
     20,
     40,
-    60,
-    85
+    60
   ),
   prefix = "Period"
 )
@@ -189,7 +183,7 @@ eci <- compute_eci(
   data = epi_data,
   group = "epi_id",
   fit = fit,
-  var = c(
+  vars = c(
     "tmean",
     "rain",
     "wetness"
@@ -258,14 +252,14 @@ eci_lag$by_lag %>%
   ggplot(
     aes(
       lag,
-      abs_contribution
+      ECI_percent
     )
   ) +
   geom_col(fill = "#4C72B0") +
   theme_bw() +
   labs(
     x = "Lag",
-    y = "Absolute contribution"
+    y = "ECI"
   )
 ```
 

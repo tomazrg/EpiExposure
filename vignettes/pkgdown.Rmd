@@ -8,16 +8,6 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-::: {style="text-align:center;"}
-\<img src="../assets/animated_curves.svg"nce/figures/sticker.png
-:::
-
-```{=html}
-<img src="../reference/figures/sticker.png"
-     class="pkg-page-logo"
-     alt="EpiExposure logo">
-```
-
 ```{r}
 library(tidyverse)
 library(ggplot2)
@@ -53,7 +43,7 @@ At minimum, the dataset should include:
 3.  one or more exposure variables describing environmental, biological or chemical drivers.
 
 ```{r}
-#sim_data = readxl::read_xlsx("sim_data.xlsx")
+
 data("epi_data")
 
 ```
@@ -193,7 +183,7 @@ epi_l <- summarise_effects(
   effect_measure = "percent"
 )
 
-epi_l <- summarise_effects(fit = fit, data = sim_data,
+epi_l <- summarise_effects(fit = fit, data = epi_data,
                   scale = "lag", effect_measure = "percent",
                   uncertainty = TRUE, n_samples = 20,
                   output = "summary")
@@ -295,8 +285,4 @@ predict_outcomes(
 
 This framework enables hypothetical epidemiological questions such as:
 
-• What would happen if rainfall increased?
-• What would happen if favorable conditions occured earlier or later in the lag structures? 
-• How sensitive is disease severity to different exposure histories?
-
-
+• What would happen if rainfall increased? • What would happen if favorable conditions occured earlier or later in the lag structures? • How sensitive is disease severity to different exposure histories?
