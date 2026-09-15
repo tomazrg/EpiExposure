@@ -1,5 +1,6 @@
 ---
-title: "Understanding Effects in EpiExposure"
+title: "Understanding Effects"
+author: "Ricardo G. Tomáz"
 description: "Lag-specific, period-specific, and cumulative exposure impacts"
 output: rmarkdown::html_vignette
 vignette: >
@@ -23,12 +24,20 @@ These approaches allow researchers to identify critical exposure periods, compar
 
 # Load data
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
+
 library(EpiExposure)
 library(dplyr)
 library(ggplot2)
 
+```
+
+```{r}
+
 data("epi_data")
+
+epi_data
+
 ```
 
 # Fit a DLNM model

@@ -1,14 +1,16 @@
 ---
 title: "Get started with EpiExposure"
+author: "Ricardo G. Tomáz"
 description: "Quick introduction to EpiExposure"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Get started}
+  %\VignetteIndexEntry{Get started with EpiExposure}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
+
 library(tidyverse)
 library(ggplot2)
 library(cowplot)

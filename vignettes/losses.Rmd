@@ -1,5 +1,6 @@
 ---
-title: "Yield and Economic Losses with EpiExposure"
+title: "Yield and Economic Losses"
+author: "Ricardo G. Tomáz"
 description: "Translating disease predictions into agronomic and economic consequences"
 output: rmarkdown::html_vignette
 vignette: >
@@ -27,7 +28,8 @@ These analyses allow researchers to evaluate the practical consequences of alter
 
 # Load libraries
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
+
 library(EpiExposure)
 library(dplyr)
 library(ggplot2)
@@ -36,6 +38,7 @@ library(ggplot2)
 # Fit a DLNM model
 
 ```{r}
+
 data("epi_data")
 
 cb <- define_exposures(

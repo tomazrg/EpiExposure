@@ -1,5 +1,6 @@
 ---
 title: "Sensitivity Analysis and Decision Support"
+author: "Ricardo G. Tomáz"
 description: "Identifying critical environmental thresholds and sensitive exposure regions"
 output: rmarkdown::html_vignette
 vignette: >
@@ -27,12 +28,20 @@ These analyses transform predictive models into decision-support tools.
 
 # Load data
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
+
 library(EpiExposure)
 library(dplyr)
 library(ggplot2)
 
+```
+
+```{r}
+
 data("epi_data")
+
+epi_data
+
 ```
 
 # Fit a DLNM model

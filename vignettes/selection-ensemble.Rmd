@@ -1,5 +1,6 @@
 ---
 title: "Model Selection and Ensemble Forecasting"
+author: "Ricardo G. Tomáz"
 description: "Model ranking, validation, and ensemble forecasting in EpiExposure"
 output: rmarkdown::html_vignette
 vignette: >
@@ -33,12 +34,18 @@ This section demonstrates:
 
 # Load example data
 
-```{r, echo=TRUE, eval=FALSE}
+```{r, message=FALSE, warning=FALSE}
+
 library(EpiExposure)
 library(dplyr)
 
+```
+
+```{r}
+
 data("epi_data")
 
+epi_data
 ```
 
 # Why model selection matters

@@ -1,7 +1,13 @@
 <img src="reference/figures/sticker.png"
-     align="right"
      width="380px"
-     style="margin-left: 20px; margin-right: -100px; margin-top: 10px;"/>
+     style="
+       float: right;
+       position: relative;
+       z-index: 10;
+       margin-left: 20px;
+       margin-right: -100px;
+       margin-top: 10px;
+     "/>
 
 # EpiExposure
 
@@ -31,7 +37,7 @@ Summarise exposure–lag relationships across lags, epidemiological periods, and
 
 <div class="col-md-4">
 
-### Predict & simulate
+### Predict & Simulate
 
 Evaluate observed or hypothetical exposure histories, compare scenarios, and predict expected disease outcomes.
 
@@ -64,13 +70,13 @@ Evaluate observed or hypothetical exposure histories, compare scenarios, and pre
 
 ## Learning path
 
-1. Define exposure–lag structures with `define_exposures()` and assess their identifiability with `check_identifiability()`.
-2. Build the DLNM design with `build_design()` and prepare the outcome using `prepare_response()`.
+1. Define exposure–lag structures with `define_exposures()`.
+2. Build the DLNM design with `build_design()`.
 3. Fit the epidemiological model with `fit_epidlnm()`.
-4. Interpret exposure–lag relationships using `summarise_effects()`, `reduce_effects()`, `compute_eci()`, and `compute_ecilag()`.
-5. Explore hypothetical exposure histories with `simulate_exposures()`, `simulate_ranges()`, and `simulate_scenarios()`.
-6. Predict and compare expected outcomes using `predict_outcomes()`, `compare_exposures()`, and `compare_predictions()`.
-7. Evaluate alternative model structures with `find_bestfit()` and combine selected models with `ensemble_bestfit()`.
+4. Interpret exposure–lag relationships using `summarise_effects()`.
+5. Explore hypothetical exposure histories with `simulate_exposures()`.
+6. Predict expected outcomes using `predict_outcomes()`.
+7. Evaluate alternative model structures with `find_bestfit()` and `ensemble_bestfit()`.
 
 ---
 
@@ -79,7 +85,5 @@ Evaluate observed or hypothetical exposure histories, compare scenarios, and pre
 Install the stable version from CRAN:
 
 ```r
-
 install.packages("EpiExposure")
-
 ```

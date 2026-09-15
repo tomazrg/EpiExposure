@@ -5,8 +5,6 @@ template:
   bslib:
     bootswatch: null
   light-switch: true
-  includes:
-    after_body: pkgdown/logo.html
 
 home:
   title: EpiExposure

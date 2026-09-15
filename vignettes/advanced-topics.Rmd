@@ -1,5 +1,6 @@
 ---
-title: "Advanced Topics in EpiExposure"
+title: "Advanced Topics"
+author: "Ricardo G. Tomáz"
 description: "Advanced model specification, uncertainty, diagnostics, and computational considerations"
 output: rmarkdown::html_vignette
 vignette: >
