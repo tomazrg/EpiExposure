@@ -23,10 +23,12 @@ navbar:
 
     github:
       icon: fab fa-github
+      aria-label: GitHub
       href: https://github.com/tomazrg/EpiExposure
 
     linkedin:
       icon: fab fa-linkedin
+      aria-label: LinkedIn
       href: https://www.linkedin.com/in/ricardo-gomes-tom%C3%A1z-0137ba189/?skipRedirect=true
 
     newslink:

@@ -1,4 +1,5 @@
 <img src="reference/figures/sticker.png"
+     alt="EpiExposure package sticker"
      width="380px"
      style="
        float: right;
