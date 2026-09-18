@@ -174,7 +174,7 @@ plot_effects <- function(
     vars = NULL,
     metric = c("effect", "delta"),
     delta_multiplier = 100,
-    metric_labels = c(effect = "Effect (%)", delta = "Δ"),
+    metric_labels = c(effect = "Effect", delta = "Δ"),
     ylab = NULL,
     metric_ncol = 1,
     vars_ncol = NULL,

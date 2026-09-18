@@ -39,10 +39,16 @@
 #'   EpiExposure exact-history contract.
 #' @param include_response Logical. If `TRUE` and `data` contains `y`, append
 #'   one response value per epidemic. If `FALSE`, `y` is ignored.
+#' @param groups Non-empty character vector of identifier columns to preserve
+#'   in the final design. Must include `"epi_id"`; the default is `"epi_id"`.
+#'   Additional identifiers, such as `"block"`, `"site"`, or `"year"`, must
+#'   exist in `data`, contain no missing values, and be constant within each
+#'   `epi_id`. They do not redefine the exposure-history unit, which remains
+#'   exclusively `epi_id`.
 #'
-#' @return A data frame with one row per epidemic containing `epi_id`,
-#'   canonical cross-basis columns named `cb_<exposure>_<column_index>`, and,
-#'   optionally, `y`.
+#' @return A data frame with one row per epidemic containing the identifier
+#'   columns specified in `groups`, canonical cross-basis columns named
+#'   `cb_<exposure>_<column_index>`, and, optionally, `y`.
 #'
 #'   The returned data frame stores the following attributes:
 #'
@@ -59,7 +65,8 @@
 #'   - `"epiexposure_time_step"`: common time-series spacing, or `NA` when
 #'     `max_lag = 0` because a one-point history has no estimable spacing;
 #'   - `"epiexposure_design_contract"`:
-#'     `"final_crossbasis_row_per_group"`.
+#'     `"final_crossbasis_row_per_group"`;
+#'   - `"epiexposure_group_cols"`: identifier columns preserved in the design.
 #'
 #' @details
 #' ## Temporal requirements
@@ -115,7 +122,8 @@ build_design <- function(
     data,
     cb_templates,
     max_lag = NULL,
-    include_response = TRUE
+    include_response = TRUE,
+    groups = "epi_id"
 ) {
 
   valid_flag <- function(x) {
@@ -165,6 +173,44 @@ build_design <- function(
 
   if (anyNA(data$epi_id)) {
     stop("`data$epi_id` cannot contain missing values.", call. = FALSE)
+  }
+
+  if (!is.character(groups) ||
+      !length(groups) ||
+      anyNA(groups) ||
+      any(!nzchar(groups)) ||
+      anyDuplicated(groups)) {
+    stop(
+      "`groups` must be a non-empty character vector of unique, non-empty column names without NA.",
+      call. = FALSE
+    )
+  }
+
+  if (!"epi_id" %in% groups) {
+    stop(
+      "`groups` must include 'epi_id', the mandatory exposure-history unit.",
+      call. = FALSE
+    )
+  }
+
+  missing_groups <- setdiff(groups, names(data))
+  if (length(missing_groups)) {
+    stop(
+      "`data` is missing identifier column(s) requested in `groups`: ",
+      paste(missing_groups, collapse = ", "),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  for (group_col in setdiff(groups, "epi_id")) {
+    if (anyNA(data[[group_col]])) {
+      stop(
+        "Identifier column '", group_col,
+        "' requested in `groups` cannot contain missing values.",
+        call. = FALSE
+      )
+    }
   }
 
   if (!is.numeric(data$time) ||
@@ -499,7 +545,28 @@ build_design <- function(
   first_rows <- vapply(group_rows, function(idx) idx[1L], integer(1))
   group_rows <- group_rows[order(first_rows)]
   first_rows <- vapply(group_rows, function(idx) idx[1L], integer(1))
-  group_ids <- data_ordered$epi_id[first_rows]
+
+  for (group_col in setdiff(groups, "epi_id")) {
+    for (i in seq_along(group_rows)) {
+      idx <- group_rows[[i]]
+      if (length(unique(data_ordered[[group_col]][idx])) != 1L) {
+        stop(
+          "Identifier column '", group_col,
+          "' must be constant within epi_id = ",
+          as.character(data_ordered$epi_id[idx[1L]]),
+          ".",
+          call. = FALSE
+        )
+      }
+    }
+  }
+
+  group_values <- data_ordered[
+    first_rows,
+    groups,
+    drop = FALSE
+  ]
+  rownames(group_values) <- NULL
 
   common_time_step <- NA_real_
   tolerance <- sqrt(.Machine$double.eps)
@@ -585,7 +652,7 @@ build_design <- function(
   # ==========================================================================
 
   out <- data.frame(
-    epi_id = group_ids,
+    group_values,
     check.names = FALSE
   )
 
@@ -764,6 +831,7 @@ build_design <- function(
   attr(out, "epiexposure_design_contract") <-
     "final_crossbasis_row_per_group"
   attr(out, "epiexposure_profile_order") <- "chronological"
+  attr(out, "epiexposure_group_cols") <- groups
 
   out
 }

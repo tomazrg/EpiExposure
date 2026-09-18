@@ -11,7 +11,7 @@ vignette: >
 
 # Introduction
 
-The primary goal of `EpiExposure` is not only to fit distributed lag nonlinear models (DLNMs), but also to translate exposure-lag-response surfaces into biologically meaningful epidemiological interpretations.
+The primary goal of `EpiExposure` is not only to fit distributed lag non-linear models (DLNMs), but also to translate exposure-lag-response surfaces into biologically meaningful epidemiological interpretations.
 
 This section introduces the main effect interpretation tools available in `EpiExposure`:
 
@@ -20,7 +20,7 @@ This section introduces the main effect interpretation tools available in `EpiEx
 - Exposure Cumulative Impact (ECI)
 - Lag decomposition of ECI
 
-These approaches allow researchers to identify critical exposure periods, compare epidemiological phases, and summarize complete exposure histories.
+These approaches allow researchers to identify periods of stronger modeled association with exposure periods, compare epidemiological phases, and summarize complete exposure histories.
 
 # Load data
 
@@ -105,6 +105,7 @@ epi_l <- summarise_effects(
 plot_effects(
   data = epi_l,
   scale = "lag",
+  metric = "effect",
   vars = c(
     "tmean",
     "rain",
@@ -154,23 +155,76 @@ periods
 
 ## Estimate period effects
 
+### Summary
+
 ```{r}
 epi_p <- summarise_effects(
   fit = fit,
   data = epi_data,
   scale = "period",
   lag_periods = periods,
-  effect_measure = "percent"
+  effect_measure = "percent",
+  output = "summary",
+  n_samples = 20,
+  uncertainty = TRUE
 )
 ```
 
-## Visualize period affects
+Visualize period affects
 
 ```{r}
 plot_effects(
   data = epi_p,
-  scale = "period"
+  scale = "period",
+  vars = c("tmean", "rain", "wetness"),
+  period_order = c(
+    "Period4",
+    "Period3",
+    "Period2",
+    "Period1"
+  ),
+  vars_order = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  period_ylab = "Effect")
+```
+
+### Samples
+
+```{r}
+epi_p <- summarise_effects(
+  fit = fit,
+  data = epi_data,
+  scale = "period",
+  lag_periods = periods,
+  effect_measure = "percent",
+  output = "summary",
+  n_samples = 20,
+  uncertainty = TRUE
 )
+```
+
+Visualize period affects
+
+```{r}
+plot_effects(
+  data = epi_p,
+  scale = "period",
+  vars = c("tmean", "rain", "wetness"),
+  period_order = c(
+    "Period4",
+    "Period3",
+    "Period2",
+    "Period1"
+  ),
+  vars_order = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  period_ylab = "Effect")
 ```
 
 # Exposure Cumulative Impact (ECI)
@@ -196,10 +250,13 @@ eci <- compute_eci(
     "tmean",
     "rain",
     "wetness"
-  )
+  ),
+  uncertainty = TRUE,
+  output = "summary",
+  n_samples = 20
 )
 
-eci
+head(eci)
 ```
 
 ## Interpreting ECI
@@ -244,32 +301,36 @@ eci_lag <- compute_ecilag(
   group = "epi_id",
   group_level = 1,
   fit = fit,
-  var = "rain"
-)
+  var = c("tmean","rain", "wetness"),
+  uncertainty = TRUE,
+  output = "summary",
+  n_samples = 20)
 ```
 
 ## Inspect lag contributions
 
 ```{r}
-eci_lag$by_lag
+head(eci_lag$by_lag)
 ```
 
 ## Plot contribution profile
 
-```{r}
-eci_lag$by_lag %>%
-  ggplot(
-    aes(
-      lag,
-      ECI_percent
-    )
-  ) +
-  geom_col(fill = "#4C72B0") +
-  theme_bw() +
-  labs(
-    x = "Lag",
-    y = "ECI"
-  )
+```{r, message=FALSE, warning=FALSE}
+
+  plot_eci(
+  eci_overall = eci,
+  eci_lag = eci_lag,
+  facet_scales = "free_y",
+  overall_nrow = 3,
+  lag_ncol = 1,
+  sample_smooth = TRUE,
+  linewidth = 0.7,
+  alpha = 0.20,
+  panel_labels = c("(a)", "(b)", "(c)"),
+  overall_col = "ECI_weighted",
+  lag_col = "ECI_percent")
+
+
 ```
 
 # Linking lag effects and ECI
@@ -281,7 +342,7 @@ Lag-specific effects, period-specific effects, and ECI provide complementary per
 - ECI summarizes the overall impact of complete exposure histories.
 - ECI lag decomposition identifies which lags contribute most strongly to cumulative impact.
 
-Together, these tools provide a comprehensive framework for interpreting distributed lag nonlinear models in epidemiological research.
+Together, these tools provide a comprehensive framework for interpreting distributed lag non-linear models in epidemiological research.
 
 # Next steps
 

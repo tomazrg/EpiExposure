@@ -90,7 +90,11 @@ basic argument validation is still applied.}
 `fit_epidlnm()`. Supported EpiExposure v1 canonical families are `"beta"`,
 `"binomial"`, `"poisson"`, `"gamma"`, `"gaussian"`, and
 `"negative_binomial"` (NB2). Ordinal outcomes and NB1 are not supported in
-EpiExposure v1.}
+EpiExposure v1. Family-object links are checked against the selected engine
+before cross-validation and passed unchanged to `fit_epidlnm()`.
+To specify a non-default link, supply a supported family object,
+such as family = stats::Gamma(link = "inverse");
+character family names use the EpiExposure default link.}
 
 \item{random_effect}{Optional character scalar naming one grouping column used
 as a random intercept by `fit_epidlnm()`. It must be constant within each
@@ -159,7 +163,10 @@ not alter LOOCV fold membership and is not passed to `fit_epidlnm()`.}
 \item{...}{Named additional arguments passed to `fit_epidlnm()`. Core
 arguments managed by `find_bestfit()` (`data`, `model_engine`, `family`,
 `random_effect`, `epiexposure_spec`, and `basis_objects`) cannot be supplied
-again through `...`.}
+again through `...`. For INLA-backed engines, likelihood availability,
+`control.family$control.link$model` consistency, and
+`control.compute$config = TRUE` compatibility are checked before CV.
+`fit_epidlnm()` then supplies required INLA controls during each fit.}
 }
 \value{
 A data frame ranked by `rank_metric`. Non-binary families report
@@ -242,6 +249,10 @@ groups and outcome-1 groups are each distributed as evenly as possible while
 maintaining overall fold balance. Because every fold is required to contain
 both classes, `k` cannot exceed the number of groups in the less frequent
 class.
+
+Engine, family, and link compatibility is validated before candidate
+evaluation. Unsupported combinations fail immediately rather than producing
+repeated fitting failures across folds.
 
 ## Training-only basis construction
 

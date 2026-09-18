@@ -48,13 +48,75 @@ Advantages:
 - negative binomial models;
 - good numerical stability.
 
+```{r, message=FALSE, warning=FALSE}
+
+library(EpiExposure)
+library(dplyr)
+library(ggplot2)
+
+```
+
+```{r}
+
+data("epi_data")
+
+epi_data
+
+```
+```{r}
+epi_data = readxl::read_xlsx("nb2_data.xlsx")
+epi_data = readxl::read_xlsx("binomial_data.xlsx")
+epi_data = readxl::read_xlsx("poisson_data.xlsx")
+epi_data = readxl::read_xlsx("gamma_data.xlsx")
+epi_data = readxl::read_xlsx("gaussian_data.xlsx")
+```
+
+```{r}
+cb <- define_exposures(
+  data = epi_data,
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  max_lag = 85,
+  df_var = 3,
+  df_lag = 2
+)
+
+dat <- build_design(
+  data = epi_data,
+  cb_templates = cb,
+  max_lag = 85,
+  groups = c("epi_id", "block")
+)
+
+dat <- prepare_response(
+  data = dat,
+  response = "y",
+  family = "gaussian"
+)
+
+fit <- fit_epidlnm(
+  data = dat,
+  model_engine = "glmmTMB",
+  family = "gaussian",
+  random_effect = "block",
+  epiexposure_spec = attr(cb, "spec")
+)
+
+summary(fit)
+```
+
 ```{r, echo=TRUE, eval=FALSE}
 fit_glmmTMB <- fit_epidlnm(
   data = dat,
-  model_engine = "glmmTMB",
-  family = "beta",
+  model_engine = "glTMB",
+  family = "gamma",
   epiexposure_spec = attr(cb,"spec")
 )
+
+summary(fit_glmmTMB)
 ```
 
 ## GAM models
@@ -69,9 +131,11 @@ while GAM smoothing primarily acts as a penalization mechanism.
 fit_gam <- fit_epidlnm(
   data = dat,
   model_engine = "gam",
-  family = "beta",
+  family = "gamma",
   epiexposure_spec = attr(cb,"spec")
 )
+
+summary(fit_gam)
 ```
 
 # Bayesian models
@@ -93,6 +157,47 @@ fit_brms <- fit_epidlnm(
   model_engine = "brms",
   family = "beta",
   epiexposure_spec = attr(cb, "spec"))
+
+pkgbuild::check_build_tools(debug = TRUE)
+
+library(rstan)
+
+example(stan_model,package = "rstan",run.dontrun = TRUE)
+
+
+.rs.restartR()
+
+library(rstan)
+
+packageVersion("rstan")
+packageVersion("StanHeaders")
+
+model_test <- stan_model(
+  model_code = "
+    data {
+      real y_mean;
+    }
+    parameters {
+      real y;
+    }
+    model {
+      y ~ normal(y_mean, 1);
+    }
+  "
+)
+
+fit_brms <- fit_epidlnm(
+  data = dat,
+  model_engine = "brms",
+  family = "gamma",
+  epiexposure_spec = attr(cb, "spec"),
+  backend = "cmdstanr",
+  chains = 1,
+  iter = 1000,
+  warmup = 500,
+  seed = 123,
+  refresh = 100
+)
 ```
 
 ## INLA
@@ -106,9 +211,11 @@ compromise between speed and Bayesian inference.
 ```{r, echo=TRUE, eval=FALSE}
 fit_inla <- fit_epidlnm(
   data = dat,
-  model_engine = "INLA",
-  family = "beta",
+  model_engine = "inla",
+  family = "gamma",
   epiexposure_spec = attr(cb, "spec"))
+
+summary(fit_inla)
 ```
 
 # Uncertainty propagation
@@ -125,15 +232,14 @@ estimation, prediction, simulation, and loss calculations.
 
 Most functions allow:
 
-```{r, echo=TRUE, eval=FALSE}
-output = "summary"
-```
+
+`output = "summary"`
+
 
 or
 
-```{r, echo=TRUE, eval=FALSE}
-output = "samples"
-```
+`output = "samples"`
+
 
 ## Summary output
 
@@ -142,8 +248,23 @@ epi_l <- summarise_effects(
   fit = fit,
   data = epi_data,
   uncertainty = TRUE,
-  output = "summary"
+  output = "summary",
+  effect_measure = "percent"
 )
+
+plot_effects(
+  data = epi_l,
+  scale = "lag",
+  metric = "effect",
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"
+  )
+)
+
+
+INLA::inla.doc("beta")
 ```
 
 This returns:
@@ -154,7 +275,7 @@ This returns:
 
 ```{r, echo=TRUE, eval=FALSE}
 epi_l_samples <- summarise_effects(
-  fit = fit,
+  fit = fit_inla,
   data = epi_data,
   uncertainty = TRUE,
   n_samples = 100,

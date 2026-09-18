@@ -128,6 +128,8 @@ length(unique(sim_data$epi_id)) # 520 epidemias
 
 # ARTIGO
 
+## Beta
+
 ```{r}
 # =============================================================
 # SIMULACAO DLNM COM TRES VARIAVEIS
@@ -686,7 +688,2427 @@ colnames(sim_data) = c("epi_id", "time","lag", "tmean","wetness","rain","y")
 #writexl::write_xlsx(sim_data, "sim_data.xlsx")
 ```
 
-#FIM
+## Negative-binomial (NB2)
+
+```{r}
+library(dlnm)
+library(splines)
+
+# -------------------------------------------------------------
+# Dimensoes
+# -------------------------------------------------------------
+
+n_epi  <- 520L
+n_days <- 86L
+
+n_blocks <- 20
+
+block <- factor(
+  rep(
+    paste0(
+      "B",
+      sprintf("%02d", 1:n_blocks)
+    ),
+    each = n_epi / n_blocks
+  )
+)
+
+time_values <- 0:(n_days - 1L)
+
+# Para uma avaliacao final em time = 85:
+# time 85 -> lag 0
+# time 84 -> lag 1
+# ...
+# time  0 -> lag 85
+lag_for_time <- (n_days - 1L) - time_values
+
+# -------------------------------------------------------------
+# Matrizes cronologicas de exposicao
+#
+# Linhas: epidemias
+# Colunas: time 0 a 85
+# -------------------------------------------------------------
+
+tmean_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+wetness_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+rain_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+
+colnames(tmean_time) <- paste0("time_", time_values)
+colnames(wetness_time) <- paste0("time_", time_values)
+colnames(rain_time) <- paste0("time_", time_values)
+
+# =============================================================
+# 1. SIMULAR HISTORICOS CLIMATICOS CRONOLOGICOS
+# =============================================================
+
+for (i in seq_len(n_epi)) {
+  
+  # Variacao entre epidemias
+  temp_shift <- rnorm(1L, mean = 0, sd = 2.0)
+  wetness_shift <- rnorm(1L, mean = 0, sd = 2.8)
+  rain_shift <- rnorm(1L, mean = 0, sd = 0.40)
+  
+  # Componentes autocorrelacionados
+  ar_temp <- as.numeric(
+    arima.sim(
+      model = list(ar = 0.72),
+      n = n_days,
+      sd = 1.0
+    )
+  )
+  
+  ar_wetness <- as.numeric(
+    arima.sim(
+      model = list(ar = 0.78),
+      n = n_days,
+      sd = 1.5
+    )
+  )
+  
+  ar_rain <- as.numeric(
+    arima.sim(
+      model = list(ar = 0.58),
+      n = n_days,
+      sd = 0.50
+    )
+  )
+  
+  # -----------------------------------------------------------
+  # Temperatura media
+  # -----------------------------------------------------------
+  
+  tmean <- (
+    25.5 +
+      temp_shift +
+      3.3 * sin(
+        2 * pi * time_values / 85 +
+          runif(1L, -0.35, 0.35)
+      ) +
+      ar_temp
+  )
+  
+  tmean <- pmin(pmax(tmean, 15), 36)
+  
+  # -----------------------------------------------------------
+  # Molhamento foliar
+  # -----------------------------------------------------------
+  
+  wetness <- (
+    10.5 +
+      wetness_shift +
+      2.4 * sin(
+        2 * pi * time_values / 46 +
+          runif(1L, -0.50, 0.50)
+      ) +
+      ar_wetness
+  )
+  
+  wetness <- pmin(pmax(wetness, 0), 24)
+  
+  # -----------------------------------------------------------
+  # Chuva
+  # -----------------------------------------------------------
+  
+  rain_probability <- plogis(
+    -0.80 +
+      rain_shift +
+      0.50 * sin(
+        2 * pi * time_values / 35 +
+          runif(1L, -0.50, 0.50)
+      ) +
+      ar_rain
+  )
+  
+  rainy_day <- rbinom(
+    n = n_days,
+    size = 1L,
+    prob = rain_probability
+  )
+  
+  rain_amount <- rgamma(
+    n = n_days,
+    shape = 1.7,
+    scale = 5.2
+  )
+  
+  rain <- rainy_day * rain_amount
+  rain <- pmin(rain, 40)
+  
+  # Salvar as series cronologicas
+  tmean_time[i, ] <- tmean
+  wetness_time[i, ] <- wetness
+  rain_time[i, ] <- rain
+}
+
+# =============================================================
+# 2. RELACOES EXPOSICAO-RESPOSTA VERDADEIRAS
+# =============================================================
+
+# Temperatura: favorabilidade unimodal proxima de 26 C
+temp_response <- exp(
+  -0.5 * ((tmean_time - 26) / 3.2)^2
+)
+
+# Molhamento: aumento sigmoide acima de aproximadamente 11 h
+wetness_response <- plogis(
+  (wetness_time - 11) / 1.8
+)
+
+# Chuva: resposta crescente com saturacao
+rain_response <- plogis(
+  (sqrt(rain_time) - 2.1) / 0.80
+)
+
+# =============================================================
+# 3. FUNCOES VERDADEIRAS DE LAG
+# =============================================================
+#
+# As matrizes permanecem em ordem cronologica. Portanto, os pesos
+# sao avaliados em lag_for_time, que faz a correspondencia:
+#
+#   coluna time 0  -> lag 85
+#   coluna time 85 -> lag 0
+# =============================================================
+
+# Temperatura: janela intermediaria, pico em lag 20
+temp_lag_weights_time <- dnorm(
+  lag_for_time,
+  mean = 20,
+  sd = 9
+)
+
+temp_lag_weights_time <- temp_lag_weights_time /
+  sum(temp_lag_weights_time)
+
+# Molhamento: efeito relativamente recente, pico em lag 14
+wetness_lag_weights_time <- dnorm(
+  lag_for_time,
+  mean = 14,
+  sd = 8
+)
+
+wetness_lag_weights_time <- wetness_lag_weights_time /
+  sum(wetness_lag_weights_time)
+
+# Chuva: efeito mais concentrado proximo da avaliacao, pico em lag 8
+rain_lag_weights_time <- dnorm(
+  lag_for_time,
+  mean = 8,
+  sd = 6
+)
+
+rain_lag_weights_time <- rain_lag_weights_time /
+  sum(rain_lag_weights_time)
+
+# =============================================================
+# 4. EFEITOS CUMULATIVOS VERDADEIROS
+# =============================================================
+
+true_temp_effect <- as.numeric(
+  temp_response %*% temp_lag_weights_time
+)
+
+true_wetness_effect <- as.numeric(
+  wetness_response %*% wetness_lag_weights_time
+)
+
+true_rain_effect <- as.numeric(
+  rain_response %*% rain_lag_weights_time
+)
+
+# =============================================================
+# 5. PADRONIZAR OS EFEITOS CUMULATIVOS
+# =============================================================
+
+standardize_effect <- function(x) {
+  standardized <- as.numeric(scale(x))
+  
+  if (any(!is.finite(standardized))) {
+    stop("Nao foi possivel padronizar um efeito cumulativo verdadeiro.")
+  }
+  
+  standardized
+}
+
+temp_effect_z <- standardize_effect(true_temp_effect)
+wetness_effect_z <- standardize_effect(true_wetness_effect)
+rain_effect_z <- standardize_effect(true_rain_effect)
+
+# =============================================================
+# 6. GERAR A MEDIA DA CONTAGEM NA ESCALA LOG
+# =============================================================
+#
+# Para NB2:
+#   log(mu_i) = eta_i
+#   mu_i      = exp(eta_i)
+#
+# Os coeficientes foram escolhidos para produzir contagens
+# moderadas e efeitos detectaveis sem gerar uma cauda excessiva.
+# =============================================================
+
+block_effect <- rnorm(
+  n_blocks,
+  mean = 0,
+  sd = 0.35
+)
+
+block_re <- block_effect[
+  as.integer(block)
+]
+
+eta_true <- (
+  log(12) +
+    0.35 * temp_effect_z +
+    0.48 * wetness_effect_z +
+    0.30 * rain_effect_z +
+    block_re
+)
+
+# Pequena heterogeneidade residual entre epidemias
+sigma_error <- 0.15
+
+eta_observed <- eta_true + rnorm(
+  n = n_epi,
+  mean = 0,
+  sd = sigma_error
+)
+
+mu_epi <- exp(eta_observed)
+
+# =============================================================
+# 7. GERAR O DESFECHO NEGATIVE BINOMIAL 2
+# =============================================================
+#
+# MASS::rnegbin() usa:
+#   Var(Y) = mu + mu^2 / theta
+#
+# theta maior -> menor sobredispersao
+# theta menor -> maior sobredispersao
+# =============================================================
+
+theta_nb2 <- 8
+
+y_epi <- MASS::rnegbin(
+  n = n_epi,
+  mu = mu_epi,
+  theta = theta_nb2
+)
+
+y_epi <- as.integer(y_epi)
+
+# =============================================================
+# 8. CRIAR O CONJUNTO LONG EM ORDEM CRONOLOGICA
+# =============================================================
+
+sim_data_nb2 <- data.frame(
+  epi_id = rep(
+    seq_len(n_epi),
+    each = n_days
+  ),
+  block = rep(
+    block,
+    each = n_days),
+  time = rep(
+    time_values,
+    times = n_epi
+  ),
+  tmean = as.vector(t(tmean_time)),
+  wetness = as.vector(t(wetness_time)),
+  rain = as.vector(t(rain_time)),
+  y = rep(
+    y_epi,
+    each = n_days
+  )
+)
+
+sim_data_nb2 <- sim_data_nb2[
+  order(
+    sim_data_nb2$epi_id,
+    sim_data_nb2$time
+  ),
+  ,
+  drop = FALSE
+]
+
+rownames(sim_data_nb2) <- NULL
+
+# =============================================================
+# 9. CHECAGENS DA SIMULACAO
+# =============================================================
+
+# 86 observacoes por epidemia e 520 epidemias
+observations_per_epidemic <- table(sim_data_nb2$epi_id)
+
+if (!all(observations_per_epidemic == n_days)) {
+  stop("Cada epidemia deve possuir exatamente 86 observacoes temporais.")
+}
+
+if (length(unique(sim_data_nb2$epi_id)) != n_epi) {
+  stop("O numero de epidemias simuladas esta incorreto.")
+}
+
+# time deve ser unico e estritamente crescente em cada epidemia
+time_validation <- tapply(
+  sim_data_nb2$time,
+  sim_data_nb2$epi_id,
+  function(x) {
+    !anyDuplicated(x) &&
+      !is.unsorted(x, strictly = TRUE) &&
+      identical(as.integer(x), time_values)
+  }
+)
+
+if (!all(time_validation)) {
+  stop("A estrutura temporal nao esta cronologica ou contem duplicatas.")
+}
+
+# Uma unica contagem final por epidemia
+outcomes_per_epidemic <- tapply(
+  sim_data_nb2$y,
+  sim_data_nb2$epi_id,
+  function(x) length(unique(x))
+)
+
+if (!all(outcomes_per_epidemic == 1L)) {
+  stop("Pelo menos uma epidemia possui mais de um valor de y.")
+}
+
+if (anyNA(sim_data_nb2)) {
+  stop("A simulacao produziu valores ausentes.")
+}
+
+if (any(!is.finite(sim_data_nb2$tmean)) ||
+    any(!is.finite(sim_data_nb2$wetness)) ||
+    any(!is.finite(sim_data_nb2$rain))) {
+  stop("A simulacao produziu exposicoes nao finitas.")
+}
+
+if (!is.integer(sim_data_nb2$y) || any(sim_data_nb2$y < 0L)) {
+  stop("Para NB2, y deve ser uma contagem inteira nao negativa.")
+}
+
+# Verificacao empirica de sobredispersao entre epidemias
+outcome_mean <- mean(y_epi)
+outcome_variance <- stats::var(y_epi)
+
+cat("Numero de epidemias:", n_epi, "\n")
+cat("Observacoes por epidemia:", n_days, "\n")
+cat("Media de y:", round(outcome_mean, 3), "\n")
+cat("Variancia de y:", round(outcome_variance, 3), "\n")
+cat("Razao variancia/media:", round(outcome_variance / outcome_mean, 3), "\n")
+cat("Theta NB2:", theta_nb2, "\n")
+
+if (outcome_variance <= outcome_mean) {
+  warning(
+    "A realizacao simulada nao apresentou variancia maior que a media.",
+    call. = FALSE
+  )
+}
+
+# =============================================================
+# 10. RESUMOS E GRAFICOS DIAGNOSTICOS
+# =============================================================
+
+head(sim_data_nb2)
+tail(sim_data_nb2)
+
+summary(sim_data_nb2$tmean)
+summary(sim_data_nb2$wetness)
+summary(sim_data_nb2$rain)
+summary(y_epi)
+
+true_effect_correlation <- stats::cor(
+  cbind(
+    temperature = temp_effect_z,
+    wetness = wetness_effect_z,
+    rain = rain_effect_z
+  )
+)
+
+print(round(true_effect_correlation, 3))
+
+hist(
+  y_epi,
+  breaks = 30,
+  main = "Distribuicao da contagem final simulada, NB2",
+  xlab = "Contagem final",
+  col = "gray80",
+  border = "white"
+)
+
+plot(
+  mu_epi,
+  y_epi,
+  pch = 16,
+  col = grDevices::adjustcolor("steelblue", alpha.f = 0.45),
+  xlab = "Media verdadeira esperada, mu",
+  ylab = "Contagem observada, y",
+  main = "Contagens NB2 simuladas"
+)
+
+abline(
+  a = 0,
+  b = 1,
+  lty = 2,
+  col = "gray40"
+)
+
+# =============================================================
+# 11. OBJETOS AUXILIARES PARA VALIDACAO DO EXEMPLO
+# =============================================================
+
+simulation_truth_nb2 <- data.frame(
+  epi_id = seq_len(n_epi),
+  true_temp_effect = true_temp_effect,
+  true_wetness_effect = true_wetness_effect,
+  true_rain_effect = true_rain_effect,
+  temp_effect_z = temp_effect_z,
+  wetness_effect_z = wetness_effect_z,
+  rain_effect_z = rain_effect_z,
+  eta_true = eta_true,
+  eta_observed = eta_observed,
+  mu = mu_epi,
+  y = y_epi,
+  theta = theta_nb2
+)
+
+unique(sim_data_nb2$block)
+
+writexl::write_xlsx(sim_data_nb2, "nb2_data.xlsx")
+```
+
+## Binomial
+
+```{r}
+set.seed(789)
+
+# -------------------------------------------------------------
+# Pacotes
+# -------------------------------------------------------------
+
+library(dlnm)
+library(splines)
+
+# -------------------------------------------------------------
+# Dimensoes
+# -------------------------------------------------------------
+
+n_epi <- 520L
+n_days <- 86L
+n_blocks <- 20L
+
+if (n_epi %% n_blocks != 0L) {
+  stop("`n_epi` deve ser divisivel por `n_blocks`.")
+}
+
+block <- factor(
+  rep(
+    paste0("B", sprintf("%02d", seq_len(n_blocks))),
+    each = n_epi / n_blocks
+  )
+)
+
+time_values <- 0:(n_days - 1L)
+
+# Para uma avaliacao final em time = 85:
+# time 85 -> lag 0
+# time 84 -> lag 1
+# ...
+# time  0 -> lag 85
+lag_for_time <- (n_days - 1L) - time_values
+
+# -------------------------------------------------------------
+# Matrizes cronologicas de exposicao
+#
+# Linhas: epidemias
+# Colunas: time 0 a 85
+# -------------------------------------------------------------
+
+tmean_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+wetness_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+rain_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+
+colnames(tmean_time) <- paste0("time_", time_values)
+colnames(wetness_time) <- paste0("time_", time_values)
+colnames(rain_time) <- paste0("time_", time_values)
+
+# =============================================================
+# 1. SIMULAR HISTORICOS CLIMATICOS CRONOLOGICOS
+# =============================================================
+
+for (i in seq_len(n_epi)) {
+  
+  # Variacao climatica entre epidemias
+  temp_shift <- rnorm(1L, mean = 0, sd = 2.0)
+  wetness_shift <- rnorm(1L, mean = 0, sd = 2.8)
+  rain_shift <- rnorm(1L, mean = 0, sd = 0.40)
+  
+  # Componentes temporalmente autocorrelacionados
+  ar_temp <- as.numeric(
+    arima.sim(
+      model = list(ar = 0.72),
+      n = n_days,
+      sd = 1.0
+    )
+  )
+  
+  ar_wetness <- as.numeric(
+    arima.sim(
+      model = list(ar = 0.78),
+      n = n_days,
+      sd = 1.5
+    )
+  )
+  
+  ar_rain <- as.numeric(
+    arima.sim(
+      model = list(ar = 0.58),
+      n = n_days,
+      sd = 0.50
+    )
+  )
+  
+  # -----------------------------------------------------------
+  # Temperatura media
+  # -----------------------------------------------------------
+  
+  tmean <- (
+    25.5 +
+      temp_shift +
+      3.3 * sin(
+        2 * pi * time_values / 85 +
+          runif(1L, -0.35, 0.35)
+      ) +
+      ar_temp
+  )
+  
+  tmean <- pmin(pmax(tmean, 15), 36)
+  
+  # -----------------------------------------------------------
+  # Molhamento foliar
+  # -----------------------------------------------------------
+  
+  wetness <- (
+    10.5 +
+      wetness_shift +
+      2.4 * sin(
+        2 * pi * time_values / 46 +
+          runif(1L, -0.50, 0.50)
+      ) +
+      ar_wetness
+  )
+  
+  wetness <- pmin(pmax(wetness, 0), 24)
+  
+  # -----------------------------------------------------------
+  # Chuva
+  # -----------------------------------------------------------
+  
+  rain_probability <- plogis(
+    -0.80 +
+      rain_shift +
+      0.50 * sin(
+        2 * pi * time_values / 35 +
+          runif(1L, -0.50, 0.50)
+      ) +
+      ar_rain
+  )
+  
+  rainy_day <- rbinom(
+    n = n_days,
+    size = 1L,
+    prob = rain_probability
+  )
+  
+  rain_amount <- rgamma(
+    n = n_days,
+    shape = 1.7,
+    scale = 5.2
+  )
+  
+  rain <- rainy_day * rain_amount
+  rain <- pmin(rain, 40)
+  
+  # Salvar as series cronologicas
+  tmean_time[i, ] <- tmean
+  wetness_time[i, ] <- wetness
+  rain_time[i, ] <- rain
+}
+
+# =============================================================
+# 2. RELACOES EXPOSICAO-RESPOSTA VERDADEIRAS
+# =============================================================
+
+# Temperatura: favorabilidade unimodal proxima de 26 C
+temp_response <- exp(
+  -0.5 * ((tmean_time - 26) / 3.2)^2
+)
+
+# Molhamento: aumento sigmoide acima de aproximadamente 11 h
+wetness_response <- plogis(
+  (wetness_time - 11) / 1.8
+)
+
+# Chuva: resposta crescente com saturacao
+rain_response <- plogis(
+  (sqrt(rain_time) - 2.1) / 0.80
+)
+
+# =============================================================
+# 3. FUNCOES VERDADEIRAS DE LAG
+# =============================================================
+#
+# As exposicoes permanecem cronologicas. Os pesos sao avaliados
+# em lag_for_time para associar cada coluna temporal ao lag correto.
+# =============================================================
+
+# Temperatura: janela intermediaria, pico em lag 20
+temp_lag_weights_time <- dnorm(
+  lag_for_time,
+  mean = 20,
+  sd = 9
+)
+
+temp_lag_weights_time <- temp_lag_weights_time /
+  sum(temp_lag_weights_time)
+
+# Molhamento: janela relativamente recente, pico em lag 14
+wetness_lag_weights_time <- dnorm(
+  lag_for_time,
+  mean = 14,
+  sd = 8
+)
+
+wetness_lag_weights_time <- wetness_lag_weights_time /
+  sum(wetness_lag_weights_time)
+
+# Chuva: efeito recente, pico em lag 8
+rain_lag_weights_time <- dnorm(
+  lag_for_time,
+  mean = 8,
+  sd = 6
+)
+
+rain_lag_weights_time <- rain_lag_weights_time /
+  sum(rain_lag_weights_time)
+
+# =============================================================
+# 4. EFEITOS CUMULATIVOS VERDADEIROS
+# =============================================================
+
+true_temp_effect <- as.numeric(
+  temp_response %*% temp_lag_weights_time
+)
+
+true_wetness_effect <- as.numeric(
+  wetness_response %*% wetness_lag_weights_time
+)
+
+true_rain_effect <- as.numeric(
+  rain_response %*% rain_lag_weights_time
+)
+
+# =============================================================
+# 5. PADRONIZAR OS EFEITOS CUMULATIVOS
+# =============================================================
+
+standardize_effect <- function(x) {
+  standardized <- as.numeric(scale(x))
+  
+  if (any(!is.finite(standardized))) {
+    stop("Nao foi possivel padronizar um efeito cumulativo verdadeiro.")
+  }
+  
+  standardized
+}
+
+temp_effect_z <- standardize_effect(true_temp_effect)
+wetness_effect_z <- standardize_effect(true_wetness_effect)
+rain_effect_z <- standardize_effect(true_rain_effect)
+
+# =============================================================
+# 6. SIMULAR O EFEITO ALEATORIO DE BLOCO
+# =============================================================
+#
+# Cada bloco contem 26 epidemias. O intercepto aleatorio de bloco
+# atua na escala logit e gera correlacao entre epidemias do mesmo bloco.
+# =============================================================
+
+block_sd <- 0.30
+
+block_effect <- rnorm(
+  n = n_blocks,
+  mean = 0,
+  sd = block_sd
+)
+
+names(block_effect) <- levels(block)
+
+block_re <- block_effect[
+  as.character(block)
+]
+
+# =============================================================
+# 7. GERAR A PROBABILIDADE FINAL DA DOENCA
+# =============================================================
+#
+# Para Bernoulli/binomial com uma tentativa:
+#   logit(p_i) = eta_i
+#   p_i = plogis(eta_i)
+#
+# O intercepto foi escolhido para produzir classes 0 e 1 em
+# proporcoes razoavelmente equilibradas para exemplos do pacote.
+# =============================================================
+
+eta_true <- (
+  -0.25 +
+    0.85 * temp_effect_z +
+    1.05 * wetness_effect_z +
+    0.70 * rain_effect_z +
+    block_re
+)
+
+# Heterogeneidade residual no processo gerador, na escala logit.
+# Essa variacao nao e um erro gaussiano do modelo Bernoulli ajustado;
+# ela representa heterogeneidade nao observada na simulacao.
+sigma_error <- 0.10
+
+eta_observed <- eta_true + rnorm(
+  n = n_epi,
+  mean = 0,
+  sd = sigma_error
+)
+
+probability_epi <- plogis(eta_observed)
+
+# =============================================================
+# 8. GERAR O DESFECHO BINARIO
+# =============================================================
+
+y_epi <- rbinom(
+  n = n_epi,
+  size = 1L,
+  prob = probability_epi
+)
+
+y_epi <- as.integer(y_epi)
+
+# =============================================================
+# 9. CRIAR O CONJUNTO LONG EM ORDEM CRONOLOGICA
+# =============================================================
+
+sim_data_binomial <- data.frame(
+  epi_id = rep(
+    seq_len(n_epi),
+    each = n_days
+  ),
+  block = rep(
+    block,
+    each = n_days
+  ),
+  time = rep(
+    time_values,
+    times = n_epi
+  ),
+  tmean = as.vector(t(tmean_time)),
+  wetness = as.vector(t(wetness_time)),
+  rain = as.vector(t(rain_time)),
+  y = rep(
+    y_epi,
+    each = n_days
+  )
+)
+
+sim_data_binomial <- sim_data_binomial[
+  order(
+    sim_data_binomial$epi_id,
+    sim_data_binomial$time
+  ),
+  ,
+  drop = FALSE
+]
+
+rownames(sim_data_binomial) <- NULL
+
+# =============================================================
+# 10. CHECAGENS DA SIMULACAO
+# =============================================================
+
+observations_per_epidemic <- table(sim_data_binomial$epi_id)
+
+if (!all(observations_per_epidemic == n_days)) {
+  stop("Cada epidemia deve possuir exatamente 86 observacoes temporais.")
+}
+
+if (length(unique(sim_data_binomial$epi_id)) != n_epi) {
+  stop("O numero de epidemias simuladas esta incorreto.")
+}
+
+# Cada epi_id deve pertencer a exatamente um block
+blocks_per_epidemic <- tapply(
+  sim_data_binomial$block,
+  sim_data_binomial$epi_id,
+  function(x) length(unique(x))
+)
+
+if (!all(blocks_per_epidemic == 1L)) {
+  stop("Pelo menos uma epidemia foi associada a mais de um bloco.")
+}
+
+# Cada bloco deve conter 26 epidemias
+block_epidemic_table <- table(
+  unique(sim_data_binomial[c("epi_id", "block")])$block
+)
+
+if (!all(block_epidemic_table == n_epi / n_blocks)) {
+  stop("O numero de epidemias por bloco esta incorreto.")
+}
+
+# time deve ser unico, completo e crescente em cada epidemia
+time_validation <- tapply(
+  sim_data_binomial$time,
+  sim_data_binomial$epi_id,
+  function(x) {
+    !anyDuplicated(x) &&
+      !is.unsorted(x, strictly = TRUE) &&
+      identical(as.integer(x), time_values)
+  }
+)
+
+if (!all(time_validation)) {
+  stop("A estrutura temporal nao esta cronologica ou contem duplicatas.")
+}
+
+# Uma unica resposta final por epidemia
+outcomes_per_epidemic <- tapply(
+  sim_data_binomial$y,
+  sim_data_binomial$epi_id,
+  function(x) length(unique(x))
+)
+
+if (!all(outcomes_per_epidemic == 1L)) {
+  stop("Pelo menos uma epidemia possui mais de um valor de y.")
+}
+
+if (anyNA(sim_data_binomial)) {
+  stop("A simulacao produziu valores ausentes.")
+}
+
+if (any(!is.finite(sim_data_binomial$tmean)) ||
+    any(!is.finite(sim_data_binomial$wetness)) ||
+    any(!is.finite(sim_data_binomial$rain))) {
+  stop("A simulacao produziu exposicoes nao finitas.")
+}
+
+if (!is.integer(sim_data_binomial$y) ||
+    !all(sim_data_binomial$y %in% c(0L, 1L))) {
+  stop("Para a familia binomial da EpiExposure v1, y deve ser 0 ou 1.")
+}
+
+if (any(!is.finite(probability_epi)) ||
+    any(probability_epi <= 0 | probability_epi >= 1)) {
+  stop("A simulacao produziu probabilidades invalidas.")
+}
+
+# As duas classes devem estar presentes
+if (length(unique(y_epi)) != 2L) {
+  stop("A simulacao nao produziu as duas classes binarias 0 e 1.")
+}
+
+# =============================================================
+# 11. RESUMOS DIAGNOSTICOS
+# =============================================================
+
+cat("Numero de epidemias:", n_epi, "\n")
+cat("Observacoes por epidemia:", n_days, "\n")
+cat("Numero de blocos:", n_blocks, "\n")
+cat("Epidemias por bloco:", n_epi / n_blocks, "\n")
+cat("Media da probabilidade verdadeira:",
+    round(mean(probability_epi), 3), "\n")
+cat("Proporcao observada de y = 1:", round(mean(y_epi), 3), "\n")
+cat("Numero de y = 0:", sum(y_epi == 0L), "\n")
+cat("Numero de y = 1:", sum(y_epi == 1L), "\n")
+cat("Desvio-padrao verdadeiro do bloco:", block_sd, "\n")
+
+head(sim_data_binomial)
+tail(sim_data_binomial)
+
+summary(sim_data_binomial$tmean)
+summary(sim_data_binomial$wetness)
+summary(sim_data_binomial$rain)
+summary(probability_epi)
+
+table(y_epi)
+prop.table(table(y_epi))
+print(block_epidemic_table)
+
+true_effect_correlation <- stats::cor(
+  cbind(
+    temperature = temp_effect_z,
+    wetness = wetness_effect_z,
+    rain = rain_effect_z
+  )
+)
+
+print(round(true_effect_correlation, 3))
+
+hist(
+  probability_epi,
+  breaks = 25,
+  main = "Distribuicao das probabilidades verdadeiras",
+  xlab = "Probabilidade de presenca da doenca",
+  col = "gray80",
+  border = "white"
+)
+
+stripchart(
+  probability_epi ~ factor(y_epi),
+  method = "jitter",
+  vertical = TRUE,
+  pch = 16,
+  col = grDevices::adjustcolor("steelblue", alpha.f = 0.45),
+  xlab = "Resposta observada",
+  ylab = "Probabilidade verdadeira",
+  main = "Probabilidade verdadeira por classe observada"
+)
+
+# =============================================================
+# 12. OBJETO AUXILIAR COM A VERDADE DA SIMULACAO
+# =============================================================
+#
+# Este objeto possui uma linha por epidemia e serve apenas para
+# validar a simulacao. O banco usado no EpiExposure e
+# `sim_data_binomial`.
+# =============================================================
+
+simulation_truth_binomial <- data.frame(
+  epi_id = seq_len(n_epi),
+  block = block,
+  block_effect = as.numeric(block_re),
+  true_temp_effect = true_temp_effect,
+  true_wetness_effect = true_wetness_effect,
+  true_rain_effect = true_rain_effect,
+  temp_effect_z = temp_effect_z,
+  wetness_effect_z = wetness_effect_z,
+  rain_effect_z = rain_effect_z,
+  eta_true = eta_true,
+  eta_observed = eta_observed,
+  probability = probability_epi,
+  y = y_epi
+)
+
+writexl::write_xlsx(sim_data_binomial,"binomial_data.xlsx")
+```
+
+## Poisson
+
+```{r}
+set.seed(987)
+
+# -------------------------------------------------------------
+# Pacotes
+# -------------------------------------------------------------
+
+library(dlnm)
+library(splines)
+
+# -------------------------------------------------------------
+# Dimensoes
+# -------------------------------------------------------------
+
+n_epi <- 520L
+n_days <- 86L
+n_blocks <- 20L
+
+if (n_epi %% n_blocks != 0L) {
+  stop("`n_epi` deve ser divisivel por `n_blocks`.")
+}
+
+block <- factor(
+  rep(
+    paste0(
+      "B",
+      sprintf("%02d", seq_len(n_blocks))
+    ),
+    each = n_epi / n_blocks
+  )
+)
+
+time_values <- 0:(n_days - 1L)
+
+# Para uma avaliacao final em time = 85:
+# time 85 -> lag 0
+# time 84 -> lag 1
+# ...
+# time  0 -> lag 85
+lag_for_time <- (n_days - 1L) - time_values
+
+# -------------------------------------------------------------
+# Matrizes cronologicas de exposicao
+#
+# Linhas: epidemias
+# Colunas: time 0 a 85
+# -------------------------------------------------------------
+
+tmean_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+wetness_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+rain_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+
+colnames(tmean_time) <- paste0("time_", time_values)
+colnames(wetness_time) <- paste0("time_", time_values)
+colnames(rain_time) <- paste0("time_", time_values)
+
+# =============================================================
+# 1. SIMULAR HISTORICOS CLIMATICOS CRONOLOGICOS
+# =============================================================
+
+for (i in seq_len(n_epi)) {
+  
+  # Variacao climatica entre epidemias
+  temp_shift <- rnorm(1L, mean = 0, sd = 2.0)
+  wetness_shift <- rnorm(1L, mean = 0, sd = 2.8)
+  rain_shift <- rnorm(1L, mean = 0, sd = 0.40)
+  
+  # Componentes temporalmente autocorrelacionados
+  ar_temp <- as.numeric(
+    arima.sim(
+      model = list(ar = 0.72),
+      n = n_days,
+      sd = 1.0
+    )
+  )
+  
+  ar_wetness <- as.numeric(
+    arima.sim(
+      model = list(ar = 0.78),
+      n = n_days,
+      sd = 1.5
+    )
+  )
+  
+  ar_rain <- as.numeric(
+    arima.sim(
+      model = list(ar = 0.58),
+      n = n_days,
+      sd = 0.50
+    )
+  )
+  
+  # -----------------------------------------------------------
+  # Temperatura media
+  # -----------------------------------------------------------
+  
+  tmean <- (
+    25.5 +
+      temp_shift +
+      3.3 * sin(
+        2 * pi * time_values / 85 +
+          runif(1L, -0.35, 0.35)
+      ) +
+      ar_temp
+  )
+  
+  tmean <- pmin(pmax(tmean, 15), 36)
+  
+  # -----------------------------------------------------------
+  # Molhamento foliar
+  # -----------------------------------------------------------
+  
+  wetness <- (
+    10.5 +
+      wetness_shift +
+      2.4 * sin(
+        2 * pi * time_values / 46 +
+          runif(1L, -0.50, 0.50)
+      ) +
+      ar_wetness
+  )
+  
+  wetness <- pmin(pmax(wetness, 0), 24)
+  
+  # -----------------------------------------------------------
+  # Chuva
+  # -----------------------------------------------------------
+  
+  rain_probability <- plogis(
+    -0.80 +
+      rain_shift +
+      0.50 * sin(
+        2 * pi * time_values / 35 +
+          runif(1L, -0.50, 0.50)
+      ) +
+      ar_rain
+  )
+  
+  rainy_day <- rbinom(
+    n = n_days,
+    size = 1L,
+    prob = rain_probability
+  )
+  
+  rain_amount <- rgamma(
+    n = n_days,
+    shape = 1.7,
+    scale = 5.2
+  )
+  
+  rain <- rainy_day * rain_amount
+  rain <- pmin(rain, 40)
+  
+  # Salvar as series cronologicas
+  tmean_time[i, ] <- tmean
+  wetness_time[i, ] <- wetness
+  rain_time[i, ] <- rain
+}
+
+# =============================================================
+# 2. RELACOES EXPOSICAO-RESPOSTA VERDADEIRAS
+# =============================================================
+
+# Temperatura: favorabilidade unimodal proxima de 26 C
+temp_response <- exp(
+  -0.5 * ((tmean_time - 26) / 3.2)^2
+)
+
+# Molhamento: aumento sigmoide acima de aproximadamente 11 h
+wetness_response <- plogis(
+  (wetness_time - 11) / 1.8
+)
+
+# Chuva: resposta crescente com saturacao
+rain_response <- plogis(
+  (sqrt(rain_time) - 2.1) / 0.80
+)
+
+# =============================================================
+# 3. FUNCOES VERDADEIRAS DE LAG
+# =============================================================
+#
+# As exposicoes permanecem cronologicas. Os pesos sao avaliados
+# em lag_for_time para associar cada coluna temporal ao lag correto.
+# =============================================================
+
+# Temperatura: janela intermediaria, pico em lag 20
+temp_lag_weights_time <- dnorm(
+  lag_for_time,
+  mean = 20,
+  sd = 9
+)
+
+temp_lag_weights_time <- temp_lag_weights_time /
+  sum(temp_lag_weights_time)
+
+# Molhamento: janela relativamente recente, pico em lag 14
+wetness_lag_weights_time <- dnorm(
+  lag_for_time,
+  mean = 14,
+  sd = 8
+)
+
+wetness_lag_weights_time <- wetness_lag_weights_time /
+  sum(wetness_lag_weights_time)
+
+# Chuva: efeito recente, pico em lag 8
+rain_lag_weights_time <- dnorm(
+  lag_for_time,
+  mean = 8,
+  sd = 6
+)
+
+rain_lag_weights_time <- rain_lag_weights_time /
+  sum(rain_lag_weights_time)
+
+# =============================================================
+# 4. EFEITOS CUMULATIVOS VERDADEIROS
+# =============================================================
+
+true_temp_effect <- as.numeric(
+  temp_response %*% temp_lag_weights_time
+)
+
+true_wetness_effect <- as.numeric(
+  wetness_response %*% wetness_lag_weights_time
+)
+
+true_rain_effect <- as.numeric(
+  rain_response %*% rain_lag_weights_time
+)
+
+# =============================================================
+# 5. PADRONIZAR OS EFEITOS CUMULATIVOS
+# =============================================================
+
+standardize_effect <- function(x) {
+  standardized <- as.numeric(scale(x))
+  
+  if (any(!is.finite(standardized))) {
+    stop("Nao foi possivel padronizar um efeito cumulativo verdadeiro.")
+  }
+  
+  standardized
+}
+
+temp_effect_z <- standardize_effect(true_temp_effect)
+wetness_effect_z <- standardize_effect(true_wetness_effect)
+rain_effect_z <- standardize_effect(true_rain_effect)
+
+# =============================================================
+# 6. SIMULAR O EFEITO ALEATORIO DE BLOCO
+# =============================================================
+#
+# Cada bloco contem 26 epidemias. O intercepto aleatorio atua na
+# escala log, gerando dependencia entre epidemias do mesmo bloco.
+# =============================================================
+
+block_sd <- 0.22
+
+block_effect <- rnorm(
+  n = n_blocks,
+  mean = 0,
+  sd = block_sd
+)
+
+names(block_effect) <- levels(block)
+
+block_re <- block_effect[
+  as.character(block)
+]
+
+# =============================================================
+# 7. GERAR A MEDIA FINAL DA CONTAGEM
+# =============================================================
+#
+# Para Poisson com link log:
+#   log(mu_i) = eta_i
+#   mu_i = exp(eta_i)
+#
+# Os coeficientes foram escolhidos para gerar contagens moderadas
+# e sinais climaticos detectaveis sem criar valores extremos.
+# =============================================================
+
+eta_true <- (
+  log(10) +
+    0.32 * temp_effect_z +
+    0.45 * wetness_effect_z +
+    0.28 * rain_effect_z +
+    block_re
+)
+
+mu_epi <- exp(eta_true)
+
+# =============================================================
+# 8. GERAR O DESFECHO POISSON
+# =============================================================
+#
+# Nao e adicionado erro normal ao preditor linear. A variacao
+# observacional e gerada pela propria distribuicao de Poisson.
+# Condicionalmente aos efeitos climaticos e ao bloco:
+#   E(Y_i | X_i, block_i) = mu_i
+#   Var(Y_i | X_i, block_i) = mu_i
+# =============================================================
+
+y_epi <- rpois(
+  n = n_epi,
+  lambda = mu_epi
+)
+
+y_epi <- as.integer(y_epi)
+
+# =============================================================
+# 9. CRIAR O CONJUNTO LONG EM ORDEM CRONOLOGICA
+# =============================================================
+
+sim_data_poisson <- data.frame(
+  epi_id = rep(
+    seq_len(n_epi),
+    each = n_days
+  ),
+  block = rep(
+    block,
+    each = n_days
+  ),
+  time = rep(
+    time_values,
+    times = n_epi
+  ),
+  tmean = as.vector(t(tmean_time)),
+  wetness = as.vector(t(wetness_time)),
+  rain = as.vector(t(rain_time)),
+  y = rep(
+    y_epi,
+    each = n_days
+  )
+)
+
+sim_data_poisson <- sim_data_poisson[
+  order(
+    sim_data_poisson$epi_id,
+    sim_data_poisson$time
+  ),
+  ,
+  drop = FALSE
+]
+
+rownames(sim_data_poisson) <- NULL
+
+# =============================================================
+# 10. CHECAGENS DA SIMULACAO
+# =============================================================
+
+observations_per_epidemic <- table(sim_data_poisson$epi_id)
+
+if (!all(observations_per_epidemic == n_days)) {
+  stop("Cada epidemia deve possuir exatamente 86 observacoes temporais.")
+}
+
+if (length(unique(sim_data_poisson$epi_id)) != n_epi) {
+  stop("O numero de epidemias simuladas esta incorreto.")
+}
+
+# Cada epi_id deve pertencer a exatamente um bloco
+blocks_per_epidemic <- tapply(
+  sim_data_poisson$block,
+  sim_data_poisson$epi_id,
+  function(x) length(unique(x))
+)
+
+if (!all(blocks_per_epidemic == 1L)) {
+  stop("Pelo menos uma epidemia foi associada a mais de um bloco.")
+}
+
+# Cada bloco deve conter 26 epidemias
+block_epidemic_table <- table(
+  unique(sim_data_poisson[c("epi_id", "block")])$block
+)
+
+if (!all(block_epidemic_table == n_epi / n_blocks)) {
+  stop("O numero de epidemias por bloco esta incorreto.")
+}
+
+# time deve ser unico, completo e crescente em cada epidemia
+time_validation <- tapply(
+  sim_data_poisson$time,
+  sim_data_poisson$epi_id,
+  function(x) {
+    !anyDuplicated(x) &&
+      !is.unsorted(x, strictly = TRUE) &&
+      identical(as.integer(x), time_values)
+  }
+)
+
+if (!all(time_validation)) {
+  stop("A estrutura temporal nao esta cronologica ou contem duplicatas.")
+}
+
+# Uma unica contagem final por epidemia
+outcomes_per_epidemic <- tapply(
+  sim_data_poisson$y,
+  sim_data_poisson$epi_id,
+  function(x) length(unique(x))
+)
+
+if (!all(outcomes_per_epidemic == 1L)) {
+  stop("Pelo menos uma epidemia possui mais de um valor de y.")
+}
+
+if (anyNA(sim_data_poisson)) {
+  stop("A simulacao produziu valores ausentes.")
+}
+
+if (any(!is.finite(sim_data_poisson$tmean)) ||
+    any(!is.finite(sim_data_poisson$wetness)) ||
+    any(!is.finite(sim_data_poisson$rain))) {
+  stop("A simulacao produziu exposicoes nao finitas.")
+}
+
+if (!is.integer(sim_data_poisson$y) ||
+    any(sim_data_poisson$y < 0L)) {
+  stop("Para a familia Poisson, y deve ser uma contagem inteira nao negativa.")
+}
+
+if (any(!is.finite(mu_epi)) || any(mu_epi <= 0)) {
+  stop("A simulacao produziu medias Poisson invalidas.")
+}
+
+# =============================================================
+# 11. RESUMOS DIAGNOSTICOS
+# =============================================================
+
+outcome_mean <- mean(y_epi)
+outcome_variance <- stats::var(y_epi)
+
+cat("Numero de epidemias:", n_epi, "\n")
+cat("Observacoes por epidemia:", n_days, "\n")
+cat("Numero de blocos:", n_blocks, "\n")
+cat("Epidemias por bloco:", n_epi / n_blocks, "\n")
+cat("Media de y:", round(outcome_mean, 3), "\n")
+cat("Variancia marginal de y:", round(outcome_variance, 3), "\n")
+cat("Razao marginal variancia/media:",
+    round(outcome_variance / outcome_mean, 3), "\n")
+cat("Media de mu:", round(mean(mu_epi), 3), "\n")
+cat("Desvio-padrao verdadeiro do bloco:", block_sd, "\n")
+
+cat(
+  paste0(
+    "Observacao: com covariaveis e efeito aleatorio de bloco, a variancia ",
+    "marginal de y nao precisa ser igual a media. A igualdade Poisson vale ",
+    "condicionalmente a X e ao efeito de bloco.\n"
+  )
+)
+
+head(sim_data_poisson)
+tail(sim_data_poisson)
+
+summary(sim_data_poisson$tmean)
+summary(sim_data_poisson$wetness)
+summary(sim_data_poisson$rain)
+summary(mu_epi)
+summary(y_epi)
+
+print(block_epidemic_table)
+
+true_effect_correlation <- stats::cor(
+  cbind(
+    temperature = temp_effect_z,
+    wetness = wetness_effect_z,
+    rain = rain_effect_z
+  )
+)
+
+print(round(true_effect_correlation, 3))
+
+hist(
+  y_epi,
+  breaks = 30,
+  main = "Distribuicao da contagem final simulada, Poisson",
+  xlab = "Contagem final",
+  col = "gray80",
+  border = "white"
+)
+
+plot(
+  mu_epi,
+  y_epi,
+  pch = 16,
+  col = grDevices::adjustcolor("steelblue", alpha.f = 0.45),
+  xlab = "Media verdadeira esperada, mu",
+  ylab = "Contagem observada, y",
+  main = "Contagens Poisson simuladas"
+)
+
+abline(
+  a = 0,
+  b = 1,
+  lty = 2,
+  col = "gray40"
+)
+
+# =============================================================
+# 12. OBJETO AUXILIAR COM A VERDADE DA SIMULACAO
+# =============================================================
+#
+# Este objeto tem uma linha por epidemia e serve apenas para
+# validacao. O banco usado no EpiExposure e `sim_data_poisson`.
+# =============================================================
+
+simulation_truth_poisson <- data.frame(
+  epi_id = seq_len(n_epi),
+  block = block,
+  block_effect = as.numeric(block_re),
+  true_temp_effect = true_temp_effect,
+  true_wetness_effect = true_wetness_effect,
+  true_rain_effect = true_rain_effect,
+  temp_effect_z = temp_effect_z,
+  wetness_effect_z = wetness_effect_z,
+  rain_effect_z = rain_effect_z,
+  eta_true = eta_true,
+  mu = mu_epi,
+  y = y_epi
+)
+
+writexl::write_xlsx(sim_data_poisson,"poisson_data.xlsx")
+```
+
+## Gamma
+
+```{r}
+set.seed(159)
+
+# -------------------------------------------------------------
+# Pacotes
+# -------------------------------------------------------------
+
+library(dlnm)
+library(splines)
+
+# -------------------------------------------------------------
+# Dimensoes
+# -------------------------------------------------------------
+
+n_epi <- 520L
+n_days <- 86L
+n_blocks <- 20L
+
+if (n_epi %% n_blocks != 0L) {
+  stop("`n_epi` deve ser divisivel por `n_blocks`.")
+}
+
+block <- factor(
+  rep(
+    paste0(
+      "B",
+      sprintf("%02d", seq_len(n_blocks))
+    ),
+    each = n_epi / n_blocks
+  )
+)
+
+time_values <- 0:(n_days - 1L)
+
+# Para uma avaliacao final em time = 85:
+# time 85 -> lag 0
+# time 84 -> lag 1
+# ...
+# time  0 -> lag 85
+lag_for_time <- (n_days - 1L) - time_values
+
+# -------------------------------------------------------------
+# Matrizes cronologicas de exposicao
+#
+# Linhas: epidemias
+# Colunas: time 0 a 85
+# -------------------------------------------------------------
+
+tmean_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+wetness_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+rain_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+
+colnames(tmean_time) <- paste0("time_", time_values)
+colnames(wetness_time) <- paste0("time_", time_values)
+colnames(rain_time) <- paste0("time_", time_values)
+
+# =============================================================
+# 1. SIMULAR HISTORICOS CLIMATICOS CRONOLOGICOS
+# =============================================================
+
+for (i in seq_len(n_epi)) {
+  
+  # Variacao climatica entre epidemias
+  temp_shift <- rnorm(1L, mean = 0, sd = 2.0)
+  wetness_shift <- rnorm(1L, mean = 0, sd = 2.8)
+  rain_shift <- rnorm(1L, mean = 0, sd = 0.40)
+  
+  # Componentes temporalmente autocorrelacionados
+  ar_temp <- as.numeric(
+    arima.sim(
+      model = list(ar = 0.72),
+      n = n_days,
+      sd = 1.0
+    )
+  )
+  
+  ar_wetness <- as.numeric(
+    arima.sim(
+      model = list(ar = 0.78),
+      n = n_days,
+      sd = 1.5
+    )
+  )
+  
+  ar_rain <- as.numeric(
+    arima.sim(
+      model = list(ar = 0.58),
+      n = n_days,
+      sd = 0.50
+    )
+  )
+  
+  # -----------------------------------------------------------
+  # Temperatura media
+  # -----------------------------------------------------------
+  
+  tmean <- (
+    25.5 +
+      temp_shift +
+      3.3 * sin(
+        2 * pi * time_values / 85 +
+          runif(1L, -0.35, 0.35)
+      ) +
+      ar_temp
+  )
+  
+  tmean <- pmin(pmax(tmean, 15), 36)
+  
+  # -----------------------------------------------------------
+  # Molhamento foliar
+  # -----------------------------------------------------------
+  
+  wetness <- (
+    10.5 +
+      wetness_shift +
+      2.4 * sin(
+        2 * pi * time_values / 46 +
+          runif(1L, -0.50, 0.50)
+      ) +
+      ar_wetness
+  )
+  
+  wetness <- pmin(pmax(wetness, 0), 24)
+  
+  # -----------------------------------------------------------
+  # Chuva
+  # -----------------------------------------------------------
+  
+  rain_probability <- plogis(
+    -0.80 +
+      rain_shift +
+      0.50 * sin(
+        2 * pi * time_values / 35 +
+          runif(1L, -0.50, 0.50)
+      ) +
+      ar_rain
+  )
+  
+  rainy_day <- rbinom(
+    n = n_days,
+    size = 1L,
+    prob = rain_probability
+  )
+  
+  rain_amount <- rgamma(
+    n = n_days,
+    shape = 1.7,
+    scale = 5.2
+  )
+  
+  rain <- rainy_day * rain_amount
+  rain <- pmin(rain, 40)
+  
+  # Salvar as series cronologicas
+  tmean_time[i, ] <- tmean
+  wetness_time[i, ] <- wetness
+  rain_time[i, ] <- rain
+}
+
+# =============================================================
+# 2. RELACOES EXPOSICAO-RESPOSTA VERDADEIRAS
+# =============================================================
+
+# Temperatura: favorabilidade unimodal proxima de 26 C
+temp_response <- exp(
+  -0.5 * ((tmean_time - 26) / 3.2)^2
+)
+
+# Molhamento: aumento sigmoide acima de aproximadamente 11 h
+wetness_response <- plogis(
+  (wetness_time - 11) / 1.8
+)
+
+# Chuva: resposta crescente com saturacao
+rain_response <- plogis(
+  (sqrt(rain_time) - 2.1) / 0.80
+)
+
+# =============================================================
+# 3. FUNCOES VERDADEIRAS DE LAG
+# =============================================================
+#
+# As exposicoes permanecem cronologicas. Os pesos sao avaliados
+# em lag_for_time para associar cada coluna temporal ao lag correto.
+# =============================================================
+
+# Temperatura: janela intermediaria, pico em lag 20
+temp_lag_weights_time <- dnorm(
+  lag_for_time,
+  mean = 20,
+  sd = 9
+)
+
+temp_lag_weights_time <- temp_lag_weights_time /
+  sum(temp_lag_weights_time)
+
+# Molhamento: janela relativamente recente, pico em lag 14
+wetness_lag_weights_time <- dnorm(
+  lag_for_time,
+  mean = 14,
+  sd = 8
+)
+
+wetness_lag_weights_time <- wetness_lag_weights_time /
+  sum(wetness_lag_weights_time)
+
+# Chuva: efeito recente, pico em lag 8
+rain_lag_weights_time <- dnorm(
+  lag_for_time,
+  mean = 8,
+  sd = 6
+)
+
+rain_lag_weights_time <- rain_lag_weights_time /
+  sum(rain_lag_weights_time)
+
+# =============================================================
+# 4. EFEITOS CUMULATIVOS VERDADEIROS
+# =============================================================
+
+true_temp_effect <- as.numeric(
+  temp_response %*% temp_lag_weights_time
+)
+
+true_wetness_effect <- as.numeric(
+  wetness_response %*% wetness_lag_weights_time
+)
+
+true_rain_effect <- as.numeric(
+  rain_response %*% rain_lag_weights_time
+)
+
+# =============================================================
+# 5. PADRONIZAR OS EFEITOS CUMULATIVOS
+# =============================================================
+
+standardize_effect <- function(x) {
+  standardized <- as.numeric(scale(x))
+  
+  if (any(!is.finite(standardized))) {
+    stop("Nao foi possivel padronizar um efeito cumulativo verdadeiro.")
+  }
+  
+  standardized
+}
+
+temp_effect_z <- standardize_effect(true_temp_effect)
+wetness_effect_z <- standardize_effect(true_wetness_effect)
+rain_effect_z <- standardize_effect(true_rain_effect)
+
+# =============================================================
+# 6. SIMULAR O EFEITO ALEATORIO DE BLOCO
+# =============================================================
+#
+# Cada bloco contem 26 epidemias. O intercepto aleatorio atua na
+# escala log e gera dependencia entre epidemias do mesmo bloco.
+# =============================================================
+
+block_sd <- 0.25
+
+block_effect <- rnorm(
+  n = n_blocks,
+  mean = 0,
+  sd = block_sd
+)
+
+names(block_effect) <- levels(block)
+
+block_re <- block_effect[
+  as.character(block)
+]
+
+# =============================================================
+# 7. GERAR A MEDIA FINAL NA ESCALA LOG
+# =============================================================
+#
+# Para Gamma com link log:
+#   log(mu_i) = eta_i
+#   mu_i = exp(eta_i)
+#
+# Os coeficientes produzem uma resposta positiva continua com
+# efeitos climaticos detectaveis, sem uma cauda excessivamente longa.
+# =============================================================
+
+eta_true <- (
+  log(8) +
+    0.36 * temp_effect_z +
+    0.50 * wetness_effect_z +
+    0.32 * rain_effect_z +
+    block_re
+)
+
+mu_epi <- exp(eta_true)
+
+# =============================================================
+# 8. GERAR O DESFECHO GAMMA
+# =============================================================
+#
+# Parametrizacao de rgamma():
+#   shape = alpha
+#   scale_i = mu_i / alpha
+#
+# Assim:
+#   E(Y_i | X_i, block_i) = mu_i
+#   Var(Y_i | X_i, block_i) = mu_i^2 / alpha
+#   CV condicional = 1 / sqrt(alpha)
+#
+# shape maior reduz a dispersao relativa. Com shape = 12,
+# o coeficiente de variacao condicional e aproximadamente 0.289.
+# =============================================================
+
+gamma_shape <- 12
+
+gamma_scale_epi <- mu_epi / gamma_shape
+
+y_epi <- rgamma(
+  n = n_epi,
+  shape = gamma_shape,
+  scale = gamma_scale_epi
+)
+
+y_epi <- as.numeric(y_epi)
+
+# =============================================================
+# 9. CRIAR O CONJUNTO LONG EM ORDEM CRONOLOGICA
+# =============================================================
+
+sim_data_gamma <- data.frame(
+  epi_id = rep(
+    seq_len(n_epi),
+    each = n_days
+  ),
+  block = rep(
+    block,
+    each = n_days
+  ),
+  time = rep(
+    time_values,
+    times = n_epi
+  ),
+  tmean = as.vector(t(tmean_time)),
+  wetness = as.vector(t(wetness_time)),
+  rain = as.vector(t(rain_time)),
+  y = rep(
+    y_epi,
+    each = n_days
+  )
+)
+
+sim_data_gamma <- sim_data_gamma[
+  order(
+    sim_data_gamma$epi_id,
+    sim_data_gamma$time
+  ),
+  ,
+  drop = FALSE
+]
+
+rownames(sim_data_gamma) <- NULL
+
+# =============================================================
+# 10. CHECAGENS DA SIMULACAO
+# =============================================================
+
+observations_per_epidemic <- table(sim_data_gamma$epi_id)
+
+if (!all(observations_per_epidemic == n_days)) {
+  stop("Cada epidemia deve possuir exatamente 86 observacoes temporais.")
+}
+
+if (length(unique(sim_data_gamma$epi_id)) != n_epi) {
+  stop("O numero de epidemias simuladas esta incorreto.")
+}
+
+# Cada epi_id deve pertencer a exatamente um bloco
+blocks_per_epidemic <- tapply(
+  sim_data_gamma$block,
+  sim_data_gamma$epi_id,
+  function(x) length(unique(x))
+)
+
+if (!all(blocks_per_epidemic == 1L)) {
+  stop("Pelo menos uma epidemia foi associada a mais de um bloco.")
+}
+
+# Cada bloco deve conter 26 epidemias
+block_epidemic_table <- table(
+  unique(sim_data_gamma[c("epi_id", "block")])$block
+)
+
+if (!all(block_epidemic_table == n_epi / n_blocks)) {
+  stop("O numero de epidemias por bloco esta incorreto.")
+}
+
+# time deve ser unico, completo e crescente em cada epidemia
+time_validation <- tapply(
+  sim_data_gamma$time,
+  sim_data_gamma$epi_id,
+  function(x) {
+    !anyDuplicated(x) &&
+      !is.unsorted(x, strictly = TRUE) &&
+      identical(as.integer(x), time_values)
+  }
+)
+
+if (!all(time_validation)) {
+  stop("A estrutura temporal nao esta cronologica ou contem duplicatas.")
+}
+
+# Uma unica resposta final por epidemia
+outcomes_per_epidemic <- tapply(
+  sim_data_gamma$y,
+  sim_data_gamma$epi_id,
+  function(x) length(unique(x))
+)
+
+if (!all(outcomes_per_epidemic == 1L)) {
+  stop("Pelo menos uma epidemia possui mais de um valor de y.")
+}
+
+if (anyNA(sim_data_gamma)) {
+  stop("A simulacao produziu valores ausentes.")
+}
+
+if (any(!is.finite(sim_data_gamma$tmean)) ||
+    any(!is.finite(sim_data_gamma$wetness)) ||
+    any(!is.finite(sim_data_gamma$rain))) {
+  stop("A simulacao produziu exposicoes nao finitas.")
+}
+
+if (!is.numeric(sim_data_gamma$y) ||
+    any(!is.finite(sim_data_gamma$y)) ||
+    any(sim_data_gamma$y <= 0)) {
+  stop("Para a familia Gamma, y deve ser continuo, finito e estritamente positivo.")
+}
+
+if (any(!is.finite(mu_epi)) || any(mu_epi <= 0)) {
+  stop("A simulacao produziu medias Gamma invalidas.")
+}
+
+if (any(!is.finite(gamma_scale_epi)) || any(gamma_scale_epi <= 0)) {
+  stop("A simulacao produziu parametros `scale` Gamma invalidos.")
+}
+
+# =============================================================
+# 11. RESUMOS DIAGNOSTICOS
+# =============================================================
+
+outcome_mean <- mean(y_epi)
+outcome_variance <- stats::var(y_epi)
+conditional_cv <- 1 / sqrt(gamma_shape)
+
+cat("Numero de epidemias:", n_epi, "\n")
+cat("Observacoes por epidemia:", n_days, "\n")
+cat("Numero de blocos:", n_blocks, "\n")
+cat("Epidemias por bloco:", n_epi / n_blocks, "\n")
+cat("Media de y:", round(outcome_mean, 3), "\n")
+cat("Variancia marginal de y:", round(outcome_variance, 3), "\n")
+cat("Media de mu:", round(mean(mu_epi), 3), "\n")
+cat("Shape Gamma:", gamma_shape, "\n")
+cat("CV condicional teorico:", round(conditional_cv, 3), "\n")
+cat("Desvio-padrao verdadeiro do bloco:", block_sd, "\n")
+
+head(sim_data_gamma)
+tail(sim_data_gamma)
+
+summary(sim_data_gamma$tmean)
+summary(sim_data_gamma$wetness)
+summary(sim_data_gamma$rain)
+summary(mu_epi)
+summary(y_epi)
+
+print(block_epidemic_table)
+
+true_effect_correlation <- stats::cor(
+  cbind(
+    temperature = temp_effect_z,
+    wetness = wetness_effect_z,
+    rain = rain_effect_z
+  )
+)
+
+print(round(true_effect_correlation, 3))
+
+hist(
+  y_epi,
+  breaks = 30,
+  main = "Distribuicao da resposta final simulada, Gamma",
+  xlab = "Resposta continua positiva",
+  col = "gray80",
+  border = "white"
+)
+
+plot(
+  mu_epi,
+  y_epi,
+  pch = 16,
+  col = grDevices::adjustcolor("steelblue", alpha.f = 0.45),
+  xlab = "Media verdadeira esperada, mu",
+  ylab = "Resposta observada, y",
+  main = "Respostas Gamma simuladas"
+)
+
+abline(
+  a = 0,
+  b = 1,
+  lty = 2,
+  col = "gray40"
+)
+
+# =============================================================
+# 12. OBJETO AUXILIAR COM A VERDADE DA SIMULACAO
+# =============================================================
+#
+# Este objeto possui uma linha por epidemia e serve apenas para
+# validacao. O banco usado no EpiExposure e `sim_data_gamma`.
+# =============================================================
+
+simulation_truth_gamma <- data.frame(
+  epi_id = seq_len(n_epi),
+  block = block,
+  block_effect = as.numeric(block_re),
+  true_temp_effect = true_temp_effect,
+  true_wetness_effect = true_wetness_effect,
+  true_rain_effect = true_rain_effect,
+  temp_effect_z = temp_effect_z,
+  wetness_effect_z = wetness_effect_z,
+  rain_effect_z = rain_effect_z,
+  eta_true = eta_true,
+  mu = mu_epi,
+  gamma_shape = gamma_shape,
+  gamma_scale = gamma_scale_epi,
+  y = y_epi
+)
+
+writexl::write_xlsx(sim_data_gamma, "gamma_data.xlsx")
+```
+
+## Gaussian
+
+```{r}
+set.seed(246)
+
+library(dlnm)
+library(splines)
+
+# -------------------------------------------------------------
+# Dimensoes e blocos
+# -------------------------------------------------------------
+
+n_epi <- 520L
+n_days <- 86L
+n_blocks <- 20L
+
+if (n_epi %% n_blocks != 0L) {
+  stop("`n_epi` deve ser divisivel por `n_blocks`.")
+}
+
+block <- factor(rep(
+  paste0("B", sprintf("%02d", seq_len(n_blocks))),
+  each = n_epi / n_blocks
+))
+
+time_values <- 0:(n_days - 1L)
+lag_for_time <- (n_days - 1L) - time_values
+
+# time 85 -> lag 0; time 0 -> lag 85
+
+# -------------------------------------------------------------
+# Matrizes cronologicas de exposicao
+# -------------------------------------------------------------
+
+tmean_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+wetness_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+rain_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+
+colnames(tmean_time) <- paste0("time_", time_values)
+colnames(wetness_time) <- paste0("time_", time_values)
+colnames(rain_time) <- paste0("time_", time_values)
+
+# =============================================================
+# 1. SIMULAR HISTORICOS CLIMATICOS CRONOLOGICOS
+# =============================================================
+
+for (i in seq_len(n_epi)) {
+  temp_shift <- rnorm(1L, 0, 2.0)
+  wetness_shift <- rnorm(1L, 0, 2.8)
+  rain_shift <- rnorm(1L, 0, 0.40)
+  
+  ar_temp <- as.numeric(arima.sim(
+    model = list(ar = 0.72), n = n_days, sd = 1.0
+  ))
+  ar_wetness <- as.numeric(arima.sim(
+    model = list(ar = 0.78), n = n_days, sd = 1.5
+  ))
+  ar_rain <- as.numeric(arima.sim(
+    model = list(ar = 0.58), n = n_days, sd = 0.50
+  ))
+  
+  tmean <- 25.5 + temp_shift +
+    3.3 * sin(2 * pi * time_values / 85 + runif(1L, -0.35, 0.35)) +
+    ar_temp
+  tmean <- pmin(pmax(tmean, 15), 36)
+  
+  wetness <- 10.5 + wetness_shift +
+    2.4 * sin(2 * pi * time_values / 46 + runif(1L, -0.50, 0.50)) +
+    ar_wetness
+  wetness <- pmin(pmax(wetness, 0), 24)
+  
+  rain_probability <- plogis(
+    -0.80 + rain_shift +
+      0.50 * sin(2 * pi * time_values / 35 + runif(1L, -0.50, 0.50)) +
+      ar_rain
+  )
+  rainy_day <- rbinom(n_days, size = 1L, prob = rain_probability)
+  rain_amount <- rgamma(n_days, shape = 1.7, scale = 5.2)
+  rain <- pmin(rainy_day * rain_amount, 40)
+  
+  tmean_time[i, ] <- tmean
+  wetness_time[i, ] <- wetness
+  rain_time[i, ] <- rain
+}
+
+# =============================================================
+# 2. RELACOES EXPOSICAO-RESPOSTA VERDADEIRAS
+# =============================================================
+
+# Temperatura: resposta unimodal, otimo proximo de 26 C
+temp_response <- exp(-0.5 * ((tmean_time - 26) / 3.2)^2)
+
+# Molhamento: resposta sigmoide acima de aproximadamente 11 h
+wetness_response <- plogis((wetness_time - 11) / 1.8)
+
+# Chuva: resposta crescente com saturacao
+rain_response <- plogis((sqrt(rain_time) - 2.1) / 0.80)
+
+# =============================================================
+# 3. FUNCOES VERDADEIRAS DE LAG
+# =============================================================
+
+# Pesos avaliados em lag_for_time preservam a ordem cronologica.
+temp_lag_weights_time <- dnorm(lag_for_time, mean = 20, sd = 9)
+temp_lag_weights_time <- temp_lag_weights_time / sum(temp_lag_weights_time)
+
+wetness_lag_weights_time <- dnorm(lag_for_time, mean = 14, sd = 8)
+wetness_lag_weights_time <- wetness_lag_weights_time /
+  sum(wetness_lag_weights_time)
+
+rain_lag_weights_time <- dnorm(lag_for_time, mean = 8, sd = 6)
+rain_lag_weights_time <- rain_lag_weights_time / sum(rain_lag_weights_time)
+
+# =============================================================
+# 4. EFEITOS CUMULATIVOS VERDADEIROS
+# =============================================================
+
+true_temp_effect <- as.numeric(temp_response %*% temp_lag_weights_time)
+true_wetness_effect <- as.numeric(
+  wetness_response %*% wetness_lag_weights_time
+)
+true_rain_effect <- as.numeric(rain_response %*% rain_lag_weights_time)
+
+standardize_effect <- function(x) {
+  out <- as.numeric(scale(x))
+  if (any(!is.finite(out))) {
+    stop("Nao foi possivel padronizar um efeito cumulativo verdadeiro.")
+  }
+  out
+}
+
+temp_effect_z <- standardize_effect(true_temp_effect)
+wetness_effect_z <- standardize_effect(true_wetness_effect)
+rain_effect_z <- standardize_effect(true_rain_effect)
+
+# =============================================================
+# 5. EFEITO ALEATORIO VERDADEIRO DE BLOCO
+# =============================================================
+
+block_sd <- 0.80
+block_effect <- rnorm(n_blocks, mean = 0, sd = block_sd)
+names(block_effect) <- levels(block)
+block_re <- block_effect[as.character(block)]
+
+# =============================================================
+# 6. GERAR A MEDIA GAUSSIANA NA ESCALA IDENTIDADE
+# =============================================================
+#
+# O desfecho representa intensidade ou taxa continua de estruturas
+# do patogeno. A media basal e mantida suficientemente acima de zero.
+# =============================================================
+
+eta_true <- 12 +
+  1.25 * temp_effect_z +
+  1.70 * wetness_effect_z +
+  1.10 * rain_effect_z +
+  block_re
+
+mu_epi <- eta_true
+
+# =============================================================
+# 7. GERAR O DESFECHO GAUSSIANO
+# =============================================================
+#
+# Y_i | X_i, block_i ~ Normal(mu_i, gaussian_sigma^2)
+# A semente e os parametros foram escolhidos para produzir y > 0.
+# Como a Gaussiana possui suporte real, a positividade e conferida
+# explicitamente e nenhum valor e truncado ou corrigido.
+# =============================================================
+
+gaussian_sigma <- 1.50
+
+y_epi <- rnorm(n_epi, mean = mu_epi, sd = gaussian_sigma)
+y_epi <- as.numeric(y_epi)
+
+if (any(y_epi <= 0)) {
+  stop(
+    "A realizacao Gaussiana produziu y <= 0. Aumente a media basal ou reduza `gaussian_sigma`."
+  )
+}
+
+# =============================================================
+# 8. CRIAR O CONJUNTO LONG EM ORDEM CRONOLOGICA
+# =============================================================
+
+sim_data_gaussian <- data.frame(
+  epi_id = rep(seq_len(n_epi), each = n_days),
+  block = rep(block, each = n_days),
+  time = rep(time_values, times = n_epi),
+  tmean = as.vector(t(tmean_time)),
+  wetness = as.vector(t(wetness_time)),
+  rain = as.vector(t(rain_time)),
+  y = rep(y_epi, each = n_days)
+)
+
+sim_data_gaussian <- sim_data_gaussian[
+  order(sim_data_gaussian$epi_id, sim_data_gaussian$time),
+  ,
+  drop = FALSE
+]
+rownames(sim_data_gaussian) <- NULL
+
+# =============================================================
+# 9. CHECAGENS DA SIMULACAO
+# =============================================================
+
+if (!all(table(sim_data_gaussian$epi_id) == n_days)) {
+  stop("Cada epidemia deve possuir exatamente 86 observacoes temporais.")
+}
+
+if (length(unique(sim_data_gaussian$epi_id)) != n_epi) {
+  stop("O numero de epidemias simuladas esta incorreto.")
+}
+
+blocks_per_epidemic <- tapply(
+  sim_data_gaussian$block,
+  sim_data_gaussian$epi_id,
+  function(x) length(unique(x))
+)
+if (!all(blocks_per_epidemic == 1L)) {
+  stop("Pelo menos uma epidemia foi associada a mais de um bloco.")
+}
+
+block_epidemic_table <- table(
+  unique(sim_data_gaussian[c("epi_id", "block")])$block
+)
+if (!all(block_epidemic_table == n_epi / n_blocks)) {
+  stop("O numero de epidemias por bloco esta incorreto.")
+}
+
+time_validation <- tapply(
+  sim_data_gaussian$time,
+  sim_data_gaussian$epi_id,
+  function(x) {
+    !anyDuplicated(x) &&
+      !is.unsorted(x, strictly = TRUE) &&
+      identical(as.integer(x), time_values)
+  }
+)
+if (!all(time_validation)) {
+  stop("A estrutura temporal nao esta cronologica ou contem duplicatas.")
+}
+
+outcomes_per_epidemic <- tapply(
+  sim_data_gaussian$y,
+  sim_data_gaussian$epi_id,
+  function(x) length(unique(x))
+)
+if (!all(outcomes_per_epidemic == 1L)) {
+  stop("Pelo menos uma epidemia possui mais de um valor de y.")
+}
+
+if (anyNA(sim_data_gaussian)) {
+  stop("A simulacao produziu valores ausentes.")
+}
+
+if (any(!is.finite(sim_data_gaussian$tmean)) ||
+    any(!is.finite(sim_data_gaussian$wetness)) ||
+    any(!is.finite(sim_data_gaussian$rain)) ||
+    any(!is.finite(sim_data_gaussian$y))) {
+  stop("A simulacao produziu valores nao finitos.")
+}
+
+if (!is.numeric(sim_data_gaussian$y) || any(sim_data_gaussian$y <= 0)) {
+  stop("Neste exemplo Gaussiano, y deve ser continuo e estritamente positivo.")
+}
+
+# =============================================================
+# 10. RESUMOS DIAGNOSTICOS
+# =============================================================
+
+cat("Numero de epidemias:", n_epi, "\n")
+cat("Observacoes por epidemia:", n_days, "\n")
+cat("Numero de blocos:", n_blocks, "\n")
+cat("Epidemias por bloco:", n_epi / n_blocks, "\n")
+cat("Media de y:", round(mean(y_epi), 3), "\n")
+cat("Desvio-padrao de y:", round(sd(y_epi), 3), "\n")
+cat("Minimo de y:", round(min(y_epi), 3), "\n")
+cat("Maximo de y:", round(max(y_epi), 3), "\n")
+cat("Media de mu:", round(mean(mu_epi), 3), "\n")
+cat("Desvio-padrao residual verdadeiro:", gaussian_sigma, "\n")
+cat("Desvio-padrao verdadeiro do bloco:", block_sd, "\n")
+
+head(sim_data_gaussian)
+tail(sim_data_gaussian)
+summary(sim_data_gaussian$tmean)
+summary(sim_data_gaussian$wetness)
+summary(sim_data_gaussian$rain)
+summary(y_epi)
+print(block_epidemic_table)
+
+true_effect_correlation <- cor(cbind(
+  temperature = temp_effect_z,
+  wetness = wetness_effect_z,
+  rain = rain_effect_z
+))
+print(round(true_effect_correlation, 3))
+
+hist(
+  y_epi,
+  breaks = 30,
+  main = "Intensidade de estruturas do patogeno, Gaussiana",
+  xlab = "Intensidade ou taxa continua (> 0)",
+  col = "gray80",
+  border = "white"
+)
+
+plot(
+  mu_epi,
+  y_epi,
+  pch = 16,
+  col = grDevices::adjustcolor("steelblue", alpha.f = 0.45),
+  xlab = "Media verdadeira esperada, mu",
+  ylab = "Intensidade observada, y",
+  main = "Resposta Gaussiana simulada"
+)
+abline(a = 0, b = 1, lty = 2, col = "gray40")
+
+# =============================================================
+# 11. OBJETO AUXILIAR COM A VERDADE DA SIMULACAO
+# =============================================================
+
+simulation_truth_gaussian <- data.frame(
+  epi_id = seq_len(n_epi),
+  block = block,
+  block_effect = as.numeric(block_re),
+  true_temp_effect = true_temp_effect,
+  true_wetness_effect = true_wetness_effect,
+  true_rain_effect = true_rain_effect,
+  temp_effect_z = temp_effect_z,
+  wetness_effect_z = wetness_effect_z,
+  rain_effect_z = rain_effect_z,
+  eta_true = eta_true,
+  mu = mu_epi,
+  gaussian_sigma = gaussian_sigma,
+  y = y_epi
+)
+```
+
+# FIM
 
 ```{r}
 library(EpiExposure)
@@ -1210,6 +3632,7 @@ lag_compare |>
 # Lag-specific animation
 
 ## tmean
+
 ```{r}
 
 library(ggplot2)
@@ -1242,6 +3665,7 @@ tmean_ani = ggplot(
 ```
 
 ## rain
+
 ```{r}
 library(ggplot2)
 library(gganimate)
@@ -1273,6 +3697,7 @@ rain_ani = ggplot(
 ```
 
 ## wetness
+
 ```{r}
 
 library(ggplot2)

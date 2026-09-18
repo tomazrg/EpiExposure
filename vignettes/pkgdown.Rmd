@@ -9,22 +9,19 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, message=FALSE, warning=FALSE}
-
-library(tidyverse)
-library(ggplot2)
-library(cowplot)
-library(dplyr)
-library(EpiExposure)
-```
-
 # What EpiExposure does?
 
 `EpiExposure`provides a standardized R workflow for constructing, fitting, interpreting, and simulating distributed exposure–lag models in plant disease epidemiology.
 
 The package allows users to:
 
-• Define exposure-lag structures; • Fit DLNM-based models; • Quantify lag-specific and period-specific effects; • Summarize complete exposure histories; • Simulate alternative exposure scenarios; • Predict disease outcomes; • Estimate yield and economic losses.
+• Define exposure-lag structures;
+• Fit DLNM-based models;
+• Quantify lag-specific and period-specific effects;
+• Summarize complete exposure histories;
+• Simulate alternative exposure scenarios;
+• Predict disease outcomes;
+• Estimate yield and economic losses.
 
 Unlike traditional window-based approaches, `EpiExposure` treats the complete exposure history preceding disease assessment as the primary epidemiological unit of analysis.
 
@@ -43,6 +40,16 @@ At minimum, the dataset should include:
 1.  an epidemic identifier (`epi_id`) defining independent histories;
 2.  a temporal index variable (`time`), which orders chronological observations from the beginning of the exposure history (time 0; maximum lag) to the disease assessment time (maximum time; lag 0) and with the same duration of time across the `epi_id`;
 3.  one or more exposure variables describing environmental, biological or chemical drivers.
+
+```{r, message=FALSE, warning=FALSE}
+
+library(tidyverse)
+library(ggplot2)
+library(cowplot)
+library(dplyr)
+library(EpiExposure)
+```
+
 
 ```{r}
 
@@ -178,22 +185,22 @@ A central goal of `EpiExposure` is translating DLNM surfaces into epidemioligcal
 Lag-specific effects are obtained with:
 
 ```{r}
-epi_l <- summarise_effects(
-  fit = fit,
-  data = epi_data,
-  scale = "lag",
-  effect_measure = "percent"
-)
 
 epi_l <- summarise_effects(fit = fit, data = epi_data,
                   scale = "lag", effect_measure = "percent",
                   uncertainty = TRUE, n_samples = 20,
-                  output = "summary")
+                  output = "summary",
+                  at = list (
+                    tmean = seq(15,35, length.out = 1000),
+                    rain = seq(0,15, length.out = 1000),
+                    wetness = seq(0,24, length.out = 1000)))
+
+head(epi_l)
 ```
 
 Visualize the results:
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 plot_effects(
   data = epi_l,
   scale = "lag"
@@ -211,7 +218,8 @@ Define epidemiological periods:
 ```{r}
 periods <- define_periods(
   max_lag = 85,
-  cuts = c(20,40,60)
+  cuts = c(20,40,60),
+  prefix = "Period"
 )
 ```
 
@@ -219,20 +227,37 @@ Calculate period-specific effects:
 
 ```{r}
 epi_p <- summarise_effects(
-  fit = fit,
-  data = epi_data,
-  scale = "period",
-  lag_periods = periods
+  fit = fit, data = epi_data,
+                  scale = "period", effect_measure = "percent",
+                  lag_periods = periods,
+                  uncertainty = TRUE, n_samples = 20,
+                  output = "samples"
 )
+
+head(epi_p)
 ```
 
 Visualize:
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 plot_effects(
   data = epi_p,
-  scale = "period"
-)
+  scale = "period",
+  vars = c("tmean", "rain", "wetness"),
+  period_order = c(
+    "Period4",
+    "Period3",
+    "Period2",
+    "Period1"
+  ),
+  vars_order = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  period_ylab = "Effect")
+
+
 ```
 
 This approach allows cumulative exposure effects to be examined within biologically meaningful epidemiological phases.

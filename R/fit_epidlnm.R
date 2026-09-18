@@ -51,9 +51,10 @@
 #' @param ... Named additional arguments passed to the selected engine. Core
 #'   arguments managed by EpiExposure (`formula`/`model`, `data`, `family`, and
 #'   the engine-specific random-effect argument) cannot be supplied again in
-#'   `...`. For direct INLA fits, `control.compute$config = TRUE` is required by
-#'   the EpiExposure uncertainty contract and is added automatically when
-#'   absent. If a conflicting value is supplied, the function stops.
+#'   `...`. For INLA-backed fits (`inla` and `bdlnm`),
+#'   `control.compute$config = TRUE` is required by the EpiExposure uncertainty
+#'   contract and is added automatically when absent. If a conflicting value
+#'   is supplied, the function stops.
 #'
 #' @return A fitted model object with a strict metadata contract. The following
 #'   attributes are attached for downstream functions:
@@ -114,6 +115,10 @@
 #' `control.family$control.link$model`. Unsupported family-link combinations
 #' fail explicitly in EpiExposure or in the selected engine; no Gaussian or
 #' identity-link fallback is used.
+#'
+#' To specify a non-default link, supply a supported family object,
+#' such as family = stats::Gamma(link = "inverse");
+#' character family names use the EpiExposure default link.
 #'
 #' For `gam`, Beta and negative-binomial models use `mgcv` extended families.
 #' When needed, `method = "REML"` is supplied by default to satisfy the
@@ -240,15 +245,26 @@ fit_epidlnm <- function(
       return(list(name = "ordinal", variant = "ordinal", raw = raw))
     }
 
-    if (z %in% c("nbinom1", "negative_binomial_1", "negativebinomial1")) {
+    if (z %in% c(
+      "nb1", "nbinom1", "negative_binomial_1", "negativebinomial1",
+      "negative_binomial_type_1", "negativebinomialtype1"
+    )) {
       return(list(name = "negative_binomial", variant = "NB1", raw = raw))
     }
 
     if (z %in% c(
-      "negbin", "nbinom", "nbinom2", "negative_binomial",
-      "negative_binomial_2", "negativebinomial", "negativebinomial2"
-    ) || grepl("negative.*binomial", z)) {
+      "nb2", "negbin", "nbinom", "nbinom2", "negative_binomial",
+      "negative_binomial_2", "negativebinomial", "negativebinomial2",
+      "negative_binomial_type_2", "negativebinomialtype2"
+    )) {
       return(list(name = "negative_binomial", variant = "NB2", raw = raw))
+    }
+
+    if (grepl("negative_?binomial", z)) {
+      stopf(
+        "Unknown negative-binomial parameterization: '", raw, "'. ",
+        "EpiExposure v1 accepts only the explicitly recognized NB2 variants."
+      )
     }
 
     if (z %in% c("beta", "beta_family", "beta_proportion", "beta_regression", "betar", "beta_resp")) {
@@ -299,21 +315,113 @@ fit_epidlnm <- function(
     )
   }
 
-  supported_link_names <- c(
-    "identity", "log", "logit", "probit", "cloglog",
-    "inverse", "sqrt", "cauchit"
-  )
-
   validate_link_name <- function(link_name) {
     if (!is_scalar_string(link_name)) stopf("Could not determine a valid model link.")
     link_name <- tolower(link_name)
-    if (!link_name %in% supported_link_names) {
+    link_name
+  }
+
+  validate_family_link <- function(
+    family_name,
+    link_name,
+    model_engine
+  ) {
+    engine_links <- list(
+      glm = list(
+        gaussian = c("identity", "log", "inverse"),
+        binomial = c("logit", "probit", "cauchit", "log", "cloglog"),
+        poisson = c("log", "identity", "sqrt"),
+        gamma = c("log", "inverse", "identity")
+      ),
+      glmmTMB = list(
+        beta = c("logit", "probit", "cloglog", "identity", "inverse", "sqrt"),
+        gaussian = c("identity", "log", "inverse"),
+        binomial = c("logit", "probit", "cauchit", "log", "cloglog"),
+        poisson = c("log", "identity", "sqrt"),
+        gamma = c("log", "inverse", "identity"),
+        negative_binomial = c("log", "identity", "sqrt")
+      ),
+      gam = list(
+        beta = c("logit", "probit", "cloglog", "cauchit"),
+        gaussian = c("identity", "log", "inverse"),
+        binomial = c("logit", "probit", "cauchit", "log", "cloglog"),
+        poisson = c("log", "identity", "sqrt"),
+        gamma = c("log", "inverse", "identity"),
+        negative_binomial = c("log", "identity", "sqrt")
+      ),
+      gamm = list(
+        gaussian = c("identity", "log", "inverse"),
+        binomial = c("logit", "probit", "cauchit", "log", "cloglog"),
+        poisson = c("log", "identity", "sqrt"),
+        gamma = c("log", "inverse", "identity")
+      ),
+      gls = list(
+        gaussian = "identity"
+      ),
+      spamm = list(
+        beta = c("logit", "probit", "cloglog", "cauchit"),
+        gaussian = c("identity", "log", "inverse"),
+        binomial = c("logit", "probit", "cauchit", "log", "cloglog"),
+        poisson = c("log", "identity", "sqrt"),
+        gamma = c("log", "inverse", "identity"),
+        negative_binomial = c("log", "identity", "sqrt")
+      ),
+      brms = list(
+        beta = c("logit", "probit", "cloglog", "cauchit"),
+        gaussian = c("identity", "log", "inverse"),
+        binomial = c("logit", "probit", "cauchit", "log", "cloglog"),
+        poisson = c("log", "identity", "sqrt"),
+        gamma = c("log", "inverse", "identity"),
+        negative_binomial = c("log", "identity", "sqrt")
+      ),
+      inla = list(
+        beta = "logit",
+        gaussian = "identity",
+        binomial = "logit",
+        poisson = "log",
+        gamma = "log",
+        negative_binomial = "log"
+      ),
+      bdlnm = list(
+        beta = "logit",
+        gaussian = "identity",
+        binomial = "logit",
+        poisson = "log",
+        gamma = "log",
+        negative_binomial = "log"
+      )
+    )
+
+    registered_families <- engine_links[[model_engine]]
+
+    if (is.null(registered_families)) {
+      stopf("Unsupported `model_engine`: '", model_engine, "'.")
+    }
+
+    allowed <- registered_families[[family_name]]
+
+    if (is.null(allowed)) {
       stopf(
-        "Link '", link_name, "' is outside the EpiExposure v1 link contract. ",
-        "Supported link names are: ", paste(supported_link_names, collapse = ", "), "."
+        "Family '", family_name, "' is not supported for ",
+        "model_engine = '", model_engine, "'. ",
+        "Supported families: ",
+        paste(names(registered_families), collapse = ", "), "."
       )
     }
-    link_name
+
+    # GLS is intentionally restricted by the EpiExposure contract.
+    if (!link_name %in% allowed) {
+      stopf(
+        "Link '", link_name,
+        "' is not supported for family '", family_name,
+        "' with `model_engine = '", model_engine, "'. ",
+        "Supported link(s): ",
+        paste(allowed, collapse = ", "),
+        "."
+      )
+    }
+
+    invisible(TRUE)
   }
 
   check_dot_conflicts <- function(dots, reserved, engine) {
@@ -330,6 +438,19 @@ fit_epidlnm <- function(
       )
     }
     invisible(TRUE)
+  }
+
+  fit_with_context <- function(expr, engine, family_name, link_name) {
+    tryCatch(
+      expr,
+      error = function(e) {
+        stopf(
+          "Model fitting failed for model_engine = '", engine,
+          "', family = '", family_name, "' and link = '", link_name, "'.\n",
+          "Original engine error: ", conditionMessage(e)
+        )
+      }
+    )
   }
 
   # =========================================================
@@ -383,8 +504,22 @@ fit_epidlnm <- function(
   }
 
   input_link <- extract_input_link(family)
-  link_name <- validate_link_name(input_link %||% default_family_link(family_name))
-  link_source <- if (is.null(input_link)) "epiexposure_default" else "family_input"
+
+  link_name <- validate_link_name(
+    input_link %||% default_family_link(family_name)
+  )
+
+  validate_family_link(
+    family_name = family_name,
+    link_name = link_name,
+    model_engine = model_engine
+  )
+
+  link_source <- if (is.null(input_link)) {
+    "epiexposure_default"
+  } else {
+    "family_input"
+  }
 
   # =========================================================
   # RESPONSE VALIDATION BY CANONICAL FAMILY
@@ -403,11 +538,8 @@ fit_epidlnm <- function(
     )
   }
 
-  count_tol <- sqrt(.Machine$double.eps) * pmax(1, abs(y))
-  is_integer_count <- abs(y - round(y)) <= count_tol
-
   if (family_name %in% c("poisson", "negative_binomial") &&
-      any(y < 0 | !is_integer_count)) {
+      (any(y < 0) || any(y != floor(y)))) {
     stopf(
       "`family = '", family_name,
       "'` requires non-negative integer counts in `y_model`."
@@ -798,12 +930,12 @@ fit_epidlnm <- function(
       }
       return(switch(
         family_name,
-        beta = mgcv::betar(link = link_name),
+        beta = do.call(mgcv::betar,list(link = link_name)),
         gaussian = stats::gaussian(link = link_name),
         poisson = stats::poisson(link = link_name),
         gamma = stats::Gamma(link = link_name),
         binomial = stats::binomial(link = link_name),
-        negative_binomial = mgcv::nb(link = link_name),
+        negative_binomial = do.call(mgcv::nb,list(link = link_name)),
         stopf("Unsupported GAM family.")
       ))
     }
@@ -860,7 +992,7 @@ fit_epidlnm <- function(
         beta = brms::Beta(link = link_name),
         gaussian = brms::gaussian(link = link_name),
         poisson = brms::poisson(link = link_name),
-        gamma = brms::Gamma(link = link_name),
+        gamma = stats::Gamma(link = link_name),
         binomial = brms::bernoulli(link = link_name),
         negative_binomial = brms::negbinomial(link = link_name),
         stopf("Unsupported brms family.")
@@ -884,6 +1016,25 @@ fit_epidlnm <- function(
   }
 
   engine_family <- resolve_engine_family(model_engine, family_name, link_name)
+
+  if (model_engine %in% c("inla", "bdlnm")) {
+    if (!requireNamespace("INLA", quietly = TRUE)) {
+      stopf(
+        "Package 'INLA' is required to check likelihood availability for ",
+        "model_engine = '", model_engine, "'."
+      )
+    }
+
+    available_likelihoods <- names(INLA::inla.models()$likelihood)
+
+    if (!engine_family %in% available_likelihoods) {
+      stopf(
+        "Likelihood '", engine_family, "' for EpiExposure family '",
+        family_name, "' and model_engine = '", model_engine, "' is unavailable. ",
+        "The current INLA installation does not provide this likelihood."
+      )
+    }
+  }
 
   # =========================================================
   # ENGINE-SPECIFIC DOTS / LINK CONTROL
@@ -948,14 +1099,14 @@ fit_epidlnm <- function(
     dots <- prepare_inla_family_control(dots)
   }
 
-  if (model_engine == "inla") {
+  if (model_engine %in% c("inla", "bdlnm")) {
     control_compute <- dots$control.compute %||% list()
     if (!is.list(control_compute)) {
-      stopf("INLA `control.compute` supplied through `...` must be a list.")
+      stopf("INLA-backed engines require `control.compute` supplied through `...` to be a list.")
     }
     if (!is.null(control_compute$config) && !isTRUE(control_compute$config)) {
       stopf(
-        "EpiExposure requires `control.compute$config = TRUE` for INLA so ",
+        "EpiExposure requires `control.compute$config = TRUE` for INLA-backed engines so ",
         "posterior coefficient draws can be generated for downstream uncertainty."
       )
     }
@@ -1067,7 +1218,12 @@ fit_epidlnm <- function(
       list(formula = fixed_formula, data = fit_data, family = engine_family),
       dots
     )
-    return(attach_epiexposure_meta(do.call(stats::glm, args)))
+    return(attach_epiexposure_meta(fit_with_context(
+      do.call(stats::glm, args),
+      model_engine,
+      family_name,
+      link_name
+    )))
   }
 
   # =========================================================
@@ -1081,7 +1237,12 @@ fit_epidlnm <- function(
       dots
     )
 
-    model_obj <- do.call(glmmTMB::glmmTMB, args)
+    model_obj <- fit_with_context(
+      do.call(glmmTMB::glmmTMB, args),
+      model_engine,
+      family_name,
+      link_name
+    )
 
     # `do.call()` evaluates `fit_data` before calling glmmTMB. Consequently,
     # glmmTMB may store the entire evaluated data.frame inside `model_obj$call`.
@@ -1114,7 +1275,12 @@ fit_epidlnm <- function(
       list(formula = gam_formula, data = fit_data, family = engine_family),
       dots
     )
-    return(attach_epiexposure_meta(do.call(mgcv::gam, args)))
+    return(attach_epiexposure_meta(fit_with_context(
+      do.call(mgcv::gam, args),
+      model_engine,
+      family_name,
+      link_name
+    )))
   }
 
   # =========================================================
@@ -1147,7 +1313,12 @@ fit_epidlnm <- function(
       ),
       dots
     )
-    return(attach_epiexposure_meta(do.call(mgcv::gamm, args)))
+    return(attach_epiexposure_meta(fit_with_context(
+      do.call(mgcv::gamm, args),
+      model_engine,
+      family_name,
+      link_name
+    )))
   }
 
   # =========================================================
@@ -1160,7 +1331,12 @@ fit_epidlnm <- function(
     }
     check_dot_conflicts(dots, c("model", "data"), model_engine)
     args <- c(list(model = fixed_formula, data = fit_data), dots)
-    return(attach_epiexposure_meta(do.call(nlme::gls, args)))
+    return(attach_epiexposure_meta(fit_with_context(
+      do.call(nlme::gls, args),
+      model_engine,
+      family_name,
+      link_name
+    )))
   }
 
   # =========================================================
@@ -1173,7 +1349,12 @@ fit_epidlnm <- function(
       list(formula = mixed_formula, data = fit_data, family = engine_family),
       dots
     )
-    return(attach_epiexposure_meta(do.call(spaMM::fitme, args)))
+    return(attach_epiexposure_meta(fit_with_context(
+      do.call(spaMM::fitme, args),
+      model_engine,
+      family_name,
+      link_name
+    )))
   }
 
   # =========================================================
@@ -1186,7 +1367,12 @@ fit_epidlnm <- function(
       list(formula = mixed_formula, data = fit_data, family = engine_family),
       dots
     )
-    return(attach_epiexposure_meta(do.call(brms::brm, args)))
+    return(attach_epiexposure_meta(fit_with_context(
+      do.call(brms::brm, args),
+      model_engine,
+      family_name,
+      link_name
+    )))
   }
 
   # =========================================================
@@ -1202,7 +1388,12 @@ fit_epidlnm <- function(
       list(formula = inla_formula, data = fit_data, family = engine_family),
       dots
     )
-    return(attach_epiexposure_meta(do.call(INLA::inla, args)))
+    return(attach_epiexposure_meta(fit_with_context(
+      do.call(INLA::inla, args),
+      model_engine,
+      family_name,
+      link_name
+    )))
   }
 
   # =========================================================
@@ -1242,7 +1433,12 @@ fit_epidlnm <- function(
       list(formula = bdlnm_formula, data = fit_data, family = engine_family),
       dots
     )
-    return(attach_epiexposure_meta(do.call(bdlnm::bdlnm, args)))
+    return(attach_epiexposure_meta(fit_with_context(
+      do.call(bdlnm::bdlnm, args),
+      model_engine,
+      family_name,
+      link_name
+    )))
   }
 
   stopf("Unsupported `model_engine`.")

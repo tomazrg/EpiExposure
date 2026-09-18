@@ -64,7 +64,11 @@
 #'   `fit_epidlnm()`. Supported EpiExposure v1 canonical families are `"beta"`,
 #'   `"binomial"`, `"poisson"`, `"gamma"`, `"gaussian"`, and
 #'   `"negative_binomial"` (NB2). Ordinal outcomes and NB1 are not supported in
-#'   EpiExposure v1.
+#'   EpiExposure v1. Family-object links are checked against the selected engine
+#'   before cross-validation and passed unchanged to `fit_epidlnm()`.
+#'   To specify a non-default link, supply a supported family object,
+#'   such as family = stats::Gamma(link = "inverse");
+#'   character family names use the EpiExposure default link.
 #' @param random_effect Optional character scalar naming one grouping column used
 #'   as a random intercept by `fit_epidlnm()`. It must be constant within each
 #'   cross-validation group. Random effects may contribute to model fitting, but
@@ -122,7 +126,10 @@
 #' @param ... Named additional arguments passed to `fit_epidlnm()`. Core
 #'   arguments managed by `find_bestfit()` (`data`, `model_engine`, `family`,
 #'   `random_effect`, `epiexposure_spec`, and `basis_objects`) cannot be supplied
-#'   again through `...`.
+#'   again through `...`. For INLA-backed engines, likelihood availability,
+#'   `control.family$control.link$model` consistency, and
+#'   `control.compute$config = TRUE` compatibility are checked before CV.
+#'   `fit_epidlnm()` then supplies required INLA controls during each fit.
 #'
 #' @return A data frame ranked by `rank_metric`. Non-binary families report
 #'   `CCC`, `Cb`, `rho`, `RMSE`, and `MAE`. Binomial models report `ROC_AUC`,
@@ -180,6 +187,10 @@
 #' maintaining overall fold balance. Because every fold is required to contain
 #' both classes, `k` cannot exceed the number of groups in the less frequent
 #' class.
+#'
+#' Engine, family, and link compatibility is validated before candidate
+#' evaluation. Unsupported combinations fail immediately rather than producing
+#' repeated fitting failures across folds.
 #'
 #' ## Training-only basis construction
 #'
@@ -324,6 +335,223 @@ find_bestfit <- function(
 
   # Force `...` in the calling session before futures are created.
   fit_dots <- list(...)
+
+  # Keep preflight family and link validation consistent with fit_epidlnm().
+  # Native family constructors and engine validation remain in fit_epidlnm().
+  `%||%` <- function(a, b) if (!is.null(a)) a else b
+
+  stopf <- function(...) stop(..., call. = FALSE)
+
+  is_scalar_string <- function(x) {
+    is.character(x) && length(x) == 1L && !is.na(x) && nzchar(x)
+  }
+
+  normalize_token <- function(x) {
+    x <- tolower(trimws(as.character(x)[1]))
+    x <- gsub("[[:space:]-]+", "_", x)
+    gsub("[^a-z0-9_]", "", x)
+  }
+
+  extract_family_raw <- function(family_input) {
+    if (is_scalar_string(family_input)) return(family_input)
+
+    if (is.list(family_input) && !is.null(family_input$family) &&
+        length(family_input$family) >= 1L) {
+      return(as.character(family_input$family[[1]]))
+    }
+
+    stopf(
+      "Unsupported `family` specification. Supply one supported canonical ",
+      "family name or a family object containing a `family` field."
+    )
+  }
+
+  resolve_family_info <- function(family_input) {
+    raw <- extract_family_raw(family_input)
+    z <- normalize_token(raw)
+
+    if (z %in% c("ordinal", "cumulative")) {
+      return(list(name = "ordinal", variant = "ordinal", raw = raw))
+    }
+
+    if (z %in% c(
+      "nb1", "nbinom1", "negative_binomial_1", "negativebinomial1",
+      "negative_binomial_type_1", "negativebinomialtype1"
+    )) {
+      return(list(name = "negative_binomial", variant = "NB1", raw = raw))
+    }
+
+    if (z %in% c(
+      "nb2", "negbin", "nbinom", "nbinom2", "negative_binomial",
+      "negative_binomial_2", "negativebinomial", "negativebinomial2",
+      "negative_binomial_type_2", "negativebinomialtype2"
+    )) {
+      return(list(name = "negative_binomial", variant = "NB2", raw = raw))
+    }
+
+    if (grepl("negative_?binomial", z)) {
+      stopf(
+        "Unknown negative-binomial parameterization: '", raw, "'. ",
+        "EpiExposure v1 accepts only the explicitly recognized NB2 variants."
+      )
+    }
+
+    if (z %in% c("beta", "beta_family", "beta_proportion", "beta_regression", "betar", "beta_resp")) {
+      return(list(name = "beta", variant = "mean_precision", raw = raw))
+    }
+
+    if (z %in% c("binomial", "bernoulli")) {
+      return(list(name = "binomial", variant = "bernoulli", raw = raw))
+    }
+
+    if (z == "poisson") {
+      return(list(name = "poisson", variant = "poisson", raw = raw))
+    }
+
+    if (z == "gamma") {
+      return(list(name = "gamma", variant = "gamma", raw = raw))
+    }
+
+    if (z %in% c("gaussian", "normal")) {
+      return(list(name = "gaussian", variant = "gaussian", raw = raw))
+    }
+
+    stopf(
+      "Unsupported family: '", raw, "'. EpiExposure v1 supports: beta, ",
+      "binomial, poisson, gamma, gaussian, and negative_binomial (NB2)."
+    )
+  }
+
+  extract_input_link <- function(family_input) {
+    if (is.list(family_input) && !is.null(family_input$link) &&
+        length(family_input$link) >= 1L) {
+      out <- tolower(trimws(as.character(family_input$link[[1]])))
+      if (!is.na(out) && nzchar(out)) return(out)
+    }
+    NULL
+  }
+
+  default_family_link <- function(family_name) {
+    switch(
+      family_name,
+      beta = "logit",
+      binomial = "logit",
+      poisson = "log",
+      gamma = "log",
+      gaussian = "identity",
+      negative_binomial = "log",
+      stopf("Could not determine the default link for family '", family_name, "'.")
+    )
+  }
+
+  validate_link_name <- function(link_name) {
+    if (!is_scalar_string(link_name)) stopf("Could not determine a valid model link.")
+    link_name <- tolower(link_name)
+    link_name
+  }
+
+  validate_family_link <- function(
+    family_name,
+    link_name,
+    model_engine
+  ) {
+    engine_links <- list(
+      glm = list(
+        gaussian = c("identity", "log", "inverse"),
+        binomial = c("logit", "probit", "cauchit", "log", "cloglog"),
+        poisson = c("log", "identity", "sqrt"),
+        gamma = c("log", "inverse", "identity")
+      ),
+      glmmTMB = list(
+        beta = c("logit", "probit", "cloglog", "identity", "inverse", "sqrt"),
+        gaussian = c("identity", "log", "inverse"),
+        binomial = c("logit", "probit", "cauchit", "log", "cloglog"),
+        poisson = c("log", "identity", "sqrt"),
+        gamma = c("log", "inverse", "identity"),
+        negative_binomial = c("log", "identity", "sqrt")
+      ),
+      gam = list(
+        beta = c("logit", "probit", "cloglog", "cauchit"),
+        gaussian = c("identity", "log", "inverse"),
+        binomial = c("logit", "probit", "cauchit", "log", "cloglog"),
+        poisson = c("log", "identity", "sqrt"),
+        gamma = c("log", "inverse", "identity"),
+        negative_binomial = c("log", "identity", "sqrt")
+      ),
+      gamm = list(
+        gaussian = c("identity", "log", "inverse"),
+        binomial = c("logit", "probit", "cauchit", "log", "cloglog"),
+        poisson = c("log", "identity", "sqrt"),
+        gamma = c("log", "inverse", "identity")
+      ),
+      gls = list(
+        gaussian = "identity"
+      ),
+      spamm = list(
+        beta = c("logit", "probit", "cloglog", "cauchit"),
+        gaussian = c("identity", "log", "inverse"),
+        binomial = c("logit", "probit", "cauchit", "log", "cloglog"),
+        poisson = c("log", "identity", "sqrt"),
+        gamma = c("log", "inverse", "identity"),
+        negative_binomial = c("log", "identity", "sqrt")
+      ),
+      brms = list(
+        beta = c("logit", "probit", "cloglog", "cauchit"),
+        gaussian = c("identity", "log", "inverse"),
+        binomial = c("logit", "probit", "cauchit", "log", "cloglog"),
+        poisson = c("log", "identity", "sqrt"),
+        gamma = c("log", "inverse", "identity"),
+        negative_binomial = c("log", "identity", "sqrt")
+      ),
+      inla = list(
+        beta = "logit",
+        gaussian = "identity",
+        binomial = "logit",
+        poisson = "log",
+        gamma = "log",
+        negative_binomial = "log"
+      ),
+      bdlnm = list(
+        beta = "logit",
+        gaussian = "identity",
+        binomial = "logit",
+        poisson = "log",
+        gamma = "log",
+        negative_binomial = "log"
+      )
+    )
+
+    registered_families <- engine_links[[model_engine]]
+
+    if (is.null(registered_families)) {
+      stopf("Unsupported `model_engine`: '", model_engine, "'.")
+    }
+
+    allowed <- registered_families[[family_name]]
+
+    if (is.null(allowed)) {
+      stopf(
+        "Family '", family_name, "' is not supported for ",
+        "model_engine = '", model_engine, "'. ",
+        "Supported families: ",
+        paste(names(registered_families), collapse = ", "), "."
+      )
+    }
+
+    # GLS is intentionally restricted by the EpiExposure contract.
+    if (!link_name %in% allowed) {
+      stopf(
+        "Link '", link_name,
+        "' is not supported for family '", family_name,
+        "' with `model_engine = '", model_engine, "'. ",
+        "Supported link(s): ",
+        paste(allowed, collapse = ", "),
+        "."
+      )
+    }
+
+    invisible(TRUE)
+  }
 
   valid_scalar_name <- function(x) {
     is.character(x) && length(x) == 1L && !is.na(x) && nzchar(x)
@@ -670,78 +898,106 @@ find_bestfit <- function(
   # Canonical family and early response/engine validation
   # --------------------------------------------------------------------------
 
-  family_raw <- if (is.character(family) && length(family) >= 1L) {
-    as.character(family[[1L]])
-  } else if (is.list(family) && !is.null(family$family) &&
-             length(family$family) >= 1L) {
-    as.character(family$family[[1L]])
-  } else {
-    NA_character_
-  }
-
-  family_token <- if (!is.na(family_raw)) {
-    token <- tolower(trimws(family_raw))
-    token <- gsub("[[:space:]-]+", "_", token)
-    gsub("[^a-z0-9_]", "", token)
-  } else {
-    ""
-  }
-
-  if (family_token %in% c("ordinal", "cumulative")) {
-    stop(
-      "Ordinal outcomes are not supported in EpiExposure v1.",
-      call. = FALSE
-    )
-  }
-
-  if (family_token %in% c(
-    "nbinom1", "negative_binomial_1", "negativebinomial1"
-  )) {
-    stop(
-      "Negative-binomial NB1 is not supported in EpiExposure v1. ",
-      "`negative_binomial` is standardized to NB2.",
-      call. = FALSE
-    )
-  }
-
-  family_name <- .resolve_family_name(family)
+  family_info <- resolve_family_info(family)
+  family_name <- family_info$name
 
   if (identical(family_name, "ordinal")) {
-    stop(
-      "Ordinal outcomes are not supported in EpiExposure v1.",
-      call. = FALSE
+    stopf(
+      "Ordinal outcomes are not supported in EpiExposure v1. This deliberate ",
+      "restriction keeps fitting, prediction, uncertainty, performance metrics, ",
+      "and ensemble behavior harmonized across supported families."
     )
   }
 
-  supported_families <- c(
-    "beta", "binomial", "poisson", "gamma", "gaussian",
-    "negative_binomial"
-  )
-  if (!family_name %in% supported_families) {
-    stop(
-      "Unsupported EpiExposure v1 family: '", family_name, "'.",
-      call. = FALSE
+  if (identical(family_info$variant, "NB1")) {
+    stopf(
+      "Negative-binomial NB1 was requested, but EpiExposure v1 standardizes ",
+      "`negative_binomial` to the quadratic-variance NB2 parameterization. ",
+      "Use an NB2-compatible family specification."
     )
   }
 
-  engine_family_support <- list(
-    glm = c("gaussian", "binomial", "poisson", "gamma"),
-    glmmTMB = supported_families,
-    gam = supported_families,
-    gamm = c("gaussian", "binomial", "poisson", "gamma"),
-    gls = "gaussian",
-    spamm = supported_families,
-    brms = supported_families,
-    inla = supported_families,
-    bdlnm = supported_families
+  input_link <- extract_input_link(family)
+
+  link_name <- validate_link_name(
+    input_link %||% default_family_link(family_name)
   )
 
-  if (!family_name %in% engine_family_support[[model_engine]]) {
-    stop(
-      "Family '", family_name, "' is not supported by `model_engine = '",
-      model_engine, "'` under the EpiExposure v1 contract.",
-      call. = FALSE
+  # Reject unsupported engine/family/link combinations BEFORE starting any CV
+  # candidate. fit_epidlnm() repeats this validation before native fitting.
+  validate_family_link(
+    family_name = family_name,
+    link_name = link_name,
+    model_engine = model_engine
+  )
+
+  # The INLA availability check must cover both the direct and bdlnm routes.
+  # Fit-time validation remains active as the final backend-specific barrier.
+  if (model_engine %in% c("inla", "bdlnm")) {
+    if (!requireNamespace("INLA", quietly = TRUE)) {
+      stopf(
+        "Package 'INLA' is required to check likelihood availability for ",
+        "model_engine = '", model_engine, "'."
+      )
+    }
+
+    engine_family <- switch(
+      family_name,
+      beta = "beta",
+      gaussian = "gaussian",
+      poisson = "poisson",
+      gamma = "gamma",
+      binomial = "binomial",
+      negative_binomial = "nbinomial"
     )
+
+    available_likelihoods <- names(INLA::inla.models()$likelihood)
+
+    if (!engine_family %in% available_likelihoods) {
+      stopf(
+        "Likelihood '", engine_family, "' for EpiExposure family '",
+        family_name, "' and model_engine = '", model_engine, "' is unavailable. ",
+        "The current INLA installation does not provide this likelihood."
+      )
+    }
+
+    # Validate conflicting INLA controls once, before creating CV folds. Do not
+    # change fit_dots: fit_epidlnm() injects the required settings for every fit.
+    control_family <- fit_dots$control.family %||% list()
+    if (!is.list(control_family)) {
+      stopf("INLA `control.family` supplied through `...` must be a list.")
+    }
+
+    control_link <- control_family$control.link %||% list()
+    if (!is.list(control_link)) {
+      stopf("INLA `control.family$control.link` must be a list.")
+    }
+
+    if (!is.null(control_link$model)) {
+      supplied_link <- tolower(as.character(control_link$model)[1])
+      if (!identical(supplied_link, link_name)) {
+        stopf(
+          "Conflicting INLA link specifications: `family` implies '", link_name,
+          "' but `control.family$control.link$model` is '", supplied_link, "'."
+        )
+      }
+    }
+
+    control_compute <- fit_dots$control.compute %||% list()
+    if (!is.list(control_compute)) {
+      stopf(
+        "INLA-backed engines require `control.compute` supplied through `...` ",
+        "to be a list."
+      )
+    }
+
+    if (!is.null(control_compute$config) && !isTRUE(control_compute$config)) {
+      stopf(
+        "EpiExposure requires `control.compute$config = TRUE` for INLA-backed ",
+        "engines so posterior coefficient draws can be generated for ",
+        "downstream uncertainty."
+      )
+    }
   }
 
   outcome_type <- .resolve_outcome_type(family_name)

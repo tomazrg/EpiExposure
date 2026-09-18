@@ -4,7 +4,13 @@
 \alias{build_design}
 \title{Build an epidemic-level DLNM design matrix}
 \usage{
-build_design(data, cb_templates, max_lag = NULL, include_response = TRUE)
+build_design(
+  data,
+  cb_templates,
+  max_lag = NULL,
+  include_response = TRUE,
+  groups = "epi_id"
+)
 }
 \arguments{
 \item{data}{Non-empty long-format data frame containing `epi_id`, `time`, and
@@ -39,11 +45,18 @@ build_design(data, cb_templates, max_lag = NULL, include_response = TRUE)
 
 \item{include_response}{Logical. If `TRUE` and `data` contains `y`, append
 one response value per epidemic. If `FALSE`, `y` is ignored.}
+
+\item{groups}{Non-empty character vector of identifier columns to preserve
+in the final design. Must include `"epi_id"`; the default is `"epi_id"`.
+Additional identifiers, such as `"block"`, `"site"`, or `"year"`, must
+exist in `data`, contain no missing values, and be constant within each
+`epi_id`. They do not redefine the exposure-history unit, which remains
+exclusively `epi_id`.}
 }
 \value{
-A data frame with one row per epidemic containing `epi_id`,
-  canonical cross-basis columns named `cb_<exposure>_<column_index>`, and,
-  optionally, `y`.
+A data frame with one row per epidemic containing the identifier
+  columns specified in `groups`, canonical cross-basis columns named
+  `cb_<exposure>_<column_index>`, and, optionally, `y`.
 
   The returned data frame stores the following attributes:
 
@@ -60,7 +73,8 @@ A data frame with one row per epidemic containing `epi_id`,
   - `"epiexposure_time_step"`: common time-series spacing, or `NA` when
     `max_lag = 0` because a one-point history has no estimable spacing;
   - `"epiexposure_design_contract"`:
-    `"final_crossbasis_row_per_group"`.
+    `"final_crossbasis_row_per_group"`;
+  - `"epiexposure_group_cols"`: identifier columns preserved in the design.
 }
 \description{
 Converts complete long-format exposure histories into one epidemic-level

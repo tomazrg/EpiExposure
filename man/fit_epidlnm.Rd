@@ -67,9 +67,10 @@ other engines, its names must match the fitted exposure variables.}
 \item{...}{Named additional arguments passed to the selected engine. Core
 arguments managed by EpiExposure (`formula`/`model`, `data`, `family`, and
 the engine-specific random-effect argument) cannot be supplied again in
-`...`. For direct INLA fits, `control.compute$config = TRUE` is required by
-the EpiExposure uncertainty contract and is added automatically when
-absent. If a conflicting value is supplied, the function stops.}
+`...`. For INLA-backed fits (`inla` and `bdlnm`),
+`control.compute$config = TRUE` is required by the EpiExposure uncertainty
+contract and is added automatically when absent. If a conflicting value
+is supplied, the function stops.}
 }
 \value{
 A fitted model object with a strict metadata contract. The following
@@ -137,6 +138,10 @@ engine-native family. For INLA-based engines the same link is forwarded via
 `control.family$control.link$model`. Unsupported family-link combinations
 fail explicitly in EpiExposure or in the selected engine; no Gaussian or
 identity-link fallback is used.
+
+To specify a non-default link, supply a supported family object,
+such as family = stats::Gamma(link = "inverse");
+character family names use the EpiExposure default link.
 
 For `gam`, Beta and negative-binomial models use `mgcv` extended families.
 When needed, `method = "REML"` is supplied by default to satisfy the
