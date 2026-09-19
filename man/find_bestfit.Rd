@@ -21,6 +21,9 @@ find_bestfit(
   model_engine = "glmmTMB",
   family = "beta",
   random_effect = NULL,
+  spatial_effect = NULL,
+  spatial_structure = "matern",
+  spatial_group = NULL,
   min_success = 2,
   rank_metric = NULL,
   threshold = 0.5,
@@ -103,6 +106,19 @@ held-out predictions are always population-level and therefore set fitted
 random effects to zero. `glm` and `gls` do not accept `random_effect`;
 `gamm` requires it under the current EpiExposure v1 fitting contract.}
 
+\item{spatial_effect}{NULL (default), or two distinct numeric coordinate
+column names for a Matérn term fitted by `model_engine = "spamm"` only.
+Coordinates are constant within each epidemic but may be identical across
+different epidemics; they never redefine the exposure-history unit.}
+
+\item{spatial_structure}{Only `"matern"` is supported (case-insensitive)
+when spatial coordinates are supplied; otherwise this setting is inert.}
+
+\item{spatial_group}{NULL for one shared field or a factor, character, or
+integer grouping column such as `"year"` for independent spatial fields.
+Requires spatial coordinates and must be constant within each epidemic.
+Spatial effects and `random_effect` are distinct and may coexist.}
+
 \item{min_success}{Positive integer of at least 2 giving the minimum number of
   **groups with a finite out-of-fold prediction** required for a candidate to
   be eligible for metric calculation and, when requested, full-data refitting.
@@ -162,7 +178,8 @@ not alter LOOCV fold membership and is not passed to `fit_epidlnm()`.}
 
 \item{...}{Named additional arguments passed to `fit_epidlnm()`. Core
 arguments managed by `find_bestfit()` (`data`, `model_engine`, `family`,
-`random_effect`, `epiexposure_spec`, and `basis_objects`) cannot be supplied
+`random_effect`, `spatial_effect`, `spatial_structure`, `spatial_group`,
+`epiexposure_spec`, and `basis_objects`) cannot be supplied
 again through `...`. For INLA-backed engines, likelihood availability,
 `control.family$control.link$model` consistency, and
 `control.compute$config = TRUE` compatibility are checked before CV.
@@ -307,6 +324,16 @@ long-format rows and must contain only finite values. Therefore every
 candidate variable uses exactly the same number of time points and the same
 temporal positions within each group.
 
+## Optional spatial covariance
+
+Only spaMM accepts `spatial_effect = c("x_coord", "y_coord")`.
+This adds `Matern(1 | x_coord + y_coord)` during fitting; adding
+`spatial_group = "year"` uses independent Matérn field realizations.
+`random_effect` remains an independent conventional intercept. All spatial
+and conventional random effects are set to zero for CV point predictions.
+CV still leaves whole epidemics out; it does not automatically hold out
+all epidemics sharing the same random-effect or spatial-field level.
+
 ## Held-out prediction target
 
 Every successful held-out group receives one deterministic out-of-fold
@@ -349,4 +376,19 @@ Candidate-level parallelism is preserved: when the caller has configured a
 `future` plan with more than one worker, candidates are evaluated in parallel
 while all cross-validation folds belonging to one candidate remain
 sequential.
+}
+\examples{
+\dontrun{
+# Requires a long-format epidemic data frame `dat` with these columns:
+find_bestfit(dat, vars = "tmean", max_lag = 10, model_engine = "spamm",
+             family = "poisson", random_effect = "epi_id")
+find_bestfit(dat, vars = "tmean", max_lag = 10, model_engine = "spamm",
+             family = "poisson", spatial_effect = c("x_coord", "y_coord"))
+find_bestfit(dat, vars = "tmean", max_lag = 10, model_engine = "spamm",
+             family = "poisson", random_effect = "block_id",
+             spatial_effect = c("x_coord", "y_coord"))
+find_bestfit(dat, vars = "tmean", max_lag = 10, model_engine = "spamm",
+             family = "poisson", random_effect = "block_id",
+             spatial_effect = c("x_coord", "y_coord"), spatial_group = "year")
+}
 }

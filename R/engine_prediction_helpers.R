@@ -8,8 +8,8 @@
 # Core contract
 # -------------
 # 1. Prediction target: expected response, not a newly simulated observation.
-# 2. Prediction level: population level; fitted group-specific random effects
-#    are excluded from downstream predictions.
+# 2. Prediction level: fixed-component/population level; conventional random
+#    and spatially autocorrelated effects are both set to zero (not integrated).
 # 3. uncertainty = FALSE (downstream): central parameter estimate.
 #    - frequentist engines: fitted fixed-effect estimates;
 #    - Bayesian engines: posterior mean of population/fixed effects.
@@ -178,6 +178,11 @@
     allow_null = TRUE
   )
   random_structure <- get_attr("epiexposure_random_structure")
+  spatial_effect <- get_attr("epiexposure_spatial_effect", allow_null = TRUE)
+  spatial_structure <- get_attr("epiexposure_spatial_structure", allow_null = TRUE)
+  spatial_group <- get_attr("epiexposure_spatial_group", allow_null = TRUE)
+  spatial_term <- get_attr("epiexposure_spatial_term", allow_null = TRUE)
+  spatial_flag <- get_attr("epiexposure_has_spatial_effect", allow_null = TRUE)
   spec <- get_attr("epiexposure_spec")
   basis_objects <- get_attr("epiexposure_basis_objects", allow_null = TRUE)
   prediction_level <- get_attr("epiexposure_prediction_level")
@@ -469,6 +474,38 @@
     )
   }
 
+  # Older non-spatial fits may predate these optional metadata attributes.
+  has_spatial_effect <- !is.null(spatial_effect)
+  if (!is.null(spatial_flag) &&
+      (!is.logical(spatial_flag) || length(spatial_flag) != 1L ||
+       is.na(spatial_flag) || !identical(spatial_flag, has_spatial_effect))) {
+    .epix_stop("Stored spatial-effect presence flag is inconsistent.")
+  }
+  if (has_spatial_effect) {
+    if (!identical(engine, "spamm") ||
+        !is.character(spatial_effect) || length(spatial_effect) != 2L ||
+        anyNA(spatial_effect) || any(!nzchar(trimws(spatial_effect))) ||
+        anyDuplicated(spatial_effect) ||
+        !identical(spatial_structure, "matern") ||
+        (!is.null(spatial_group) && !.epix_is_scalar_string(spatial_group)) ||
+        !.epix_is_scalar_string(spatial_term)) {
+      .epix_stop("Invalid spaMM spatial metadata: expected two coordinates, ",
+                 "a Matérn structure, and a valid optional spatial group/term.")
+    }
+    expected_term <- .build_spamm_spatial_term(
+      spatial_effect, spatial_structure, spatial_group
+    )
+    if (!identical(spatial_term, expected_term)) {
+      .epix_stop("Stored spaMM spatial term disagrees with coordinate/group metadata.")
+    }
+    if (!all(c(spatial_effect, spatial_group) %in% names(data_template))) {
+      .epix_stop("The fitted data template is missing spaMM spatial columns.")
+    }
+  } else if (!is.null(spatial_structure) || !is.null(spatial_group) ||
+             !is.null(spatial_term)) {
+    .epix_stop("Non-spatial model contains inconsistent spatial metadata.")
+  }
+
   if (!identical(prediction_level, "population")) {
     .epix_stop(
       "This EpiExposure v1 prediction layer requires ",
@@ -508,6 +545,11 @@
     id_col = id_col,
     random_effect_fit_col = random_fit_col,
     random_structure = random_structure,
+    spatial_effect = spatial_effect,
+    spatial_structure = spatial_structure,
+    spatial_group = spatial_group,
+    spatial_term = spatial_term,
+    has_spatial_effect = has_spatial_effect,
     spec = spec,
     basis_objects = basis_objects,
     max_lag = common_max_lag,
@@ -1793,6 +1835,16 @@
 
   # Validate canonical design even when native prediction will be used.
   invisible(.epix_standard_fixed_design(newdata, metadata))
+
+  # Spatial spaMM fits use the fixed matrix directly as their official route.
+  # Unlike native spatial prediction, this does not require coordinates or
+  # any fitted group levels in newdata; no native spatial effect can enter.
+  if (identical(metadata$engine, "spamm") && isTRUE(metadata$has_spatial_effect)) {
+    out <- .epix_manual_point_population(fit, newdata, type)
+    attr(out, "epiexposure_prediction_method") <- "spatial_population_fixed_xbeta"
+    attr(out, "epiexposure_prediction_type") <- type
+    return(out)
+  }
 
   frequentist <- c("glm", "glmmTMB", "gam", "gamm", "gls", "spamm")
 

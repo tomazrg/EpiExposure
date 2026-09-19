@@ -3106,6 +3106,252 @@ simulation_truth_gaussian <- data.frame(
   gaussian_sigma = gaussian_sigma,
   y = y_epi
 )
+
+writexl::write_xlsx(sim_data_gaussian,"gaussian_data.xlsx")
+```
+
+## spaMM dataset
+
+```{r}
+set.seed(20260918)
+
+library(dlnm)
+library(splines)
+
+n_epi <- 520L
+n_days <- 86L
+n_blocks <- 20L
+
+time_values <- 0:(n_days - 1L)
+lag_for_time <- (n_days - 1L) - time_values
+
+# -------------------------------------------------------------
+# 1. COORDENADAS ESPACIAIS
+# -------------------------------------------------------------
+# Grade 26 x 20, com pequena irregularidade nas coordenadas.
+# As unidades sao arbitrarias e representam distancia Euclidiana.
+
+spatial_grid <- expand.grid(
+  x_coord = seq(0, 100, length.out = 26L),
+  y_coord = seq(0, 76, length.out = 20L)
+)
+
+spatial_grid$x_coord <- spatial_grid$x_coord + runif(n_epi, -0.8, 0.8)
+spatial_grid$y_coord <- spatial_grid$y_coord + runif(n_epi, -0.8, 0.8)
+spatial_grid$epi_id <- seq_len(n_epi)
+spatial_grid$block <- factor(
+  paste0("B", sprintf("%02d", rep(seq_len(n_blocks), each = 26L)))
+)
+
+# -------------------------------------------------------------
+# 2. PROCESSO ESPACIAL MATERN VERDADEIRO
+# -------------------------------------------------------------
+# Correlacao Matérn exponencial, equivalente a nu = 0.5.
+# cor(d) = exp(-d / spatial_range)
+
+coord_matrix <- as.matrix(spatial_grid[c("x_coord", "y_coord")])
+distance_matrix <- as.matrix(stats::dist(coord_matrix))
+
+spatial_range <- 18
+spatial_sd <- 0.35
+spatial_nugget <- 1e-8
+
+spatial_correlation <- exp(-distance_matrix / spatial_range)
+diag(spatial_correlation) <- diag(spatial_correlation) + spatial_nugget
+
+spatial_root <- chol(spatial_correlation)
+spatial_effect <- as.numeric(
+  t(spatial_root) %*% rnorm(n_epi, mean = 0, sd = spatial_sd)
+)
+
+# -------------------------------------------------------------
+# 3. MATRIZES CRONOLOGICAS DE EXPOSICAO
+# -------------------------------------------------------------
+
+tmean_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+wetness_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+rain_time <- matrix(NA_real_, nrow = n_epi, ncol = n_days)
+
+# Tendencias espaciais climaticas suaves, diferentes do campo residual.
+temp_spatial_trend <- scale(
+  0.60 * spatial_grid$x_coord - 0.35 * spatial_grid$y_coord
+)[, 1]
+
+wetness_spatial_trend <- scale(
+  -0.25 * spatial_grid$x_coord + 0.70 * spatial_grid$y_coord
+)[, 1]
+
+rain_spatial_trend <- scale(
+  0.35 * spatial_grid$x_coord + 0.45 * spatial_grid$y_coord
+)[, 1]
+
+for (i in seq_len(n_epi)) {
+  temp_shift <- 1.25 * temp_spatial_trend[i] + rnorm(1L, 0, 1.2)
+  wetness_shift <- 1.80 * wetness_spatial_trend[i] + rnorm(1L, 0, 1.7)
+  rain_shift <- 0.25 * rain_spatial_trend[i] + rnorm(1L, 0, 0.25)
+  
+  ar_temp <- as.numeric(arima.sim(list(ar = 0.72), n_days, sd = 1.0))
+  ar_wetness <- as.numeric(arima.sim(list(ar = 0.78), n_days, sd = 1.5))
+  ar_rain <- as.numeric(arima.sim(list(ar = 0.58), n_days, sd = 0.50))
+  
+  tmean <- 25.5 + temp_shift +
+    3.3 * sin(2 * pi * time_values / 85 + runif(1L, -0.35, 0.35)) +
+    ar_temp
+  tmean <- pmin(pmax(tmean, 15), 36)
+  
+  wetness <- 10.5 + wetness_shift +
+    2.4 * sin(2 * pi * time_values / 46 + runif(1L, -0.50, 0.50)) +
+    ar_wetness
+  wetness <- pmin(pmax(wetness, 0), 24)
+  
+  rain_probability <- plogis(
+    -0.80 + rain_shift +
+      0.50 * sin(2 * pi * time_values / 35 + runif(1L, -0.50, 0.50)) +
+      ar_rain
+  )
+  rainy_day <- rbinom(n_days, 1L, rain_probability)
+  rain <- rainy_day * rgamma(n_days, shape = 1.7, scale = 5.2)
+  rain <- pmin(rain, 40)
+  
+  tmean_time[i, ] <- tmean
+  wetness_time[i, ] <- wetness
+  rain_time[i, ] <- rain
+}
+
+# -------------------------------------------------------------
+# 4. RELACOES EXPOSICAO-RESPOSTA E LAG VERDADEIRAS
+# -------------------------------------------------------------
+
+temp_response <- exp(-0.5 * ((tmean_time - 26) / 3.2)^2)
+wetness_response <- plogis((wetness_time - 11) / 1.8)
+rain_response <- plogis((sqrt(rain_time) - 2.1) / 0.80)
+
+temp_lag_weights <- dnorm(lag_for_time, mean = 20, sd = 9)
+temp_lag_weights <- temp_lag_weights / sum(temp_lag_weights)
+
+wetness_lag_weights <- dnorm(lag_for_time, mean = 14, sd = 8)
+wetness_lag_weights <- wetness_lag_weights / sum(wetness_lag_weights)
+
+rain_lag_weights <- dnorm(lag_for_time, mean = 8, sd = 6)
+rain_lag_weights <- rain_lag_weights / sum(rain_lag_weights)
+
+true_temp_effect <- as.numeric(temp_response %*% temp_lag_weights)
+true_wetness_effect <- as.numeric(wetness_response %*% wetness_lag_weights)
+true_rain_effect <- as.numeric(rain_response %*% rain_lag_weights)
+
+standardize_effect <- function(x) {
+  out <- as.numeric(scale(x))
+  if (any(!is.finite(out))) stop("Falha ao padronizar efeito verdadeiro.")
+  out
+}
+
+temp_effect_z <- standardize_effect(true_temp_effect)
+wetness_effect_z <- standardize_effect(true_wetness_effect)
+rain_effect_z <- standardize_effect(true_rain_effect)
+
+# -------------------------------------------------------------
+# 5. DESFECHO POISSON COM EFEITO ESPACIAL
+# -------------------------------------------------------------
+# O efeito espacial entra como componente latente residual.
+
+eta_true <- log(10) +
+  0.38 * temp_effect_z +
+  0.52 * wetness_effect_z +
+  0.34 * rain_effect_z +
+  spatial_effect
+
+mu_epi <- exp(eta_true)
+y_epi <- as.integer(rpois(n_epi, lambda = mu_epi))
+
+# -------------------------------------------------------------
+# 6. DADOS LONG PARA O EPIEXPOSURE
+# -------------------------------------------------------------
+
+sim_data_spatial <- data.frame(
+  epi_id = rep(seq_len(n_epi), each = n_days),
+  block = rep(spatial_grid$block, each = n_days),
+  time = rep(time_values, times = n_epi),
+  x_coord = rep(spatial_grid$x_coord, each = n_days),
+  y_coord = rep(spatial_grid$y_coord, each = n_days),
+  tmean = as.vector(t(tmean_time)),
+  wetness = as.vector(t(wetness_time)),
+  rain = as.vector(t(rain_time)),
+  y = rep(y_epi, each = n_days)
+)
+
+sim_data_spatial <- sim_data_spatial[
+  order(sim_data_spatial$epi_id, sim_data_spatial$time),
+  ,
+  drop = FALSE
+]
+rownames(sim_data_spatial) <- NULL
+
+# -------------------------------------------------------------
+# 7. VERDADE DA SIMULACAO, UMA LINHA POR EPIDEMIA
+# -------------------------------------------------------------
+
+simulation_truth_spatial <- data.frame(
+  epi_id = seq_len(n_epi),
+  block = spatial_grid$block,
+  x_coord = spatial_grid$x_coord,
+  y_coord = spatial_grid$y_coord,
+  spatial_effect = spatial_effect,
+  true_temp_effect = true_temp_effect,
+  true_wetness_effect = true_wetness_effect,
+  true_rain_effect = true_rain_effect,
+  temp_effect_z = temp_effect_z,
+  wetness_effect_z = wetness_effect_z,
+  rain_effect_z = rain_effect_z,
+  eta_true = eta_true,
+  mu = mu_epi,
+  y = y_epi
+)
+
+# -------------------------------------------------------------
+# 8. CHECAGENS
+# -------------------------------------------------------------
+
+stopifnot(
+  nrow(sim_data_spatial) == n_epi * n_days,
+  all(table(sim_data_spatial$epi_id) == n_days),
+  all(sim_data_spatial$y >= 0L),
+  !anyNA(sim_data_spatial),
+  all(is.finite(sim_data_spatial$x_coord)),
+  all(is.finite(sim_data_spatial$y_coord))
+)
+
+space_per_epidemic <- tapply(
+  seq_len(nrow(sim_data_spatial)),
+  sim_data_spatial$epi_id,
+  function(ii) {
+    length(unique(sim_data_spatial$x_coord[ii])) == 1L &&
+      length(unique(sim_data_spatial$y_coord[ii])) == 1L
+  }
+)
+stopifnot(all(space_per_epidemic))
+
+cat("Epidemias/localidades:", n_epi, "\n")
+cat("Dias por epidemia:", n_days, "\n")
+cat("Media de y:", round(mean(y_epi), 3), "\n")
+cat("Variancia marginal de y:", round(var(y_epi), 3), "\n")
+cat("SD espacial verdadeiro:", spatial_sd, "\n")
+cat("Alcance usado na simulacao:", spatial_range, "\n")
+
+# Visualizacao do campo espacial verdadeiro
+plot(
+  spatial_grid$x_coord,
+  spatial_grid$y_coord,
+  pch = 21,
+  bg = hcl.colors(30, "Blue-Red 3")[
+    cut(spatial_effect, breaks = 30, include.lowest = TRUE)
+  ],
+  asp = 1,
+  xlab = "x_coord",
+  ylab = "y_coord",
+  main = "Efeito espacial Matérn verdadeiro"
+)
+
+writexl::write_xlsx(sim_data_spatial,"spamm_st_poisson.xlsx")
 ```
 
 # FIM

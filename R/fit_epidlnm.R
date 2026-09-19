@@ -31,6 +31,20 @@
 #'   EpiExposure metadata. `glm` and `gls` do not support this argument. `gamm`
 #'   requires it in the current EpiExposure interface because its generated
 #'   fixed formula contains no other smooth/random term.
+#' @param spatial_effect NULL (default) or two distinct names of numeric,
+#'   finite coordinate columns in the epidemic-level design. Only
+#'   `model_engine = "spamm"` supports spatial autocorrelation. Coordinates may
+#'   repeat across different epidemics; at least two distinct pairs are needed.
+#' @param spatial_structure Spatial correlation structure; currently only
+#'   `"matern"` (case-insensitive) when `spatial_effect` is supplied. This
+#'   argument does not change non-spatial fits.
+#' @param spatial_group NULL for one shared spatial field, or the name of one
+#'   grouping column (e.g., `"year"`) for independent Matérn realizations with
+#'   shared correlation parameters. Requires `spatial_effect`; the source column
+#'   may be factor, character, or integer and is converted in a local fit copy.
+#'   `random_effect` remains a separate, conventional random intercept and both
+#'   effects can be fitted together. Coordinates and spatial groups are not used
+#'   as epidemic-history identifiers.
 #' @param epiexposure_spec Named list describing the cross-basis construction
 #'   for every fitted exposure. This metadata is required so downstream
 #'   functions reconstruct exactly the fitted exposure-lag basis rather than
@@ -62,7 +76,9 @@
 #'   `epiexposure_cb_cols`, `epiexposure_vars`,
 #'   `epiexposure_data_template`, `epiexposure_id_col`, `epiexposure_spec`, and
 #'   `epiexposure_basis_objects`. Additional attributes record the standardized
-#'   family parameterization, random-intercept structure, common fitted
+#'   family parameterization, random-intercept structure, spatial specification
+#'   (`epiexposure_spatial_effect`, `epiexposure_spatial_structure`,
+#'   `epiexposure_spatial_group`, and `epiexposure_spatial_term`), common fitted
 #'   `max_lag`, expected history length (`max_lag + 1`), the exact-history
 #'   contract, and the EpiExposure v1 prediction contract.
 #'
@@ -88,6 +104,18 @@
 #' engine's native `random` argument rather than lme4-style syntax. Because
 #' `gamm()` uses PQL for non-Gaussian responses and is specifically known to be
 #' problematic for binary data, a warning is issued for the binomial family.
+#'
+#' ## Spatial covariance (spaMM only)
+#'
+#' Spatial terms are explicitly distinct from `random_effect`: the former
+#' model correlated Matérn fields, whereas the latter is an ordinary intercept.
+#' `spatial_effect = c("x_coord", "y_coord")` adds
+#' `Matern(1 | x_coord + y_coord)`; adding `spatial_group = "year"` instead
+#' uses `Matern(1 | x_coord + y_coord %in% year)`. `spatial_effect = NULL`
+#' leaves every pre-existing engine and random-intercept fit unchanged.
+#' Coordinates and spatial grouping affect estimation, but not EpiExposure's
+#' default fixed-component prediction, which sets all non-fixed contributions
+#' to zero rather than integrating them over their distributions.
 #'
 #' ## Families and links
 #'
@@ -125,6 +153,11 @@
 #' supported fitting route; an explicitly supplied incompatible method is
 #' rejected. A GAM random intercept also defaults to REML unless the user
 #' explicitly selects another method.
+#'
+#' For `model_engine = "gamm"`, the returned object contains the native
+#' `gam` and `lme` components and inherits from `"epiexposure_gamm"`.
+#' Calling `summary()` returns the fixed/population GAM summary by default;
+#' use `component = "lme"` or `"both"` to inspect the mixed-model component.
 #'
 #' ## Response-scale validation
 #'
@@ -170,12 +203,15 @@
 #' downstream predictions. This function itself only fits the model and does
 #' not create outcome predictions or uncertainty summaries.
 #'
-#' For `glmmTMB`, the model is fitted with the fully evaluated EpiExposure
-#' design, but the stored model call is compacted after fitting so that the
-#' original `data` expression is displayed instead of printing the complete
-#' evaluated data.frame and its EpiExposure attributes. This affects only the
-#' stored call used for display/re-evaluation; it does not alter the fitted
-#' coefficients, likelihood, covariance matrix, predictions, or metadata.
+#' For `glm` and `glmmTMB`, models are fitted with the fully evaluated
+#' EpiExposure design, but their stored calls are compacted after fitting.
+#' The original `data` expression is retained for display instead of the
+#' complete evaluated data frame and its EpiExposure attributes. For `glm`,
+#' the stored function and family expressions are also compacted to prevent
+#' `summary()` from printing the evaluated function definition and complete
+#' family object. These changes affect only the stored calls used for display
+#' and re-evaluation; they do not alter fitted coefficients, likelihoods,
+#' covariance matrices, predictions, or EpiExposure metadata.
 #'
 #' Bayesian engines may generate posterior coefficient draws as part of their
 #' native fitting procedure (notably `bdlnm`). Those stored coefficient draws
@@ -186,6 +222,20 @@
 #' prediction, uncertainty, performance metrics, and ensemble behavior remain
 #' harmonized across the supported response families.
 #'
+#' @examples
+#' \dontrun{
+#' # These alternatives assume an epidemic-level design `dat` and
+#' # a matching cross-basis specification `spec` already exist:
+#' fit_epidlnm(dat, "spamm", "poisson", random_effect = "epi_id",
+#'             spatial_effect = NULL, epiexposure_spec = spec)
+#' fit_epidlnm(dat, "spamm", "poisson", spatial_effect = c("x_coord", "y_coord"),
+#'             epiexposure_spec = spec)
+#' fit_epidlnm(dat, "spamm", "poisson", random_effect = "block_id",
+#'             spatial_effect = c("x_coord", "y_coord"), epiexposure_spec = spec)
+#' fit_epidlnm(dat, "spamm", "poisson", random_effect = "block_id",
+#'             spatial_effect = c("x_coord", "y_coord"),
+#'             spatial_group = "year", epiexposure_spec = spec)
+#' }
 #' @export
 fit_epidlnm <- function(
     data,
@@ -194,6 +244,9 @@ fit_epidlnm <- function(
     random_effect = NULL,
     epiexposure_spec = NULL,
     basis_objects = NULL,
+    spatial_effect = NULL,
+    spatial_structure = "matern",
+    spatial_group = NULL,
     ...
 ) {
 
@@ -462,6 +515,7 @@ fit_epidlnm <- function(
   # embedded in engine call objects (notably `glmmTMB`), which would otherwise
   # make `summary()` print the complete design and all EpiExposure attributes.
   data_call <- substitute(data)
+  family_call <- substitute(family)
 
   if (!is.data.frame(data)) stopf("`data` must be a data.frame.")
   if (!nrow(data)) stopf("`data` must contain at least one row.")
@@ -483,6 +537,21 @@ fit_epidlnm <- function(
   )
 
   dots <- list(...)
+
+  # Resolve spaMM spatial specification without changing the legacy intercept.
+  # The shared helper is also used for the early find_bestfit() preflight.
+  spatial_spec <- .epix_validate_spatial_spec(
+    data = data,
+    model_engine = model_engine,
+    spatial_effect = spatial_effect,
+    spatial_structure = spatial_structure,
+    spatial_group = spatial_group,
+    forbidden = c("y_model", "time")
+  )
+  spatial_effect <- spatial_spec$effect
+  spatial_structure <- spatial_spec$structure
+  spatial_group <- spatial_spec$group
+  spatial_term <- spatial_spec$term
 
   family_info <- resolve_family_info(family)
   family_name <- family_info$name
@@ -608,6 +677,12 @@ fit_epidlnm <- function(
   # original data object and convert only the engine-specific fitting copy.
   fit_data <- data
   fit_random_effect <- random_effect
+
+  # Convert the field-replication index in the fit copy only. It is not
+  # interchangeable with, or a replacement for, the conventional intercept.
+  if (!is.null(spatial_group)) {
+    fit_data[[spatial_group]] <- factor(fit_data[[spatial_group]])
+  }
 
   if (!is.null(random_effect) && model_engine %in% c("gam", "gamm")) {
     fit_data[[random_effect]] <- factor(fit_data[[random_effect]])
@@ -1153,6 +1228,25 @@ fit_epidlnm <- function(
     }
   }
 
+  # The spaMM formula receives the spatial special term only when requested.
+  # The spaMM namespace is used as its lexical parent, making its formula
+  # handlers accessible without requiring users to attach library(spaMM).
+  if (!is.null(spatial_term)) {
+    if (!requireNamespace("spaMM", quietly = TRUE)) {
+      stopf("Package 'spaMM' is required for spatial-effect fitting.")
+    }
+    spaMM_formula_text <- fixed_formula_text
+    if (!is.null(random_effect)) {
+      spaMM_formula_text <- paste0(
+        spaMM_formula_text, " + (1 | ", quote_name(fit_random_effect), ")"
+      )
+    }
+    mixed_formula <- stats::as.formula(
+      paste0(spaMM_formula_text, " + ", spatial_term),
+      env = new.env(parent = asNamespace("spaMM"))
+    )
+  }
+
   # =========================================================
   # STANDARDIZED METADATA
   # =========================================================
@@ -1194,6 +1288,16 @@ fit_epidlnm <- function(
     attr(model_obj, "epiexposure_id_col") <- random_effect
     attr(model_obj, "epiexposure_random_effect_fit_col") <- fit_random_effect
     attr(model_obj, "epiexposure_random_structure") <- random_structure
+    attr(model_obj, "epiexposure_spatial_effect") <- spatial_effect
+    attr(model_obj, "epiexposure_spatial_structure") <- spatial_structure
+    attr(model_obj, "epiexposure_spatial_group") <- spatial_group
+    attr(model_obj, "epiexposure_spatial_term") <- spatial_term
+    attr(model_obj, "epiexposure_has_spatial_effect") <- !is.null(spatial_effect)
+    # Unprefixed aliases are useful for direct inspection of native fitted fits.
+    attr(model_obj, "spatial_effect") <- spatial_effect
+    attr(model_obj, "spatial_structure") <- spatial_structure
+    attr(model_obj, "spatial_group") <- spatial_group
+    attr(model_obj, "spatial_term") <- spatial_term
     attr(model_obj, "epiexposure_spec") <- epiexposure_spec
     attr(model_obj, "epiexposure_basis_objects") <- basis_meta
     attr(model_obj, "epiexposure_basis_objects_source") <- basis_objects_source
@@ -1213,17 +1317,67 @@ fit_epidlnm <- function(
   # =========================================================
 
   if (model_engine == "glm") {
-    check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
+    check_dot_conflicts(
+      dots,
+      c(
+        "formula",
+        "data",
+        "family"
+      ),
+      model_engine
+    )
+
     args <- c(
-      list(formula = fixed_formula, data = fit_data, family = engine_family),
+      list(
+        formula = fixed_formula,
+        data = fit_data,
+        family = engine_family
+      ),
       dots
     )
-    return(attach_epiexposure_meta(fit_with_context(
-      do.call(stats::glm, args),
+
+    model_obj <- fit_with_context(
+      do.call(
+        stats::glm,
+        args
+      ),
       model_engine,
       family_name,
       link_name
-    )))
+    )
+
+    # `do.call()` receives evaluated arguments and may store the complete
+    # function and family object inside the fitted call. Rebuild only the
+    # stored call used for printing and re-evaluation, preserving all other
+    # arguments passed through `...`.
+    if (!is.null(model_obj$call) &&
+        is.call(model_obj$call)) {
+
+      call_parts <- as.list(
+        model_obj$call
+      )
+
+      # Replace the embedded function definition with a compact function call.
+      call_parts[[1L]] <- quote(
+        stats::glm
+      )
+
+      # Preserve the fitted formula while displaying the original family and
+      # data expressions supplied by the user.
+      call_parts[["formula"]] <- fixed_formula
+      call_parts[["family"]] <- family_call
+      call_parts[["data"]] <- data_call
+
+      model_obj$call <- as.call(
+        call_parts
+      )
+    }
+
+    return(
+      attach_epiexposure_meta(
+        model_obj
+      )
+    )
   }
 
   # =========================================================
@@ -1290,7 +1444,12 @@ fit_epidlnm <- function(
   if (model_engine == "gamm") {
     check_dot_conflicts(
       dots,
-      c("formula", "data", "family", "random"),
+      c(
+        "formula",
+        "data",
+        "family",
+        "random"
+      ),
       model_engine
     )
 
@@ -1303,7 +1462,15 @@ fit_epidlnm <- function(
       )
     }
 
-    random_list <- stats::setNames(list(stats::as.formula("~1")), fit_random_effect)
+    random_list <- stats::setNames(
+      list(
+        stats::as.formula(
+          "~1"
+        )
+      ),
+      fit_random_effect
+    )
+
     args <- c(
       list(
         formula = fixed_formula,
@@ -1313,12 +1480,27 @@ fit_epidlnm <- function(
       ),
       dots
     )
-    return(attach_epiexposure_meta(fit_with_context(
-      do.call(mgcv::gamm, args),
+
+    model_obj <- fit_with_context(
+      do.call(
+        mgcv::gamm,
+        args
+      ),
       model_engine,
       family_name,
       link_name
-    )))
+    )
+
+    class(model_obj) <- c(
+      "epiexposure_gamm",
+      class(model_obj)
+    )
+
+    return(
+      attach_epiexposure_meta(
+        model_obj
+      )
+    )
   }
 
   # =========================================================
@@ -1344,6 +1526,7 @@ fit_epidlnm <- function(
   # =========================================================
 
   if (model_engine == "spamm") {
+    # `spatial_*` are interface arguments and must not enter `fitme()` dots.
     check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
     args <- c(
       list(formula = mixed_formula, data = fit_data, family = engine_family),

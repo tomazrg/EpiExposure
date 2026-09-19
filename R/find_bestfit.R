@@ -75,6 +75,16 @@
 #'   held-out predictions are always population-level and therefore set fitted
 #'   random effects to zero. `glm` and `gls` do not accept `random_effect`;
 #'   `gamm` requires it under the current EpiExposure v1 fitting contract.
+#' @param spatial_effect NULL (default), or two distinct numeric coordinate
+#'   column names for a Matérn term fitted by `model_engine = "spamm"` only.
+#'   Coordinates are constant within each epidemic but may be identical across
+#'   different epidemics; they never redefine the exposure-history unit.
+#' @param spatial_structure Only `"matern"` is supported (case-insensitive)
+#'   when spatial coordinates are supplied; otherwise this setting is inert.
+#' @param spatial_group NULL for one shared field or a factor, character, or
+#'   integer grouping column such as `"year"` for independent spatial fields.
+#'   Requires spatial coordinates and must be constant within each epidemic.
+#'   Spatial effects and `random_effect` are distinct and may coexist.
 #' @param min_success Positive integer of at least 2 giving the minimum number of
 #'   **groups with a finite out-of-fold prediction** required for a candidate to
 #'   be eligible for metric calculation and, when requested, full-data refitting.
@@ -125,7 +135,8 @@
 #'   not alter LOOCV fold membership and is not passed to `fit_epidlnm()`.
 #' @param ... Named additional arguments passed to `fit_epidlnm()`. Core
 #'   arguments managed by `find_bestfit()` (`data`, `model_engine`, `family`,
-#'   `random_effect`, `epiexposure_spec`, and `basis_objects`) cannot be supplied
+#'   `random_effect`, `spatial_effect`, `spatial_structure`, `spatial_group`,
+#'   `epiexposure_spec`, and `basis_objects`) cannot be supplied
 #'   again through `...`. For INLA-backed engines, likelihood availability,
 #'   `control.family$control.link$model` consistency, and
 #'   `control.compute$config = TRUE` compatibility are checked before CV.
@@ -245,6 +256,16 @@
 #' candidate variable uses exactly the same number of time points and the same
 #' temporal positions within each group.
 #'
+#' ## Optional spatial covariance
+#'
+#' Only spaMM accepts `spatial_effect = c("x_coord", "y_coord")`.
+#' This adds `Matern(1 | x_coord + y_coord)` during fitting; adding
+#' `spatial_group = "year"` uses independent Matérn field realizations.
+#' `random_effect` remains an independent conventional intercept. All spatial
+#' and conventional random effects are set to zero for CV point predictions.
+#' CV still leaves whole epidemics out; it does not automatically hold out
+#' all epidemics sharing the same random-effect or spatial-field level.
+#'
 #' ## Held-out prediction target
 #'
 #' Every successful held-out group receives one deterministic out-of-fold
@@ -288,6 +309,20 @@
 #' while all cross-validation folds belonging to one candidate remain
 #' sequential.
 #'
+#' @examples
+#' \dontrun{
+#' # Requires a long-format epidemic data frame `dat` with these columns:
+#' find_bestfit(dat, vars = "tmean", max_lag = 10, model_engine = "spamm",
+#'              family = "poisson", random_effect = "epi_id")
+#' find_bestfit(dat, vars = "tmean", max_lag = 10, model_engine = "spamm",
+#'              family = "poisson", spatial_effect = c("x_coord", "y_coord"))
+#' find_bestfit(dat, vars = "tmean", max_lag = 10, model_engine = "spamm",
+#'              family = "poisson", random_effect = "block_id",
+#'              spatial_effect = c("x_coord", "y_coord"))
+#' find_bestfit(dat, vars = "tmean", max_lag = 10, model_engine = "spamm",
+#'              family = "poisson", random_effect = "block_id",
+#'              spatial_effect = c("x_coord", "y_coord"), spatial_group = "year")
+#' }
 #' @export
 find_bestfit <- function(
     data,
@@ -306,6 +341,9 @@ find_bestfit <- function(
     model_engine = "glmmTMB",
     family = "beta",
     random_effect = NULL,
+    spatial_effect = NULL,
+    spatial_structure = "matern",
+    spatial_group = NULL,
     min_success = 2,
     rank_metric = NULL,
     threshold = 0.5,
@@ -735,6 +773,22 @@ find_bestfit <- function(
     )
   }
 
+  # Coordinate names are validated after the main data roles are known, and
+  # before any fold or candidate is constructed.
+  spatial_spec <- .epix_validate_spatial_spec(
+    data = data,
+    model_engine = model_engine,
+    spatial_effect = spatial_effect,
+    spatial_structure = spatial_structure,
+    spatial_group = spatial_group,
+    forbidden = c(response, time, vars, "y_model", "y",
+                  if (!identical(group, "epi_id")) "epi_id")
+  )
+  spatial_effect <- spatial_spec$effect
+  spatial_structure <- spatial_spec$structure
+  spatial_group <- spatial_spec$group
+  spatial_term <- spatial_spec$term
+
   if (!is.numeric(max_lag) || !length(max_lag) || anyNA(max_lag) ||
       any(!is.finite(max_lag)) || any(max_lag < 0) ||
       any(max_lag != as.integer(max_lag))) {
@@ -880,6 +934,7 @@ find_bestfit <- function(
 
     reserved_fit_args <- c(
       "data", "model_engine", "family", "random_effect",
+      "spatial_effect", "spatial_structure", "spatial_group",
       "epiexposure_spec", "basis_objects"
     )
     duplicated_fit_args <- intersect(dot_names, reserved_fit_args)
@@ -1124,6 +1179,14 @@ find_bestfit <- function(
       )
     }
   }
+
+  # Check the entire original data once, before creating CV folds/candidates.
+  # Keep epidemic histories separate even when coordinate pairs are repeated.
+  .epix_validate_spatial_constancy(
+    data = data_long,
+    spatial_effect = spatial_effect,
+    spatial_group = spatial_group
+  )
 
   # --------------------------------------------------------------------------
   # Ranking metric contract
@@ -1699,6 +1762,41 @@ find_bestfit <- function(
     basis_objects
   }
 
+  .attach_spatial_metadata <- function(design, source_data) {
+    if (is.null(spatial_effect)) return(design)
+
+    metadata_columns <- unique(c("epi_id", spatial_effect, spatial_group))
+    missing <- setdiff(metadata_columns, names(source_data))
+    if (length(missing)) {
+      stop("Spatial metadata missing from candidate data: ",
+           paste(missing, collapse = ", "), ".", call. = FALSE)
+    }
+
+    # Validate each metadata column independently and report the precise id.
+    for (column in setdiff(metadata_columns, "epi_id")) {
+      unique_pairs <- unique(source_data[, c("epi_id", column), drop = FALSE])
+      bad <- duplicated(as.character(unique_pairs$epi_id))
+      if (any(bad)) {
+        stop("Spatial metadata column '", column,
+             "' is not constant within epi_id '",
+             as.character(unique_pairs$epi_id[which(bad)[1L]]), "'.",
+             call. = FALSE)
+      }
+    }
+
+    metadata_rows <- unique(source_data[, metadata_columns, drop = FALSE])
+    index <- match(as.character(design$epi_id),
+                   as.character(metadata_rows$epi_id))
+    if (anyNA(index) || anyDuplicated(as.character(metadata_rows$epi_id))) {
+      stop("Could not uniquely align spatial metadata with epidemic-level design rows.",
+           call. = FALSE)
+    }
+    for (column in setdiff(metadata_columns, "epi_id")) {
+      design[[column]] <- metadata_rows[[column]][index]
+    }
+    design
+  }
+
   .attach_random_effect_metadata <- function(design, source_data) {
     if (is.null(random_effect)) {
       return(design)
@@ -1775,6 +1873,10 @@ find_bestfit <- function(
       design = design,
       source_data = input_data
     )
+    design <- .attach_spatial_metadata(
+      design = design,
+      source_data = input_data
+    )
 
     fit_basis_objects <- .build_bdlnm_basis_objects(
       input_data = input_data,
@@ -1796,6 +1898,12 @@ find_bestfit <- function(
       )
     }
 
+    if (!is.null(spatial_effect) &&
+        !all(c(spatial_effect, spatial_group) %in% names(prepared))) {
+      stop("`prepare_response()` removed required spatial fitting columns.",
+           call. = FALSE)
+    }
+
     list(
       templates = template_info$templates,
       basis_objects = fit_basis_objects,
@@ -1814,6 +1922,9 @@ find_bestfit <- function(
         model_engine = model_engine,
         family = family,
         random_effect = random_effect,
+        spatial_effect = spatial_effect,
+        spatial_structure = if (is.null(spatial_effect)) "matern" else spatial_structure,
+        spatial_group = spatial_group,
         epiexposure_spec = candidate$spec,
         basis_objects = candidate$basis_objects
       ),
@@ -2479,12 +2590,21 @@ find_bestfit <- function(
               design = test_design,
               source_data = test_data
             )
+            test_design <- .attach_spatial_metadata(
+              design = test_design,
+              source_data = test_data
+            )
 
             prepared_test <- prepare_response(
               data = test_design,
               y_var = "y",
               family = family_name
             )
+
+            if (!is.null(spatial_effect) &&
+                !all(c(spatial_effect, spatial_group) %in% names(prepared_test))) {
+              stop("`prepare_response()` removed spatial columns from test design.")
+            }
 
             if (!is.data.frame(prepared_test) ||
                 nrow(prepared_test) != length(test_groups) ||
@@ -2509,9 +2629,9 @@ find_bestfit <- function(
               )
             }
 
-            # CV ranking is based on the harmonized central expected response,
-            # population/fixed component only. Coefficient/posterior uncertainty
-            # and group-specific random effects are excluded.
+            # CV ranking uses only the central population/fixed component.
+            # Coefficient/posterior uncertainty, conventional random effects,
+            # and spatially autocorrelated effects are all excluded.
             prediction <- .predict_point_population(
               fit = fitted_model,
               newdata = prepared_test,
@@ -3470,6 +3590,11 @@ find_bestfit <- function(
   attr(results_data, "prediction_level") <- "population"
   attr(results_data, "prediction_estimand") <- "expected_response"
   attr(results_data, "prediction_contract") <- "central_expected_response"
+  attr(results_data, "spatial_effect") <- spatial_effect
+  attr(results_data, "spatial_structure") <- spatial_structure
+  attr(results_data, "spatial_group") <- spatial_group
+  attr(results_data, "spatial_term") <- spatial_term
+  attr(results_data, "has_spatial_effect") <- !is.null(spatial_effect)
   attr(results_data, "cv_method") <- cv_method
   attr(results_data, "cv_scheme") <- cv_scheme
   attr(results_data, "k") <- effective_k

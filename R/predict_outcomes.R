@@ -32,11 +32,15 @@
 #' @param newdata Optional long-format data frame containing new observed
 #'   exposure histories. Supply either `newdata` or `profiles`, but not both.
 #'   The response variable is not required and, if present, is not used for
-#'   prediction. All fitted exposure variables must be present.
+#'   prediction. All fitted exposure variables must be present. spaMM spatial
+#'   coordinates and grouping factors are not required for fixed-component
+#'   prediction; the same applies to `profiles`.
 #' @param group Character scalar naming the column that identifies independent
 #'   exposure histories in `newdata`, or `NULL` to treat all rows as one
 #'   history. This argument is used only to split the longitudinal prediction
-#'   data. It does not request a group-specific random-effect prediction.
+#'   data. It does not request group-specific random-effect or conditional
+#'   spaMM spatial predictions. Coordinates and spatial-group variables are
+#'   not required for population-level prediction.
 #' @param time Character scalar naming the chronological numeric time column in
 #'   `newdata`. Within each prediction group, times must be unique, complete,
 #'   and equally spaced because one DLNM lag must represent the same time
@@ -85,9 +89,13 @@
 #' ## Prediction estimand
 #'
 #' EpiExposure v1 defines prediction as the population-level expected response.
-#' Models may be fitted with a random intercept, but fitted group-specific
-#' random effects are excluded from all predictions. In mixed-model notation,
-#' the prediction target is based on
+#' Models may be fitted with conventional random intercepts and, for spaMM,
+#' spatially autocorrelated Matérn random effects. All non-fixed effects are
+#' excluded from predictions. This includes `(1 | epi_id)`, `(1 | block_id)`,
+#' `Matern(1 | x_coord + y_coord)`, and independent field realizations such as
+#' `Matern(1 | x_coord + y_coord %in% year)`; they are fitted but contribute
+#' zero to the default prediction. In mixed-model notation, the prediction
+#' target is based on
 #'
 #' \deqn{\eta = X\beta}
 #'
@@ -95,10 +103,10 @@
 #'
 #' \deqn{\eta = X\beta + b_i.}
 #'
-#' Here, "population-level" means that fitted random effects are set to zero or
-#' excluded from the prediction component. It does not mean integration over
-#' the random-effect distribution. For nonlinear links, these quantities need
-#' not be identical.
+#' Here, "population-level" means that conventional and spatial random
+#' effects are set to zero or excluded from the prediction component. It does
+#' not mean integration over their distributions. For nonlinear links, the
+#' resulting expected response need not equal a marginally integrated mean.
 #'
 #' With `type = "response"`, the deterministic prediction is
 #'
@@ -124,8 +132,8 @@
 #' For frequentist engines, fixed-effect draws are obtained from the estimated
 #' joint coefficient covariance matrix. For Bayesian engines, posterior or
 #' approximate-posterior fixed-effect draws are used. Group-specific
-#' random-effect uncertainty is not propagated because all predictions are
-#' population-level.
+#' random-effect or spatial-field uncertainty is not propagated because
+#' predictions depend exclusively on fixed/population parameters.
 #'
 #' The uncertainty distribution therefore describes uncertainty in the expected
 #' response. It does not simulate a new observed outcome and does not add
@@ -142,7 +150,12 @@
 #' This is the same train-to-test principle used for out-of-fold prediction in
 #' `find_bestfit()`: the fitted/training basis defines the transformation and
 #' the new or held-out exposure history is only projected through that stored
-#' basis.
+#' basis. spaMM models with Matérn terms do not require coordinates, spatial
+#' groups, or levels of conventional random effects in prediction `newdata` or
+#' `profiles`: these variables do not enter the fixed-component prediction.
+#' For spatial spaMM models the internal point-prediction helper computes
+#' `X %*% beta` directly; uncertainty draws likewise use only fixed-effect
+#' coefficients, with no simulated spatial fields or new observations.
 #'
 #' ## Multiple explicit profiles
 #'

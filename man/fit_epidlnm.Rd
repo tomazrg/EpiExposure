@@ -11,6 +11,9 @@ fit_epidlnm(
   random_effect = NULL,
   epiexposure_spec = NULL,
   basis_objects = NULL,
+  spatial_effect = NULL,
+  spatial_structure = "matern",
+  spatial_group = NULL,
   ...
 )
 }
@@ -64,6 +67,23 @@ fixed formula contains no other smooth/random term.}
 objects. It is required for `model_engine = "bdlnm"`. When supplied for
 other engines, its names must match the fitted exposure variables.}
 
+\item{spatial_effect}{NULL (default) or two distinct names of numeric,
+finite coordinate columns in the epidemic-level design. Only
+`model_engine = "spamm"` supports spatial autocorrelation. Coordinates may
+repeat across different epidemics; at least two distinct pairs are needed.}
+
+\item{spatial_structure}{Spatial correlation structure; currently only
+`"matern"` (case-insensitive) when `spatial_effect` is supplied. This
+argument does not change non-spatial fits.}
+
+\item{spatial_group}{NULL for one shared spatial field, or the name of one
+grouping column (e.g., `"year"`) for independent Matérn realizations with
+shared correlation parameters. Requires `spatial_effect`; the source column
+may be factor, character, or integer and is converted in a local fit copy.
+`random_effect` remains a separate, conventional random intercept and both
+effects can be fitted together. Coordinates and spatial groups are not used
+as epidemic-history identifiers.}
+
 \item{...}{Named additional arguments passed to the selected engine. Core
 arguments managed by EpiExposure (`formula`/`model`, `data`, `family`, and
 the engine-specific random-effect argument) cannot be supplied again in
@@ -79,7 +99,9 @@ A fitted model object with a strict metadata contract. The following
   `epiexposure_cb_cols`, `epiexposure_vars`,
   `epiexposure_data_template`, `epiexposure_id_col`, `epiexposure_spec`, and
   `epiexposure_basis_objects`. Additional attributes record the standardized
-  family parameterization, random-intercept structure, common fitted
+  family parameterization, random-intercept structure, spatial specification
+  (`epiexposure_spatial_effect`, `epiexposure_spatial_structure`,
+  `epiexposure_spatial_group`, and `epiexposure_spatial_term`), common fitted
   `max_lag`, expected history length (`max_lag + 1`), the exact-history
   contract, and the EpiExposure v1 prediction contract.
 }
@@ -111,6 +133,18 @@ non-`NULL` `random_effect`. The `mgcv::gamm()` implementation uses the
 engine's native `random` argument rather than lme4-style syntax. Because
 `gamm()` uses PQL for non-Gaussian responses and is specifically known to be
 problematic for binary data, a warning is issued for the binomial family.
+
+## Spatial covariance (spaMM only)
+
+Spatial terms are explicitly distinct from `random_effect`: the former
+model correlated Matérn fields, whereas the latter is an ordinary intercept.
+`spatial_effect = c("x_coord", "y_coord")` adds
+`Matern(1 | x_coord + y_coord)`; adding `spatial_group = "year"` instead
+uses `Matern(1 | x_coord + y_coord %in% year)`. `spatial_effect = NULL`
+leaves every pre-existing engine and random-intercept fit unchanged.
+Coordinates and spatial grouping affect estimation, but not EpiExposure's
+default fixed-component prediction, which sets all non-fixed contributions
+to zero rather than integrating them over their distributions.
 
 ## Families and links
 
@@ -148,6 +182,11 @@ When needed, `method = "REML"` is supplied by default to satisfy the
 supported fitting route; an explicitly supplied incompatible method is
 rejected. A GAM random intercept also defaults to REML unless the user
 explicitly selects another method.
+
+For `model_engine = "gamm"`, the returned object contains the native
+`gam` and `lme` components and inherits from `"epiexposure_gamm"`.
+Calling `summary()` returns the fixed/population GAM summary by default;
+use `component = "lme"` or `"both"` to inspect the mixed-model component.
 
 ## Response-scale validation
 
@@ -193,12 +232,15 @@ when requested here, but group-specific random effects are not included in
 downstream predictions. This function itself only fits the model and does
 not create outcome predictions or uncertainty summaries.
 
-For `glmmTMB`, the model is fitted with the fully evaluated EpiExposure
-design, but the stored model call is compacted after fitting so that the
-original `data` expression is displayed instead of printing the complete
-evaluated data.frame and its EpiExposure attributes. This affects only the
-stored call used for display/re-evaluation; it does not alter the fitted
-coefficients, likelihood, covariance matrix, predictions, or metadata.
+For `glm` and `glmmTMB`, models are fitted with the fully evaluated
+EpiExposure design, but their stored calls are compacted after fitting.
+The original `data` expression is retained for display instead of the
+complete evaluated data frame and its EpiExposure attributes. For `glm`,
+the stored function and family expressions are also compacted to prevent
+`summary()` from printing the evaluated function definition and complete
+family object. These changes affect only the stored calls used for display
+and re-evaluation; they do not alter fitted coefficients, likelihoods,
+covariance matrices, predictions, or EpiExposure metadata.
 
 Bayesian engines may generate posterior coefficient draws as part of their
 native fitting procedure (notably `bdlnm`). Those stored coefficient draws
@@ -208,4 +250,19 @@ propagation; they are not used here as a single deterministic prediction.
 Ordinal outcomes are deliberately excluded from EpiExposure v1 so fitting,
 prediction, uncertainty, performance metrics, and ensemble behavior remain
 harmonized across the supported response families.
+}
+\examples{
+\dontrun{
+# These alternatives assume an epidemic-level design `dat` and
+# a matching cross-basis specification `spec` already exist:
+fit_epidlnm(dat, "spamm", "poisson", random_effect = "epi_id",
+            spatial_effect = NULL, epiexposure_spec = spec)
+fit_epidlnm(dat, "spamm", "poisson", spatial_effect = c("x_coord", "y_coord"),
+            epiexposure_spec = spec)
+fit_epidlnm(dat, "spamm", "poisson", random_effect = "block_id",
+            spatial_effect = c("x_coord", "y_coord"), epiexposure_spec = spec)
+fit_epidlnm(dat, "spamm", "poisson", random_effect = "block_id",
+            spatial_effect = c("x_coord", "y_coord"),
+            spatial_group = "year", epiexposure_spec = spec)
+}
 }

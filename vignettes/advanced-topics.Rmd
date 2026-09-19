@@ -31,47 +31,52 @@ recommendations for robust DLNM analyses.
 
 # Alternative model engines
 
-EpiExposure separates exposure-lag specification from model estimation.
+`EpiExposure` separates exposure-lag specification from model
+estimation.
 
 Consequently, the same DLNM structure can be fitted using different
 regression engines.
 
-## glmmTMB
+# Supported families by modeling engine
 
-glmmTMB is the default engine and is recommended for most analyses.
+The modeling engines available in `fit_epidlnm()` and `find_bestfit()`
+differ in the response families exposed through the `EpiExposure`
+interface. The table below summarizes the current `EpiExposure` support.
+It describes the package interface rather than every family accepted
+natively by the underlying modeling packages.
 
-Advantages:
+| Engine    | Beta | Binomial       | Poisson | Gamma | Gaussian | Negative binomial |
+|:----------|:----:|:---------------|:-------:|:-----:|:--------:|:-----------------:|
+| `glm`     |  No  | Yes            |   Yes   |  Yes  |   Yes    |        No         |
+| `glmmTMB` | Yes  | Yes            |   Yes   |  Yes  |   Yes    |     Yes, NB2      |
+| `gam`     | Yes  | Yes            |   Yes   |  Yes  |   Yes    |     Yes, NB2      |
+| `gamm`    |  No  | Yes            |   Yes   |  Yes  |   Yes    |        No         |
+| `gls`     |  No  | No             |   No    |  No   |   Yes    |        No         |
+| `spaMM`   | Yes  | Yes            |   Yes   |  Yes  |   Yes    |     Yes, NB2      |
+| `brms`    | Yes  | Yes, Bernoulli |   Yes   |  Yes  |   Yes    |     Yes, NB2      |
+| `INLA`    | Yes  | Yes            |   Yes   |  Yes  |   Yes    |     Yes, NB2      |
+| `bdlnm`   | Yes  | Yes            |   Yes   |  Yes  |   Yes    |     Yes, NB2      |
 
-- fast estimation;
-- mixed-effects support;
-- beta models;
-- negative binomial models;
-- good numerical stability.
+**Note:** Negative-binomial support refers to the quadratic-variance NB2
+parameterization. The table describes the families currently exposed
+through the `EpiExposure` interface, not every family that may be
+available natively in the underlying modeling packages. For INLA-backed
+engines, availability also depends on the likelihoods provided by the
+installed INLA version.
 
-```{r, message=FALSE, warning=FALSE}
+Because family specification follows the same `fit_epidlnm()` interface
+across engines, the sections below do not repeat every supported
+engine-family combination. Instead, each example highlights a capability
+that differs meaningfully across engines, such as conventional random
+effects, spatial autocorrelation, or Bayesian inference.
 
-library(EpiExposure)
-library(dplyr)
-library(ggplot2)
+# Reference DLNM design
 
-```
+The examples below use the same cross-basis specification whenever
+possible. This allows the modeling engines to be compared without
+repeatedly rebuilding the exposure-lag design.
 
-```{r}
-
-data("epi_data")
-
-epi_data
-
-```
-```{r}
-epi_data = readxl::read_xlsx("nb2_data.xlsx")
-epi_data = readxl::read_xlsx("binomial_data.xlsx")
-epi_data = readxl::read_xlsx("poisson_data.xlsx")
-epi_data = readxl::read_xlsx("gamma_data.xlsx")
-epi_data = readxl::read_xlsx("gaussian_data.xlsx")
-```
-
-```{r}
+```{r reference-design}
 cb <- define_exposures(
   data = epi_data,
   vars = c(
@@ -87,424 +92,376 @@ cb <- define_exposures(
 dat <- build_design(
   data = epi_data,
   cb_templates = cb,
-  max_lag = 85,
-  groups = c("epi_id", "block")
+  groups = c(
+    "epi_id",
+    "block"
+  )
 )
 
-dat <- prepare_response(
+
+```
+
+```{r}
+dat_poisson <- prepare_response(
   data = dat,
   response = "y",
-  family = "gaussian"
+  family = "poisson"
+)
+```
+
+## Fixed-effect reference model
+
+A generalized linear model provides the simplest fixed-effect
+specification. It is useful as a reference when random or spatial
+dependence is not required.
+
+```{r glm-reference}
+fit_glm <- fit_epidlnm(
+  data = dat,
+  model_engine = "glm",
+  family = "poisson",
+  epiexposure_spec = attr(
+    cb,
+    "spec"
+  )
 )
 
-fit <- fit_epidlnm(
+summary(fit_glm)
+```
+
+## Conventional random effects
+
+When epidemics are grouped within experimental blocks, observations from
+the same block may share unmeasured conditions. A random intercept can
+account for this hierarchical dependence.
+
+```{r glmm-random-intercept}
+fit_glmm <- fit_epidlnm(
   data = dat,
   model_engine = "glmmTMB",
-  family = "gaussian",
+  family = "poisson",
   random_effect = "block",
-  epiexposure_spec = attr(cb, "spec")
+  epiexposure_spec = attr(
+    cb,
+    "spec"
+  )
 )
 
-summary(fit)
+summary(fit_glmm)
 ```
 
-```{r, echo=TRUE, eval=FALSE}
-fit_glmmTMB <- fit_epidlnm(
-  data = dat,
-  model_engine = "glTMB",
-  family = "gamma",
-  epiexposure_spec = attr(cb,"spec")
-)
+The term generated internally is equivalent to:
 
-summary(fit_glmmTMB)
-```
+`(1 | block)`
 
-## GAM models
+This effect represents discrete group-level heterogeneity. It does not
+model spatial correlation as a function of distance.
 
-Generalized Additive Models (GAMs) can also be used for estimation.
+## GAM estimation
 
-When DLNM predictors are fitted within a GAM framework, the DLNM basis
-functions should be interpreted as the exposure-lag representation,
-while GAM smoothing primarily acts as a penalization mechanism.
+The `gam` engine can fit the DLNM design with `mgcv`. Beta and
+negative-binomial models use `mgcv` extended families and are fitted
+through the supported REML route by default.
 
-```{r, echo=TRUE, eval=FALSE}
+```{r gam-nb2, eval=FALSE}
 fit_gam <- fit_epidlnm(
-  data = dat,
+  data = dat_nb2,
   model_engine = "gam",
-  family = "gamma",
-  epiexposure_spec = attr(cb,"spec")
+  family = "negative_binomial",
+  epiexposure_spec = attr(
+    cb_nb2,
+    "spec"
+  )
 )
 
 summary(fit_gam)
 ```
 
-# Bayesian models
+## GAMM estimation
 
-## brms
+The `gamm` engine combines the fixed DLNM design with a conventional
+random intercept. In the current EpiExposure interface, `random_effect`
+is required.
 
-The brms engine provides fully Bayesian estimation.
-
-Advantages include:
-
-- posterior distributions;
-- hierarchical structures;
-- uncertainty propagation;
-- probabilistic inference.
-
-```{r, echo=TRUE, eval=FALSE}
-fit_brms <- fit_epidlnm(
+```{r gamm-example, eval=FALSE}
+fit_gamm <- fit_epidlnm(
   data = dat,
-  model_engine = "brms",
-  family = "beta",
-  epiexposure_spec = attr(cb, "spec"))
-
-pkgbuild::check_build_tools(debug = TRUE)
-
-library(rstan)
-
-example(stan_model,package = "rstan",run.dontrun = TRUE)
-
-
-.rs.restartR()
-
-library(rstan)
-
-packageVersion("rstan")
-packageVersion("StanHeaders")
-
-model_test <- stan_model(
-  model_code = "
-    data {
-      real y_mean;
-    }
-    parameters {
-      real y;
-    }
-    model {
-      y ~ normal(y_mean, 1);
-    }
-  "
-)
-
-fit_brms <- fit_epidlnm(
-  data = dat,
-  model_engine = "brms",
-  family = "gamma",
-  epiexposure_spec = attr(cb, "spec"),
-  backend = "cmdstanr",
-  chains = 1,
-  iter = 1000,
-  warmup = 500,
-  seed = 123,
-  refresh = 100
+  model_engine = "gamm",
+  family = "poisson",
+  random_effect = "block",
+  epiexposure_spec = attr(
+    cb,
+    "spec"
+  )
 )
 ```
 
-## INLA
+The fitted object contains two native components:
 
-INLA provides approximate Bayesian inference with substantially lower
-computational costs than MCMC approaches.
+```{r gamm-summary, eval=FALSE}
+summary(fit_gamm)
 
-For large exposure-lag datasets, INLA often offers an attractive
-compromise between speed and Bayesian inference.
-
-```{r, echo=TRUE, eval=FALSE}
-fit_inla <- fit_epidlnm(
-  data = dat,
-  model_engine = "inla",
-  family = "gamma",
-  epiexposure_spec = attr(cb, "spec"))
-
-summary(fit_inla)
+summary(
+  fit_gamm,
+  component = "lme"
+)
 ```
 
-# Uncertainty propagation
+The default summary describes the fixed/population GAM component. The
+`component = "lme"` option displays the mixed-model component.
 
-Every DLNM estimate contains uncertainty.
+For non-Gaussian responses, `mgcv::gamm()` uses a PQL-based fitting
+route. Binary responses should therefore be treated cautiously.
 
-Ignoring uncertainty can lead to overconfident epidemiological
-conclusions.
+## Spatially autocorrelated effects with `spaMM`
 
-`EpiExposure` allows uncertainty to be propagated throughout effect
-estimation, prediction, simulation, and loss calculations.
+Consider a regional study of a foliar rice disease conducted at
+spatially distributed field locations. Daily mean temperature, leaf
+wetness duration, and rainfall are recorded during the 86 days preceding
+the final assessment. The outcome is the final number of lesions per
+plant.
 
-# Summary versus samples
+The cross-basis terms estimate nonlinear and delayed weather effects. A
+Matérn random effect accounts for residual geographic similarity among
+nearby fields after those measured weather effects have been considered.
 
-Most functions allow:
+```{r spatial-design, eval=FALSE}
+dat_spatial <- build_design(
+  data = spatial_data,
+  cb_templates = cb_spatial,
+  groups = c(
+    "epi_id",
+    "x_coord",
+    "y_coord"
+  )
+)
 
+dat_spatial <- prepare_response(
+  data = dat_spatial,
+  response = "y",
+  family = "poisson"
+)
+```
 
-`output = "summary"`
+```{r spamm-shared-field, eval=FALSE}
+fit_spatial <- fit_epidlnm(
+  data = dat_spatial,
+  model_engine = "spamm",
+  family = "poisson",
+  random_effect = NULL,
+  spatial_effect = c(
+    "x_coord",
+    "y_coord"
+  ),
+  spatial_structure = "matern",
+  spatial_group = NULL,
+  epiexposure_spec = attr(
+    cb_spatial,
+    "spec"
+  )
+)
 
+summary(fit_spatial)
+```
 
-or
+This specification generates:
 
-`output = "samples"`
+`Matern(1 | x_coord + y_coord)`
 
+The Matérn term is distinct from a conventional random intercept. It
+represents autocorrelation that changes continuously with the distance
+between locations.
 
-## Summary output
+### Independent spatial fields by year
 
-```{r, echo=TRUE, eval=FALSE}
-epi_l <- summarise_effects(
-  fit = fit,
+If the disease process is expected to have a different spatial
+realization in each growing season, `year` can define independent Matérn
+fields:
+
+```{r spamm-field-by-year, eval=FALSE}
+fit_spatial_year <- fit_epidlnm(
+  data = dat_spatial_year,
+  model_engine = "spamm",
+  family = "poisson",
+  random_effect = "block_id",
+  spatial_effect = c(
+    "x_coord",
+    "y_coord"
+  ),
+  spatial_structure = "matern",
+  spatial_group = "year",
+  epiexposure_spec = attr(
+    cb_spatial,
+    "spec"
+  )
+)
+```
+
+The resulting spatial term is:
+
+`Matern(1 | x_coord + y_coord %in% year)`
+
+In this model, `(1 | block_id)` represents conventional experimental
+heterogeneity, whereas the Matérn term represents spatially
+autocorrelated residual variation within each year.
+
+## Gaussian generalized least squares
+
+The `gls` engine is restricted to Gaussian outcomes with the identity
+link and does not support the EpiExposure random-intercept interface.
+
+```{r gls-example, eval=FALSE}
+fit_gls <- fit_epidlnm(
+  data = dat_gaussian,
+  model_engine = "gls",
+  family = "gaussian",
+  epiexposure_spec = attr(
+    cb_gaussian,
+    "spec"
+  )
+)
+
+summary(fit_gls)
+```
+
+## MCMC estimation with `brms`
+
+The `brms` engine provides posterior sampling for the fixed DLNM
+coefficients and any requested hierarchical components.
+
+```{r brms-example, eval=FALSE}
+fit_brms <- fit_epidlnm(
+  data = dat,
+  model_engine = "brms",
+  family = "poisson",
+  random_effect = "block",
+  epiexposure_spec = attr(
+    cb,
+    "spec"
+  ),
+  chains = 4,
+  iter = 2000,
+  seed = 123
+)
+
+summary(fit_brms)
+```
+
+## Bayesian DLNM with `bdlnm`
+
+The `bdlnm` engine provides a Bayesian implementation specifically
+designed for distributed lag linear and nonlinear models. Internally,
+the native `bdlnm` package fits the model using Integrated Nested
+Laplace Approximation through `INLA::inla()` and then draws samples from
+the approximate posterior distribution using
+`INLA::inla.posterior.sample()`. 【1-fe3db1】
+
+Unlike the direct `inla` engine, which receives the epidemic-level
+`cb_*` columns as conventional fixed predictors, the `bdlnm` engine
+receives the original named `crossbasis` objects in the model formula.
+The fitted object stores the underlying INLA model, the basis objects,
+posterior coefficient draws, and summaries of those draws. 【1-fe3db1】
+
+In `EpiExposure`, this engine is integrated into the same prediction and
+uncertainty contract used by the other engines. Posterior fixed-effect
+draws are retained for draw-by-draw propagation through
+`summarise_effects()`, `predict_outcomes()`, and other downstream
+functions.
+
+```{r bdlnm-design, eval=FALSE}
+cb_bdlnm <- define_exposures(
   data = epi_data,
-  uncertainty = TRUE,
-  output = "summary",
-  effect_measure = "percent"
-)
-
-plot_effects(
-  data = epi_l,
-  scale = "lag",
-  metric = "effect",
   vars = c(
     "tmean",
     "rain",
     "wetness"
+  ),
+  max_lag = 85,
+  df_var = 3,
+  df_lag = 2
+)
+
+dat_bdlnm <- build_design(
+  data = epi_data,
+  cb_templates = cb_bdlnm,
+  groups = c(
+    "epi_id",
+    "block"
   )
 )
 
+basis_bdlnm <- attr(
+  dat_bdlnm,
+  "epiexposure_basis_objects",
+  exact = TRUE
+)
 
-INLA::inla.doc("beta")
-```
-
-This returns:
-
-• estimate; • lower interval; • upper interval.
-
-## Sample output
-
-```{r, echo=TRUE, eval=FALSE}
-epi_l_samples <- summarise_effects(
-  fit = fit_inla,
-  data = epi_data,
-  uncertainty = TRUE,
-  n_samples = 100,
-  output = "samples"
+dat_bdlnm <- prepare_response(
+  data = dat_bdlnm,
+  response = "y",
+  family = "poisson"
 )
 ```
 
-This return individual uncertainty realizations
+The model can then be fitted through the harmonized `EpiExposure`
+interface:
 
-These samples may subsequently be used for:
-
-• sensitivity analysis; • scenario simulations; • custom uncertainty
-visualization.
-
-# Uncertainty in predictions
-
-```{r, echo=TRUE, eval=FALSE}
-pred <- predict_outcome(
-  fit = fit,
-  profiles = scenario,
-  uncertainty = TRUE,
-  n_samples = 100,
-  output = "samples"
-)
-```
-
-Visualizing uncertainty:
-
-```{r, echo=TRUE, eval=FALSE}
-ggplot(
-  pred,
-  aes(prediction)
-) +
-  geom_histogram(
-    bins = 20
-  ) +
-  theme_bw()
-```
-
-# Identifiability diagnostics
-
-Large lag dimensions and complex spline structures may occasionally
-produce unstable estimates.
-
-The `check_identifiability()` function evaluates whether the selected
-DLNM specification is likely to generate numerical problems.
-
-Example:
-
-```{r, echo=TRUE, eval=FALSE}
-check_identifiability(
-  data = epi_data,
-
-  var = c(
-    "tmean",
-    "rain",
-    "wetness"
+```{r bdlnm-fit, eval=FALSE}
+fit_bdlnm <- fit_epidlnm(
+  data = dat_bdlnm,
+  model_engine = "bdlnm",
+  family = "poisson",
+  random_effect = "block",
+  epiexposure_spec = attr(
+    cb_bdlnm,
+    "spec"
   ),
-
-  df_var = 3,
-  df_lag = 2,
-
-  max_lag = 85
+  basis_objects = basis_bdlnm,
+  sample.arg = list(
+    n = 1000,
+    seed = 123
+  )
 )
+
+summary(fit_bdlnm)
 ```
 
-# Why identifiability matters
-
-Poor identifiability can arise from:
-
-• highly correlated exposures; • excessive spline flexibility; •
-insufficient sample size; • extremely long lag periods.
-
-Symptoms include:
-
-• non-convergence; • inflated confidence intervals; • unstable
-predictions;
-
-# Choosing lag duration
-
-The lag duration should be guided by biological knowledge whenever
-possible.
-
-Excessively short lags may exclude relevant exposure information.
-
-Excessively long lags may introduce noise and reduce numerical
-stability.
-
-Recommended strategy:
-
-Known latent period ↓ Known incubation period ↓ Known epidemic duration
-↓ Maximum lag
-
-# Choosing spline complexity
-
-Spline complexity determines the flexibility of exposure-response and
-lag-response functions.
-
-Typical starting point:
-
-```{r, echo=TRUE, eval=FALSE}
-df_var = 3
-df_lag = 2
-```
-
-Higher flexibility:
-
-```{r, echo=TRUE, eval=FALSE}
-df_var = 4
-df_lag = 4
-```
-
-Lower flexibility:
-
-```{r, echo=TRUE, eval=FALSE}
-df_var = 2
-df_lag = 2
-```
-
-# Practical recommendations
-
-Small datasets:
-
-- use lower spline complexity.
-
-Large datasets:
-
-- greater flexibility may be appropriate.
-
-Always evaluate predictive performance rather than relying only on model
-fit.
-
-# Computational performance
-
-Model fitting time increases as:
-
-- sample size increases;
-- maximum lag increases;
-- spline complexity increases;
-- uncertainty sampling increases.
-
-Example:
-
-Low complexity ↓ faster estimation
-
-High complexity ↓ slower estimation ↓ greater overfitting risk
-
-# Common warnings
-
-## Knot-placement warning
-
-Predictors with many repeated observations or highly skewed
-distributions may produce knot-placement warnings.
-
-`EpiExposure` automatically adjusts knot placement whenever possible.
-
-Typical warning:
-
-```{r, echo=TRUE, eval=FALSE}
-splines::ns()
-```
-
-This warning does not necessarily indicate model failure.
-
-## Convergence warnings
-
-Convergence warnings usually indicate:
-
-- excessive complexity;
-- insufficient observations;
-- identifiability issues.
-
-Possible solutions:
-
-Reduce df_var Reduce df_lag Reduce max_lag Increase sample size
-
-# Reproducibility
-
-For reproducible analyses:
-
-- store the exposure specification;
-- store fitted models;
-- set random seeds;
-- report spline settings;
-- report lag duration.
-
-Example:
-
-```{r, echo=TRUE, eval=FALSE}
-set.seed(123) # verificar se nao seria o "seed" usado nas funcoes ao inves de "set.seed(123")
-```
-
-# Best practices
-
-Recommended workflow:
-
-1.  Begin with simple specifications
-
-df_var = 3 df_lag = 2
-
-2.  Evaluate identifiability
-
-check_identifiability()
-
-3.  Compare alternative structures
-
-find_bestfit()
-
-4.  Quantify uncertainty
-
-uncertainty = TRUE
-
-5.  Perform simulation analyses
-
-simulate_scenarios()
-
-6.  Report predictive validation metrics
-
-# Summary
-
-This section introduced advanced `EpiExposure` topics, including:
-
-- alternative estimation engines;
-- Bayesian inference;
-- uncertainty propagation;
-- identifiability diagnostics;
-- spline selection;
-- computational optimization.
-
-Together, these tools provide the flexibility required for rigorous
-exposure-lag-response analyses in both research and forecasting
-applications.
+The `random_effect = "block"` argument is translated internally to an
+independent latent effect of the form:
+
+`f(block, model = "iid")`
+
+The `sample.arg` list controls posterior coefficient sampling performed
+by the native `bdlnm` engine. A nonzero seed provides reproducible
+posterior sampling. The native package uses 1,000 posterior samples by
+default, although the number of samples can be changed according to the
+required precision and available computational resources. 【1-fe3db1】
+
+For deterministic `EpiExposure` predictions, posterior means of the
+fixed/population coefficients define the central expected response. When
+uncertainty is requested, the stored joint posterior coefficient draws
+are propagated through the inverse link one draw at a time:
+
+$$\mu^{(s)} = g^{-1}\left(X\beta^{(s)}\right).
+$$$$\mu^{(s)} = g^{-1}\left(X\beta^{(s)}\right).$$
+
+The resulting intervals describe uncertainty in the population-level
+expected response. They do not include observation-level noise or
+group-specific random effects.
+
+### Direct INLA versus B-DLNM
+
+Both engines rely on INLA for approximate Bayesian inference, but they
+enter the `EpiExposure`workflow differently.
+
+- `model_engine = "inla"` fits the epidemic-level `cb_*` columns
+  directly as fixed predictors through `INLA::inla()`.
+- `model_engine = "bdlnm"` passes named `crossbasis` objects to the
+  native `bdlnm` interface, which fits the underlying INLA model and
+  stores posterior coefficient samples together with the fitted basis
+  objects.
+
+The direct INLA engine is useful when a conventional INLA representation
+of the epidemic-level design is desired. The B-DLNM engine is useful
+when the analysis should retain the native Bayesian DLNM representation
+and its posterior coefficient-sampling workflow.
