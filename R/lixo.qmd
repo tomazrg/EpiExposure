@@ -3112,6 +3112,8 @@ writexl::write_xlsx(sim_data_gaussian,"gaussian_data.xlsx")
 
 ## spaMM dataset
 
+### Ano dependente
+
 ```{r}
 set.seed(20260918)
 
@@ -3352,6 +3354,2210 @@ plot(
 )
 
 writexl::write_xlsx(sim_data_spatial,"spamm_st_poisson.xlsx")
+```
+
+### Ano independente
+```{r}
+# =============================================================
+# SIMULACAO DLNM ESPACIAL COM CAMPOS MATERN INDEPENDENTES POR ANO
+#
+# 130 localidades x 4 anos = 520 epidemias
+# 86 dias por epidemia
+# Uma contagem Poisson final por combinacao localidade-ano
+#
+# Modelo espacial pretendido:
+#
+# Matern(1 | x_coord + y_coord %in% year)
+#
+# Cada ano possui uma realizacao espacial independente, mas todos
+# os anos compartilham os mesmos parametros de correlacao espacial.
+#
+# Neste mecanismo gerador, `year` nao possui efeito fixo diretamente
+# sobre a resposta. Sua funcao e identificar campos espaciais
+# independentes e permitir condicoes climaticas distintas entre anos.
+# =============================================================
+
+set.seed(20260919)
+
+library(dlnm)
+library(splines)
+
+# -------------------------------------------------------------
+# 1. DIMENSOES
+# -------------------------------------------------------------
+
+n_locations <- 130L
+years <- 2022:2025
+n_years <- length(years)
+
+n_epi <- n_locations * n_years
+n_days <- 86L
+
+time_values <- 0:(n_days - 1L)
+
+# Para a avaliacao final em time = 85:
+# time 85 corresponde ao lag 0
+# time 0 corresponde ao lag 85
+lag_for_time <- (n_days - 1L) - time_values
+
+# -------------------------------------------------------------
+# 2. LOCALIDADES E COORDENADAS FIXAS
+# -------------------------------------------------------------
+#
+# A grade possui 13 x 10 = 130 localidades.
+#
+# As mesmas localidades sao observadas nos quatro anos.
+# Portanto, cada location_id conserva suas coordenadas ao longo
+# dos anos, mas cada combinacao localidade-ano recebe um epi_id
+# diferente.
+# -------------------------------------------------------------
+
+location_grid <- expand.grid(
+  x_coord = seq(
+    from = 0,
+    to = 96,
+    length.out = 13L
+  ),
+  y_coord = seq(
+    from = 0,
+    to = 72,
+    length.out = 10L
+  )
+)
+
+stopifnot(
+  nrow(location_grid) == n_locations
+)
+
+location_grid$x_coord <- (
+  location_grid$x_coord +
+    runif(
+      n_locations,
+      min = -0.8,
+      max = 0.8
+    )
+)
+
+location_grid$y_coord <- (
+  location_grid$y_coord +
+    runif(
+      n_locations,
+      min = -0.8,
+      max = 0.8
+    )
+)
+
+location_grid$location_id <- paste0(
+  "L",
+  sprintf(
+    "%03d",
+    seq_len(n_locations)
+  )
+)
+
+# -------------------------------------------------------------
+# 3. TABELA COM UMA LINHA POR EPIDEMIA
+# -------------------------------------------------------------
+
+epidemic_table <- do.call(
+  rbind,
+  lapply(
+    years,
+    function(current_year) {
+      data.frame(
+        location_id = location_grid$location_id,
+        year = current_year,
+        x_coord = location_grid$x_coord,
+        y_coord = location_grid$y_coord,
+        stringsAsFactors = FALSE
+      )
+    }
+  )
+)
+
+rownames(epidemic_table) <- NULL
+
+epidemic_table$epi_id <- paste(
+  epidemic_table$location_id,
+  epidemic_table$year,
+  sep = "_"
+)
+
+epidemic_table$year <- factor(
+  epidemic_table$year,
+  levels = years
+)
+
+# -------------------------------------------------------------
+# 4. BLOCOS EXPERIMENTAIS ESPECIFICOS POR ANO
+# -------------------------------------------------------------
+#
+# Existem 10 blocos por ano, com 13 localidades em cada bloco.
+#
+# A numeracao dos blocos seria repetida em cada ano. Por isso,
+# block_id combina ano e bloco, impedindo que B01 de 2022 seja
+# tratado como o mesmo nivel de B01 de 2023.
+# -------------------------------------------------------------
+
+blocks_per_year <- 10L
+locations_per_block <- n_locations / blocks_per_year
+
+stopifnot(
+  locations_per_block == as.integer(
+    locations_per_block
+  )
+)
+
+block_within_year <- rep(
+  paste0(
+    "B",
+    sprintf(
+      "%02d",
+      seq_len(blocks_per_year)
+    )
+  ),
+  each = locations_per_block
+)
+
+epidemic_table$block <- rep(
+  block_within_year,
+  times = n_years
+)
+
+epidemic_table$block_id <- factor(
+  paste(
+    epidemic_table$year,
+    epidemic_table$block,
+    sep = "_"
+  )
+)
+
+# -------------------------------------------------------------
+# 5. MATRIZ DE DISTANCIAS ENTRE LOCALIDADES
+# -------------------------------------------------------------
+
+coordinate_matrix <- as.matrix(
+  location_grid[
+    c(
+      "x_coord",
+      "y_coord"
+    )
+  ]
+)
+
+distance_matrix <- as.matrix(
+  stats::dist(
+    coordinate_matrix
+  )
+)
+
+# -------------------------------------------------------------
+# 6. PARAMETROS DO PROCESSO ESPACIAL VERDADEIRO
+# -------------------------------------------------------------
+#
+# Utilizamos uma correlacao exponencial:
+#
+# cor(d) = exp(-d / spatial_range)
+#
+# Essa correlacao corresponde ao caso Matérn com nu = 0.5.
+#
+# Cada ano possui uma realizacao independente do campo espacial.
+# Entretanto, spatial_range e spatial_sd sao iguais para todos
+# os anos, de acordo com a interpretacao de:
+#
+# Matern(1 | x_coord + y_coord %in% year)
+# -------------------------------------------------------------
+
+spatial_range <- 18
+spatial_sd <- 0.35
+spatial_nugget <- 1e-8
+
+spatial_correlation <- exp(
+  -distance_matrix / spatial_range
+)
+
+diag(spatial_correlation) <- (
+  diag(spatial_correlation) +
+    spatial_nugget
+)
+
+spatial_root <- chol(
+  spatial_correlation
+)
+
+# -------------------------------------------------------------
+# 7. SIMULAR UM CAMPO ESPACIAL INDEPENDENTE PARA CADA ANO
+# -------------------------------------------------------------
+
+spatial_effect_by_year <- matrix(
+  NA_real_,
+  nrow = n_locations,
+  ncol = n_years,
+  dimnames = list(
+    location_grid$location_id,
+    as.character(years)
+  )
+)
+
+for (j in seq_along(years)) {
+  spatial_effect_by_year[, j] <- as.numeric(
+    t(spatial_root) %*%
+      rnorm(
+        n = n_locations,
+        mean = 0,
+        sd = spatial_sd
+      )
+  )
+}
+
+epidemic_table$spatial_effect <- NA_real_
+
+for (j in seq_along(years)) {
+  current_year <- as.character(
+    years[j]
+  )
+
+  current_rows <- (
+    as.character(
+      epidemic_table$year
+    ) == current_year
+  )
+
+  location_match <- match(
+    epidemic_table$location_id[current_rows],
+    rownames(
+      spatial_effect_by_year
+    )
+  )
+
+  epidemic_table$spatial_effect[current_rows] <- (
+    spatial_effect_by_year[
+      location_match,
+      current_year
+    ]
+  )
+}
+
+# -------------------------------------------------------------
+# 8. EFEITO ALEATORIO CONVENCIONAL DE BLOCO
+# -------------------------------------------------------------
+#
+# Este componente e distinto do efeito espacial.
+#
+# block_id representa agrupamento experimental discreto.
+# spatial_effect representa autocorrelacao espacial continua.
+# -------------------------------------------------------------
+
+block_sd <- 0.18
+
+block_levels <- levels(
+  epidemic_table$block_id
+)
+
+block_effect_values <- rnorm(
+  n = length(block_levels),
+  mean = 0,
+  sd = block_sd
+)
+
+names(block_effect_values) <- block_levels
+
+epidemic_table$block_effect <- block_effect_values[
+  as.character(
+    epidemic_table$block_id
+  )
+]
+
+# -------------------------------------------------------------
+# 9. TENDENCIAS CLIMATICAS ESPACIAIS DAS LOCALIDADES
+# -------------------------------------------------------------
+#
+# As exposicoes possuem tendencias espaciais suaves.
+#
+# Essas tendencias representam variacao geografica observada nas
+# condicoes climaticas e sao distintas do campo espacial residual.
+# -------------------------------------------------------------
+
+temp_location_trend <- as.numeric(
+  scale(
+    0.60 * location_grid$x_coord -
+      0.35 * location_grid$y_coord
+  )
+)
+
+wetness_location_trend <- as.numeric(
+  scale(
+    -0.25 * location_grid$x_coord +
+      0.70 * location_grid$y_coord
+  )
+)
+
+rain_location_trend <- as.numeric(
+  scale(
+    0.35 * location_grid$x_coord +
+      0.45 * location_grid$y_coord
+  )
+)
+
+names(temp_location_trend) <- (
+  location_grid$location_id
+)
+
+names(wetness_location_trend) <- (
+  location_grid$location_id
+)
+
+names(rain_location_trend) <- (
+  location_grid$location_id
+)
+
+# -------------------------------------------------------------
+# 10. DESLOCAMENTOS CLIMATICOS ENTRE ANOS
+# -------------------------------------------------------------
+#
+# Esses valores produzem safras com condicoes climaticas medias
+# ligeiramente diferentes.
+#
+# Eles nao representam um efeito fixo direto de year sobre y.
+# Os anos influenciam a resposta somente por meio dos historicos
+# climaticos simulados e dos campos espaciais independentes.
+# -------------------------------------------------------------
+
+temperature_year_shift <- c(
+  "2022" = -0.8,
+  "2023" = 0.4,
+  "2024" = 1.0,
+  "2025" = -0.2
+)
+
+wetness_year_shift <- c(
+  "2022" = 0.7,
+  "2023" = -0.4,
+  "2024" = 0.9,
+  "2025" = -0.2
+)
+
+rain_year_shift <- c(
+  "2022" = 0.15,
+  "2023" = -0.12,
+  "2024" = 0.28,
+  "2025" = -0.05
+)
+
+# -------------------------------------------------------------
+# 11. MATRIZES CRONOLOGICAS DE EXPOSICAO
+# -------------------------------------------------------------
+
+tmean_time <- matrix(
+  NA_real_,
+  nrow = n_epi,
+  ncol = n_days
+)
+
+wetness_time <- matrix(
+  NA_real_,
+  nrow = n_epi,
+  ncol = n_days
+)
+
+rain_time <- matrix(
+  NA_real_,
+  nrow = n_epi,
+  ncol = n_days
+)
+
+colnames(tmean_time) <- paste0(
+  "time_",
+  time_values
+)
+
+colnames(wetness_time) <- paste0(
+  "time_",
+  time_values
+)
+
+colnames(rain_time) <- paste0(
+  "time_",
+  time_values
+)
+
+# -------------------------------------------------------------
+# 12. SIMULAR HISTORICOS CLIMATICOS
+# -------------------------------------------------------------
+
+for (i in seq_len(n_epi)) {
+  current_location <- epidemic_table$location_id[i]
+
+  current_year <- as.character(
+    epidemic_table$year[i]
+  )
+
+  temp_shift <- (
+    1.25 * temp_location_trend[current_location] +
+      temperature_year_shift[current_year] +
+      rnorm(
+        1L,
+        mean = 0,
+        sd = 1.1
+      )
+  )
+
+  wetness_shift <- (
+    1.80 * wetness_location_trend[current_location] +
+      wetness_year_shift[current_year] +
+      rnorm(
+        1L,
+        mean = 0,
+        sd = 1.5
+      )
+  )
+
+  rain_shift <- (
+    0.25 * rain_location_trend[current_location] +
+      rain_year_shift[current_year] +
+      rnorm(
+        1L,
+        mean = 0,
+        sd = 0.22
+      )
+  )
+
+  ar_temp <- as.numeric(
+    arima.sim(
+      model = list(
+        ar = 0.72
+      ),
+      n = n_days,
+      sd = 1.0
+    )
+  )
+
+  ar_wetness <- as.numeric(
+    arima.sim(
+      model = list(
+        ar = 0.78
+      ),
+      n = n_days,
+      sd = 1.5
+    )
+  )
+
+  ar_rain <- as.numeric(
+    arima.sim(
+      model = list(
+        ar = 0.58
+      ),
+      n = n_days,
+      sd = 0.50
+    )
+  )
+
+  tmean <- (
+    25.5 +
+      temp_shift +
+      3.3 * sin(
+        2 * pi * time_values / 85 +
+          runif(
+            1L,
+            min = -0.35,
+            max = 0.35
+          )
+      ) +
+      ar_temp
+  )
+
+  tmean <- pmin(
+    pmax(
+      tmean,
+      15
+    ),
+    36
+  )
+
+  wetness <- (
+    10.5 +
+      wetness_shift +
+      2.4 * sin(
+        2 * pi * time_values / 46 +
+          runif(
+            1L,
+            min = -0.50,
+            max = 0.50
+          )
+      ) +
+      ar_wetness
+  )
+
+  wetness <- pmin(
+    pmax(
+      wetness,
+      0
+    ),
+    24
+  )
+
+  rain_probability <- plogis(
+    -0.80 +
+      rain_shift +
+      0.50 * sin(
+        2 * pi * time_values / 35 +
+          runif(
+            1L,
+            min = -0.50,
+            max = 0.50
+          )
+      ) +
+      ar_rain
+  )
+
+  rainy_day <- rbinom(
+    n = n_days,
+    size = 1L,
+    prob = rain_probability
+  )
+
+  rain_amount <- rgamma(
+    n = n_days,
+    shape = 1.7,
+    scale = 5.2
+  )
+
+  rain <- rainy_day * rain_amount
+
+  rain <- pmin(
+    rain,
+    40
+  )
+
+  tmean_time[i, ] <- tmean
+  wetness_time[i, ] <- wetness
+  rain_time[i, ] <- rain
+}
+
+# -------------------------------------------------------------
+# 13. RELACOES EXPOSICAO-RESPOSTA VERDADEIRAS
+# -------------------------------------------------------------
+
+# Temperatura:
+# relacao unimodal com maior favorabilidade proxima de 26 graus.
+temp_response <- exp(
+  -0.5 *
+    (
+      (tmean_time - 26) / 3.2
+    )^2
+)
+
+# Molhamento foliar:
+# resposta sigmoide com aumento acima de aproximadamente 11 horas.
+wetness_response <- plogis(
+  (wetness_time - 11) / 1.8
+)
+
+# Chuva:
+# resposta crescente com saturacao.
+rain_response <- plogis(
+  (
+    sqrt(rain_time) - 2.1
+  ) / 0.80
+)
+
+# -------------------------------------------------------------
+# 14. FUNCOES VERDADEIRAS DE LAG
+# -------------------------------------------------------------
+
+temp_lag_weights <- dnorm(
+  lag_for_time,
+  mean = 20,
+  sd = 9
+)
+
+temp_lag_weights <- (
+  temp_lag_weights /
+    sum(temp_lag_weights)
+)
+
+wetness_lag_weights <- dnorm(
+  lag_for_time,
+  mean = 14,
+  sd = 8
+)
+
+wetness_lag_weights <- (
+  wetness_lag_weights /
+    sum(wetness_lag_weights)
+)
+
+rain_lag_weights <- dnorm(
+  lag_for_time,
+  mean = 8,
+  sd = 6
+)
+
+rain_lag_weights <- (
+  rain_lag_weights /
+    sum(rain_lag_weights)
+)
+
+# -------------------------------------------------------------
+# 15. EFEITOS CLIMATICOS CUMULATIVOS VERDADEIROS
+# -------------------------------------------------------------
+
+true_temp_effect <- as.numeric(
+  temp_response %*%
+    temp_lag_weights
+)
+
+true_wetness_effect <- as.numeric(
+  wetness_response %*%
+    wetness_lag_weights
+)
+
+true_rain_effect <- as.numeric(
+  rain_response %*%
+    rain_lag_weights
+)
+
+standardize_effect <- function(x) {
+  out <- as.numeric(
+    scale(x)
+  )
+
+  if (any(!is.finite(out))) {
+    stop(
+      "Falha ao padronizar efeito verdadeiro."
+    )
+  }
+
+  out
+}
+
+temp_effect_z <- standardize_effect(
+  true_temp_effect
+)
+
+wetness_effect_z <- standardize_effect(
+  true_wetness_effect
+)
+
+rain_effect_z <- standardize_effect(
+  true_rain_effect
+)
+
+# -------------------------------------------------------------
+# 16. PREDITOR LINEAR VERDADEIRO
+# -------------------------------------------------------------
+#
+# Cada epidemia recebe:
+#
+# 1. efeitos climaticos distribuidos no tempo;
+# 2. efeito espacial especifico do ano;
+# 3. efeito aleatorio convencional de bloco.
+#
+# Nao existe um efeito fixo direto de year no preditor linear.
+# A variavel year define somente:
+#
+# 1. os campos espaciais independentes;
+# 2. os deslocamentos dos historicos climaticos simulados.
+#
+# Portanto, o mecanismo gerador fica alinhado ao modelo:
+#
+# y_model ~
+#   1 +
+#   cb_* +
+#   (1 | block_id) +
+#   Matern(1 | x_coord + y_coord %in% year)
+# -------------------------------------------------------------
+
+eta_true <- (
+  log(10) +
+    0.38 * temp_effect_z +
+    0.52 * wetness_effect_z +
+    0.34 * rain_effect_z +
+    epidemic_table$spatial_effect +
+    epidemic_table$block_effect
+)
+
+mu_epi <- exp(
+  eta_true
+)
+
+y_epi <- as.integer(
+  rpois(
+    n = n_epi,
+    lambda = mu_epi
+  )
+)
+
+# -------------------------------------------------------------
+# 17. DADOS LONGOS PARA O EPIEXPOSURE
+# -------------------------------------------------------------
+
+sim_data_spatial_year <- data.frame(
+  epi_id = rep(
+    epidemic_table$epi_id,
+    each = n_days
+  ),
+  location_id = rep(
+    epidemic_table$location_id,
+    each = n_days
+  ),
+  year = rep(
+    epidemic_table$year,
+    each = n_days
+  ),
+  block = rep(
+    epidemic_table$block,
+    each = n_days
+  ),
+  block_id = rep(
+    epidemic_table$block_id,
+    each = n_days
+  ),
+  time = rep(
+    time_values,
+    times = n_epi
+  ),
+  x_coord = rep(
+    epidemic_table$x_coord,
+    each = n_days
+  ),
+  y_coord = rep(
+    epidemic_table$y_coord,
+    each = n_days
+  ),
+  tmean = as.vector(
+    t(tmean_time)
+  ),
+  wetness = as.vector(
+    t(wetness_time)
+  ),
+  rain = as.vector(
+    t(rain_time)
+  ),
+  y = rep(
+    y_epi,
+    each = n_days
+  ),
+  stringsAsFactors = FALSE
+)
+
+sim_data_spatial_year <- sim_data_spatial_year[
+  order(
+    sim_data_spatial_year$epi_id,
+    sim_data_spatial_year$time
+  ),
+  ,
+  drop = FALSE
+]
+
+rownames(
+  sim_data_spatial_year
+) <- NULL
+
+# -------------------------------------------------------------
+# 18. OBJETO COM A VERDADE DA SIMULACAO
+# -------------------------------------------------------------
+
+simulation_truth_spatial_year <- data.frame(
+  epi_id = epidemic_table$epi_id,
+  location_id = epidemic_table$location_id,
+  year = epidemic_table$year,
+  block = epidemic_table$block,
+  block_id = epidemic_table$block_id,
+  x_coord = epidemic_table$x_coord,
+  y_coord = epidemic_table$y_coord,
+  spatial_effect = epidemic_table$spatial_effect,
+  block_effect = epidemic_table$block_effect,
+  true_temp_effect = true_temp_effect,
+  true_wetness_effect = true_wetness_effect,
+  true_rain_effect = true_rain_effect,
+  temp_effect_z = temp_effect_z,
+  wetness_effect_z = wetness_effect_z,
+  rain_effect_z = rain_effect_z,
+  eta_true = eta_true,
+  mu = mu_epi,
+  y = y_epi,
+  stringsAsFactors = FALSE
+)
+
+# -------------------------------------------------------------
+# 19. CHECAGENS
+# -------------------------------------------------------------
+
+stopifnot(
+  nrow(epidemic_table) == n_epi,
+  nrow(sim_data_spatial_year) == n_epi * n_days,
+  length(unique(sim_data_spatial_year$epi_id)) == n_epi,
+  length(unique(sim_data_spatial_year$location_id)) == n_locations,
+  length(unique(sim_data_spatial_year$year)) == n_years,
+  all(table(sim_data_spatial_year$epi_id) == n_days),
+  all(sim_data_spatial_year$y >= 0L),
+  !anyNA(sim_data_spatial_year),
+  all(is.finite(sim_data_spatial_year$x_coord)),
+  all(is.finite(sim_data_spatial_year$y_coord))
+)
+
+# Cada epi_id deve possuir exatamente:
+# uma localidade, um ano, um bloco e um par de coordenadas.
+constant_within_epidemic <- tapply(
+  seq_len(
+    nrow(sim_data_spatial_year)
+  ),
+  sim_data_spatial_year$epi_id,
+  function(ii) {
+    length(
+      unique(
+        sim_data_spatial_year$location_id[ii]
+      )
+    ) == 1L &&
+      length(
+        unique(
+          sim_data_spatial_year$year[ii]
+        )
+      ) == 1L &&
+      length(
+        unique(
+          sim_data_spatial_year$block_id[ii]
+        )
+      ) == 1L &&
+      length(
+        unique(
+          sim_data_spatial_year$x_coord[ii]
+        )
+      ) == 1L &&
+      length(
+        unique(
+          sim_data_spatial_year$y_coord[ii]
+        )
+      ) == 1L
+  }
+)
+
+stopifnot(
+  all(
+    constant_within_epidemic
+  )
+)
+
+# Cada localidade deve aparecer exatamente uma vez em cada ano.
+location_year_table <- table(
+  epidemic_table$location_id,
+  epidemic_table$year
+)
+
+stopifnot(
+  all(
+    location_year_table == 1L
+  )
+)
+
+# As coordenadas devem ser constantes para uma localidade ao longo
+# dos anos.
+coordinate_consistency <- tapply(
+  seq_len(
+    nrow(epidemic_table)
+  ),
+  epidemic_table$location_id,
+  function(ii) {
+    length(
+      unique(
+        epidemic_table$x_coord[ii]
+      )
+    ) == 1L &&
+      length(
+        unique(
+          epidemic_table$y_coord[ii]
+        )
+      ) == 1L
+  }
+)
+
+stopifnot(
+  all(
+    coordinate_consistency
+  )
+)
+
+# Cada block_id deve pertencer a apenas um ano.
+
+
+writexl::write_xlsx(sim_data_spatial_year,"sim_data_spatial_year.xlsx")
+```
+
+### Epidemic replicate independente
+
+```{r}
+# =============================================================
+# SIMULACAO DLNM ESPACIAL COM CAMPOS MATERN INDEPENDENTES
+# ENTRE REPETICOES EPIDEMIOLOGICAS
+#
+# 130 localidades x 4 repeticoes = 520 epidemias
+# 86 dias por epidemia
+# Uma contagem Poisson final por combinacao:
+#
+# location_id x epidemic_replicate
+#
+# Modelo espacial pretendido:
+#
+# Matern(
+#   1 | x_coord + y_coord %in% epidemic_replicate
+# )
+#
+# Cada repeticao representa uma nova realizacao completa e
+# independente do mesmo processo epidemiologico.
+#
+# Cada repeticao possui:
+#
+# 1. novos historicos climaticos;
+# 2. um novo campo espacial residual;
+# 3. uma nova resposta final da doenca.
+#
+# As repeticoes compartilham:
+#
+# 1. as mesmas localidades;
+# 2. a mesma escala temporal de 86 dias;
+# 3. as mesmas relacoes exposicao-resposta;
+# 4. as mesmas funcoes de lag;
+# 5. os mesmos parametros do processo espacial.
+#
+# epidemic_replicate nao possui efeito fixo direto sobre y.
+# Sua funcao no modelo e identificar campos espaciais
+# independentes.
+# =============================================================
+
+set.seed(20260920)
+
+# -------------------------------------------------------------
+# 1. DIMENSOES
+# -------------------------------------------------------------
+
+n_locations <- 130L
+
+epidemic_replicates <- paste0(
+  "Replicate_",
+  seq_len(4L)
+)
+
+n_replicates <- length(
+  epidemic_replicates
+)
+
+n_epi <- n_locations * n_replicates
+n_days <- 86L
+
+time_values <- 0:(n_days - 1L)
+
+# Para a avaliacao final em time = 85:
+#
+# time 85 corresponde ao lag 0
+# time 84 corresponde ao lag 1
+# ...
+# time 0 corresponde ao lag 85
+
+lag_for_time <- (
+  n_days - 1L
+) - time_values
+
+# -------------------------------------------------------------
+# 2. LOCALIDADES E COORDENADAS FIXAS
+# -------------------------------------------------------------
+#
+# A grade possui 13 x 10 = 130 localidades.
+#
+# As mesmas localidades sao utilizadas nas quatro repeticoes.
+# Portanto, cada location_id conserva suas coordenadas.
+#
+# Cada combinacao localidade-repeticao recebe um epi_id diferente.
+# -------------------------------------------------------------
+
+location_grid <- expand.grid(
+  x_coord = seq(
+    from = 0,
+    to = 96,
+    length.out = 13L
+  ),
+  y_coord = seq(
+    from = 0,
+    to = 72,
+    length.out = 10L
+  )
+)
+
+stopifnot(
+  nrow(location_grid) == n_locations
+)
+
+location_grid$x_coord <- (
+  location_grid$x_coord +
+    runif(
+      n = n_locations,
+      min = -0.8,
+      max = 0.8
+    )
+)
+
+location_grid$y_coord <- (
+  location_grid$y_coord +
+    runif(
+      n = n_locations,
+      min = -0.8,
+      max = 0.8
+    )
+)
+
+location_grid$location_id <- paste0(
+  "L",
+  sprintf(
+    "%03d",
+    seq_len(n_locations)
+  )
+)
+
+# -------------------------------------------------------------
+# 3. TABELA COM UMA LINHA POR EPIDEMIA
+# -------------------------------------------------------------
+#
+# Cada epidemia corresponde a uma combinacao unica:
+#
+# location_id x epidemic_replicate
+# -------------------------------------------------------------
+
+epidemic_table <- do.call(
+  rbind,
+  lapply(
+    epidemic_replicates,
+    function(current_replicate) {
+      data.frame(
+        location_id = location_grid$location_id,
+        epidemic_replicate = current_replicate,
+        x_coord = location_grid$x_coord,
+        y_coord = location_grid$y_coord,
+        stringsAsFactors = FALSE
+      )
+    }
+  )
+)
+
+rownames(
+  epidemic_table
+) <- NULL
+
+epidemic_table$epi_id <- paste(
+  epidemic_table$location_id,
+  epidemic_table$epidemic_replicate,
+  sep = "_"
+)
+
+epidemic_table$epidemic_replicate <- factor(
+  epidemic_table$epidemic_replicate,
+  levels = epidemic_replicates
+)
+
+# -------------------------------------------------------------
+# 4. BLOCOS ESPECIFICOS DE CADA REPETICAO
+# -------------------------------------------------------------
+#
+# Existem 10 blocos em cada repeticao, com 13 localidades por
+# bloco.
+#
+# block_id combina a repeticao e o bloco. Assim, B01 da primeira
+# repeticao nao e tratado como o mesmo nivel de B01 da segunda
+# repeticao.
+#
+# block_id representa um intercepto aleatorio convencional.
+# Esse componente e distinto do campo espacial Matérn.
+# -------------------------------------------------------------
+
+blocks_per_replicate <- 10L
+
+locations_per_block <- (
+  n_locations /
+    blocks_per_replicate
+)
+
+stopifnot(
+  locations_per_block ==
+    as.integer(
+      locations_per_block
+    )
+)
+
+block_within_replicate <- rep(
+  paste0(
+    "B",
+    sprintf(
+      "%02d",
+      seq_len(
+        blocks_per_replicate
+      )
+    )
+  ),
+  each = locations_per_block
+)
+
+epidemic_table$block <- rep(
+  block_within_replicate,
+  times = n_replicates
+)
+
+epidemic_table$block_id <- factor(
+  paste(
+    epidemic_table$epidemic_replicate,
+    epidemic_table$block,
+    sep = "_"
+  )
+)
+
+# -------------------------------------------------------------
+# 5. MATRIZ DE DISTANCIAS ENTRE LOCALIDADES
+# -------------------------------------------------------------
+
+coordinate_matrix <- as.matrix(
+  location_grid[
+    c(
+      "x_coord",
+      "y_coord"
+    )
+  ]
+)
+
+distance_matrix <- as.matrix(
+  stats::dist(
+    coordinate_matrix
+  )
+)
+
+# -------------------------------------------------------------
+# 6. PARAMETROS DO PROCESSO ESPACIAL VERDADEIRO
+# -------------------------------------------------------------
+#
+# Utilizamos uma correlacao exponencial:
+#
+# cor(d) = exp(-d / spatial_range)
+#
+# Essa correlacao corresponde ao caso Matérn com nu = 0.5.
+#
+# Cada repeticao recebe uma realizacao espacial independente.
+#
+# Entretanto, todas compartilham spatial_range e spatial_sd,
+# conforme a interpretacao de:
+#
+# Matern(
+#   1 | x_coord + y_coord %in% epidemic_replicate
+# )
+# -------------------------------------------------------------
+
+spatial_range <- 18
+spatial_sd <- 0.35
+spatial_nugget <- 1e-8
+
+spatial_correlation <- exp(
+  -distance_matrix /
+    spatial_range
+)
+
+diag(
+  spatial_correlation
+) <- (
+  diag(
+    spatial_correlation
+  ) +
+    spatial_nugget
+)
+
+spatial_root <- chol(
+  spatial_correlation
+)
+
+# -------------------------------------------------------------
+# 7. CAMPOS ESPACIAIS INDEPENDENTES ENTRE REPETICOES
+# -------------------------------------------------------------
+
+spatial_effect_by_replicate <- matrix(
+  NA_real_,
+  nrow = n_locations,
+  ncol = n_replicates,
+  dimnames = list(
+    location_grid$location_id,
+    epidemic_replicates
+  )
+)
+
+for (j in seq_along(epidemic_replicates)) {
+  spatial_effect_by_replicate[, j] <- as.numeric(
+    t(spatial_root) %*%
+      rnorm(
+        n = n_locations,
+        mean = 0,
+        sd = spatial_sd
+      )
+  )
+}
+
+epidemic_table$spatial_effect <- NA_real_
+
+for (j in seq_along(epidemic_replicates)) {
+  current_replicate <- epidemic_replicates[j]
+
+  current_rows <- (
+    as.character(
+      epidemic_table$epidemic_replicate
+    ) == current_replicate
+  )
+
+  location_match <- match(
+    epidemic_table$location_id[current_rows],
+    rownames(
+      spatial_effect_by_replicate
+    )
+  )
+
+  epidemic_table$spatial_effect[current_rows] <- (
+    spatial_effect_by_replicate[
+      location_match,
+      current_replicate
+    ]
+  )
+}
+
+# -------------------------------------------------------------
+# 8. EFEITO ALEATORIO CONVENCIONAL DE BLOCO
+# -------------------------------------------------------------
+
+block_sd <- 0.18
+
+block_levels <- levels(
+  epidemic_table$block_id
+)
+
+block_effect_values <- rnorm(
+  n = length(
+    block_levels
+  ),
+  mean = 0,
+  sd = block_sd
+)
+
+names(
+  block_effect_values
+) <- block_levels
+
+epidemic_table$block_effect <- block_effect_values[
+  as.character(
+    epidemic_table$block_id
+  )
+]
+
+# -------------------------------------------------------------
+# 9. TENDENCIAS CLIMATICAS ESPACIAIS
+# -------------------------------------------------------------
+#
+# As exposicoes possuem tendencias espaciais suaves que permanecem
+# comparaveis entre as repeticoes.
+#
+# Cada repeticao ainda recebe novas series temporais e novas
+# realizacoes dos componentes estocasticos das exposicoes.
+# -------------------------------------------------------------
+
+temp_location_trend <- as.numeric(
+  scale(
+    0.60 * location_grid$x_coord -
+      0.35 * location_grid$y_coord
+  )
+)
+
+wetness_location_trend <- as.numeric(
+  scale(
+    -0.25 * location_grid$x_coord +
+      0.70 * location_grid$y_coord
+  )
+)
+
+rain_location_trend <- as.numeric(
+  scale(
+    0.35 * location_grid$x_coord +
+      0.45 * location_grid$y_coord
+  )
+)
+
+names(
+  temp_location_trend
+) <- location_grid$location_id
+
+names(
+  wetness_location_trend
+) <- location_grid$location_id
+
+names(
+  rain_location_trend
+) <- location_grid$location_id
+
+# -------------------------------------------------------------
+# 10. MATRIZES CRONOLOGICAS DE EXPOSICAO
+# -------------------------------------------------------------
+#
+# Ao contrario do exemplo anterior com cultivares, as repeticoes
+# independentes nao recebem historicos climaticos identicos.
+#
+# Cada combinacao localidade-repeticao possui seu proprio historico
+# de 86 dias.
+# -------------------------------------------------------------
+
+tmean_time <- matrix(
+  NA_real_,
+  nrow = n_epi,
+  ncol = n_days
+)
+
+wetness_time <- matrix(
+  NA_real_,
+  nrow = n_epi,
+  ncol = n_days
+)
+
+rain_time <- matrix(
+  NA_real_,
+  nrow = n_epi,
+  ncol = n_days
+)
+
+colnames(tmean_time) <- paste0(
+  "time_",
+  time_values
+)
+
+colnames(wetness_time) <- paste0(
+  "time_",
+  time_values
+)
+
+colnames(rain_time) <- paste0(
+  "time_",
+  time_values
+)
+
+# -------------------------------------------------------------
+# 11. SIMULAR HISTORICOS CLIMATICOS DE CADA REPETICAO
+# -------------------------------------------------------------
+#
+# Os deslocamentos abaixo criam variabilidade estocastica entre as
+# repeticoes, sem adicionar um efeito fixo direto de repeticao em y.
+#
+# Eventuais diferencas na resposta causadas por esses deslocamentos
+# sao explicadas pelas proprias exposicoes e suas funcoes de lag.
+# -------------------------------------------------------------
+
+for (i in seq_len(n_epi)) {
+  current_location <- epidemic_table$location_id[i]
+
+  temp_shift <- (
+    1.25 * temp_location_trend[current_location] +
+      rnorm(
+        n = 1L,
+        mean = 0,
+        sd = 1.1
+      )
+  )
+
+  wetness_shift <- (
+    1.80 * wetness_location_trend[current_location] +
+      rnorm(
+        n = 1L,
+        mean = 0,
+        sd = 1.5
+      )
+  )
+
+  rain_shift <- (
+    0.25 * rain_location_trend[current_location] +
+      rnorm(
+        n = 1L,
+        mean = 0,
+        sd = 0.22
+      )
+  )
+
+  ar_temp <- as.numeric(
+    arima.sim(
+      model = list(
+        ar = 0.72
+      ),
+      n = n_days,
+      sd = 1.0
+    )
+  )
+
+  ar_wetness <- as.numeric(
+    arima.sim(
+      model = list(
+        ar = 0.78
+      ),
+      n = n_days,
+      sd = 1.5
+    )
+  )
+
+  ar_rain <- as.numeric(
+    arima.sim(
+      model = list(
+        ar = 0.58
+      ),
+      n = n_days,
+      sd = 0.50
+    )
+  )
+
+  tmean <- (
+    25.5 +
+      temp_shift +
+      3.3 * sin(
+        2 * pi * time_values / 85 +
+          runif(
+            n = 1L,
+            min = -0.35,
+            max = 0.35
+          )
+      ) +
+      ar_temp
+  )
+
+  tmean <- pmin(
+    pmax(
+      tmean,
+      15
+    ),
+    36
+  )
+
+  wetness <- (
+    10.5 +
+      wetness_shift +
+      2.4 * sin(
+        2 * pi * time_values / 46 +
+          runif(
+            n = 1L,
+            min = -0.50,
+            max = 0.50
+          )
+      ) +
+      ar_wetness
+  )
+
+  wetness <- pmin(
+    pmax(
+      wetness,
+      0
+    ),
+    24
+  )
+
+  rain_probability <- plogis(
+    -0.80 +
+      rain_shift +
+      0.50 * sin(
+        2 * pi * time_values / 35 +
+          runif(
+            n = 1L,
+            min = -0.50,
+            max = 0.50
+          )
+      ) +
+      ar_rain
+  )
+
+  rainy_day <- rbinom(
+    n = n_days,
+    size = 1L,
+    prob = rain_probability
+  )
+
+  rain_amount <- rgamma(
+    n = n_days,
+    shape = 1.7,
+    scale = 5.2
+  )
+
+  rain <- rainy_day *
+    rain_amount
+
+  rain <- pmin(
+    rain,
+    40
+  )
+
+  tmean_time[i, ] <- tmean
+  wetness_time[i, ] <- wetness
+  rain_time[i, ] <- rain
+}
+
+# -------------------------------------------------------------
+# 12. RELACOES EXPOSICAO-RESPOSTA VERDADEIRAS
+# -------------------------------------------------------------
+
+# Temperatura:
+# relacao unimodal com maior favorabilidade proxima de 26 graus.
+
+temp_response <- exp(
+  -0.5 *
+    (
+      (tmean_time - 26) /
+        3.2
+    )^2
+)
+
+# Molhamento foliar:
+# resposta sigmoide com aumento acima de aproximadamente 11 horas.
+
+wetness_response <- plogis(
+  (
+    wetness_time - 11
+  ) / 1.8
+)
+
+# Chuva:
+# resposta crescente com saturacao.
+
+rain_response <- plogis(
+  (
+    sqrt(
+      rain_time
+    ) - 2.1
+  ) / 0.80
+)
+
+# -------------------------------------------------------------
+# 13. FUNCOES VERDADEIRAS DE LAG
+# -------------------------------------------------------------
+
+temp_lag_weights <- dnorm(
+  lag_for_time,
+  mean = 20,
+  sd = 9
+)
+
+temp_lag_weights <- (
+  temp_lag_weights /
+    sum(
+      temp_lag_weights
+    )
+)
+
+wetness_lag_weights <- dnorm(
+  lag_for_time,
+  mean = 14,
+  sd = 8
+)
+
+wetness_lag_weights <- (
+  wetness_lag_weights /
+    sum(
+      wetness_lag_weights
+    )
+)
+
+rain_lag_weights <- dnorm(
+  lag_for_time,
+  mean = 8,
+  sd = 6
+)
+
+rain_lag_weights <- (
+  rain_lag_weights /
+    sum(
+      rain_lag_weights
+    )
+)
+
+# -------------------------------------------------------------
+# 14. EFEITOS CLIMATICOS CUMULATIVOS VERDADEIROS
+# -------------------------------------------------------------
+
+true_temp_effect <- as.numeric(
+  temp_response %*%
+    temp_lag_weights
+)
+
+true_wetness_effect <- as.numeric(
+  wetness_response %*%
+    wetness_lag_weights
+)
+
+true_rain_effect <- as.numeric(
+  rain_response %*%
+    rain_lag_weights
+)
+
+standardize_effect <- function(x) {
+  out <- as.numeric(
+    scale(x)
+  )
+
+  if (any(!is.finite(out))) {
+    stop(
+      "Falha ao padronizar efeito verdadeiro."
+    )
+  }
+
+  out
+}
+
+temp_effect_z <- standardize_effect(
+  true_temp_effect
+)
+
+wetness_effect_z <- standardize_effect(
+  true_wetness_effect
+)
+
+rain_effect_z <- standardize_effect(
+  true_rain_effect
+)
+
+# -------------------------------------------------------------
+# 15. PREDITOR LINEAR VERDADEIRO
+# -------------------------------------------------------------
+#
+# Cada epidemia recebe:
+#
+# 1. efeitos climaticos distribuidos no tempo;
+# 2. efeito espacial especifico da repeticao;
+# 3. efeito aleatorio convencional de bloco.
+#
+# Nao existe efeito fixo direto de epidemic_replicate.
+#
+# epidemic_replicate identifica somente as realizacoes
+# independentes do campo espacial.
+#
+# O mecanismo gerador corresponde conceitualmente a:
+#
+# y_model ~
+#   1 +
+#   cb_* +
+#   (1 | block_id) +
+#   Matern(
+#     1 | x_coord + y_coord %in% epidemic_replicate
+#   )
+# -------------------------------------------------------------
+
+eta_true <- (
+  log(10) +
+    0.38 * temp_effect_z +
+    0.52 * wetness_effect_z +
+    0.34 * rain_effect_z +
+    epidemic_table$spatial_effect +
+    epidemic_table$block_effect
+)
+
+mu_epi <- exp(
+  eta_true
+)
+
+y_epi <- as.integer(
+  rpois(
+    n = n_epi,
+    lambda = mu_epi
+  )
+)
+
+# -------------------------------------------------------------
+# 16. DADOS LONGOS PARA O EPIEXPOSURE
+# -------------------------------------------------------------
+
+sim_data_spatial_replicate <- data.frame(
+  epi_id = rep(
+    epidemic_table$epi_id,
+    each = n_days
+  ),
+  location_id = rep(
+    epidemic_table$location_id,
+    each = n_days
+  ),
+  epidemic_replicate = rep(
+    epidemic_table$epidemic_replicate,
+    each = n_days
+  ),
+  block = rep(
+    epidemic_table$block,
+    each = n_days
+  ),
+  block_id = rep(
+    epidemic_table$block_id,
+    each = n_days
+  ),
+  time = rep(
+    time_values,
+    times = n_epi
+  ),
+  x_coord = rep(
+    epidemic_table$x_coord,
+    each = n_days
+  ),
+  y_coord = rep(
+    epidemic_table$y_coord,
+    each = n_days
+  ),
+  tmean = as.vector(
+    t(
+      tmean_time
+    )
+  ),
+  wetness = as.vector(
+    t(
+      wetness_time
+    )
+  ),
+  rain = as.vector(
+    t(
+      rain_time
+    )
+  ),
+  y = rep(
+    y_epi,
+    each = n_days
+  ),
+  stringsAsFactors = FALSE
+)
+
+sim_data_spatial_replicate <- sim_data_spatial_replicate[
+  order(
+    sim_data_spatial_replicate$epi_id,
+    sim_data_spatial_replicate$time
+  ),
+  ,
+  drop = FALSE
+]
+
+rownames(
+  sim_data_spatial_replicate
+) <- NULL
+
+# -------------------------------------------------------------
+# 17. VERDADE DA SIMULACAO
+# -------------------------------------------------------------
+
+simulation_truth_spatial_replicate <- data.frame(
+  epi_id = epidemic_table$epi_id,
+  location_id = epidemic_table$location_id,
+  epidemic_replicate = epidemic_table$epidemic_replicate,
+  block = epidemic_table$block,
+  block_id = epidemic_table$block_id,
+  x_coord = epidemic_table$x_coord,
+  y_coord = epidemic_table$y_coord,
+  spatial_effect = epidemic_table$spatial_effect,
+  block_effect = epidemic_table$block_effect,
+  true_temp_effect = true_temp_effect,
+  true_wetness_effect = true_wetness_effect,
+  true_rain_effect = true_rain_effect,
+  temp_effect_z = temp_effect_z,
+  wetness_effect_z = wetness_effect_z,
+  rain_effect_z = rain_effect_z,
+  eta_true = eta_true,
+  mu = mu_epi,
+  y = y_epi,
+  stringsAsFactors = FALSE
+)
+
+# -------------------------------------------------------------
+# 18. CHECAGENS GERAIS
+# -------------------------------------------------------------
+
+stopifnot(
+  nrow(epidemic_table) == n_epi,
+  nrow(sim_data_spatial_replicate) == n_epi * n_days,
+  length(
+    unique(
+      sim_data_spatial_replicate$epi_id
+    )
+  ) == n_epi,
+  length(
+    unique(
+      sim_data_spatial_replicate$location_id
+    )
+  ) == n_locations,
+  length(
+    unique(
+      sim_data_spatial_replicate$epidemic_replicate
+    )
+  ) == n_replicates,
+  all(
+    table(
+      sim_data_spatial_replicate$epi_id
+    ) == n_days
+  ),
+  all(
+    sim_data_spatial_replicate$y >= 0L
+  ),
+  !anyNA(
+    sim_data_spatial_replicate
+  ),
+  all(
+    is.finite(
+      sim_data_spatial_replicate$x_coord
+    )
+  ),
+  all(
+    is.finite(
+      sim_data_spatial_replicate$y_coord
+    )
+  )
+)
+
+# -------------------------------------------------------------
+# 19. CONSTANCIA DENTRO DE CADA EPIDEMIA
+# -------------------------------------------------------------
+
+constant_within_epidemic <- tapply(
+  seq_len(
+    nrow(
+      sim_data_spatial_replicate
+    )
+  ),
+  sim_data_spatial_replicate$epi_id,
+  function(ii) {
+    length(
+      unique(
+        sim_data_spatial_replicate$location_id[ii]
+      )
+    ) == 1L &&
+      length(
+        unique(
+          sim_data_spatial_replicate$epidemic_replicate[ii]
+        )
+      ) == 1L &&
+      length(
+        unique(
+          sim_data_spatial_replicate$block_id[ii]
+        )
+      ) == 1L &&
+      length(
+        unique(
+          sim_data_spatial_replicate$x_coord[ii]
+        )
+      ) == 1L &&
+      length(
+        unique(
+          sim_data_spatial_replicate$y_coord[ii]
+        )
+      ) == 1L
+  }
+)
+
+stopifnot(
+  all(
+    constant_within_epidemic
+  )
+)
+
+# -------------------------------------------------------------
+# 20. DESENHO LOCALIDADE X REPETICAO
+# -------------------------------------------------------------
+#
+# Cada localidade deve aparecer exatamente uma vez em cada
+# repeticao epidemiologica.
+# -------------------------------------------------------------
+
+location_replicate_table <- table(
+  epidemic_table$location_id,
+  epidemic_table$epidemic_replicate
+)
+
+stopifnot(
+  all(
+    location_replicate_table == 1L
+  )
+)
+
+# As coordenadas devem permanecer constantes para uma localidade
+# em todas as repeticoes.
+
+coordinate_consistency <- tapply(
+  seq_len(
+    nrow(
+      epidemic_table
+    )
+  ),
+  epidemic_table$location_id,
+  function(ii) {
+    length(
+      unique(
+        epidemic_table$x_coord[ii]
+      )
+    ) == 1L &&
+      length(
+        unique(
+          epidemic_table$y_coord[ii]
+        )
+      ) == 1L
+  }
+)
+
+stopifnot(
+  all(
+    coordinate_consistency
+  )
+)
+
+# Cada block_id deve pertencer a apenas uma repeticao.
+
+block_replicate_consistency <- tapply(
+  seq_len(
+    nrow(
+      epidemic_table
+    )
+  ),
+  epidemic_table$block_id,
+  function(ii) {
+    length(
+      unique(
+        epidemic_table$epidemic_replicate[ii]
+      )
+    ) == 1L
+  }
+)
+
+stopifnot(
+  all(
+    block_replicate_consistency
+  )
+)
+
+# -------------------------------------------------------------
+# 21. CHECAR QUE OS HISTORICOS VARIAM ENTRE REPETICOES
+# -------------------------------------------------------------
+#
+# Como as repeticoes sao independentes, uma mesma localidade nao
+# deve receber automaticamente o mesmo historico climatico nas
+# quatro repeticoes.
+# -------------------------------------------------------------
+
+climate_means_by_replicate <- aggregate(
+  cbind(
+    tmean,
+    wetness,
+    rain
+  ) ~ epidemic_replicate,
+  data = sim_data_spatial_replicate,
+  FUN = mean
+)
+
+print(
+  climate_means_by_replicate
+)
+
+# -------------------------------------------------------------
+# 22. INDEPENDENCIA DOS CAMPOS ESPACIAIS
+# -------------------------------------------------------------
+#
+# Os campos espaciais foram gerados de forma independente.
+#
+# As correlacoes amostrais nao precisam ser exatamente zero, mas
+# nenhuma correlacao entre as realizacoes foi imposta.
+# -------------------------------------------------------------
+
+spatial_field_correlations <- cor(
+  spatial_effect_by_replicate
+)
+
+print(
+  round(
+    spatial_field_correlations,
+    3
+  )
+)
+
+cat(
+  "Localidades:",
+  n_locations,
+  "\n"
+)
+
+cat(
+  "Repeticoes epidemiologicas:",
+  n_replicates,
+  "\n"
+)
+
+cat(
+  "Epidemias:",
+  n_epi,
+  "\n"
+)
+
+cat(
+  "Dias por epidemia:",
+  n_days,
+  "\n"
+)
+
+cat(
+  "Media de y:",
+  round(
+    mean(
+      y_epi
+    ),
+    3
+  ),
+  "\n"
+)
+
+cat(
+  "Variancia marginal de y:",
+  round(
+    var(
+      y_epi
+    ),
+    3
+  ),
+  "\n"
+)
+
+cat(
+  "SD espacial verdadeiro:",
+  spatial_sd,
+  "\n"
+)
+
+cat(
+  "Variancia espacial verdadeira:",
+  spatial_sd^2,
+  "\n"
+)
+
+cat(
+  "Alcance espacial usado:",
+  spatial_range,
+  "\n"
+)
+
+cat(
+  "Nu Matérn equivalente:",
+  0.5,
+  "\n"
+)
+
+cat(
+  "SD verdadeiro de bloco:",
+  block_sd,
+  "\n"
+)
+
+cat(
+  "Variancia verdadeira de bloco:",
+  block_sd^2,
+  "\n"
+)
+
+print(
+  table(
+    epidemic_table$epidemic_replicate
+  )
+)
+
+response_summary_by_replicate <- aggregate(
+  cbind(
+    y,
+    mu
+  ) ~ epidemic_replicate,
+  data = simulation_truth_spatial_replicate,
+  FUN = mean
+)
+
+print(
+  response_summary_by_replicate
+)
+
+# Confirmar que nao existe efeito fixo artificial de repeticao.
+
+stopifnot(
+  !"replicate_effect" %in%
+    names(
+      epidemic_table
+    ),
+  !"replicate_effect" %in%
+    names(
+      simulation_truth_spatial_replicate
+    )
+)
+
+# -------------------------------------------------------------
+# 23. VISUALIZAR OS CAMPOS ESPACIAIS
+# -------------------------------------------------------------
+
+old_par <- par(
+  mfrow = c(
+    2,
+    2
+  ),
+  mar = c(
+    4,
+    4,
+    3,
+    1
+  )
+)
+
+spatial_breaks <- seq(
+  min(
+    spatial_effect_by_replicate
+  ),
+  max(
+    spatial_effect_by_replicate
+  ),
+  length.out = 31L
+)
+
+spatial_colors <- hcl.colors(
+  n = 30L,
+  palette = "Blue-Red 3"
+)
+
+for (j in seq_along(epidemic_replicates)) {
+  color_index <- cut(
+    spatial_effect_by_replicate[, j],
+    breaks = spatial_breaks,
+    include.lowest = TRUE,
+    labels = FALSE
+  )
+
+  plot(
+    location_grid$x_coord,
+    location_grid$y_coord,
+    pch = 21,
+    bg = spatial_colors[
+      color_index
+    ],
+    asp = 1,
+    xlab = "x_coord",
+    ylab = "y_coord",
+    main = paste(
+      "Campo Matérn:",
+      epidemic_replicates[j]
+    )
+  )
+}
+
+par(
+  old_par
+)
+
+# -------------------------------------------------------------
+# 24. EXPORTACAO OPCIONAL
+# -------------------------------------------------------------
+
+# writexl::write_xlsx(
+#   sim_data_spatial_replicate,
+#   "sim_data_spatial_replicate.xlsx"
+# )
+#
+# writexl::write_xlsx(
+#   simulation_truth_spatial_replicate,
+#   "simulation_truth_spatial_replicate.xlsx"
+# )
+
+writexl::write_xlsx(
+  sim_data_spatial_replicate,
+  "sim_data_spatial_replicate.xlsx"
+)
 ```
 
 # FIM

@@ -180,8 +180,8 @@ summary(fit_gam)
 ## GAMM estimation
 
 The `gamm` engine combines the fixed DLNM design with a conventional
-random intercept. In the current EpiExposure interface, `random_effect`
-is required.
+random intercept. In the current `EpiExposure` interface,
+`random_effect` is required.
 
 ```{r gamm-example, eval=FALSE}
 fit_gamm <- fit_epidlnm(
@@ -215,6 +215,7 @@ route. Binary responses should therefore be treated cautiously.
 
 ## Spatially autocorrelated effects with `spaMM`
 
+
 Consider a regional study of a foliar rice disease conducted at
 spatially distributed field locations. Daily mean temperature, leaf
 wetness duration, and rainfall are recorded during the 86 days preceding
@@ -224,6 +225,13 @@ plant.
 The cross-basis terms estimate nonlinear and delayed weather effects. A
 Matérn random effect accounts for residual geographic similarity among
 nearby fields after those measured weather effects have been considered.
+
+### Dependence spatial fields
+
+```{r}
+spatial_data = readxl::read_xlsx("spamm_st_poisson.xlsx")
+```
+
 
 ```{r spatial-design, eval=FALSE}
 dat_spatial <- build_design(
@@ -278,6 +286,32 @@ If the disease process is expected to have a different spatial
 realization in each growing season, `year` can define independent Matérn
 fields:
 
+
+```{r}
+spatial_year = readxl::read_xlsx("sim_data_spatial_year.xlsx")
+```
+
+```{r spatial-design, eval=FALSE}
+dat_spatial_year <- build_design(
+  data = spatial_year,
+  cb_templates = cb,
+  groups = c(
+    "epi_id",
+    "x_coord",
+    "y_coord",
+    "year",
+    "location_id"
+    
+  )
+)
+
+dat_spatial_year <- prepare_response(
+  data = dat_spatial_year,
+  response = "y",
+  family = "poisson"
+)
+```
+
 ```{r spamm-field-by-year, eval=FALSE}
 fit_spatial_year <- fit_epidlnm(
   data = dat_spatial_year,
@@ -295,6 +329,8 @@ fit_spatial_year <- fit_epidlnm(
     "spec"
   )
 )
+
+summary(fit_spatial_year)
 ```
 
 The resulting spatial term is:
@@ -304,6 +340,108 @@ The resulting spatial term is:
 In this model, `(1 | block_id)` represents conventional experimental
 heterogeneity, whereas the Matérn term represents spatially
 autocorrelated residual variation within each year.
+
+### Independent spatial fields across epidemiological replicates
+
+The grouping variable in a Matérn term can identify independent
+repetitions of an entire epidemiological experiment. Consider a field
+study conducted at 130 fixed locations. The same host, pathogen,
+experimental layout, and observation period are used in four independent
+repetitions.
+
+Each repetition contains an 86-day exposure history followed by one
+final disease assessment at each location. Temperature, rainfall, and
+leaf wetness can differ among repetitions, but the temporal positions
+remain comparable: the most recent observation corresponds to lag zero,
+and the oldest observation corresponds to lag 85.
+
+Each combination of location and repetition represents a separate
+epidemic:
+
+``` text
+L001_Replicate_1
+L001_Replicate_2
+L001_Replicate_3
+L001_Replicate_4
+```
+
+The cross-basis terms use the exposure history from each epidemic to
+estimate the shared nonlinear and delayed environmental associations.
+However, the residual spatial pattern of disease is not required to
+remain in the same locations across repetitions.
+
+Independent residual spatial fields can be specified as:
+
+``` r
+Matern(
+  1 | x_coord + y_coord %in% epidemic_replicate
+)
+```
+
+The model therefore allows each repetition to produce a different
+realized map of residual disease intensity. For example, areas with high
+residual disease in the first repetition do not need to remain high in
+the second repetition.
+
+The Matérn parameters remain shared among repetitions. Consequently, all
+repetitions contribute jointly to estimation of the general magnitude,
+smoothness, and spatial scale of residual dependence, while retaining
+separate realized spatial fields.
+
+```{r}
+spatial_replicate = readxl::read_xlsx("sim_data_spatial_replicate.xlsx")
+```
+
+```{r spatial-design, eval=FALSE}
+dat_spatial_replicate <- build_design(
+  data = spatial_replicate,
+  cb_templates = cb,
+  groups = c(
+    "epi_id",
+    "x_coord",
+    "y_coord",
+    "epidemic_replicate",
+    "location_id"
+    
+  )
+)
+
+dat_spatial_replicate <- prepare_response(
+  data = dat_spatial_replicate,
+  response = "y",
+  family = "poisson"
+)
+```
+
+```{r spatial-replicate-model, eval=FALSE}
+fit_spatial_replicate <- fit_epidlnm(
+  data = dat_spatial_replicate,
+  model_engine = "spamm",
+  family = "poisson",
+  random_effect = "block_id",
+  spatial_effect = c(
+    "x_coord",
+    "y_coord"
+  ),
+  spatial_structure = "matern",
+  spatial_group = "epidemic_replicate",
+  epiexposure_spec = attr(
+    cb_replicate,
+    "spec"
+  )
+)
+```
+
+The conventional random intercept and the spatial term represent
+different sources of dependence. The `block_id` effect accounts for
+discrete experimental heterogeneity, whereas the Matérn term accounts
+for continuous residual similarity among nearby locations within each
+epidemiological repetition.
+
+An epidemiological replicate must represent an independent repetition of
+the complete disease process. Repeated assessments made during the
+progression of a single epidemic should not be treated as independent
+replicates.
 
 ## Gaussian generalized least squares
 
