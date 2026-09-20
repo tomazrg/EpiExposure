@@ -437,3 +437,30 @@ a[href="pkgdown.html"] {
 .pkgdown-article-index a[href$="pkgdown.html"] {
   display: none !important;
 }
+
+.tutorial-note {
+  position: relative;
+  margin: 1.5rem 0;
+  padding: 1.1rem 1.25rem 1.1rem 3.5rem;
+  background-color: #fff8e8;
+  border-left: 5px solid #d9a600;
+  border-radius: 0.75rem;
+  line-height: 1.6;
+}
+
+.tutorial-note::before {
+  content: "💡";
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.tutorial-note p {
+  margin: 0;
+}
+
+.tutorial-note strong {
+  color: #1f1f1f;
+}

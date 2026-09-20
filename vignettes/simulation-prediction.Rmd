@@ -9,40 +9,67 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.align = "center",
+  message = FALSE,
+  warning = FALSE
+)
+```
 
 # Introduction
 
-Understanding historical exposure-lag relationships is important for epidemiological inference, but researchers are often interested in a different question:
+Understanding historical exposure-lag associations is important for
+epidemiological interpretation, but researchers are often interested in a
+different question:
 
-> What would happen under alternative environmental conditions?
+> What is the expected disease outcome under an alternative environmental
+> history?
 
-`EpiExposure` provides a simulation and prediction framework that allows researchers to:
+`EpiExposure` provides simulation and prediction tools that allow researchers
+to:
 
-- generate synthetic exposure histories;
+- generate complete synthetic exposure histories;
+- introduce structured exposure events;
 - construct hypothetical epidemiological scenarios;
-- compare alternative environmental conditions;
-- quantify expected disease outcomes.
+- predict expected disease outcomes;
+- propagate parameter uncertainty;
+- compare alternative exposure profiles and their predictions.
 
-Unlike effect summaries, which evaluate isolated exposure-lag contributions, simulation tools operate on complete exposure histories and therefore allow epidemiological hypotheses to be tested directly.
+Unlike lag-specific effect summaries, prediction evaluates all exposure values
+and lags jointly. Therefore, every prediction represents a complete
+environmental history rather than an isolated exposure value.
 
-```{r, message=FALSE, warning=FALSE}
+::: {.tutorial-note}
+**What you will learn.** This tutorial shows how to simulate complete exposure
+histories, predict expected disease outcomes, propagate parameter uncertainty,
+construct scenario grids, and compare alternative environmental conditions.
+:::
 
+The outputs describe predictions and contrasts under the fitted statistical
+model. Hypothetical scenarios should not automatically be interpreted as causal
+interventions unless the study design and assumptions support that
+interpretation.
+
+# Preparing the example model
+
+This vignette uses the same dataset and DLNM specification introduced in the
+previous tutorials.
+
+```{r load-packages}
 library(EpiExposure)
 library(ggplot2)
-library(dplyr)
-
 ```
 
-# Load data and fit a model
-
-```{r}
-
+```{r load-data}
 data("epi_data")
-
-epi_data
 ```
 
-```{r}
+Define the exposure-lag structures:
+
+```{r define-exposures}
 cb <- define_exposures(
   data = epi_data,
   vars = c(
@@ -54,40 +81,99 @@ cb <- define_exposures(
   df_var = 3,
   df_lag = 2
 )
+```
 
+Build the epidemic-level design:
+
+```{r build-design}
 dat <- build_design(
   data = epi_data,
-  cb_templates = cb,
-  max_lag = 85
+  cb_templates = cb
 )
+```
 
+Prepare the response:
+
+```{r prepare-response}
 dat <- prepare_response(
   data = dat,
   response = "y",
   family = "beta"
 )
+```
 
+Fit the model:
+
+```{r fit-model}
 fit <- fit_epidlnm(
   data = dat,
   model_engine = "glmmTMB",
   family = "beta",
-  epiexposure_spec = attr(cb,"spec")
+  random_effect = NULL,
+  epiexposure_spec = attr(
+    cb,
+    "spec"
+  )
 )
 ```
+
+The fitted model relates complete histories of temperature, rainfall, and leaf
+wetness to the expected disease response.
+
+# Complete exposure histories
+
+Each exposure supplied to `predict_outcomes()` must contain exactly:
+
+\[
+\text{max lag} + 1
+\]
+
+chronologically ordered observations.
+
+With:
+
+```r
+max_lag = 85
+```
+
+each profile must contain 86 values:
+
+```text
+position 1  → time 0  → maximum lag
+position 86 → time 85 → lag 0
+```
+
+The order is chronological. `EpiExposure` converts these positions into
+retrospective lags when reconstructing the cross-basis predictors.
+
+::: {.tutorial-note}
+**Complete profiles are required.** Temperature, rainfall, and leaf wetness
+profiles must have the same length and temporal interpretation used to fit the
+model. Coordinates, blocks, years, and other grouping variables are not
+exposure profiles.
+:::
 
 # Simulating exposure histories
 
 ## Why simulate exposures?
 
-Environmental conditions rarely occur as isolated observations.
+Environmental conditions rarely occur as isolated observations. Disease
+development can reflect sequences of temperature, rainfall, leaf wetness, and
+other exposures occurring throughout the epidemic.
 
-Instead, disease outcomes emerge from complete exposure histories containing temperature, rainfall, humidity, leaf wetness, and many other interacting variables.
+`simulate_exposures()` generates complete chronological profiles that can be
+used in prediction and scenario analysis.
 
-The simulate_exposures() function generates realistic chronological exposure profiles that can subsequently be used for prediction and scenario analysis.
+A simulated exposure profile is not a disease prediction. It becomes a
+prediction scenario only after it is combined with the other required
+exposures and supplied to `predict_outcomes()`.
 
 # Simulating a background process
 
-```{r}
+The following example generates a temperature profile using an autoregressive
+background process:
+
+```{r simulate-temperature}
 temperature_profile <- simulate_exposures(
   max_lag = 85,
   mode = "profile",
@@ -101,29 +187,59 @@ temperature_profile <- simulate_exposures(
 )
 ```
 
-Inspect the simulated profile:
+The result contains the simulated chronological profile:
 
-```{r}
-plot(
-  temperature_profile$profile,
-  type = "l",
-  xlab = "Time",
-  ylab = "Mean temperature (°C)"
+```{r inspect-temperature-profile, echo=FALSE}
+knitr::kable(
+  utils::head(
+    temperature_profile,
+    10L
+  ),
+  digits = 3,
+  align = "c"
 )
 ```
 
+Visualize the complete profile:
+
+```{r plot-temperature-profile, fig.width=8, fig.height=4}
+plot(
+  temperature_profile$profile,
+  type = "l",
+  lwd = 1.2,
+  col = "#C44E52",
+  xlab = "Chronological position",
+  ylab = "Mean temperature (°C)",
+  main = "Simulated temperature history"
+)
+```
+
+The autoregressive parameter:
+
+```r
+phi = 0.90
+```
+
+produces temporal dependence among consecutive observations. It does not
+represent an exposure-lag effect. The lag-response relationship remains
+determined by the fitted DLNM.
+
 # Simulating structured exposure events
 
-Specific epidemiological events can be superimposed onto the background process.
+A structured event can be superimposed on a background profile.
 
-For example:
+The following example constructs a rainfall pattern with values assigned to
+selected portions of the temporal history:
 
-```{r}
+```{r simulate-rainfall}
 rain_profile <- simulate_exposures(
   max_lag = 85,
   mode = "pattern",
   pattern = "block_times",
-  block_times = c(0,40),
+  block_times = c(
+    0,
+    40
+  ),
   fixed_value = 15,
   background = list(
     dist = "fixed",
@@ -132,11 +248,27 @@ rain_profile <- simulate_exposures(
 )
 ```
 
-```{r}
+Visualize the rainfall profile:
+
+```{r plot-rainfall-profile, fig.width=8, fig.height=4}
+plot(
+  rain_profile$profile,
+  type = "s",
+  lwd = 1.2,
+  col = "#4C72B0",
+  xlab = "Chronological position",
+  ylab = "Rainfall",
+  main = "Simulated rainfall history"
+)
+```
+
+A leaf wetness profile can be generated independently:
+
+```{r simulate-wetness}
 wetness_profile <- simulate_exposures(
   max_lag = 85,
   mode = "profile",
-  seed = 123,
+  seed = 456,
   background = list(
     dist = "ar1",
     mean = 10,
@@ -146,260 +278,578 @@ wetness_profile <- simulate_exposures(
 )
 ```
 
+```{r plot-wetness-profile, fig.width=8, fig.height=4}
+plot(
+  wetness_profile$profile,
+  type = "l",
+  lwd = 1.2,
+  col = "#55A868",
+  xlab = "Chronological position",
+  ylab = "Leaf wetness duration",
+  main = "Simulated leaf wetness history"
+)
+```
 
-This creates a prolonged rainfall event within a selected epidemiological period.
+The three profiles can now be combined into one complete hypothetical
+environmental history.
 
 # Predicting disease outcomes
 
-## Prediction from complete exposure histories
+## Deterministic prediction
 
-Unlike lag-specific or period-specific effects, outcome prediction evaluates the complete exposure history.
+`predict_outcomes()` reconstructs the fitted cross-basis values from the
+supplied profiles and calculates the expected response under the fitted model.
 
-Predictions therefore represent the cumulative consequence of all environmental conditions preceding disease assessment.
-
-```{r}
+```{r deterministic-prediction}
 prediction <- predict_outcomes(
   fit = fit,
   profiles = list(
     tmean = temperature_profile$profile,
     rain = rain_profile$profile,
-    wetness = rep(10,86)
-  )
+    wetness = wetness_profile$profile
+  ),
+  uncertainty = FALSE
 )
 
 prediction
 ```
 
+The prediction combines:
+
+- all temperature values and lags;
+- all rainfall values and lags;
+- all leaf wetness values and lags;
+- the fitted joint cross-basis coefficients;
+- the inverse link required by the response family.
+
+For the fitted Beta model, the result is an expected response on the proportion
+scale.
+
+The prediction is not a newly simulated disease observation. It represents the
+central expected response associated with the complete exposure history.
+
 # Prediction uncertainty
 
-```{r}
-prediction <- predict_outcomes(
+A deterministic prediction uses the central fitted coefficient estimates.
+However, the coefficients are estimated with uncertainty.
+
+When:
+
+```r
+uncertainty = TRUE
+```
+
+`EpiExposure` propagates joint coefficient uncertainty through the complete
+prediction calculation.
+
+To inspect individual uncertainty realizations, request sample-level output:
+
+```{r prediction-uncertainty}
+prediction_samples <- predict_outcomes(
   fit = fit,
   profiles = list(
     tmean = temperature_profile$profile,
     rain = rain_profile$profile,
-    wetness = rep(10,86)
+    wetness = wetness_profile$profile
   ),
   uncertainty = TRUE,
-  n_samples = 100
+  n_samples = 1000,
+  output = "samples",
+  seed = 123
 )
 ```
 
-Visualize uncertainty:
+Inspect the first realizations:
 
-```{r}
+```{r inspect-prediction-samples, echo=FALSE}
+knitr::kable(
+  utils::head(
+    prediction_samples,
+    10L
+  ),
+  digits = 4,
+  align = "c"
+)
+```
+
+Visualize the prediction distribution:
+
+```{r plot-prediction-uncertainty, fig.width=7, fig.height=5}
 ggplot(
-  prediction,
-  aes(prediction*100)
+  prediction_samples,
+  aes(
+    x = prediction * 100
+  )
 ) +
   geom_histogram(
-    bins = 20,
-    fill = "steelblue"
+    bins = 25,
+    fill = "#4C72B0",
+    color = "white"
   ) +
-  theme_bw()
+  theme_bw() +
+  labs(
+    x = "Predicted disease response (%)",
+    y = "Number of uncertainty realizations",
+    title = "Parameter uncertainty in the predicted response"
+  )
+```
+
+This distribution represents parameter uncertainty in the expected response.
+It does not include observation-level noise and should not be interpreted as a
+distribution of newly simulated disease observations.
+
+A summarized prediction can also be requested when individual realizations are
+not needed:
+
+```{r prediction-summary}
+prediction_summary <- predict_outcomes(
+  fit = fit,
+  profiles = list(
+    tmean = temperature_profile$profile,
+    rain = rain_profile$profile,
+    wetness = wetness_profile$profile
+  ),
+  uncertainty = TRUE,
+  n_samples = 1000,
+  output = "summary",
+  seed = 123
+)
+
+prediction_summary
 ```
 
 # Scenario simulation
 
-## Why scenarios?
+## Why construct scenarios?
 
-Researchers often wish to evaluate hypothetical epidemiological conditions.
+A single profile describes one complete hypothetical history. Scenario analysis
+extends this idea by evaluating multiple combinations of environmental
+conditions systematically.
 
-Examples include:
+Possible questions include:
 
-- increased rainfall;
-- elevated temperatures;
-- prolonged leaf wetness periods;
-- combinations of multiple environmental drivers.
+- How does the predicted response change across rainfall levels?
+- Does the rainfall association differ under distinct temperature conditions?
+- Which combinations of temperature and leaf wetness yield larger expected
+  responses?
+- How does the timing of an exposure pattern alter the prediction?
 
-Scenario simulation provides a systematic framework for evaluating these questions.
+These are model-based comparisons. They describe how the fitted model responds
+to supplied histories and do not automatically demonstrate causal
+interventions.
 
-## Generating candidate scenarios
+# Defining epidemiological periods
 
-```{r}
+The scenario grid can be organized using epidemiological periods:
+
+```{r define-periods}
 periods <- define_periods(
   max_lag = 85,
   cuts = c(
     20,
     40,
     60
-  )
+  ),
+  prefix = "Period"
 )
+
+periods
 ```
 
-```{r}
+The resulting periods divide the retrospective lag interval into four
+subintervals.
+
+Remember that lag order is retrospective:
+
+```text
+smaller lag → closer to disease assessment
+larger lag  → earlier exposure condition
+```
+
+# Generating candidate scenarios
+
+The following example varies rainfall across a grid while evaluating selected
+temperature and leaf wetness conditions:
+
+```{r generate-scenarios}
 scenarios <- simulate_ranges(
   periods = periods,
   vary = list(
-    tmean = c(20,34),
-    rain = seq(0,15,1),
-    wetness = c(2,10)
+    tmean = c(
+      20,
+      34
+    ),
+    rain = seq(
+      0,
+      15,
+      by = 1
+    ),
+    wetness = c(
+      2,
+      10
+    )
   ),
   scenario_type = "grid",
   scenario_var = "rain"
 )
 ```
 
-## Predicting scenarios
+Inspect the first scenarios:
 
-```{r}
+```{r inspect-scenarios, echo=FALSE}
+knitr::kable(
+  utils::head(
+    scenarios,
+    10L
+  ),
+  digits = 3,
+  align = "c"
+)
+```
+
+# Predicting scenario outcomes
+
+```{r predict-scenarios}
 pred_scenarios <- simulate_scenarios(
   fit = fit,
   scenarios = scenarios,
   data = epi_data,
   uncertainty = TRUE,
   output = "summary",
-  n_samples = 50
+  n_samples = 1000,
+  seed = 123
 )
 ```
 
-## Visualizing scenario outcomes
+Inspect the predictions:
 
-```{r}
-pred_scenarios %>%
-  ggplot(
-    aes(
-      rain,
-      prediction*100
-    )
-  ) +
-  geom_line() +
-  facet_wrap(
-    ~ wetness + tmean
-  ) +
-  theme_bw()
+```{r inspect-scenario-predictions, echo=FALSE}
+knitr::kable(
+  utils::head(
+    pred_scenarios,
+    10L
+  ),
+  digits = 4,
+  align = "c"
+)
 ```
+
+# Visualizing scenario predictions
+
+The modeled rainfall association can be displayed across combinations of
+temperature and leaf wetness:
+
+```{r plot-scenario-lines, fig.width=9, fig.height=6}
+ggplot(
+  pred_scenarios,
+  aes(
+    x = rain,
+    y = prediction * 100,
+    group = interaction(
+      wetness,
+      tmean
+    )
+  )
+) +
+  geom_line(
+    linewidth = 0.8,
+    color = "#4C72B0"
+  ) +
+  facet_grid(
+    rows = vars(
+      wetness
+    ),
+    cols = vars(
+      tmean
+    ),
+    labeller = label_both
+  ) +
+  theme_bw() +
+  labs(
+    x = "Rainfall",
+    y = "Expected disease response (%)",
+    title = "Predicted response across environmental scenarios"
+  )
+```
+
+The figure should be interpreted as a visualization of the fitted model over
+the scenario grid. Predictions far outside the observed exposure support should
+be treated cautiously.
 
 # Scenario surfaces
 
-```{r}
-pred_scenarios %>%
-  ggplot(
-    aes(
-      rain,
-      tmean,
-      fill = prediction*100
-    )
-  ) +
+When enough values are evaluated along two continuous dimensions, predictions
+can be presented as a scenario surface.
+
+The current example evaluates only two temperature values. Therefore, a line or
+point representation is more appropriate than a dense continuous surface.
+
+A tile display can still summarize the evaluated grid:
+
+```{r plot-scenario-grid, fig.width=9, fig.height=6}
+ggplot(
+  pred_scenarios,
+  aes(
+    x = rain,
+    y = factor(
+      tmean
+    ),
+    fill = prediction * 100
+  )
+) +
   geom_tile() +
   facet_wrap(
-    ~ wetness
+    vars(
+      wetness
+    ),
+    labeller = label_both
   ) +
-  scale_fill_viridis_c() +
-  theme_bw()
+  scale_fill_viridis_c(
+    name = "Expected\ndisease (%)"
+  ) +
+  theme_bw() +
+  labs(
+    x = "Rainfall",
+    y = "Mean temperature",
+    title = "Predicted response across the evaluated scenario grid"
+  )
 ```
+
+A smoother surface requires a denser sequence of temperature values in
+`simulate_ranges()`.
 
 # Comparing exposure histories
 
-## Why compare exposures?
+## Why compare profiles?
 
-Two exposure histories may differ substantially even when their average conditions appear similar.
+Two complete exposure histories can have similar averages while differing in
+timing, variability, persistence, or extreme values.
 
-The compare_exposures() function quantifies these differences directly.
+`compare_exposures()` describes differences between two exposure profiles
+directly, before disease predictions are compared.
 
-```{r}
-comparison <- compare_exposures(
+```{r compare-exposure-profiles}
+exposure_comparison <- compare_exposures(
   exposure1 = temperature_profile$profile,
-  exposure2 = rep(25,86),
+  exposure2 = rep(
+    25,
+    86
+  ),
   mode = "timewise"
 )
 ```
 
-Visualize differences:
+Inspect the comparison:
 
-```{r}
-comparison %>%
-  ggplot(
-    aes(
-      time,
-      diff
-    )
-  ) +
-  geom_line() +
-  theme_bw()
+```{r inspect-exposure-comparison, echo=FALSE}
+knitr::kable(
+  utils::head(
+    exposure_comparison,
+    10L
+  ),
+  digits = 3,
+  align = "c"
+)
 ```
 
-# Compare predictions
+Visualize the differences:
 
-## Epidemiological comparison
+```{r plot-exposure-comparison, fig.width=8, fig.height=4}
+ggplot(
+  exposure_comparison,
+  aes(
+    x = time,
+    y = diff
+  )
+) +
+  geom_hline(
+    yintercept = 0,
+    color = "grey60",
+    linetype = "dashed"
+  ) +
+  geom_line(
+    linewidth = 0.8,
+    color = "#C44E52"
+  ) +
+  theme_bw() +
+  labs(
+    x = "Chronological position",
+    y = "Exposure difference",
+    title = "Difference between temperature histories"
+  )
+```
 
-Prediction comparisons evaluate whether alternative exposure histories result in different expected disease outcomes.
+This comparison describes the exposure profiles themselves. It does not yet
+indicate whether the fitted model predicts different disease outcomes.
 
-Define candidate scenarios:
+# Comparing predictions
 
-```{r}
+## Defining candidate histories
+
+The following profiles represent two complete hypothetical environmental
+histories:
+
+```{r define-comparison-profiles}
 scenario_A <- list(
-  tmean = rep(25,86),
-  rain = rep(5,86),
-  wetness = rep(10,86)
+  tmean = rep(
+    25,
+    86
+  ),
+  rain = rep(
+    5,
+    86
+  ),
+  wetness = rep(
+    10,
+    86
+  )
 )
 
 scenario_B <- list(
-  tmean = rep(34,86),
-  rain = rep(15,86),
-  wetness = rep(20,86)
+  tmean = rep(
+    34,
+    86
+  ),
+  rain = rep(
+    15,
+    86
+  ),
+  wetness = rep(
+    20,
+    86
+  )
 )
 ```
 
-Compare predictions:
+The scenarios differ simultaneously in all three exposures. Therefore, the
+resulting prediction contrast represents their combined change and should not
+be attributed to one exposure individually.
 
-```{r}
-comparison <- compare_predictions(
+## Comparing expected outcomes
+
+```{r compare-predictions}
+prediction_comparison <- compare_predictions(
   fit = fit,
   profiles = list(
     A = scenario_A,
     B = scenario_B
   ),
   uncertainty = TRUE,
-  n_samples = 100
+  n_samples = 1000,
+  seed = 123
 )
 
-comparison
+prediction_comparison
 ```
 
-Visualize differences:
+The comparison quantifies the difference in the expected response between the
+two complete histories under the fitted model.
 
-```{r}
-comparison %>%
-  ggplot(
-    aes(
-      scenario1,
-      diff*100
-    )
-  ) +
-  geom_point(size = 3) +
-  theme_bw()
+For a variable-specific comparison, change one exposure at a time while holding
+the other profiles constant.
+
+For example:
+
+```{r compare-rainfall-only}
+scenario_low_rain <- list(
+  tmean = rep(
+    25,
+    86
+  ),
+  rain = rep(
+    2,
+    86
+  ),
+  wetness = rep(
+    10,
+    86
+  )
+)
+
+scenario_high_rain <- list(
+  tmean = rep(
+    25,
+    86
+  ),
+  rain = rep(
+    15,
+    86
+  ),
+  wetness = rep(
+    10,
+    86
+  )
+)
+
+rainfall_comparison <- compare_predictions(
+  fit = fit,
+  profiles = list(
+    low_rain = scenario_low_rain,
+    high_rain = scenario_high_rain
+  ),
+  uncertainty = TRUE,
+  n_samples = 1000,
+  seed = 123
+)
+
+rainfall_comparison
 ```
 
-# Interpreting simulation outputs
+Because temperature and leaf wetness remain unchanged, this contrast isolates
+the modeled difference associated with the two supplied rainfall histories,
+conditional on the fixed profiles of the other exposures.
 
-The simulation framework can be used to address a wide variety of epidemiological questions:
+# Interpreting simulation and prediction outputs
 
-- Which environmental variable exerts the strongest influence on disease risk?
-- Which lag periods are most sensitive to changes in exposure?
-- How large is the expected disease response under extreme environmental conditions?
-- Which combinations of temperature, rainfall, and wetness generate the greatest disease pressure?
+Simulation and prediction tools provide related but distinct outputs:
+
+- `simulate_exposures()` creates one complete exposure profile;
+- `simulate_ranges()` constructs combinations of candidate exposure values;
+- `simulate_scenarios()` predicts outcomes over multiple scenarios;
+- `predict_outcomes()` predicts the expected response for complete profiles;
+- `compare_exposures()` compares the exposure histories themselves;
+- `compare_predictions()` compares their model-based expected outcomes.
+
+Before interpreting a result, verify:
+
+1. whether the exposure histories are chronological;
+2. whether every profile contains `max_lag + 1` observations;
+3. whether all exposures required by the fitted model were supplied;
+4. whether scenario values are supported by the observed data;
+5. whether multiple exposures changed simultaneously;
+6. whether uncertainty was propagated;
+7. whether the output contains summaries or individual samples;
+8. whether the prediction is population-level or group-specific;
+9. whether the interpretation is associational or supported by a causal design.
+
+::: {.tutorial-note}
+**Prediction is not observation simulation.** `predict_outcomes()` returns the
+expected response under the fitted model. Parameter uncertainty can be
+propagated through coefficient draws, but this does not automatically add
+observation-level variability.
+:::
 
 # Summary
 
-This section demonstrated how `EpiExposure` transforms fitted DLNMs into scenario-testing tools.
+This vignette demonstrated how `EpiExposure` transforms a fitted DLNM into a
+framework for evaluating complete exposure histories.
 
-The simulation framework allows users to:
+The workflow allows users to:
 
-- generate realistic exposure histories;
-- construct hypothetical epidemiological scenarios;
-- predict disease outcomes;
-- compare competing environmental hypotheses.
+- generate chronological exposure profiles;
+- add structured exposure patterns;
+- predict expected disease outcomes;
+- propagate parameter uncertainty;
+- evaluate scenario grids;
+- compare exposure histories;
+- compare predicted responses.
 
-Together, these tools extend DLNMs beyond statistical estimation and enable direct epidemiological experimentation.
+These tools extend inference from the fitted exposure-lag surface to explicit,
+model-based comparisons of complete environmental histories.
 
 # Next steps
 
-The next vignette focuses on translating disease predictions into practical outcomes:
-
-- simulate_losses()
-- yield loss estimation
-- economic loss estimation
-- management scenario evaluation
+The next vignette translates predicted disease outcomes into practical outcomes such as yield and economic losses using the `simulate_losses()` function.
 
 These tools connect exposure-lag-response relationships with agronomic and economic consequences.
+

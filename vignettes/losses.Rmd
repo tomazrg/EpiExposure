@@ -9,38 +9,73 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.align = "center",
+  message = FALSE,
+  warning = FALSE
+)
+```
+
 # Introduction
 
-Disease severity alone does not fully describe the epidemiological consequences of an epidemic.
+Predicted disease intensity alone does not fully describe the potential
+agronomic consequences of an epidemic.
 
-In many pathosystems, the final objective is to quantify how disease translates into reductions in crop yield and, ultimately, economic losses.
+In many pathosystems, researchers also want to estimate how the predicted
+disease response may translate into reduced crop yield and economic losses.
 
-EpiExposure provides a framework that combines exposure-lag-response modeling with disease prediction and economic impact assessment.
+`EpiExposure` connects three modeling stages:
 
-This vignette demonstrates how simulated disease outcomes can be converted into:
+1. environmental exposure histories;
+2. expected disease outcomes from the fitted DLNM;
+3. user-defined disease-yield and economic relationships.
 
+This vignette demonstrates how scenario predictions can be translated into:
+
+- expected remaining yield;
 - yield loss;
-- remaining yield;
+- proportional yield loss;
 - economic loss;
-- economic return scenarios.
+- comparisons across production scenarios.
 
-These analyses allow researchers to evaluate the practical consequences of alternative environmental conditions.
+::: {.tutorial-note}
+**What you will learn.** This tutorial shows how to convert predicted disease
+outcomes into yield and economic losses, evaluate sensitivity to attainable
+yield, and compare the agronomic consequences of alternative environmental
+scenarios.
+:::
 
-# Load libraries
+Yield and economic losses are not estimated by the DLNM alone. They depend on
+additional assumptions supplied by the user, including the disease-yield
+relationship, attainable yield, commodity price, and unit conversions.
 
-```{r, message=FALSE, warning=FALSE}
+The resulting quantities are model-based projections under those assumptions.
+They should not automatically be interpreted as observed losses or causal
+effects.
 
+# Preparing the epidemiological model
+
+This vignette uses the same example dataset and DLNM specification introduced
+in the previous tutorials.
+
+```{r load-packages}
 library(EpiExposure)
-library(dplyr)
 library(ggplot2)
 ```
 
-# Fit a DLNM model
+```{r load-data}
+data(
+  "epi_data",
+  package = "EpiExposure"
+)
+```
 
-```{r}
+Define the exposure-lag structures:
 
-data("epi_data")
-
+```{r define-exposures}
 cb <- define_exposures(
   data = epi_data,
   vars = c(
@@ -52,328 +87,684 @@ cb <- define_exposures(
   df_var = 3,
   df_lag = 2
 )
+```
 
+Build the epidemic-level design:
+
+```{r build-design}
 dat <- build_design(
   data = epi_data,
-  cb_templates = cb,
-  max_lag = 85
+  cb_templates = cb
 )
+```
 
+Prepare the disease response:
+
+```{r prepare-response}
 dat <- prepare_response(
   data = dat,
   response = "y",
   family = "beta"
 )
+```
 
+Fit the DLNM:
+
+```{r fit-model}
 fit <- fit_epidlnm(
   data = dat,
   model_engine = "glmmTMB",
   family = "beta",
-  epiexposure_spec = attr(cb,"spec")
+  random_effect = NULL,
+  epiexposure_spec = attr(
+    cb,
+    "spec"
+  )
 )
 ```
 
-# Generate epidemiological scenarios
+The fitted Beta model returns expected disease responses on the proportion
+scale, strictly between 0 and 1.
 
-Yield losses are evaluated using predicted disease outcomes generated under alternative environmental conditions.
+# Generating epidemiological scenarios
 
-Create epidemiological periods:
+Yield losses are evaluated from disease outcomes predicted under complete
+environmental scenarios.
 
-```{r}
+First, define the retrospective lag periods:
+
+```{r define-periods}
 periods <- define_periods(
   max_lag = 85,
   cuts = c(
     20,
     40,
     60
-  )
+  ),
+  prefix = "Period"
 )
+
+periods
 ```
 
-Generate candidate scenarios:
+Generate candidate temperature, rainfall, and leaf wetness scenarios:
 
-```{r}
+```{r generate-scenarios}
 scenario_grid <- simulate_ranges(
   periods = periods,
   vary = list(
-    tmean = c(20,34),
-    rain = seq(0,15),
-    wetness = c(2,10)
+    tmean = c(
+      20,
+      34
+    ),
+    rain = seq(
+      0,
+      15,
+      by = 1
+    ),
+    wetness = c(
+      2,
+      10
+    )
   ),
   scenario_type = "grid",
   scenario_var = "rain"
 )
 ```
 
-Predict disease severity:
+Inspect the first scenarios:
 
-```{r}
+```{r inspect-scenarios, echo=FALSE}
+knitr::kable(
+  utils::head(
+    scenario_grid,
+    10L
+  ),
+  digits = 3,
+  caption = "First 10 candidate environmental scenarios.",
+  align = "c"
+)
+```
+
+# Predicting disease outcomes
+
+Predict the expected disease response for each scenario:
+
+```{r predict-scenarios}
 predictions <- simulate_scenarios(
   fit = fit,
   scenarios = scenario_grid,
   data = epi_data,
   uncertainty = TRUE,
   output = "summary",
-  n_samples = 100
+  n_samples = 1000,
+  seed = 123
 )
 ```
 
-Inspect simulated disease intensity:
+Inspect the scenario predictions:
 
-```{r}
-
-head(predictions)
-
+```{r inspect-predictions, echo=FALSE}
+knitr::kable(
+  utils::head(
+    predictions,
+    10L
+  ),
+  digits = 4,
+  caption = "First 10 predicted disease responses.",
+  align = "c"
+)
 ```
 
-# Converting disease severity into yield losses
+These predictions represent expected disease outcomes under the fitted model.
+They are not newly simulated observations.
 
-## Why estimate yield losses ?
+For the Beta model used here:
 
-Environmental conditions do not directly reduce yield.
+```r
+prediction = 0.20
+```
 
-Instead, environmental conditions influence disease development, which subsequently affects crop production.
+represents an expected disease response of 20%.
 
-`EpiExposure` uses user-supplied disease-loss relationships to estimate yield consequences.
+# Converting disease predictions into yield losses
 
-## Example damage function
+## Why estimate yield loss?
 
-Suppose disease severity and yield are related through:
+A predicted disease response and an agronomic loss are different quantities.
 
-Yield = a - b * Severity
+The DLNM estimates the expected disease outcome associated with an
+environmental history. A separate damage function is required to translate
+that disease outcome into expected crop yield.
 
-where
+Conceptually, the workflow is:
 
-• a = attainable yield;
-• b = disease damage coefficient.
+```text
+environmental history
+        ↓
+expected disease response
+        ↓
+disease-yield relationship
+        ↓
+expected remaining yield
+        ↓
+yield and economic losses
+```
+
+`EpiExposure` does not infer the disease-yield relationship automatically. The
+parameters should come from an appropriate experiment, published study,
+meta-analysis, or independently fitted damage model.
+
+## Example linear damage function
+
+Suppose the relationship between disease severity and expected yield is
+represented by:
+
+\[
+Y_{\mathrm{disease}} = a - bD
+\]
+
+where:
+
+- \(Y_{\mathrm{disease}}\) is the expected yield under disease;
+- \(D\) is disease severity on the scale expected by the damage function;
+- \(a\) is the model intercept;
+- \(b\) is the disease damage coefficient.
 
 For this example:
 
-```{r}
-slope = 49.3
-intercept = 9691
+```{r damage-function-parameters}
+slope <- 49.3
+intercept <- 9691
 ```
 
-## Estimate yield losses
+The interpretation of `slope` depends on the disease scale used to estimate the
+damage function.
 
-```{r}
+If the original damage relation used disease severity in percentage points,
+predictions on a 0-to-1 proportion scale must be converted consistently before
+the relationship is applied. If the damage function was estimated directly
+from proportions, no multiplication by 100 is required.
+
+::: {.tutorial-note}
+**Keep units consistent.** The disease scale used by `simulate_losses()` must
+match the scale used to estimate the damage function. A coefficient estimated
+from percentage severity is not directly interchangeable with a coefficient
+estimated from proportions.
+:::
+
+# Estimating yield and economic losses
+
+Define a plausible range of attainable yields:
+
+```{r attainable-yield-range}
+attainable_yield_values <- seq(
+  from = 4000,
+  to = 12000,
+  by = 50
+)
+```
+
+In this example, attainable yield is expressed in:
+
+```text
+kg ha⁻¹
+```
+
+Define the commodity price:
+
+```{r commodity-price}
+price_usd_per_ton <- 300
+```
+
+The price is expressed in:
+
+```text
+USD t⁻¹
+```
+
+Because yield is expressed in kilograms per hectare and price is expressed per
+metric ton, the yield-price conversion must remain explicit:
+
+\[
+1\ \mathrm{t} = 1000\ \mathrm{kg}
+\]
+
+The exact value supplied to `price` must follow the unit contract implemented
+by `simulate_losses()`. The user should verify whether the function expects
+price per kilogram or price per ton.
+
+For example, if `simulate_losses()` expects price per kilogram, convert:
+
+```{r price-conversion}
+price_usd_per_kg <- price_usd_per_ton / 1000
+```
+
+Then estimate the losses:
+
+```{r estimate-losses}
 losses <- simulate_losses(
   data = predictions,
   y = "prediction",
   slope = slope,
   intercept = intercept,
-  attainable_yield = seq(
-    4000,
-    12000,
-    by = 50
-  ),
-  price = 300
+  attainable_yield = attainable_yield_values,
+  price = price_usd_per_kg
 )
 ```
 
-Inspect results:
+Inspect the results:
 
-```{r}
-
-head(losses)
-
+```{r inspect-losses, echo=FALSE}
+knitr::kable(
+  utils::head(
+    losses,
+    10L
+  ),
+  digits = 3,
+  caption = "First 10 agronomic and economic loss estimates.",
+  align = "c"
+)
 ```
 
-The output includes:
+Depending on the output contract of `simulate_losses()`, the result can include
+quantities such as:
 
-• predicted disease severity;
-• expected yield;
-• yield loss;
-• economic loss.
+- predicted disease response;
+- attainable yield;
+- expected remaining yield;
+- absolute yield loss;
+- proportional yield loss;
+- economic loss.
+
+The column names should be inspected before constructing plots:
+
+```{r inspect-loss-columns}
+names(
+  losses
+)
+```
 
 # Visualizing yield losses
 
-## Yield loss surface
+## Yield-loss scenario grid
 
-```{r}
-losses %>%
-  ggplot(
-    aes(
-      rain,
-      att_yield,
-      fill = yield_loss
-    )
-  ) +
+The following figure shows estimated yield loss across rainfall and attainable
+yield values:
+
+```{r plot-yield-loss, fig.width=10, fig.height=7}
+ggplot(
+  losses,
+  aes(
+    x = rain,
+    y = att_yield,
+    fill = yield_loss
+  )
+) +
   geom_raster() +
-  facet_wrap(
-    ~ tmean + wetness,
-    ncol = 4
+  facet_grid(
+    rows = vars(
+      wetness
+    ),
+    cols = vars(
+      tmean
+    ),
+    labeller = label_both
+  ) +
+  scale_fill_viridis_c(
+    name = "Yield loss\n(kg ha⁻¹)"
   ) +
   theme_bw() +
-  scale_fill_viridis_c() +
   labs(
-    x = "Rainfall (mm)",
+    x = "Rainfall",
     y = "Attainable yield (kg ha⁻¹)",
-    fill = "Yield loss\n(kg ha⁻¹)"
+    title = "Estimated yield loss across environmental scenarios"
   )
 ```
 
-## Interpretation
+The displayed patterns arise from the complete modeling chain:
 
-High disease pressure scenarios generally result in larger reductions in expected yield.
+```text
+scenario exposures
+        ↓
+predicted disease response
+        ↓
+damage function
+        ↓
+estimated yield loss
+```
 
-The magnitude of the loss depends jointly on:
+A larger yield loss can result from:
 
-- environmental conditions;
-- predicted disease severity;
-- attainable crop yield.
+- a larger predicted disease response;
+- a larger damage coefficient;
+- a larger attainable yield;
+- differences in how `simulate_losses()` combines the attainable yield and
+  damage function.
+
+The figure should therefore not be interpreted as a direct effect of rainfall
+alone when temperature or leaf wetness also differ among panels.
 
 # Economic losses
 
-## Why estimate economic losses?
+## From yield loss to economic loss
 
-Yield reductions are useful biologically, but economic losses are often more relevant for management decisions.
+Economic loss combines estimated yield loss with commodity price.
 
-Economic losses combine yield reductions with commodity prices.
+Conceptually:
 
-## Calculate economic losses
+\[
+L_{\mathrm{economic}}
+=
+L_{\mathrm{yield}}
+\times
+P
+\]
 
-The previous analysis already included:
+where:
 
-```{r}
+- \(L_{\mathrm{economic}}\) is the economic loss per unit area;
+- \(L_{\mathrm{yield}}\) is the yield loss per unit area;
+- \(P\) is commodity price per compatible yield unit.
 
-price = 300
+If yield loss is measured in kilograms per hectare and price is supplied in
+USD per kilogram, economic loss is expressed in:
 
+```text
+USD ha⁻¹
 ```
 
-representing:
+If price is supplied in USD per metric ton, yield loss must first be converted
+from kilograms to metric tons.
 
-300 USD ton⁻¹
+## Visualizing economic loss
 
-# Visualizing economic losses
-
-```{r}
-losses %>%
-  ggplot(
-    aes(
-      rain,
-      att_yield,
-      fill = econ_loss
-    )
-  ) +
+```{r plot-economic-loss, fig.width=10, fig.height=7}
+ggplot(
+  losses,
+  aes(
+    x = rain,
+    y = att_yield,
+    fill = econ_loss
+  )
+) +
   geom_raster() +
-  facet_wrap(
-    ~ tmean + wetness,
-    ncol = 4
+  facet_grid(
+    rows = vars(
+      wetness
+    ),
+    cols = vars(
+      tmean
+    ),
+    labeller = label_both
+  ) +
+  scale_fill_viridis_c(
+    name = "Economic loss\n(USD ha⁻¹)"
   ) +
   theme_bw() +
-  scale_fill_viridis_c() +
   labs(
-    x = "Rainfall (mm)",
+    x = "Rainfall",
     y = "Attainable yield (kg ha⁻¹)",
-    fill = "Economic loss\n(USD ha⁻¹)"
+    title = "Estimated economic loss across environmental scenarios"
   )
 ```
 
-# Comparing management scenarios
+Economic loss depends linearly on price when all other model components remain
+unchanged. Consequently, price assumptions should always be reported with the
+results.
 
-## Low disease pressure scenario
+# Comparing selected scenarios
 
-```{r}
-low_pressure <- losses %>%
-  filter(
-    rain == min(rain),
-    wetness == min(wetness)
-  )
+## Avoid labeling scenarios from exposure values alone
+
+Low rainfall and short leaf wetness do not necessarily produce the lowest
+predicted disease response because the fitted relationships may be nonlinear
+and depend on timing.
+
+Likewise, the largest rainfall and wetness values should not automatically be
+called a high-disease scenario before examining the model predictions.
+
+A safer approach is to identify scenarios based on their predicted disease
+response.
+
+## Selecting lower and higher predicted responses
+
+```{r select-contrasting-scenarios}
+prediction_range <- range(
+  losses$prediction,
+  na.rm = TRUE
+)
+
+low_predicted_response <- losses[
+  losses$prediction == prediction_range[1L],
+  ,
+  drop = FALSE
+]
+
+high_predicted_response <- losses[
+  losses$prediction == prediction_range[2L],
+  ,
+  drop = FALSE
+]
 ```
 
-## High disease pressure scenario
+Assign scenario labels:
 
-```{r}
-high_pressure <- losses %>%
-  filter(
-    rain == max(rain),
-    wetness == max(wetness)
-  )
+```{r label-contrasting-scenarios}
+low_predicted_response$scenario <- "Lower predicted response"
+high_predicted_response$scenario <- "Higher predicted response"
+
+contrasting_scenarios <- rbind(
+  low_predicted_response,
+  high_predicted_response
+)
 ```
 
-Compare distributions:
+## Comparing economic losses
 
-```{r}
-bind_rows(
-  mutate(low_pressure,
-         scenario = "Low pressure"),
-  mutate(high_pressure,
-         scenario = "High pressure")
-) %>%
-  ggplot(
-    aes(
-      econ_loss,
-      fill = scenario
-    )
-  ) +
+```{r plot-contrasting-losses, fig.width=8, fig.height=5}
+ggplot(
+  contrasting_scenarios,
+  aes(
+    x = econ_loss,
+    fill = scenario
+  )
+) +
   geom_histogram(
-    alpha = 0.6,
+    bins = 25,
+    alpha = 0.55,
     position = "identity"
   ) +
-  theme_bw()
+  scale_fill_manual(
+    values = c(
+      "Lower predicted response" = "#4C72B0",
+      "Higher predicted response" = "#C44E52"
+    )
+  ) +
+  theme_bw() +
+  labs(
+    x = "Economic loss (USD ha⁻¹)",
+    y = "Number of scenarios",
+    fill = NULL,
+    title = "Economic losses under contrasting predicted responses"
+  )
 ```
+
+This comparison reflects both the predicted disease response and the range of
+attainable yields included in the analysis.
+
+It should not be interpreted as a management-treatment comparison unless the
+scenarios represent explicit management interventions and the fitted model
+supports that interpretation.
 
 # Sensitivity to attainable yield
 
-`EpiExposure` allows attainable yield to vary across a plausible range.
+The same proportional disease response may have different absolute
+consequences in production systems with different attainable yields.
 
-This is important because disease losses depend on production potential.
+A system with greater production potential can lose more kilograms per hectare
+even when the relative disease effect is unchanged.
 
-The same disease severity may generate very different economic outcomes under low- and high-yield production systems.
-
-Example:
-
-```{r}
-losses %>%
-  ggplot(
-    aes(
-      att_yield,
-      econ_loss
-    )
+```{r attainable-yield-sensitivity, fig.width=8, fig.height=5}
+ggplot(
+  losses,
+  aes(
+    x = att_yield,
+    y = econ_loss
+  )
+) +
+  geom_point(
+    alpha = 0.15,
+    size = 0.8
   ) +
-  geom_smooth() +
-  theme_bw()
+  geom_smooth(
+    se = FALSE,
+    color = "#C44E52"
+  ) +
+  theme_bw() +
+  labs(
+    x = "Attainable yield (kg ha⁻¹)",
+    y = "Economic loss (USD ha⁻¹)",
+    title = "Sensitivity of economic loss to attainable yield"
+  )
 ```
 
-# Pratical applications
+Because this plot combines all environmental scenarios, the smooth describes
+the overall pattern in the simulated grid. It is not a disease-yield
+coefficient.
 
-Yield and economic loss simulations can be used to:
+For a controlled comparison, filter to one environmental scenario before
+examining the relationship with attainable yield.
 
-- evaluate disease risk scenarios;
-- compare management strategies;
-- identify critical environmental conditions;
-- estimate economic consequences of epidemics;
-- support disease forecasting systems;
-- explore climate change impacts on crop production.
+# Propagating uncertainty into loss estimates
+
+Disease predictions contain parameter uncertainty. That uncertainty should be
+propagated when the objective is to report intervals for yield or economic
+loss.
+
+A complete uncertainty workflow should preserve corresponding prediction draws
+when applying the disease-yield and economic transformations.
+
+Conceptually, for uncertainty realization \(s\):
+
+\[
+D^{(s)}
+\longrightarrow
+Y^{(s)}_{\mathrm{disease}}
+\longrightarrow
+L^{(s)}_{\mathrm{yield}}
+\longrightarrow
+L^{(s)}_{\mathrm{economic}}
+\]
+
+This preserves the dependence between the predicted disease response and the
+derived loss quantities.
+
+If `simulate_losses()` accepts sample-level predictions, use scenario output
+with:
+
+```r
+output = "samples"
+```
+
+rather than applying the loss function only to the median or mean prediction.
+The resulting sample-level losses can then be summarized using medians,
+quantiles, or other uncertainty measures.
+
+::: {.tutorial-note}
+**Do not treat a confidence or credible interval as a range of future observed
+losses.** Parameter uncertainty in the expected disease response is different
+from observation-level variability, price uncertainty, and uncertainty in the
+disease-yield relationship.
+:::
+
+# Sources of uncertainty
+
+Agronomic and economic projections may contain uncertainty from several
+sources:
+
+- fitted DLNM coefficients;
+- exposure scenario assumptions;
+- the disease-yield damage function;
+- attainable yield;
+- commodity price;
+- measurement error in disease and exposure variables;
+- unmodeled variation among fields, seasons, or production systems.
+
+The current calculation may propagate only some of these sources. Users should
+state explicitly which uncertainties were included.
+
+# Practical applications
+
+When supported by appropriate data and assumptions, yield and economic loss
+simulations can help researchers:
+
+- translate disease predictions into agronomic units;
+- compare hypothetical environmental scenarios;
+- examine sensitivity to attainable yield;
+- evaluate sensitivity to commodity price;
+- identify scenarios associated with larger modeled losses;
+- connect disease forecasting with production consequences;
+- explore assumptions used in management or climate scenarios.
+
+These applications remain conditional on the fitted epidemiological model and
+the disease-yield relationship supplied by the user.
+
+# Reporting checklist
+
+When reporting loss estimates, specify:
+
+1. the response family and disease scale;
+2. the fitted DLNM specification;
+3. the environmental profiles or scenarios;
+4. the disease-yield equation;
+5. the source and units of the slope and intercept;
+6. the range and units of attainable yield;
+7. the commodity price and price unit;
+8. any conversion between kilograms and metric tons;
+9. the uncertainty sources that were propagated;
+10. whether the results are associational projections or causal estimates.
 
 # Summary
 
-This section demonstrated how `EpiExposure` connects exposure-lag-response modeling with agronomic and economic outcomes.
+This vignette demonstrated how `EpiExposure` connects exposure-lag-response
+modeling with agronomic and economic outcomes.
 
-The workflow consists of:
+The workflow is:
 
-Exposure histories
-    ↓
-DLNM model
-    ↓
-Disease prediction
-    ↓
-Yield loss estimation
-    ↓
-Economic loss estimation
+```text
+complete exposure histories
+            ↓
+fitted DLNM
+            ↓
+expected disease response
+            ↓
+user-supplied disease-yield relationship
+            ↓
+expected remaining yield
+            ↓
+yield loss
+            ↓
+economic loss
+```
 
-This framework allows researchers to move beyond disease prediction and evaluate the practical consequences of environmental conditions on agricultural production.
+The DLNM describes the modeled association between environmental histories and
+disease. The damage function translates predicted disease into expected yield,
+and commodity price translates yield loss into economic units.
+
+Each stage introduces assumptions that should be documented and evaluated
+through sensitivity analysis.
 
 # Next steps
 
-The next section focuses on model selection and ensemble forecasting.
+The next vignette focuses on model selection and ensemble prediction.
 
-It introduces:
+Topics include:
 
-- find_bestfit()
-- model ranking
-- cross-validation
-- ensemble_bestfit()
+- `find_bestfit()`;
+- model ranking;
+- cross-validation;
+- `ensemble_bestfit()`.
 
-These tools help identify robust exposure-lag-response models and improve predictive performance.
+These tools help compare candidate exposure-lag specifications and evaluate
+their predictive performance.

@@ -1,7 +1,7 @@
 ---
 title: "Understanding Effects"
 author: "Ricardo G. Tomáz"
-description: "Lag-specific, period-specific, and cumulative exposure impacts"
+description: "Lag-specific, period-specific, and cumulative exposure effects"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Understanding Effects}
@@ -9,40 +9,60 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.align = "center",
+  message = FALSE,
+  warning = FALSE
+)
+```
+
 # Introduction
 
-The primary goal of `EpiExposure` is not only to fit distributed lag non-linear models (DLNMs), but also to translate exposure-lag-response surfaces into biologically meaningful epidemiological interpretations.
+The primary goal of `EpiExposure` is not only to fit distributed lag nonlinear
+models, but also to translate estimated exposure-lag-response surfaces into
+epidemiologically meaningful quantities.
 
-This section introduces the main effect interpretation tools available in `EpiExposure`:
+This vignette introduces four complementary approaches:
 
-- Lag-specific effects
-- Period-specific effects
-- Exposure Cumulative Impact (ECI)
-- Lag decomposition of ECI
+- lag-specific effects;
+- period-specific effects;
+- Exposure Cumulative Impact, or ECI;
+- lag-specific decomposition of ECI.
 
-These approaches allow researchers to identify periods of stronger modeled association with exposure periods, compare epidemiological phases, and summarize complete exposure histories.
+These approaches help researchers investigate when associations are strongest,
+compare biologically meaningful lag periods, and summarize complete exposure
+histories.
 
-# Load data
+::: {.tutorial-note}
+**What you will learn.** This tutorial shows how to reconstruct and interpret
+lag-specific and period-specific effects from a fitted DLNM, calculate ECI for
+complete exposure histories, and identify the lags contributing most strongly
+to ECI.
+:::
 
-```{r, message=FALSE, warning=FALSE}
+Effect estimates should be interpreted as modeled associations under the fitted
+DLNM. They do not, by themselves, establish causal effects.
 
+# Preparing the example model
+
+This vignette uses the same example dataset and basic model specification
+introduced in the *Get Started* vignette.
+
+```{r load-packages}
 library(EpiExposure)
-library(dplyr)
 library(ggplot2)
-
 ```
 
-```{r}
-
+```{r load-data}
 data("epi_data")
-
-epi_data
-
 ```
 
-# Fit a DLNM model
+Define the exposure-lag structures:
 
-```{r}
+```{r define-exposures}
 cb <- define_exposures(
   data = epi_data,
   vars = c(
@@ -54,54 +74,150 @@ cb <- define_exposures(
   df_var = 3,
   df_lag = 2
 )
+```
 
+Build the epidemic-level design:
+
+```{r build-design}
 dat <- build_design(
   data = epi_data,
-  cb_templates = cb,
-  max_lag = 85
+  cb_templates = cb
 )
+```
 
+Prepare the response:
+
+```{r prepare-response}
 dat <- prepare_response(
   data = dat,
   response = "y",
   family = "beta"
 )
+```
 
+Fit the model:
+
+```{r fit-model}
 fit <- fit_epidlnm(
   data = dat,
   model_engine = "glmmTMB",
   family = "beta",
-  epiexposure_spec = attr(cb, "spec")
+  random_effect = NULL,
+  epiexposure_spec = attr(
+    cb,
+    "spec"
+  )
 )
 ```
+
+The individual `cb_*` coefficients are components of the cross-basis expansion
+and should not be interpreted separately. The functions below reconstruct those
+coefficients into quantities defined over exposure values and retrospective
+lags.
+
+# Reference conditions and effect measures
+
+Exposure-lag effects are interpreted relative to reference conditions. When an
+exposure value is evaluated at a particular lag, the other lags are held at
+their corresponding reference values.
+
+In the examples below:
+
+```r
+effect_measure = "percent"
+```
+
+expresses modeled contrasts as percentage effects relative to the selected
+reference profile.
+
+The interpretation of effect direction depends on the response and contrast:
+
+- positive values indicate a higher modeled response than the reference;
+- negative values indicate a lower modeled response than the reference;
+- values near zero indicate little modeled contrast from the reference.
+
+These values describe contrasts in the expected response under the fitted model.
+They should not automatically be interpreted as causal risk changes.
 
 # Lag-specific effects
 
 ## What are lag-specific effects?
 
-Lag-specific effects quantify how an exposure value influences disease severity at a particular lag while all remaining lags are held at their selected reference conditions.
+Lag-specific effects describe how the modeled disease response changes across
+exposure values at an individual retrospective lag, while the remaining lags
+are held at their reference conditions.
 
-This approach allows investigators to identify when exposures exert their strongest influence on disease development.
+A lag refers to the time elapsed between an exposure observation and the final
+disease assessment:
 
-## Estimate lag-specific effects
+```text
+lag 0  → exposure measured at the disease assessment time
+lag 1  → exposure measured one time unit before assessment
+...
+lag 85 → earliest exposure observation in the fitted history
+```
 
-```{r}
+Lag-specific summaries help identify portions of the exposure history in which
+the fitted model shows stronger or weaker associations.
+
+They do not imply that an individual `cb_*` coefficient corresponds to a
+specific biological process. The lag-specific effect is reconstructed from the
+joint cross-basis representation.
+
+## Estimating lag-specific effects
+
+```{r estimate-lag-effects}
 epi_l <- summarise_effects(
   fit = fit,
   data = epi_data,
   scale = "lag",
   effect_measure = "percent",
+  uncertainty = TRUE,
+  n_samples = 1000,
+  output = "summary",
   at = list(
-    tmean = seq(15,35,length.out = 100),
-    rain = seq(0,15,length.out = 100),
-    wetness = seq(0,24,length.out = 100)
+    tmean = seq(
+      15,
+      35,
+      length.out = 100
+    ),
+    rain = seq(
+      0,
+      15,
+      length.out = 100
+    ),
+    wetness = seq(
+      0,
+      24,
+      length.out = 100
+    )
   )
 )
 ```
 
-## Visualize effects
+The `at` argument defines the exposure values at which the fitted
+exposure-lag-response relationships are evaluated.
 
-```{r}
+The number of values in each sequence controls the resolution of the resulting
+effect grid. A denser grid produces smoother visualizations but increases
+computation and output size.
+
+Inspect the reconstructed summaries:
+
+```{r inspect-lag-effects, echo=FALSE}
+knitr::kable(
+  utils::head(
+    epi_l,
+    10L
+  ),
+  digits = 3,
+  align = "c"
+)
+```
+
+## Visualizing lag-specific effects
+
+```{r plot-lag-effects, fig.width=9, fig.height=7}
 plot_effects(
   data = epi_l,
   scale = "lag",
@@ -114,32 +230,60 @@ plot_effects(
 )
 ```
 
-## Delta effects
+Interpret these plots jointly across exposure values and lags. Avoid drawing
+conclusions from one isolated point, especially where uncertainty is large or
+data support is limited.
 
-In addition to effect estimates, EpiExposure can calculate local sensitivity measures (Δ), which describe how quickly the outcome changes in response to increasing exposure levels.
+## Local sensitivity and delta effects
 
-Positive values indicate increasing disease risk, whereas negative values indicate decreasing disease risk.
+In addition to effect estimates, `EpiExposure` can display local sensitivity
+measures, denoted by \(\Delta\).
 
-```{r}
+Delta describes how rapidly the modeled effect changes as the exposure value
+increases locally:
+
+- positive values indicate an increasing modeled response;
+- negative values indicate a decreasing modeled response;
+- values near zero indicate local stability or a relatively flat portion of
+  the estimated relationship.
+
+```{r plot-delta-effects, fig.width=9, fig.height=7}
 plot_effects(
   data = epi_l,
   scale = "lag",
   metric = "delta",
-  delta_multiplier = 100
+  delta_multiplier = 100,
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"
+  )
 )
 ```
 
+Delta should be interpreted as a local feature of the fitted
+exposure-lag-response surface. It is not a separate regression coefficient or
+an independent causal effect.
+
 # Period-specific effects
 
-## Why summarize periods?
+## Why summarize lag periods?
 
-Many epidemiological mechanisms act over broader temporal phases rather than individual lags.
+Individual lags may be difficult to interpret biologically, particularly when
+disease development involves broader phases such as infection, colonization,
+symptom development, or secondary spread.
 
-Period-specific effects summarize the cumulative contribution of exposure conditions across biologically meaningful lag intervals.
+Period-specific effects combine information across predefined lag intervals.
+This allows the exposure-lag association to be summarized over biologically
+meaningful phases rather than interpreted one lag at a time.
 
-## Define epidemiological periods
+The periods should be selected using biological knowledge whenever possible.
+They should not be chosen only because they produce larger or more visually
+distinct effects.
 
-```{r}
+## Defining epidemiological periods
+
+```{r define-periods}
 periods <- define_periods(
   max_lag = 85,
   cuts = c(
@@ -153,30 +297,52 @@ periods <- define_periods(
 periods
 ```
 
-## Estimate period effects
+The selected cut points divide the fitted lag interval into four periods.
 
-### Summary
+Because lag is retrospective, the numerical order of the periods should be
+checked carefully when assigning biological labels. Lower lags are closer to
+the disease assessment, whereas higher lags represent earlier exposure
+conditions.
 
-```{r}
-epi_p <- summarise_effects(
+## Estimating period-specific effects
+
+```{r estimate-period-effects}
+epi_p_summary <- summarise_effects(
   fit = fit,
   data = epi_data,
   scale = "period",
   lag_periods = periods,
   effect_measure = "percent",
-  output = "summary",
-  n_samples = 20,
-  uncertainty = TRUE
+  uncertainty = TRUE,
+  n_samples = 1000,
+  output = "summary"
 )
 ```
 
-Visualize period affects
+Inspect the summary:
 
-```{r}
+```{r inspect-period-effects, echo=FALSE}
+knitr::kable(
+  utils::head(
+    epi_p_summary,
+    10L
+  ),
+  digits = 3,
+  align = "c"
+)
+```
+
+## Visualizing period-specific effects
+
+```{r plot-period-effects, fig.width=9, fig.height=7}
 plot_effects(
-  data = epi_p,
+  data = epi_p_summary,
   scale = "period",
-  vars = c("tmean", "rain", "wetness"),
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
   period_order = c(
     "Period4",
     "Period3",
@@ -188,60 +354,77 @@ plot_effects(
     "rain",
     "wetness"
   ),
-  period_ylab = "Effect")
+  period_ylab = "Effect"
+)
 ```
 
-### Samples
+Period-specific summaries describe the modeled contribution accumulated over
+each defined lag interval. They should not be interpreted as four independently
+estimated models because all periods arise from the same fitted cross-basis
+surface.
 
-```{r}
-epi_p <- summarise_effects(
+## Returning uncertainty samples
+
+When custom uncertainty analyses are needed, return the individual
+draw-specific results instead of their summaries:
+
+```{r period-effect-samples}
+epi_p_samples <- summarise_effects(
   fit = fit,
   data = epi_data,
   scale = "period",
   lag_periods = periods,
   effect_measure = "percent",
-  output = "summary",
-  n_samples = 20,
-  uncertainty = TRUE
+  uncertainty = TRUE,
+  n_samples = 1000,
+  output = "samples"
 )
 ```
 
-Visualize period affects
+Inspect a subset of the sample-level output:
 
-```{r}
-plot_effects(
-  data = epi_p,
-  scale = "period",
-  vars = c("tmean", "rain", "wetness"),
-  period_order = c(
-    "Period4",
-    "Period3",
-    "Period2",
-    "Period1"
+```{r inspect-period-samples, echo=FALSE}
+knitr::kable(
+  utils::head(
+    epi_p_samples,
+    10L
   ),
-  vars_order = c(
-    "tmean",
-    "rain",
-    "wetness"
-  ),
-  period_ylab = "Effect")
+  digits = 3,
+  align = "c"
+)
 ```
 
-# Exposure Cumulative Impact (ECI)
+The sample output preserves individual uncertainty realizations. It can support
+custom summaries, probability calculations, sensitivity analyses, and
+user-defined visualizations.
 
-## Why ECI?
+The rows belonging to the same draw should remain associated when comparing
+periods, exposures, scenarios, or contrasts.
 
-Disease responses depend on complete exposure histories rather than isolated observations.
+# Exposure Cumulative Impact
 
-Two exposure profiles may contain similar amounts of rainfall or temperature, yet produce very different disease outcomes because exposures occur at different times.
+## Why use ECI?
 
-Exposure Cumulative Impact (ECI) was developed to summarize complete exposure histories while accounting for the exposure-lag-response relationship estimated by the DLNM.
+Disease responses depend on complete exposure histories rather than isolated
+observations.
 
-# Overall ECI
+Two epidemic histories may have similar average rainfall or temperature but
+different modeled epidemiological implications because favorable conditions
+occurred at different times.
 
-## Calculate ECI
+Exposure Cumulative Impact, or ECI, summarizes a complete exposure history
+while retaining information from the fitted exposure-lag-response
+relationship.
 
-```{r}
+ECI complements the lag-specific and period-specific summaries:
+
+- lag-specific effects examine individual lags;
+- period-specific effects combine predefined lag intervals;
+- ECI summarizes the complete observed exposure history of each epidemic.
+
+## Calculating ECI
+
+```{r compute-eci}
 eci <- compute_eci(
   data = epi_data,
   group = "epi_id",
@@ -253,71 +436,138 @@ eci <- compute_eci(
   ),
   uncertainty = TRUE,
   output = "summary",
-  n_samples = 20
+  n_samples = 1000
 )
+```
 
-head(eci)
+Inspect the resulting summaries:
+
+```{r inspect-eci, echo=FALSE}
+knitr::kable(
+  utils::head(
+    eci,
+    10L
+  ),
+  digits = 3,
+  align = "c"
+)
 ```
 
 ## Interpreting ECI
 
-ECI is reported as two complementary measures:
+ECI provides two complementary quantities:
 
-- ECI_raw
-  - accumulated exposure only
-- ECI_weighted
-  - accumulated exposure weighted by the exposure-lag-response association estimated by the DLNM
+- `ECI_raw` describes the accumulated exposure history without weighting by
+  the fitted exposure-lag association;
+- `ECI_weighted` incorporates the weighting implied by the fitted
+  exposure-lag-response relationship.
 
-ECI_weighted can be interpreted as the overall epidemiological influence of the entire exposure history.
+`ECI_raw` describes exposure accumulation. It does not represent a modeled
+disease effect.
 
-## Example
+`ECI_weighted` describes how the complete exposure history aligns with the
+association estimated by the DLNM. Larger or smaller values should be
+interpreted relative to other histories fitted under the same specification,
+exposure definition, reference conditions, and scale.
 
-```{r}
-eci %>%
-  filter(var == "rain") %>%
+ECI is a model-derived summary. It should not automatically be interpreted as a
+causal impact or as a directly observed biological quantity.
+
+## Comparing raw and weighted exposure histories
+
+```{r compare-eci, fig.width=7, fig.height=5}
+eci[
+  eci$var == "rain",
+  ,
+  drop = FALSE
+] |>
   ggplot(
     aes(
-      ECI_weighted,
-      ECI_raw
+      x = ECI_weighted,
+      y = ECI_raw
     )
   ) +
-  geom_point() +
-  theme_bw()
+  geom_point(
+    alpha = 0.65
+  ) +
+  theme_bw() +
+  labs(
+    x = "Weighted ECI",
+    y = "Raw ECI")
 ```
+
+A strong relationship between the two quantities indicates that accumulated
+exposure and model-based weighting produce similar rankings for the displayed
+histories.
+
+Deviations from that relationship may indicate that exposure timing changes
+the modeled importance of histories with similar raw accumulation.
 
 # Decomposing ECI by lag
 
 ## Why decompose ECI?
 
-While ECI summarizes the overall impact of an exposure history, researchers often want to identify which lags contribute most strongly to the cumulative association.
+Overall ECI provides one summary for the complete history, but researchers may
+also want to identify the lags that contribute most strongly to that summary.
 
-The compute_ecilag() function decomposes ECI into lag-specific contributions.
+`compute_ecilag()` decomposes ECI into lag-specific contributions for a selected
+epidemic or grouping level.
 
-## Compute lag contributions
+This decomposition answers a different question from lag-specific effect
+curves:
 
-```{r}
+- a lag-specific effect curve evaluates modeled contrasts across exposure
+  values at a lag;
+- ECI decomposition evaluates how the exposure values actually observed in a
+  selected history contribute to that history's ECI.
+
+## Computing lag contributions
+
+```{r compute-eci-lag}
 eci_lag <- compute_ecilag(
   data = epi_data,
   group = "epi_id",
   group_level = 1,
   fit = fit,
-  var = c("tmean","rain", "wetness"),
+  var = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
   uncertainty = TRUE,
   output = "summary",
-  n_samples = 20)
+  n_samples = 1000
+)
 ```
 
-## Inspect lag contributions
+In this example:
 
-```{r}
-head(eci_lag$by_lag)
+```r
+group_level = 1
 ```
 
-## Plot contribution profile
+selects the epidemic identified by level `1` of `epi_id`.
 
-```{r, message=FALSE, warning=FALSE}
+For a real analysis, select the epidemic identifier that corresponds to the
+history of scientific interest.
 
-  plot_eci(
+## Inspecting lag contributions
+
+```{r inspect-eci-lag, echo=FALSE}
+knitr::kable(
+  utils::head(
+    eci_lag$by_lag,
+    10L
+  ),
+  digits = 3,
+  align = "c"
+)
+```
+
+## Plotting the contribution profile
+
+```{r plot-eci, fig.width=9, fig.height=9}
+plot_eci(
   eci_overall = eci,
   eci_lag = eci_lag,
   facet_scales = "free_y",
@@ -326,31 +576,84 @@ head(eci_lag$by_lag)
   sample_smooth = TRUE,
   linewidth = 0.7,
   alpha = 0.20,
-  panel_labels = c("(a)", "(b)", "(c)"),
+  panel_labels = c(
+    "(a)",
+    "(b)",
+    "(c)"
+  ),
   overall_col = "ECI_weighted",
-  lag_col = "ECI_percent")
-
-
+  lag_col = "ECI_percent"
+)
 ```
 
-# Linking lag effects and ECI
+The overall panels summarize complete histories, whereas the lag panels show
+how the selected history is distributed across retrospective lags.
 
-Lag-specific effects, period-specific effects, and ECI provide complementary perspectives of the same exposure-lag-response surface.
+Large positive or negative lag contributions should be interpreted in the
+context of:
 
-- Lag-specific effects identify critical lags.
-- Period-specific effects identify influential epidemiological phases.
-- ECI summarizes the overall impact of complete exposure histories.
-- ECI lag decomposition identifies which lags contribute most strongly to cumulative impact.
+- the exposure values observed at those lags;
+- the fitted exposure-response shape;
+- the fitted lag-response shape;
+- the selected reference conditions;
+- uncertainty in the fitted coefficients.
 
-Together, these tools provide a comprehensive framework for interpreting distributed lag non-linear models in epidemiological research.
+# How the summaries complement one another
+
+Lag-specific effects, period-specific effects, ECI, and ECI decomposition are
+different views of the same fitted exposure-lag-response structure.
+
+- **Lag-specific effects** describe modeled exposure contrasts at individual
+  lags.
+- **Period-specific effects** summarize modeled exposure contrasts across
+  predefined lag intervals.
+- **ECI** summarizes complete observed exposure histories.
+- **ECI lag decomposition** identifies how individual lags contribute to ECI
+  for a selected history.
+
+These summaries should not be expected to answer the same question or produce
+identical rankings.
+
+For example, a lag may show a strong modeled effect over part of the exposure
+range but contribute little to ECI for a particular epidemic if the observed
+exposure at that lag is close to its reference value.
+
+Conversely, a moderate modeled effect can contribute substantially when an
+epidemic contains a pronounced exposure contrast at that lag.
+
+# Interpretation checklist
+
+Before reporting an effect summary, verify:
+
+1. which response family and link were fitted;
+2. which exposure serves as the focus of interpretation;
+3. which reference profile or centering condition is being used;
+4. whether lag order is retrospective;
+5. how epidemiological periods were defined;
+6. whether the result is a summary or a sample-level output;
+7. whether uncertainty intervals are sufficiently precise;
+8. whether the evaluated exposure values are supported by the observed data;
+9. whether the interpretation is associational or supported by a separate
+   causal design.
+
+::: {.tutorial-note}
+**Avoid interpreting cross-basis coefficients individually.** Epidemiological
+interpretation should be based on reconstructed lag-specific, period-specific,
+or cumulative summaries rather than isolated `cb_*` estimates.
+:::
 
 # Next steps
 
-The next section introduces simulation and prediction tools:
+The next vignette introduces simulation and prediction tools for evaluating
+complete hypothetical exposure histories.
 
-- simulate_exposure()
-- simulate_range()
-- simulate_scenarios()
-- predict_outcome()
+These tools include:
 
-These functions allow researchers to evaluate hypothetical exposure histories and quantify their expected disease consequences.
+- `simulate_exposures()`;
+- `simulate_range()`;
+- `simulate_scenarios()`;
+- `predict_outcomes()`.
+
+They allow researchers to compare alternative exposure trajectories, investigate
+the timing of favorable or unfavorable conditions, and estimate expected
+disease outcomes under complete hypothetical histories.
