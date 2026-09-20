@@ -76,7 +76,7 @@ The examples below use the same cross-basis specification whenever
 possible. This allows the modeling engines to be compared without
 repeatedly rebuilding the exposure-lag design.
 
-```{r reference-design}
+```{r}
 cb <- define_exposures(
   data = epi_data,
   vars = c(
@@ -109,13 +109,13 @@ dat_poisson <- prepare_response(
 )
 ```
 
-## Fixed-effect reference model
+# Fixed-effect reference model
 
 A generalized linear model provides the simplest fixed-effect
 specification. It is useful as a reference when random or spatial
 dependence is not required.
 
-```{r glm-reference}
+```{r}
 fit_glm <- fit_epidlnm(
   data = dat,
   model_engine = "glm",
@@ -129,13 +129,13 @@ fit_glm <- fit_epidlnm(
 summary(fit_glm)
 ```
 
-## Conventional random effects
+# Conventional random effects
 
 When epidemics are grouped within experimental blocks, observations from
 the same block may share unmeasured conditions. A random intercept can
 account for this hierarchical dependence.
 
-```{r glmm-random-intercept}
+```{r}
 fit_glmm <- fit_epidlnm(
   data = dat,
   model_engine = "glmmTMB",
@@ -163,7 +163,7 @@ The `gam` engine can fit the DLNM design with `mgcv`. Beta and
 negative-binomial models use `mgcv` extended families and are fitted
 through the supported REML route by default.
 
-```{r gam-nb2, eval=FALSE}
+```{r, eval=FALSE}
 fit_gam <- fit_epidlnm(
   data = dat_nb2,
   model_engine = "gam",
@@ -183,7 +183,7 @@ The `gamm` engine combines the fixed DLNM design with a conventional
 random intercept. In the current `EpiExposure` interface,
 `random_effect` is required.
 
-```{r gamm-example, eval=FALSE}
+```{r, eval=FALSE}
 fit_gamm <- fit_epidlnm(
   data = dat,
   model_engine = "gamm",
@@ -198,7 +198,7 @@ fit_gamm <- fit_epidlnm(
 
 The fitted object contains two native components:
 
-```{r gamm-summary, eval=FALSE}
+```{r, eval=FALSE}
 summary(fit_gamm)
 
 summary(
@@ -213,7 +213,7 @@ The default summary describes the fixed/population GAM component. The
 For non-Gaussian responses, `mgcv::gamm()` uses a PQL-based fitting
 route. Binary responses should therefore be treated cautiously.
 
-## Spatially autocorrelated effects with `spaMM`
+# Spatially autocorrelated effects with `spaMM`
 
 
 Consider a regional study of a foliar rice disease conducted at
@@ -226,14 +226,14 @@ The cross-basis terms estimate nonlinear and delayed weather effects. A
 Matérn random effect accounts for residual geographic similarity among
 nearby fields after those measured weather effects have been considered.
 
-### Dependence spatial fields
+## Dependence spatial fields
 
 ```{r}
 spatial_data = readxl::read_xlsx("spamm_st_poisson.xlsx")
 ```
 
 
-```{r spatial-design, eval=FALSE}
+```{r, eval=FALSE}
 dat_spatial <- build_design(
   data = spatial_data,
   cb_templates = cb_spatial,
@@ -251,7 +251,7 @@ dat_spatial <- prepare_response(
 )
 ```
 
-```{r spamm-shared-field, eval=FALSE}
+```{r, eval=FALSE}
 fit_spatial <- fit_epidlnm(
   data = dat_spatial,
   model_engine = "spamm",
@@ -280,7 +280,7 @@ The Matérn term is distinct from a conventional random intercept. It
 represents autocorrelation that changes continuously with the distance
 between locations.
 
-### Independent spatial fields by year
+## Independent spatial fields by year
 
 If the disease process is expected to have a different spatial
 realization in each growing season, `year` can define independent Matérn
@@ -291,7 +291,7 @@ fields:
 spatial_year = readxl::read_xlsx("sim_data_spatial_year.xlsx")
 ```
 
-```{r spatial-design, eval=FALSE}
+```{r, eval=FALSE}
 dat_spatial_year <- build_design(
   data = spatial_year,
   cb_templates = cb,
@@ -312,7 +312,7 @@ dat_spatial_year <- prepare_response(
 )
 ```
 
-```{r spamm-field-by-year, eval=FALSE}
+```{r, eval=FALSE}
 fit_spatial_year <- fit_epidlnm(
   data = dat_spatial_year,
   model_engine = "spamm",
@@ -341,7 +341,7 @@ In this model, `(1 | block_id)` represents conventional experimental
 heterogeneity, whereas the Matérn term represents spatially
 autocorrelated residual variation within each year.
 
-### Independent spatial fields across epidemiological replicates
+## Independent spatial fields across epidemiological replicates
 
 The grouping variable in a Matérn term can identify independent
 repetitions of an entire epidemiological experiment. Consider a field
@@ -358,12 +358,12 @@ and the oldest observation corresponds to lag 85.
 Each combination of location and repetition represents a separate
 epidemic:
 
-``` text
-L001_Replicate_1
-L001_Replicate_2
-L001_Replicate_3
-L001_Replicate_4
-```
+
+`L001_Replicate_1`
+`L001_Replicate_2``
+`L001_Replicate_3`
+`L001_Replicate_4`
+
 
 The cross-basis terms use the exposure history from each epidemic to
 estimate the shared nonlinear and delayed environmental associations.
@@ -372,11 +372,8 @@ remain in the same locations across repetitions.
 
 Independent residual spatial fields can be specified as:
 
-``` r
-Matern(
-  1 | x_coord + y_coord %in% epidemic_replicate
-)
-```
+`Matern(1 | x_coord + y_coord %in% epidemic_replicate)`
+
 
 The model therefore allows each repetition to produce a different
 realized map of residual disease intensity. For example, areas with high
@@ -392,7 +389,7 @@ separate realized spatial fields.
 spatial_replicate = readxl::read_xlsx("sim_data_spatial_replicate.xlsx")
 ```
 
-```{r spatial-design, eval=FALSE}
+```{r, eval=FALSE}
 dat_spatial_replicate <- build_design(
   data = spatial_replicate,
   cb_templates = cb,
@@ -413,7 +410,7 @@ dat_spatial_replicate <- prepare_response(
 )
 ```
 
-```{r spatial-replicate-model, eval=FALSE}
+```{r, eval=FALSE}
 fit_spatial_replicate <- fit_epidlnm(
   data = dat_spatial_replicate,
   model_engine = "spamm",
@@ -443,12 +440,12 @@ the complete disease process. Repeated assessments made during the
 progression of a single epidemic should not be treated as independent
 replicates.
 
-## Gaussian generalized least squares
+# Gaussian generalized least squares
 
 The `gls` engine is restricted to Gaussian outcomes with the identity
 link and does not support the EpiExposure random-intercept interface.
 
-```{r gls-example, eval=FALSE}
+```{r, eval=FALSE}
 fit_gls <- fit_epidlnm(
   data = dat_gaussian,
   model_engine = "gls",
@@ -462,12 +459,12 @@ fit_gls <- fit_epidlnm(
 summary(fit_gls)
 ```
 
-## MCMC estimation with `brms`
+# MCMC estimation with `brms`
 
 The `brms` engine provides posterior sampling for the fixed DLNM
 coefficients and any requested hierarchical components.
 
-```{r brms-example, eval=FALSE}
+```{r, eval=FALSE}
 fit_brms <- fit_epidlnm(
   data = dat,
   model_engine = "brms",
@@ -485,7 +482,7 @@ fit_brms <- fit_epidlnm(
 summary(fit_brms)
 ```
 
-## Bayesian DLNM with `bdlnm`
+# Bayesian DLNM with `bdlnm`
 
 The `bdlnm` engine provides a Bayesian implementation specifically
 designed for distributed lag linear and nonlinear models. Internally,
@@ -506,7 +503,7 @@ draws are retained for draw-by-draw propagation through
 `summarise_effects()`, `predict_outcomes()`, and other downstream
 functions.
 
-```{r bdlnm-design, eval=FALSE}
+```{r, eval=FALSE}
 cb_bdlnm <- define_exposures(
   data = epi_data,
   vars = c(
@@ -544,7 +541,7 @@ dat_bdlnm <- prepare_response(
 The model can then be fitted through the harmonized `EpiExposure`
 interface:
 
-```{r bdlnm-fit, eval=FALSE}
+```{r, eval=FALSE}
 fit_bdlnm <- fit_epidlnm(
   data = dat_bdlnm,
   model_engine = "bdlnm",
@@ -587,7 +584,7 @@ The resulting intervals describe uncertainty in the population-level
 expected response. They do not include observation-level noise or
 group-specific random effects.
 
-### Direct INLA versus B-DLNM
+# Direct INLA versus B-DLNM
 
 Both engines rely on INLA for approximate Bayesian inference, but they
 enter the `EpiExposure`workflow differently.
