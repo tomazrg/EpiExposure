@@ -1,0 +1,230 @@
+# Predict outcomes from fitted EpiExposure DLNM models
+
+Predicts the population-level expected outcome associated with either
+user-defined chronological exposure profiles or a new longitudinal
+exposure data set. The function uses only the standardized model
+metadata and internal prediction helpers created by \`fit_epidlnm()\`;
+family, link, cross-basis definitions, coefficient mappings, and engine
+behavior are never inferred again inside this public function.
+
+## Usage
+
+``` r
+predict_outcomes(
+  fit,
+  profiles = NULL,
+  newdata = NULL,
+  group = "epi_id",
+  time = "time",
+  type = c("response", "link"),
+  uncertainty = FALSE,
+  output = c("summary", "samples"),
+  n_samples = 1000L,
+  probs = c(0.025, 0.975),
+  seed = NULL,
+  extrapolation = c("warn", "error", "allow")
+)
+```
+
+## Arguments
+
+- fit:
+
+  Fitted model returned by the current \`fit_epidlnm()\`.
+
+- profiles:
+
+  Optional exposure profiles. Supply either \`profiles\` or \`newdata\`,
+  but not both.
+
+  For a model containing one exposure, a single profile may be supplied
+  as a numeric vector. For one or more exposures, use a named list whose
+  names match the fitted exposures exactly. Each exposure element may
+  be:
+
+  - one numeric vector, representing one chronological history;
+
+  - a list of numeric vectors, representing multiple histories;
+
+  - a numeric matrix or data frame, with one profile per row.
+
+  Histories must be ordered from the oldest observation to the most
+  recent observation. The most recent value corresponds to lag 0. Each
+  history must contain exactly \`max_lag+1\` observations. Longer
+  histories are not truncated and shorter histories are not padded. When
+  several fitted exposures are supplied, profiles are matched by
+  position rather than combined as a Cartesian product. An exposure with
+  one profile is recycled across exposures that contain multiple
+  profiles.
+
+- newdata:
+
+  Optional long-format data frame containing new observed exposure
+  histories. Supply either \`newdata\` or \`profiles\`, but not both.
+  The response variable is not required and, if present, is not used for
+  prediction. All fitted exposure variables must be present. spaMM
+  spatial coordinates and grouping factors are not required for
+  fixed-component prediction; the same applies to \`profiles\`.
+
+- group:
+
+  Character scalar naming the column that identifies independent
+  exposure histories in \`newdata\`, or \`NULL\` to treat all rows as
+  one history. This argument is used only to split the longitudinal
+  prediction data. It does not request group-specific random-effect or
+  conditional spaMM spatial predictions. Coordinates and spatial-group
+  variables are not required for population-level prediction.
+
+- time:
+
+  Character scalar naming the chronological numeric time column in
+  \`newdata\`. Within each prediction group, times must be unique,
+  complete, and equally spaced because one DLNM lag must represent the
+  same time interval throughout the prediction data.
+
+- type:
+
+  Prediction scale: \`"response"\` for the expected outcome on its
+  natural response scale, or \`"link"\` for the corresponding
+  population-level linear predictor.
+
+- uncertainty:
+
+  Logical. If \`FALSE\`, return the deterministic prediction obtained
+  from the central fixed/population parameter estimate. If \`TRUE\`,
+  propagate fixed/population parameter uncertainty draw by draw.
+
+- output:
+
+  Character. When \`uncertainty = TRUE\`, \`"summary"\` returns the
+  median, standard deviation, and empirical interval across
+  expected-response draws, whereas \`"samples"\` returns every draw.
+  When \`uncertainty = FALSE\`, only \`"summary"\` is valid and the
+  returned data contain the deterministic \`prediction\`.
+
+- n_samples:
+
+  Positive integer number of parameter draws used when \`uncertainty =
+  TRUE\`. At least two are required.
+
+- probs:
+
+  Numeric vector of length two defining the lower and upper empirical
+  uncertainty quantiles. The default \`c(0.025, 0.975)\` gives a 95
+  percent interval. Used only when \`uncertainty = TRUE\` and \`output =
+  "summary"\`.
+
+- seed:
+
+  Optional finite integer used for parameter-draw sampling. The caller's
+  global random-number state is restored when the function exits.
+
+- extrapolation:
+
+  Behavior when prediction exposures extend beyond the exposure range
+  stored with the fitted cross-basis: \`"warn"\` (default), \`"error"\`,
+  or \`"allow"\`. This controls notification only; the fitted basis is
+  never re-estimated from prediction data.
+
+## Value
+
+A data frame.
+
+For multiple explicit profiles, a \`profile\` column identifies matched
+profile combinations. For \`newdata\` with \`group\` supplied, the
+grouping column identifies each predicted history.
+
+With \`uncertainty = FALSE\`, the result contains \`prediction\`.
+
+With \`uncertainty = TRUE\` and \`output = "summary"\`, the result
+contains \`prediction\`, \`prediction_sd\`, \`prediction_lower\`, and
+\`prediction_upper\`.
+
+With \`uncertainty = TRUE\` and \`output = "samples"\`, the result
+contains \`sample\` and \`prediction\`, with one row for each parameter
+draw and prediction history.
+
+## Details
+
+\## Prediction estimand
+
+EpiExposure v1 defines prediction as the population-level expected
+response. Models may be fitted with conventional random intercepts and,
+for spaMM, spatially autocorrelated Matérn random effects. All non-fixed
+effects are excluded from predictions. This includes \`(1 \| epi_id)\`,
+\`(1 \| block_id)\`, \`Matern(1 \| x_coord + y_coord)\`, and independent
+field realizations such as \`Matern(1 \| x_coord + y_coord zero to the
+default prediction. In mixed-model notation, the prediction target is
+based on
+
+\$\$\eta = X\beta\$\$
+
+rather than
+
+\$\$\eta = X\beta + b_i.\$\$
+
+Here, "population-level" means that conventional and spatial random
+effects are set to zero or excluded from the prediction component. It
+does not mean integration over their distributions. For nonlinear links,
+the resulting expected response need not equal a marginally integrated
+mean.
+
+With \`type = "response"\`, the deterministic prediction is
+
+\$\$\hat{\mu} = g^{-1}(X\hat{\beta}),\$\$
+
+where \\\hat{\beta}\\ is the harmonized central fixed/population
+parameter estimate. Frequentist engines use their fitted fixed-effect
+estimates; Bayesian engines use posterior means of the fixed/population
+coefficients. In particular, deterministic Bayesian prediction is not
+defined as the median of posterior expected-response draws.
+
+\## Uncertainty
+
+With \`uncertainty = TRUE\`, parameter uncertainty is propagated using
+
+\$\$\mu^{(s)} = g^{-1}(X\beta^{(s)})\$\$
+
+for each draw \\s\\. The inverse link is applied separately to every
+draw before any summary is computed. The same coefficient draw is
+applied jointly to all prediction rows, preserving covariance among
+predictions sharing the same fitted parameters.
+
+For frequentist engines, fixed-effect draws are obtained from the
+estimated joint coefficient covariance matrix. For Bayesian engines,
+posterior or approximate-posterior fixed-effect draws are used.
+Group-specific random-effect or spatial-field uncertainty is not
+propagated because predictions depend exclusively on fixed/population
+parameters.
+
+The uncertainty distribution therefore describes uncertainty in the
+expected response. It does not simulate a new observed outcome and does
+not add residual, observation, process, dispersion, or
+posterior-predictive noise.
+
+\## New observed exposure data
+
+\`newdata\` is transformed using the cross-basis definition stored in
+\`fit\`. Knots, boundary knots, spline definitions, and lag-basis
+parameters are not re-estimated from the new observations. Each
+prediction group is sorted by \`time\`, transformed with the fitted
+basis, and represented by the final cross-basis row.
+
+This is the same train-to-test principle used for out-of-fold prediction
+in \`find_bestfit()\`: the fitted/training basis defines the
+transformation and the new or held-out exposure history is only
+projected through that stored basis. spaMM models with Matérn terms do
+not require coordinates, spatial groups, or levels of conventional
+random effects in prediction \`newdata\` or \`profiles\`: these
+variables do not enter the fixed-component prediction. For spatial spaMM
+models the internal point-prediction helper computes \`X coefficients,
+with no simulated spatial fields or new observations.
+
+\## Multiple explicit profiles
+
+Multiple profiles are paired by profile index. For example, if \`tmean\`
+and \`rain\` each contain 100 profiles, profile 1 of \`tmean\` is
+combined with profile 1 of \`rain\`, and so forth. The function does not
+create all pairwise combinations. If one exposure contains a single
+profile and another contains 100, the single profile is recycled 100
+times.

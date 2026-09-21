@@ -1,169 +1,466 @@
-
-/* ========================= */
-/* ✅ NAVBAR */
-/* ========================= */
-
-.navbar {
-  background-color: #458a3f !important;
-}
-
-/* ========================= */
-/* ✅ VERSION (0.1.0) */
-/* ========================= */
-
-.navbar .navbar-brand small {
-  color: #ffffff !important;
-  opacity: 1 !important;
-}
-
-/* ========================= */
-/* ✅ NAVBAR LINKS */
-/* ========================= */
-
-/* todos os links */
-.navbar .navbar-nav .nav-link {
-  color: #ffffff !important;
-  opacity: 1 !important;
-}
-
-/* dropdown (Articles) */
-.navbar .navbar-nav .dropdown-toggle {
-  color: #ffffff !important;
-}
-
-/* ativo (Reference, etc.) */
-.navbar .navbar-nav .nav-link.active {
-  color: #7ED957 !important;
-}
-
-/* dropdown aberto */
-.navbar .navbar-nav .show > .nav-link {
-  color: #7ED957 !important;
-}
-
-/* hover */
-.navbar .navbar-nav .nav-link:hover {
-  color: #a6ff7a !important;
-}
-
-/* ========================= */
-/* ✅ TITLES */
-/* ========================= */
-
-h1, h2, h3 {
-  color: #7ED957 !important;
-}
-
-/* ========================= */
-/* ✅ LINKS */
-/* ========================= */
-
-a {
-  color: #7ED957 !important;
-}
-
-/* ========================= */
-/* ✅ SIDEBAR */
-/* ========================= */
-
-.list-unstyled a {
-  color: #7ED957 !important;
-}
-
-
-/* ========================= */
-/* ✅ CODE BLOCKS (ESTILO r4pde) */
-/* ========================= */
-
-pre {
-  background-color: #2b2f33 !important;   /* cinza escuro suave */
-  color: #e8e8e8 !important;
-  border-radius: 10px;
-  padding: 12px;
-  border: 1px solid #3a3f44;
-  overflow-x: auto;
-}
-
-/* interior */
-pre code {
-  background-color: transparent !important;
-  color: #e8e8e8 !important;
-}
-
-/* código inline */
-code {
-  background-color: #353a40 !important;
-  color: #7ED957 !important;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-/* ========================= */
-/* ✅ SYNTAX HIGHLIGHT */
-/* ========================= */
-
-code span.co { color: #6A9955 !important; }
-code span.kw { color: #569CD6 !important; }
-code span.st { color: #CE9178 !important; }
-
-
-/* ========================= */
-/* ✅ VERSION TEXT (FORCE WHITE REAL) */
-/* ========================= */
-
-/* força tudo dentro do brand */
-.navbar .navbar-brand {
-  color: #ffffff !important;
-}
-
-/* força especificamente a versão */
-.navbar .navbar-brand *,
-.navbar .navbar-brand span,
-.navbar .navbar-brand small {
-  color: #ffffff !important;
-  opacity: 1 !important;
-}
-
-
-/* ========================= */
-/* ✅ PAGE BACKGROUND (IGUAL r4pde) */
-/* ========================= */
+/* ==================================================== */
+/* TYPOGRAPHY */
+/* ==================================================== */
 
 body {
-  background-color: #1f262d !important;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Arial,
+    sans-serif;
 }
 
-/* container principal */
-.container-fluid,
-.container-lg,
-.container-xl,
-.container-xxl {
-  background-color: transparent !important;
+/* ==================================================== */
+/* NAVBAR */
+/* ==================================================== */
+
+.navbar {
+  background-color: #46784a !important;
+  padding-top: 0.45rem !important;
+  padding-bottom: 0.45rem !important;
 }
 
+.navbar .navbar-brand,
+.navbar .navbar-brand *,
+.navbar .navbar-nav .nav-link {
+  color: #ffffff !important;
+}
 
-/* ========================= */
-/* ✅ PACKAGE TITLE (HOME) */
-/* ========================= */
+.navbar .navbar-nav .nav-link:hover {
+  color: #ddead7 !important;
+}
+
+.navbar .navbar-nav .nav-link.active,
+.navbar .navbar-nav .show > .nav-link {
+  color: #f3faf1 !important;
+}
+
+/* Keep only the TOP navbar links/icons white.
+   Do not force dropdown items to white in light mode. */
+
+.navbar .navbar-brand,
+.navbar .navbar-brand *,
+.navbar .navbar-nav > .nav-item > .nav-link {
+  color: #ffffff !important;
+}
+
+/* Articles dropdown: readable in light mode */
+[data-bs-theme="light"] .navbar .dropdown-menu .dropdown-item {
+  color: #212529 !important;
+}
+
+[data-bs-theme="light"] .navbar .dropdown-menu .dropdown-item:hover,
+[data-bs-theme="light"] .navbar .dropdown-menu .dropdown-item:focus {
+  color: #1f5030 !important;
+}
+
+/* ==================================================== */
+/* TITLES */
+/* ==================================================== */
 
 h1 {
+  font-size: 2rem !important;
+  font-weight: 650 !important;
+  line-height: 1.2;
+  margin-bottom: 0.8rem;
+}
+
+h2 {
+  font-size: 1.6rem !important;
+  font-weight: 600 !important;
+  line-height: 1.25;
+}
+
+h3 {
+  font-size: 1.3rem !important;
+  font-weight: 600 !important;
+  line-height: 1.3;
+}
+
+/* Larger package title on the Home page */
+
+body.template-home main h1,
+body.template-home .contents h1,
+.template-home main h1,
+.template-home .contents h1,
+.page-home main h1,
+.page-index main h1 {
+  font-size: 3.2rem !important;
   font-weight: 700 !important;
+  line-height: 1.05;
 }
 
-/* ========================= */
-/* ✅ DARK MODE */
-/* ========================= */
+/* Article and reference titles */
 
-[data-bs-theme="dark"] body {
-  background-color: #1f262d !important;
-  color: #d4d4d4 !important;
+.template-article main h1,
+.template-reference main h1,
+.template-news main h1,
+.article-container h1 {
+  font-size: 2rem !important;
+  font-weight: 650 !important;
 }
 
-/* ========================= */
-/* ✅ LIGHT MODE */
-/* ========================= */
-
-[data-bs-theme="light"] body {
-  background-color: #ffffff !important;
+[data-bs-theme="light"] h1,
+[data-bs-theme="light"] h2,
+[data-bs-theme="light"] h3 {
   color: #212529 !important;
+}
+
+[data-bs-theme="dark"] h1,
+[data-bs-theme="dark"] h2,
+[data-bs-theme="dark"] h3 {
+  color: #f5f5f5 !important;
+}
+
+/* ==================================================== */
+/* LINKS */
+/* ==================================================== */
+
+a {
+  color: #2b6a40 !important;
+}
+
+a:hover {
+  color: #1f5030 !important;
+}
+
+[data-bs-theme="dark"] a {
+  color: #86d89a !important;
+}
+
+[data-bs-theme="dark"] a:hover {
+  color: #b0f0bd !important;
+}
+
+/* ==================================================== */
+/* SIDEBAR AND TABLE OF CONTENTS */
+/* ==================================================== */
+
+.bd-sidebar a,
+.toc a,
+#toc a {
+  color: #56785b !important;
+}
+
+[data-bs-theme="dark"] .bd-sidebar a,
+[data-bs-theme="dark"] .toc a,
+[data-bs-theme="dark"] #toc a {
+  color: #7fd08d !important;
+}
+
+/* ==================================================== */
+/* CODE BLOCKS */
+/* The pre element owns the visual box and scrollbar.   */
+/* The outer div does not create a second bottom bar.   */
+/* ==================================================== */
+
+div.sourceCode {
+  position: relative;
+  display: block;
+  margin: 0 0 1rem 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+/* Source-code input blocks */
+
+div.sourceCode > pre,
+div.sourceCode > pre.sourceCode,
+pre.sourceCode {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 !important;
+  padding: 14px !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  white-space: pre;
+  font-size: 0.92rem !important;
+  line-height: 1.5;
+}
+
+/* Console and printed-output blocks */
+
+pre:not(.sourceCode) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding: 14px !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  white-space: pre;
+  font-size: 0.92rem !important;
+  line-height: 1.5;
+}
+
+div.sourceCode pre {
+  margin-bottom: 0 !important;
+}
+
+/* Light theme */
+
+[data-bs-theme="light"] div.sourceCode > pre,
+[data-bs-theme="light"] div.sourceCode > pre.sourceCode,
+[data-bs-theme="light"] pre.sourceCode,
+[data-bs-theme="light"] pre:not(.sourceCode) {
+  background-color: #f6f8fa !important;
+  color: #24292e !important;
+  border: 1px solid #d8dee4 !important;
+}
+
+/* Dark theme */
+
+[data-bs-theme="dark"] div.sourceCode > pre,
+[data-bs-theme="dark"] div.sourceCode > pre.sourceCode,
+[data-bs-theme="dark"] pre.sourceCode,
+[data-bs-theme="dark"] pre:not(.sourceCode) {
+  background-color: #161b22 !important;
+  color: #c9d1d9 !important;
+  border: 1px solid #30363d !important;
+}
+
+/* Remove nested backgrounds and shadows */
+
+div.sourceCode pre code,
+div.sourceCode pre code,
+pre:not(.sourceCode) code,
+pre:not(.sourceCode) code {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+/*
+ * Use the native horizontal scrollbar only when the code
+ * actually exceeds the available width.
+ */
+
+div.sourceCode > pre,
+div.sourceCode > pre.sourceCode,
+pre.sourceCode,
+pre:not(.sourceCode) {
+  scrollbar-width: auto;
+  scrollbar-color: auto;
+}
+
+/* ==================================================== */
+/* INLINE CODE */
+/* ==================================================== */
+
+:not(pre) > code {
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+[data-bs-theme="light"] :not(pre) > code {
+  background-color: #eef2f5 !important;
+  color: #245f39 !important;
+}
+
+[data-bs-theme="dark"] :not(pre) > code {
+  background-color: #252a31 !important;
+  color: #8ce99a !important;
+}
+
+/* ==================================================== */
+/* SYNTAX HIGHLIGHT */
+/* ==================================================== */
+
+/* Light theme */
+
+[data-bs-theme="light"] code span.co {
+  color: #6a737d !important;
+}
+
+[data-bs-theme="light"] code span.kw {
+  color: #8250df !important;
+}
+
+[data-bs-theme="light"] code span.st {
+  color: #0a7f42 !important;
+}
+
+[data-bs-theme="light"] code span.fu {
+  color: #0969da !important;
+}
+
+[data-bs-theme="light"] code span.va {
+  color: #0550ae !important;
+}
+
+[data-bs-theme="light"] code span.dv {
+  color: #953800 !important;
+}
+
+[data-bs-theme="light"] code span.ot {
+  color: #0969da !important;
+}
+
+[data-bs-theme="light"] code span.op {
+  color: #24292e !important;
+}
+
+/* Dark theme */
+
+[data-bs-theme="dark"] code span.co {
+  color: #8b949e !important;
+}
+
+[data-bs-theme="dark"] code span.kw {
+  color: #d2a8ff !important;
+}
+
+[data-bs-theme="dark"] code span.st {
+  color: #7ee787 !important;
+}
+
+[data-bs-theme="dark"] code span.fu {
+  color: #79c0ff !important;
+}
+
+[data-bs-theme="dark"] code span.va {
+  color: #a5d6ff !important;
+}
+
+[data-bs-theme="dark"] code span.dv {
+  color: #ffa657 !important;
+}
+
+[data-bs-theme="dark"] code span.ot {
+  color: #79c0ff !important;
+}
+
+[data-bs-theme="dark"] code span.op {
+  color: #c9d1d9 !important;
+}
+
+/* ==================================================== */
+/* PKGDOWN NATIVE PACKAGE LOGO */
+/* ==================================================== */
+
+/*
+ * Native pkgdown logo on internal pages.
+ * The Home page keeps the manually positioned README sticker,
+ * so the automatic pkgdown logo is hidden there.
+ */
+.page-header {
+  position: relative;
+}
+
+.page-header > img.logo,
+.page-header img.logo {
+  float: right !important;
+  display: block !important;
+  width: 190px !important;
+  max-width: 190px !important;
+  height: auto !important;
+  max-height: none !important;
+  margin: -0.35rem 0 0.75rem 1.25rem !important;
+  object-fit: contain;
+}
+
+/* Hide only pkgdown's automatic logo on the Home/README page. */
+body.template-home .page-header > img.logo,
+body.template-home .page-header img.logo,
+.template-home .page-header > img.logo,
+.template-home .page-header img.logo,
+body.page-home .page-header > img.logo,
+body.page-home .page-header img.logo,
+body.page-index .page-header > img.logo,
+body.page-index .page-header img.logo {
+  display: none !important;
+}
+
+/* Smaller internal-page logo on narrow screens. */
+@media (max-width: 767.98px) {
+  .page-header > img.logo,
+  .page-header img.logo {
+    width: 120px !important;
+    max-width: 120px !important;
+    margin-left: 0.75rem !important;
+  }
+}
+
+/* ==================================================== */
+/* HIDE GET STARTED FROM ARTICLES DROPDOWN AND INDEX */
+/* ==================================================== */
+
+.pkgdown-article-index
+.list-unstyled
+li
+a[href="pkgdown.html"] {
+  display: none !important;
+}
+
+.navbar
+.dropdown-menu
+a[href="pkgdown.html"] {
+  display: none !important;
+}
+
+/* ==================================================== */
+/* FIGURES AND PLOTS */
+/* Preserve the original graphic appearance in dark mode */
+/* ==================================================== */
+
+[data-bs-theme="dark"] img {
+  filter: none !important;
+  -webkit-filter: none !important;
+}
+
+/* ==================================================== */
+/* HIDE GET STARTED FROM ARTICLES */
+/* Keep the page available only through the Get started tab */
+/* ==================================================== */
+
+/* Hide from Articles dropdown in navbar */
+.navbar .dropdown-menu a[href$="pkgdown.html"] {
+  display: none !important;
+}
+
+/* Hide from Articles index page */
+.template-article-index a[href$="pkgdown.html"],
+.pkgdown-article-index a[href$="pkgdown.html"] {
+  display: none !important;
+}
+
+.tutorial-note {
+  position: relative;
+  margin: 1.5rem 0;
+  padding: 1.1rem 1.25rem 1.1rem 3.5rem;
+  background-color: #fff8e8;
+  border-left: 5px solid #d9a600;
+  border-radius: 0.75rem;
+  line-height: 1.6;
+}
+
+.tutorial-note::before {
+  content: "💡";
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.tutorial-note p {
+  margin: 0;
+}
+
+.tutorial-note strong {
+  color: #1f1f1f;
 }

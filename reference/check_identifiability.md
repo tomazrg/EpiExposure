@@ -1,51 +1,265 @@
-# Check DLNM cross-basis identifiability
+# Diagnose identifiability and numerical stability of DLNM cross-basis designs
 
-Evaluates whether a DLNM cross-basis matrix is full rank.
+Diagnoses the epidemic-level DLNM design that EpiExposure would
+construct for model fitting from one or more exposure variables. The
+function deliberately reuses the canonical EpiExposure design path:
 
 ## Usage
 
 ``` r
 check_identifiability(
-  wx_long,
-  var,
-  lag_max,
+  data,
+  vars,
+  max_lag,
   df_var = 4,
   df_lag = 4,
   fun_var = "ns",
-  fun_lag = "ns"
+  fun_lag = "ns",
+  include_intercept = TRUE,
+  corr_threshold = 0.9,
+  condition_warn = 30,
+  condition_severe = 100,
+  vif_threshold = 10,
+  n_per_parameter_warn = 10,
+  tol = 1e-07,
+  keep_design = FALSE
 )
 ```
 
 ## Arguments
 
-- wx_long:
+- data:
 
-  Long-format weather data
+  Non-empty long-format exposure data frame containing \`epi_id\`,
+  \`time\`, and every exposure named in \`vars\`.
 
-- var:
+  EpiExposure v1 uses a strict exact-history contract. If \`max_lag =
+  L\`, every epidemic must contain exactly \`L + 1\` rows. Histories
+  with fewer or more rows are rejected; they are never truncated,
+  padded, or silently realigned. All requested exposure variables occupy
+  those same validated rows and therefore necessarily have the same
+  temporal support and history length.
 
-  Exposure variable (e.g. "tmax")
+  \`epi_id\` must not contain missing values. \`time\` and all exposure
+  variables must contain only finite numeric values. When \`max_lag \>
+  0\`, time must be strictly increasing after ordering, equally spaced
+  within each epidemic, and use the same spacing across epidemics.
+  Missing or non-finite exposure values are not dropped in EpiExposure
+  v1; they are errors.
 
-- lag_max:
+- vars:
 
-  Maximum lag
+  Character vector with one or more unique exposure-variable names. The
+  reserved EpiExposure names \`"epi_id"\`, \`"time"\`, and \`"y"\`
+  cannot be used as exposure names.
+
+- max_lag:
+
+  Non-negative integer maximum lag. The legacy form \`c(0, L)\` is
+  accepted for backward compatibility. EpiExposure v1 requires the
+  fitted lag range to begin at lag 0 and all fitted exposures to use the
+  same \`max_lag\`.
 
 - df_var:
 
-  Degrees of freedom (exposure)
+  Positive integer controlling the exposure-response basis when
+  \`fun_var\` is \`"ns"\` or \`"bs"\`. For \`fun_var = "poly"\`, it is
+  used as the polynomial degree. It is ignored by the linear basis.
 
 - df_lag:
 
-  Degrees of freedom (lag)
+  Positive integer controlling the lag-response basis when \`fun_lag\`
+  is \`"ns"\` or \`"bs"\`. For \`fun_lag = "poly"\`, it is used as the
+  polynomial degree. It is ignored by the linear basis.
 
 - fun_var:
 
-  Basis ("ns","bs","poly","lin")
+  Character exposure-basis function. Supported unpenalized EpiExposure
+  v1 choices are \`"ns"\`, \`"bs"\`, \`"poly"\`, and \`"lin"\`.
 
 - fun_lag:
 
-  Basis ("ns","ps","lin")
+  Character lag-basis function. Supported unpenalized EpiExposure v1
+  choices are \`"ns"\`, \`"bs"\`, \`"poly"\`, and \`"lin"\`.
+
+  Penalized dlnm basis functions \`"ps"\` and \`"cr"\` are deliberately
+  not supported in EpiExposure v1. A penalized spline transformation
+  alone is not a penalized DLNM: the associated penalty matrices and
+  smoothing parameters must also be propagated to model fitting. The
+  current engine-agnostic fitting contract therefore stops explicitly
+  instead of diagnosing a basis that EpiExposure would later fit without
+  its penalty.
+
+- include_intercept:
+
+  Logical scalar. If \`TRUE\` (default), include a model intercept when
+  evaluating numerical rank of the combined epidemic-level design. This
+  matches the standard EpiExposure fitting parameterization. \`FALSE\`
+  is retained as an advanced diagnostic option.
+
+- corr_threshold:
+
+  Finite number in \`(0, 1\]\`. Heuristic absolute correlation threshold
+  used to flag potentially important between-exposure cross-basis
+  collinearity and to report high same-time raw-exposure correlation.
+  Default is \`0.90\`.
+
+- condition_warn:
+
+  Positive finite number. Heuristic scaled condition number at or above
+  which a numerical warning is reported. Default is \`30\`.
+
+- condition_severe:
+
+  Positive finite number strictly larger than \`condition_warn\`. At or
+  above this value the design is classified as numerically unstable.
+  Default is \`100\`.
+
+- vif_threshold:
+
+  Positive finite number. Threshold for supplementary VIF reporting.
+  Default is \`10\`. VIFs for individual spline columns can be high by
+  construction and do not independently determine the global status.
+
+- n_per_parameter_warn:
+
+  Positive finite number. Heuristic minimum ratio of complete epidemics
+  to columns in the rank design. Default is \`10\`. This is a
+  design-complexity diagnostic, not a universal sample-size rule.
+
+- tol:
+
+  Positive finite number used for numerical QR-rank decisions,
+  near-zero-variance checks, and numerical zero checks in the
+  supplementary VIF calculation. Default is \`1e-7\`. Temporal
+  validation itself follows the canonical tolerances in
+  \`define_exposures()\` and \`build_design()\`.
+
+- keep_design:
+
+  Logical scalar. If \`TRUE\`, include the complete epidemic-level
+  numerical matrix used for the rank diagnostic in the returned object.
+  Default is \`FALSE\`.
 
 ## Value
 
-TRUE/FALSE
+An object of class \`epiexposure_identifiability\`, a list containing:
+
+\- \`identifiable\`: whether the combined rank design has full numerical
+rank at \`tol\`; - \`numerically_stable\`: whether it is full rank, has
+no near-zero-variance cross-basis columns, has a scaled condition number
+below \`condition_severe\`, and contains more epidemics than rank-design
+columns; - \`status\`: \`"ok"\`, \`"warning"\`, or \`"problem"\`; -
+\`overall\`: one-row summary of the combined design; - \`by_variable\`:
+diagnostics for each exposure's cross-basis block; -
+\`pairwise_exposure_correlation\`: descriptive row-level Pearson and
+Spearman correlations between raw exposures; -
+\`pairwise_crossbasis_correlation\`: maximum and mean absolute pairwise
+correlations between columns belonging to different exposure blocks; -
+\`vif\`: supplementary column-wise VIF diagnostics; -
+\`singular_values\`: singular values of the centered/scaled usable
+cross-basis predictor matrix; - \`dependent_columns\`: pivot-based set
+of columns not needed to span a rank-deficient combined design; -
+\`near_zero_variance_columns\`: flagged cross-basis columns; -
+\`complete_epi_id\`: epidemic IDs represented in the design; -
+\`basis_specification\`: effective basis metadata transported from
+\`define_exposures()\`/\`build_design()\`; - \`diagnostic_flags\`: named
+logical flags used to construct the status; - \`recommendations\`:
+concise interpretation and follow-up suggestions; - \`settings\`:
+normalized diagnostic settings and temporal metadata; -
+\`design_matrix\`: included only when \`keep_design = TRUE\`.
+
+## Details
+
+“\` templates \<- define_exposures(...) design \<- build_design(data,
+templates, include_response = FALSE) “\`
+
+This avoids maintaining a second, potentially divergent implementation
+of cross-basis construction inside the diagnostic function.
+Consequently, the basis definitions, training-data-dependent knots, lag
+convention, marginal intercept rules, canonical cross-basis column
+order, and final-row design used here are the same as those used by the
+current EpiExposure fitting workflow.
+
+\## What is diagnosed
+
+EpiExposure fits one epidemic-level row after transforming each complete
+exposure history through its training cross-basis and retaining the
+final cross-basis row. \`check_identifiability()\` diagnoses that same
+numerical design. It does not diagnose every intermediate row returned
+by \`dlnm::crossbasis()\` within a history.
+
+The function first calls \`define_exposures()\` to estimate the training
+basis definitions jointly from all supplied epidemics, then calls
+\`build_design()\` to reconstruct one final cross-basis row per epidemic
+using those fixed training definitions. This is the authoritative
+EpiExposure v1 design path.
+
+\## Exact-history and common-window contract
+
+If the fitted maximum lag is \`L\`, each epidemic must contain exactly
+
+\$\$ L + 1 \$\$
+
+chronological exposure observations, corresponding to lag \`L\` through
+lag \`0\`. All fitted exposures use the same \`L\`. A longer history is
+not silently reduced to its last \`L + 1\` rows, and a shorter history
+is not padded.
+
+For \`max_lag = 0\`, each epidemic contains exactly one observation and
+the lag basis must be linear. A one-point history has no estimable
+temporal step, so \`time_step\` is stored as \`NA\`.
+
+\## Identifiability versus numerical stability
+
+\`identifiable\` is based on the \*\*numerical rank\*\* of the
+epidemic-level design at the user-selected tolerance; it is not an
+algebraic symbolic-rank proof. When \`include_intercept = TRUE\`, the
+intercept is included in this rank calculation.
+
+Numerical stability is assessed separately. The condition number is
+computed from usable cross-basis predictor columns after centering and
+scaling each column to unit standard deviation. The intercept is not
+included in this scaled condition number because centering makes it
+orthogonal to the scaled predictor columns. If the scaled predictor
+matrix is rank deficient, or if the number of usable columns cannot be
+supported by its rows, the condition number is reported as infinite.
+
+Condition-number cutoffs are heuristics, not universal inferential laws.
+Similarly, the epidemics-per-column ratio is a descriptive warning about
+design complexity and should not be interpreted as a formal sample-size
+calculation.
+
+\## Correlations and VIFs
+
+Correlations among columns from the same spline basis are expected and
+are not, by themselves, evidence that the model is invalid. The combined
+rank and scaled condition number are the primary numerical diagnostics.
+
+\`pairwise_crossbasis_correlation\` examines \*\*different exposure
+blocks\*\* and can therefore highlight two exposures that contribute
+highly redundant transformed temporal information. It reports the
+maximum pairwise column correlation; this is not a canonical-correlation
+analysis.
+
+Raw-exposure correlations are calculated on the long-format rows and are
+purely descriptive. Repeated/serial observations are not treated as
+independent observations for inferential testing, and the function does
+not report correlation p-values. High raw correlation alone does not
+change the global \`status\` when the fitted cross-basis design remains
+well behaved.
+
+VIFs are also supplementary because spline-expanded columns are commonly
+correlated by construction. A high VIF produces a recommendation but, on
+its own, does not upgrade an otherwise acceptable design to
+\`"warning"\`.
+
+\## Penalized DLNMs
+
+EpiExposure v1 is intentionally unpenalized. \`"ps"\` and \`"cr"\` are
+rejected here for the same reason they are rejected by
+\`define_exposures()\`: the future penalized framework must carry the
+basis, penalty matrices, smoothing parameters, fitting engine,
+prediction design, and uncertainty contract as a coherent model.
+Diagnosing \`"ps"\` columns while fitting them later without their
+penalty would be misleading.

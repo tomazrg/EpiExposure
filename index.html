@@ -19,6 +19,7 @@
 <meta property="og:title" content="EpiExposure">
 <meta name="description" content="R package designed to advance the epidemiological interpretation">
 <meta property="og:description" content="R package designed to advance the epidemiological interpretation">
+<meta property="og:image" content="https://tomazrg.github.io/EpiExposure/logo.png">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -37,17 +38,19 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
+<li class="nav-item"><a class="nav-link" href="articles/pkgdown.html">Get started</a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="articles/01-getting_started.html">Getting started with EpiExposure</a></li>
-    <li><a class="dropdown-item" href="articles/02-epiexposure-workflow.html">An epidemiological workflow for DLNM interpretation</a></li>
-    <li><a class="dropdown-item" href="articles/03-understanding.html">Understanding exposure-lag-response relationships</a></li>
-    <li><a class="dropdown-item" href="articles/04-statistical_output.html">From statistical output to epidemiological interpretation</a></li>
-    <li><a class="dropdown-item" href="articles/05-critical_exposure.html">Identifying critical exposure periods in epidemics</a></li>
-    <li><a class="dropdown-item" href="articles/06-simulating.html">Simulating environmental exposure scenarios</a></li>
-    <li><a class="dropdown-item" href="articles/07-comparing_exposure.html">Comparing exposure-disease relationships across epidemics</a></li>
-    <li><a class="dropdown-item" href="articles/08-advanced_modeling.html">Advanced modeling strategies in EpiExposure</a></li>
+<li><hr class="dropdown-divider"></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Articles</h6></li>
+    <li><a class="dropdown-item" href="articles/pkgdown.html">Get started with EpiExposure</a></li>
+    <li><a class="dropdown-item" href="articles/understanding-effects.html">Understanding Effects</a></li>
+    <li><a class="dropdown-item" href="articles/sensitivity-decision.html">Sensitivity Analysis and Decision Support</a></li>
+    <li><a class="dropdown-item" href="articles/simulation-prediction.html">Simulation and Prediction</a></li>
+    <li><a class="dropdown-item" href="articles/losses.html">Yield and Economic Losses</a></li>
+    <li><a class="dropdown-item" href="articles/selection-ensemble.html">Model Selection and Ensemble Forecasting</a></li>
+    <li><a class="dropdown-item" href="articles/advanced-topics.html">Advanced Topics</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
@@ -57,8 +60,8 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="search.json">
 </form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/tomazrg/EpiExposure"><span class="fa fab fa-github"></span></a></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://www.linkedin.com/in/ricardo-gomes-tom%C3%A1z-0137ba189/?skipRedirect=true"><span class="fa fab fa-linkedin"></span></a></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/tomazrg/EpiExposure" aria-label="GitHub"><span class="fa fab fa-github"></span></a></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://www.linkedin.com/in/ricardo-gomes-tom%C3%A1z-0137ba189/?skipRedirect=true" aria-label="LinkedIn"><span class="fa fab fa-linkedin"></span></a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-lightswitch" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true" aria-label="Light switch"><span class="fa fa-sun"></span></button>
   <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdown-lightswitch">
@@ -74,30 +77,39 @@
   </div>
 </nav><div class="container template-home">
 <div class="row">
-  <main id="main" class="col-md-9"><p><img src="reference/figures/sticker.png" align="right" width="380px" style="margin-left: 20px; margin-right: -100px; margin-top: 10px;"></p>
+  <main id="main" class="col-md-9"><p><img src="reference/figures/sticker.png" alt="EpiExposure package sticker" width="380px" style="
+       float: right;
+       position: relative;
+       z-index: 10;
+       margin-left: 20px;
+       margin-right: -100px;
+       margin-top: 10px;
+     "></p>
 <div class="section level1">
-<div class="page-header"><h1 id="epiexposure">EpiExposure<a class="anchor" aria-label="anchor" href="#epiexposure"></a>
-</h1></div>
-<p><code>EpiExposure</code> is an R package for modeling and interpreting epidemiological exposure–lag relationships between environmental drivers and plant disease outcomes.</p>
+<div class="page-header">
+<img src="logo.png" class="logo" alt=""><h1 id="epiexposure">EpiExposure<a class="anchor" aria-label="anchor" href="#epiexposure"></a>
+</h1>
+</div>
+<p><code>EpiExposure</code> is an R package for modeling, interpreting, simulating, and predicting epidemiological exposure–lag–response relationships between environmental drivers and plant disease outcomes.</p>
 <hr>
 <div class="section level2">
 <h2 id="core-workflow">Core workflow<a class="anchor" aria-label="anchor" href="#core-workflow"></a>
 </h2>
 <div class="row">
 <div class="section level3 col-md-4">
-<h3 id="analyse">Analyse<a class="anchor" aria-label="anchor" href="#analyse"></a>
+<h3 id="model">Model<a class="anchor" aria-label="anchor" href="#model"></a>
 </h3>
-<p>Model DLNM effects using flexible and integrated statistical frameworks.</p>
+<p>Construct and fit DLNM-based models using multiple statistical frameworks and response distributions.</p>
 </div>
 <div class="section level3 col-md-4">
 <h3 id="interpret">Interpret<a class="anchor" aria-label="anchor" href="#interpret"></a>
 </h3>
-<p>Summarise exposure-lag-response relationships in epidemiological terms.</p>
+<p>Summarise exposure–lag relationships across lags, epidemiological periods, and complete exposure histories.</p>
 </div>
 <div class="section level3 col-md-4">
-<h3 id="simulate">Simulate<a class="anchor" aria-label="anchor" href="#simulate"></a>
+<h3 id="predict--simulate">Predict &amp; Simulate<a class="anchor" aria-label="anchor" href="#predict--simulate"></a>
 </h3>
-<p>Create exposure scenarios across lag windows for epidemiological inference.</p>
+<p>Evaluate observed or hypothetical exposure histories, compare scenarios, and predict expected disease outcomes.</p>
 </div>
 </div>
 <hr>
@@ -106,7 +118,7 @@
 <h2 id="why-epiexposure">Why EpiExposure?<a class="anchor" aria-label="anchor" href="#why-epiexposure"></a>
 </h2>
 <blockquote>
-<p><code>In plant disease epidemiology</code>, environmental effects are inherently dynamic, cumulative, and time-dependent. However, traditional analytical approaches often rely on arbitrarily defined temporal windows, which can fragment continuous processes and obscure critical epidemiological signals. <code>EpiExposure</code> addresses these limitations by providing tools that explicitly account for temporal continuity, lagged effects, and biologically interpretable summaries.</p>
+<p>In plant disease epidemiology, environmental effects are often non-linear, cumulative, and time-dependent. Traditional approaches commonly summarize weather conditions within predefined temporal windows, which may obscure delayed or continuously varying associations. <code>EpiExposure</code> provides a unified DLNM-based workflow for preserving exposure histories, modeling lagged associations, and translating fitted models into epidemiologically interpretable summaries, simulations, and predictions.</p>
 </blockquote>
 <hr>
 </div>
@@ -115,15 +127,14 @@
 </h2>
 <p><code>EpiExposure</code> enables you to:</p>
 <ul>
-<li>Define biologically meaningful exposure windows<br>
-</li>
-<li>Quantify daily, cumulative, and phase-specific environmental effects<br>
-</li>
-<li>Identify critical time periods driving epidemics<br>
-</li>
-<li>Separate statistical modelling from epidemiological interpretation<br>
-</li>
-<li>Compare exposure–disease relationships across epidemics</li>
+<li>Model non-linear exposure–lag–response relationships</li>
+<li>Quantify lag- and period-specific environmental associations</li>
+<li>Define biologically meaningful epidemiological periods</li>
+<li>Summarise complete exposure histories using the Exposure Cumulative Impact (ECI)</li>
+<li>Decompose cumulative exposure impacts into exact lag-specific contributions</li>
+<li>Simulate and compare hypothetical exposure–lag scenarios</li>
+<li>Predict expected disease outcomes from complete exposure histories</li>
+<li>Compare and ensemble alternative DLNM specifications using cross-validation</li>
 </ul>
 <hr>
 </div>
@@ -131,19 +142,22 @@
 <h2 id="learning-path">Learning path<a class="anchor" aria-label="anchor" href="#learning-path"></a>
 </h2>
 <ol style="list-style-type: decimal">
-<li>Start with <code><a href="reference/summarise_effects.html">summarise_effects()</a></code>
-</li>
-<li>Explore <code><a href="reference/predict_surface.html">predict_surface()</a></code>
-</li>
-<li>Use <code><a href="reference/simulate_scenarios.html">simulate_scenarios()</a></code> for scenario analysis</li>
+<li>Define exposure–lag structures with <code><a href="reference/define_exposures.html">define_exposures()</a></code>.</li>
+<li>Build the DLNM design with <code><a href="reference/build_design.html">build_design()</a></code>.</li>
+<li>Fit the epidemiological model with <code><a href="reference/fit_epidlnm.html">fit_epidlnm()</a></code>.</li>
+<li>Interpret exposure–lag relationships using <code><a href="reference/summarise_effects.html">summarise_effects()</a></code>.</li>
+<li>Explore hypothetical exposure histories with <code><a href="reference/simulate_exposures.html">simulate_exposures()</a></code>.</li>
+<li>Predict expected outcomes using <code><a href="reference/predict_outcomes.html">predict_outcomes()</a></code>.</li>
+<li>Evaluate alternative model structures with <code><a href="reference/find_bestfit.html">find_bestfit()</a></code> and <code><a href="reference/ensemble_bestfit.html">ensemble_bestfit()</a></code>.</li>
 </ol>
+<hr>
 </div>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
+<p>Install the stable version from CRAN:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># development version</span></span>
-<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"tomazrg/EpiExposure"</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"EpiExposure"</span><span class="op">)</span></span></code></pre></div>
 </div>
 </div>
 

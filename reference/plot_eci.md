@@ -1,0 +1,154 @@
+# Plot ECI and lag-specific contribution results
+
+Creates publication-ready plots from objects returned by
+\`compute_eci()\` and \`compute_ecilag()\`. Either object may be
+supplied alone. When both are supplied, the overall ECI perspective and
+the lag-specific perspective are combined and labelled "(a)" and "(b)",
+respectively.
+
+## Usage
+
+``` r
+plot_eci(
+  eci_overall = NULL,
+  eci_lag = NULL,
+  overall_col = c("ECI_weighted", "ECI_raw", "ECI_raw_centered"),
+  lag_col = c("ECI_weighted", "ECI_percent", "ECI_absolute"),
+  facet_scales = c("free_y", "fixed", "free", "free_x"),
+  overall_nrow = 3L,
+  lag_ncol = 1L,
+  sample_smooth = TRUE,
+  smooth_method = NULL,
+  smooth_formula = NULL,
+  linewidth = 0.7,
+  alpha = 0.2,
+  overall_x_label = "ECI",
+  overall_y_label = "Predicted",
+  lag_x_label = "Lag",
+  lag_y_label = "ECI",
+  exposure_y_label = "Exposure difference",
+  exposure_colors = c("#4C72B0", "#C44E52", "#55A868"),
+  base_size = 10,
+  panel_labels = c("(a)", "(b)"),
+  label_size = 12,
+  rel_widths = NULL
+)
+```
+
+## Arguments
+
+- eci_overall:
+
+  Optional data frame returned by \`compute_eci()\`.
+
+- eci_lag:
+
+  Optional object returned by \`compute_ecilag()\`. A list with
+  \`by_lag_samples\` and/or \`by_lag\` is handled internally. A
+  lag-level data frame is also accepted.
+
+- overall_col:
+
+  Character scalar selecting the \`compute_eci()\` column used on the
+  x-axis. One of \`"ECI_weighted"\`, \`"ECI_raw"\`, or
+  \`"ECI_raw_centered"\`. Default is \`"ECI_weighted"\`.
+
+- lag_col:
+
+  Character scalar selecting the lag-specific ECI column from
+  \`compute_ecilag()\` used on the y-axis. One of \`"ECI_weighted"\`,
+  \`"ECI_percent"\`, or \`"ECI_absolute"\`. Default is
+  \`"ECI_weighted"\`.
+
+- facet_scales:
+
+  Character scalar controlling facet scales. One of \`"fixed"\`,
+  \`"free"\`, \`"free_x"\`, or \`"free_y"\`. Default is \`"free_y"\`.
+
+- overall_nrow:
+
+  Positive integer number of facet rows for the overall ECI panel.
+  Default is \`3\`.
+
+- lag_ncol:
+
+  Positive integer number of facet columns for lag panels. Default is
+  \`1\`.
+
+- sample_smooth:
+
+  Logical scalar. If \`TRUE\`, draw-level curves are shown with
+  \`geom_smooth(se = FALSE)\`, reproducing the historical manual plot.
+  If \`FALSE\`, draw-level curves are connected with \`geom_line()\`.
+  Summary outputs are always displayed with a smoothed central curve
+  and, when available, dashed smoothed lower and upper interval curves.
+
+- smooth_method:
+
+  Optional smoothing method passed to \`geom_smooth()\`. The default
+  \`NULL\` lets ggplot2 select its standard method.
+
+- smooth_formula:
+
+  Optional formula passed to \`geom_smooth()\`. Default is \`NULL\`.
+
+- linewidth:
+
+  Positive finite line width. Default is \`0.7\`.
+
+- alpha:
+
+  Finite number in \`\[0, 1\]\` retained for backward compatibility with
+  earlier ribbon-based summary plots. Summary uncertainty is now
+  represented by dashed smoothed interval curves. Default is \`0.20\`.
+
+- overall_x_label, overall_y_label, lag_x_label, lag_y_label, :
+
+  exposure_y_label Axis labels.
+
+- exposure_y_label:
+
+  Optional character string defining the y-axis label used for the
+  exposure panel. If \`NULL\`, a default label is generated.
+
+- exposure_colors:
+
+  Character vector of colors used for exposure- difference curves. Named
+  vectors are supported. The default reproduces the historical manual
+  palette.
+
+- base_size:
+
+  Positive finite base font size. Default is \`10\`.
+
+- panel_labels:
+
+  Character vector of length two used when both perspectives are
+  combined. Default is \`c("(a)", "(b)")\`.
+
+- label_size:
+
+  Positive finite panel-label size. Default is \`12\`.
+
+- rel_widths:
+
+  Optional positive numeric vector controlling relative panel widths. By
+  default, all displayed panels have equal width. Supply two values when
+  two panels are displayed or three values when the overall ECI, lag
+  contribution, and exposure-difference panels are displayed together.
+
+## Value
+
+A ggplot/cowplot object. When both inputs are supplied, the returned
+object combines the overall ECI panel and the lag-specific panel. When
+only \`eci_lag\` is supplied, contribution and exposure-difference
+panels are combined. Component plots are stored in the
+\`epiexposure_plot_components\` attribute.
+
+## Details
+
+The function recognizes draw-level output (\`output = "samples"\`)
+through a \`sample\` column and summary output (\`output = "summary"\`)
+through the corresponding estimate and interval columns. For
+\`compute_ecilag()\` objects, \`by_lag_samples\` and \`by_lag\` are
+extracted internally.

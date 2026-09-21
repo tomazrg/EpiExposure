@@ -2,70 +2,75 @@
 
 ## Data & Exposure Setup
 
-- [`define_exposure()`](https://tomazrg.github.io/EpiExposure/reference/define_exposure.md)
-  : Define DLNM exposure templates with flexible splines
+- [`epi_data`](https://tomazrg.github.io/EpiExposure/reference/epi_data.md)
+  : Simulated epidemiological dataset
+- [`define_exposures()`](https://tomazrg.github.io/EpiExposure/reference/define_exposures.md)
+  : Define DLNM exposure templates
 - [`check_identifiability()`](https://tomazrg.github.io/EpiExposure/reference/check_identifiability.md)
-  : Check DLNM cross-basis identifiability
-- [`build_design_matrix()`](https://tomazrg.github.io/EpiExposure/reference/build_design_matrix.md)
-  : Build epidemic-level DLNM design matrix
+  : Diagnose identifiability and numerical stability of DLNM cross-basis
+  designs
+- [`build_design()`](https://tomazrg.github.io/EpiExposure/reference/build_design.md)
+  : Build an epidemic-level DLNM design matrix
 - [`prepare_response()`](https://tomazrg.github.io/EpiExposure/reference/prepare_response.md)
-  : Prepare response variable for modeling
+  : Prepare and validate the epidemic-level response for modeling
 
-## Model Fitting
+## Model Fitting & Selection
 
 - [`fit_epidlnm()`](https://tomazrg.github.io/EpiExposure/reference/fit_epidlnm.md)
-  : Fit DLNM inferential model
+  : Fit a harmonized DLNM inferential model
+- [`find_bestfit()`](https://tomazrg.github.io/EpiExposure/reference/find_bestfit.md)
+  : Find the best DLNM model structure using grouped cross-validation
+- [`ensemble_bestfit()`](https://tomazrg.github.io/EpiExposure/reference/ensemble_bestfit.md)
+  : Create model and lag-contribution ensembles from best-fit DLNM
+  models
 
 ## Predictions & Simulations
 
-- [`predict_surface()`](https://tomazrg.github.io/EpiExposure/reference/predict_surface.md)
-  : Predict full DLNM exposure-lag-response surface Computes the full
-  DLNM exposure–lag–response surface using the fitted model,#' without
-  refitting. The surface is evaluated over a grid of exposure values and
-  lags defined by the model specification or user input.
-- [`predict_outcome()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcome.md)
-  : Predict outcome under user-defined exposure-lag profile(s)
-- [`simulate_exposure()`](https://tomazrg.github.io/EpiExposure/reference/simulate_exposure.md)
-  : Simulate exposure history across lags (full or patterned)
-- [`simulate_range()`](https://tomazrg.github.io/EpiExposure/reference/simulate_range.md)
-  : Generate DLNM simulation scenarios (scenario or profile mode)
-- [`simulate_scenarios()`](https://tomazrg.github.io/EpiExposure/reference/simulate_scenarios.md)
-  : Simulate epidemiological DLNM scenarios
+- [`predict_outcomes()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.md)
+  : Predict outcomes from fitted EpiExposure DLNM models
 - [`compare_exposures()`](https://tomazrg.github.io/EpiExposure/reference/compare_exposures.md)
-  : Compare exposure-lag profiles (pairwise or multiple)
+  : Compare chronological exposure profiles
 - [`compare_predictions()`](https://tomazrg.github.io/EpiExposure/reference/compare_predictions.md)
-  : Compare predicted outcomes between multiple exposure scenarios
-- [`compare_periods()`](https://tomazrg.github.io/EpiExposure/reference/compare_periods.md)
-  : Compare accumulated DLNM effects between periods
+  : Compare predicted outcomes between exposure scenarios
+- [`simulate_exposures()`](https://tomazrg.github.io/EpiExposure/reference/simulate_exposures.md)
+  : Simulate chronological exposure profiles
+- [`simulate_ranges()`](https://tomazrg.github.io/EpiExposure/reference/simulate_ranges.md)
+  : Generate exposure-value scenarios across DLNM lag periods
+- [`simulate_scenarios()`](https://tomazrg.github.io/EpiExposure/reference/simulate_scenarios.md)
+  : Simulate epidemiological exposure-history scenarios
+- [`simulate_losses()`](https://tomazrg.github.io/EpiExposure/reference/simulate_losses.md)
+  : Simulate yield and economic losses
 
 ## Periods & Summaries
 
 - [`define_periods()`](https://tomazrg.github.io/EpiExposure/reference/define_periods.md)
   : Define epidemiological lag periods
 - [`summarise_effects()`](https://tomazrg.github.io/EpiExposure/reference/summarise_effects.md)
-  : Summarise DLNM effects
-- [`recenter_effects()`](https://tomazrg.github.io/EpiExposure/reference/recenter_effects.md)
-  : Recenter DLNM effects using a new reference value
+  : Summarise DLNM exposure-lag effects on link and response scales
 - [`reduce_effects()`](https://tomazrg.github.io/EpiExposure/reference/reduce_effects.md)
-  : Reduce DLNM effects to one dimension (article-consistent)
+  : Reduce a fitted DLNM to a one-dimensional association
+- [`compare_periods()`](https://tomazrg.github.io/EpiExposure/reference/compare_periods.md)
+  : Compare period-specific DLNM effects
 
 ## Effect Decomposition & Analysis
 
 - [`compute_eci()`](https://tomazrg.github.io/EpiExposure/reference/compute_eci.md)
-  : Compute Exposure Cumulative Impact (ECI - the exposure profile with
-  the fitted model coefficients)
+  : Compute Exposure Cumulative Impact
 - [`compute_ecilag()`](https://tomazrg.github.io/EpiExposure/reference/compute_ecilag.md)
   : Compute lag-specific decomposition of Exposure Cumulative Impact
   (ECI)
-- [`identify_critical_lags()`](https://tomazrg.github.io/EpiExposure/reference/identify_critical_lags.md)
-  : Identify critical lags based on daily DLNM effects
-- [`lag_contribution()`](https://tomazrg.github.io/EpiExposure/reference/lag_contribution.md)
-  : Quantify lag contributions to the cumulative DLNM effect
-- [`df_sensitivity()`](https://tomazrg.github.io/EpiExposure/reference/df_sensitivity.md)
-  : Compute sensitivity of DLNM effects (analytical or finite
-  derivative)
+- [`epi_sensitivity()`](https://tomazrg.github.io/EpiExposure/reference/epi_sensitivity.md)
+  : Compute sensitivity of exposure-response curves
 
-## Datasets
+## Plotting
 
-- [`TargetSpot`](https://tomazrg.github.io/EpiExposure/reference/TargetSpot.md)
-  : Example dataset for EpiExposure package
+- [`plot_effects()`](https://tomazrg.github.io/EpiExposure/reference/plot_effects.md)
+  : Plot lag-specific or period-specific effects
+- [`plot_eci()`](https://tomazrg.github.io/EpiExposure/reference/plot_eci.md)
+  : Plot ECI and lag-specific contribution results
+- [`plot_scenarios()`](https://tomazrg.github.io/EpiExposure/reference/plot_scenarios.md)
+  : Plot predictions across epidemiological scenarios
+- [`plot_losses()`](https://tomazrg.github.io/EpiExposure/reference/plot_losses.md)
+  : Plot simulated yield and economic losses
+- [`plot_performance()`](https://tomazrg.github.io/EpiExposure/reference/plot_performance.md)
+  : Plot observed versus predicted model performance

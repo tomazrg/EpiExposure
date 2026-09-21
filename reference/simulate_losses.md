@@ -1,0 +1,380 @@
+# Simulate yield and economic losses
+
+Converts a non-negative response variable into yield and economic losses
+using an externally supplied linear yield-response relationship.
+
+## Usage
+
+``` r
+simulate_losses(
+  data,
+  y,
+  lower = NULL,
+  upper = NULL,
+  slope = 100,
+  intercept = 11142.94,
+  parameter_mode = c("uniform", "values", "draws"),
+  attainable_yield = seq(4000, 12000, by = 50),
+  price = seq(100, 300, by = 10),
+  n = 1,
+  random_sd = 0,
+  y_multiplier = 1,
+  constraint_action = c("warn", "error"),
+  seed = NULL
+)
+```
+
+## Arguments
+
+- data:
+
+  Non-empty data frame containing the response variable and any
+  additional scenario/prediction identifiers that should be retained.
+
+- y:
+
+  Character scalar naming the numeric response column used in the
+  yield-loss relationship.
+
+- lower:
+
+  Optional character scalar naming a lower response bound. If supplied,
+  \`upper\` must also be supplied.
+
+- upper:
+
+  Optional character scalar naming an upper response bound. If supplied,
+  \`lower\` must also be supplied.
+
+  Bounds are propagated deterministically through the loss equations for
+  each loss-model simulation. They are therefore endpoint-propagated
+  bounds, not automatically a joint confidence/credible interval after
+  combining response uncertainty with yield-model parameter uncertainty.
+
+- slope:
+
+  Finite non-negative numeric slope specification. Interpretation
+  depends on \`parameter_mode\`:
+
+  \- \`"values"\`: every supplied value is evaluated exactly; -
+  \`"uniform"\`: length 1 is fixed and length 2 defines Uniform
+  bounds; - \`"draws"\`: values are user-supplied draws paired by
+  simulation index.
+
+  Increasing response is assumed not to improve yield, so slope values
+  must be non-negative.
+
+- intercept:
+
+  Finite positive reference-yield intercept specification.
+  Interpretation follows the same \`parameter_mode\` contract as
+  \`slope\`.
+
+  In \`"values"\` mode, all exact slope-intercept combinations are
+  evaluated. In \`"uniform"\` mode, two-value ranges are sampled
+  independently. In \`"draws"\` mode, non-scalar slope and intercept
+  vectors must have the same length and are paired by position; scalar
+  parameters are recycled.
+
+- parameter_mode:
+
+  Character controlling interpretation of \`slope\` and \`intercept\`.
+  One of \`"uniform"\` (default, preserving the historical interface),
+  \`"values"\`, or \`"draws"\`.
+
+  \`"values"\` evaluates exact supplied parameter values. For example,
+  \`slope = c(49.3, 80)\` evaluates both slopes exactly rather than
+  sampling between them. If both \`slope\` and \`intercept\` contain
+  multiple exact values, all combinations are evaluated and \`n\` is
+  ignored.
+
+  \`"uniform"\` uses \`n\` simulations. A scalar parameter is fixed,
+  whereas a two-value vector defines the lower and upper limits of an
+  independent Uniform distribution.
+
+  \`"draws"\` treats supplied vectors as paired external parameter
+  draws. Scalars are recycled. If \`n\` is omitted, it is inferred from
+  the common non-scalar draw length; if \`n\` is supplied explicitly, it
+  must match that length.
+
+- attainable_yield:
+
+  Unique non-negative numeric vector of attainable yields in kg/ha, used
+  to scale the disease-attributable proportional loss into absolute
+  yield loss in kg/ha.
+
+  \`attainable_yield\` is conceptually distinct from the intercept of
+  the external calibration equation. The intercept defines the reference
+  yield used to estimate proportional loss, whereas \`attainable_yield\`
+  defines the scenario-specific yield to which that proportional loss is
+  applied.
+
+- price:
+
+  Unique non-negative numeric vector of commodity prices in USD per
+  metric ton (USD/t).
+
+- n:
+
+  Positive integer number of loss-model parameter simulations. Default
+  is 1. It controls the number of simulations in \`parameter_mode =
+  "uniform"\`. In \`parameter_mode = "draws"\`, it may be supplied
+  explicitly to validate the paired draw length; when omitted, the
+  length is inferred from non-scalar supplied draws. In \`parameter_mode
+  = "values"\`, the exact parameter grid determines the number of
+  simulations and \`n\` is ignored.
+
+  \`n\` does not represent EpiExposure model-coefficient draws unless
+  the user explicitly supplies such external parameter draws through
+  \`slope\` and \`intercept\`.
+
+- random_sd:
+
+  Non-negative numeric scalar controlling an optional simulation-level
+  Gaussian deviation in the external yield-model intercept. Default is
+  0.
+
+  For simulation \`s\`,
+
+  \$\$ Y\_{0,s} = intercept_s + b_s,\qquad b_s \sim N(0, random\\sd^2).
+  \$\$
+
+  The same \`b_s\` is shared by every row, attainable-yield value, and
+  price within loss simulation \`s\`. This preserves matched scenario
+  comparisons under the same external yield-model realization.
+
+  This quantity is \*\*not\*\* a random effect from the EpiExposure
+  epidemiological fit. If residual/future-yield noise is not
+  scientifically intended, leave \`random_sd = 0\`.
+
+- y_multiplier:
+
+  Positive numeric scalar applied to \`y\`, \`lower\`, and \`upper\`
+  before the yield-loss equations. Default is 1.
+
+  For example, use \`y_multiplier = 100\` when the response is stored as
+  a proportion from 0 to 1 but the external yield-loss coefficients were
+  calibrated against response percentages from 0 to 100.
+
+- constraint_action:
+
+  Character. Action when the raw proportional disease-attributable loss
+  falls outside the physically interpretable range \`\[0, 1\]\`:
+
+  \- \`"warn"\` (default): constrain to \`\[0, 1\]\` and issue one
+  warning; - \`"error"\`: stop before returning results.
+
+  Negative raw loss is normally prevented by the non-negative response
+  and slope validation; values above 1 can occur when the supplied
+  linear relationship extrapolates beyond complete yield loss.
+
+- seed:
+
+  Optional finite integer random seed. It controls only stochastic
+  generation requested by this function (Uniform parameter ranges and/or
+  the Gaussian intercept deviation). The caller's RNG state is restored.
+
+## Value
+
+A data frame containing all original columns plus:
+
+- \`.loss_row_id\`:
+
+  Original row index in \`data\`.
+
+- \`.sim\`:
+
+  Loss-model simulation index.
+
+- \`slope_sim\`, \`intercept_sim\`:
+
+  External yield-model parameters used in that simulation.
+
+- \`rand_eff\`:
+
+  Simulation-level external yield-intercept deviation.
+
+- \`ref_yield\`:
+
+  Zero-response yield for that loss simulation: \`intercept_sim +
+  rand_eff\`.
+
+- \`y_used\`:
+
+  Scaled response \`y \* y_multiplier\`.
+
+- \`yl_prop_raw\`:
+
+  Unconstrained proportional loss \`slope_sim \* y_used / ref_yield\`.
+
+- \`yl_capped\`:
+
+  Whether the raw proportional loss required constraining to \`\[0,
+  1\]\`.
+
+- \`yl_prop\`, \`yl_pct\`:
+
+  Constrained disease-attributable loss proportion and percent.
+
+- \`rl_prop\`, \`rl_pct\`:
+
+  Remaining yield relative to the simulation-specific reference yield.
+  By construction, \`rl_prop = 1 - yl_prop\`.
+
+- \`pred_yield\`:
+
+  Yield on the external calibration-model scale: \`ref_yield \*
+  rl_prop\`.
+
+- \`att_yield\`:
+
+  User-specified attainable yield in kg/ha.
+
+- \`ap_yield\`:
+
+  Attainable yield remaining after the same proportional loss.
+
+- \`yield_loss\`:
+
+  Absolute attributable yield loss in kg/ha: \`att_yield \* yl_prop\`.
+
+- \`price\`:
+
+  Commodity price in USD per metric ton (USD/t).
+
+- \`econ_loss\`:
+
+  Economic loss in USD/ha: \`(yield_loss / 1000) \* price\`.
+
+If \`lower\` and \`upper\` are supplied, corresponding \`\_lower\` and
+\`\_upper\` columns are added for every response-dependent metric.
+
+Attributes document the loss-model specification, unit conversion,
+constraint behavior, parameter-simulation contract, and propagated-bound
+interpretation.
+
+## Details
+
+Each row of \`data\` is retained and expanded across all combinations of
+\`attainable_yield\`, \`price\`, and resolved loss-model parameter
+simulations.
+
+\`simulate_losses()\` does not fit an epidemiological model and does not
+draw coefficients from an EpiExposure fit. The response supplied in
+\`y\` is treated as already available. Parameter simulations refer only
+to exact external values, user-requested Uniform draws, supplied
+parameter draws, and/or the optional external intercept deviation.
+
+\## Loss equations
+
+The internally scaled response is
+
+\$\$ R = y \times y\\multiplier. \$\$
+
+For loss simulation \\s\\, the zero-response reference yield is
+
+\$\$ Y\_{0,s} = \alpha_s + b_s, \$\$
+
+where \\\alpha_s\\ is \`intercept_sim\` and \\b_s\\ is the optional
+simulation-level \`rand_eff\`.
+
+The raw disease-attributable proportional loss is
+
+\$\$ L\_{raw} = \frac{\beta_s R}{Y\_{0,s}}, \$\$
+
+where \\\beta_s\\ is \`slope_sim\`.
+
+The physically interpretable loss proportion is
+
+\$\$ L = min\\1, max(0, L\_{raw})\\. \$\$
+
+Consequently,
+
+\$\$ relative\\yield = 1 - L \$\$
+
+and the calibration-scale predicted yield is
+
+\$\$ predicted\\yield = Y\_{0,s}(1-L). \$\$
+
+This construction deliberately keeps \`pred_yield\`, \`rl_prop\`, and
+\`yl_prop\` internally consistent. Earlier code subtracted the simulated
+intercept deviation from \`pred_yield\` but omitted it from the
+proportional-loss denominator, allowing those quantities to disagree.
+
+\## Attainable-yield scaling
+
+The proportional loss estimated from the external calibration
+relationship is applied to each scenario-specific attainable yield:
+
+\$\$ absolute\\loss = attainable\\yield \times L, \$\$
+
+\$\$ attainable\\predicted\\yield = attainable\\yield \times (1-L). \$\$
+
+These two quantities sum exactly to \`attainable_yield\` up to
+floating-point tolerance.
+
+\## Economic conversion
+
+The unit contract of \`simulate_losses()\` is fixed:
+
+\- \`att_yield\` and \`yield_loss\` are in kg/ha; - \`price\` is in USD
+per metric ton (USD/t); - \`econ_loss\` is returned in USD/ha.
+
+Because one metric ton equals 1000 kg,
+
+\$\$ economic\\loss = \left(\frac{yield\\loss}{1000}\right) \times
+price. \$\$
+
+The division by 1000 is therefore part of the function's unit contract,
+not a tunable modeling parameter.
+
+\## Parameter simulations
+
+\`parameter_mode\` removes the historical ambiguity of two-value
+parameter vectors.
+
+With \`"values"\`, supplied parameter values are exact. All
+slope-intercept combinations are evaluated, so \`slope = c(49.3, 80)\`
+represents two exact slope scenarios when \`intercept\` is scalar.
+
+With \`"uniform"\`, scalar parameters remain fixed and two-value vectors
+define Uniform bounds. \`n\` controls the number of independently
+sampled parameter realizations. If both slope and intercept are ranges,
+they are sampled independently and therefore do not preserve covariance
+from an external fitted yield model.
+
+With \`"draws"\`, supplied non-scalar vectors are treated as externally
+generated paired draws and are matched by simulation index. This mode
+should be used when joint slope-intercept uncertainty has already been
+estimated.
+
+\`random_sd\`, when positive, remains an optional simulation-level
+Gaussian deviation in the external yield-model intercept under every
+parameter mode.
+
+\## Propagating response bounds
+
+When \`lower\` and \`upper\` are supplied, every loss simulation
+evaluates both endpoints using the \*\*same\*\* slope, intercept,
+random-effect realization, attainable yield, and price. Metric-specific
+minima and maxima are then reported as \`\_lower\` and \`\_upper\`.
+
+These are propagated endpoint bounds. If \`lower\` and \`upper\` are
+marginal prediction intervals and multiple external parameter
+simulations simultaneously represent uncertainty in a yield model, the
+resulting endpoint columns are not automatically a calibrated joint
+probability interval. For fully joint Monte Carlo propagation, supply
+draw-level response values as rows of \`data\` and preserve their draw
+identifiers.
+
+\## Relationship to EpiExposure predictions
+
+\`simulate_losses()\` is a downstream transformation. It does not alter
+the EpiExposure prediction contract. If \`y\` comes from
+\`predict_outcomes()\` or \`compare_predictions()\`, the user should
+normally provide a response-scale expected outcome that is on the same
+scale used to calibrate \`slope\` and \`intercept\`.
+
+\`random_sd\` pertains only to the external yield-loss relationship. It
+does not reactivate group-specific random effects from the
+epidemiological model.

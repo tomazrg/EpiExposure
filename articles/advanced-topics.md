@@ -1,0 +1,723 @@
+# Advanced Topics
+
+## Introduction
+
+Most `EpiExposure` workflows can be completed using the default model
+specification introduced in previous vignettes.
+
+However, advanced applications often require additional flexibility
+regarding:
+
+- model engines;
+- uncertainty estimation;
+- spline specification;
+- identifiability diagnostics;
+- computational performance.
+
+This vignette discusses these advanced topics and provides
+recommendations for robust DLNM analyses.
+
+## Alternative model engines
+
+`EpiExposure` separates exposure-lag specification from model
+estimation.
+
+Consequently, the same DLNM structure can be fitted using different
+regression engines.
+
+## Supported families by modeling engine
+
+The modeling engines available in
+[`fit_epidlnm()`](https://tomazrg.github.io/EpiExposure/reference/fit_epidlnm.md)
+and
+[`find_bestfit()`](https://tomazrg.github.io/EpiExposure/reference/find_bestfit.md)
+differ in the response families exposed through the `EpiExposure`
+interface. The table below summarizes the current `EpiExposure` support.
+It describes the package interface rather than every family accepted
+natively by the underlying modeling packages.
+
+| Engine    | Beta | Binomial       | Poisson | Gamma | Gaussian | Negative binomial |
+|:----------|:----:|:---------------|:-------:|:-----:|:--------:|:-----------------:|
+| `glm`     |  No  | Yes            |   Yes   |  Yes  |   Yes    |        No         |
+| `glmmTMB` | Yes  | Yes            |   Yes   |  Yes  |   Yes    |     Yes, NB2      |
+| `gam`     | Yes  | Yes            |   Yes   |  Yes  |   Yes    |     Yes, NB2      |
+| `gamm`    |  No  | Yes            |   Yes   |  Yes  |   Yes    |        No         |
+| `gls`     |  No  | No             |   No    |  No   |   Yes    |        No         |
+| `spaMM`   | Yes  | Yes            |   Yes   |  Yes  |   Yes    |     Yes, NB2      |
+| `brms`    | Yes  | Yes, Bernoulli |   Yes   |  Yes  |   Yes    |     Yes, NB2      |
+| `INLA`    | Yes  | Yes            |   Yes   |  Yes  |   Yes    |     Yes, NB2      |
+| `bdlnm`   | Yes  | Yes            |   Yes   |  Yes  |   Yes    |     Yes, NB2      |
+
+**Note:** Negative-binomial support refers to the quadratic-variance NB2
+parameterization. The table describes the families currently exposed
+through the `EpiExposure` interface, not every family that may be
+available natively in the underlying modeling packages. For INLA-backed
+engines, availability also depends on the likelihoods provided by the
+installed INLA version.
+
+Because family specification follows the same
+[`fit_epidlnm()`](https://tomazrg.github.io/EpiExposure/reference/fit_epidlnm.md)
+interface across engines, the sections below do not repeat every
+supported engine-family combination. Instead, each example highlights a
+capability that differs meaningfully across engines, such as
+conventional random effects, spatial autocorrelation, or Bayesian
+inference.
+
+## Reference DLNM design
+
+The examples below use the same cross-basis specification whenever
+possible. This allows the modeling engines to be compared without
+repeatedly rebuilding the exposure-lag design.
+
+``` r
+
+epi_data = readxl::read_xlsx("data/poisson_data.xlsx")
+```
+
+``` r
+
+cb <- define_exposures(
+  data = epi_data,
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  max_lag = 85,
+  df_var = 3,
+  df_lag = 2
+)
+
+dat <- build_design(
+  data = epi_data,
+  cb_templates = cb,
+  groups = c(
+    "epi_id",
+    "block"
+  )
+)
+```
+
+``` r
+
+dat_poisson <- prepare_response(
+  data = dat,
+  response = "y",
+  family = "poisson"
+)
+```
+
+## Fixed-effect reference model
+
+A generalized linear model provides the simplest fixed-effect
+specification. It is useful as a reference when random or spatial
+dependence is not required.
+
+``` r
+
+fit_glm <- fit_epidlnm(
+  data = dat_poisson,
+  model_engine = "glm",
+  family = "poisson",
+  epiexposure_spec = attr(
+    cb,
+    "spec"
+  )
+)
+
+summary(fit_glm)
+#> 
+#> Call:
+#> stats::glm(formula = y_model ~ 1 + cb_tmean_1 + cb_tmean_2 + 
+#>     cb_tmean_3 + cb_tmean_4 + cb_tmean_5 + cb_tmean_6 + cb_rain_1 + 
+#>     cb_rain_2 + cb_rain_3 + cb_rain_4 + cb_rain_5 + cb_rain_6 + 
+#>     cb_wetness_1 + cb_wetness_2 + cb_wetness_3 + cb_wetness_4 + 
+#>     cb_wetness_5 + cb_wetness_6, family = "poisson", data = dat_poisson)
+#> 
+#> Coefficients:
+#>               Estimate Std. Error z value Pr(>|z|)    
+#> (Intercept)  -3.303652   1.132719  -2.917 0.003539 ** 
+#> cb_tmean_1    0.090028   0.013837   6.506 7.71e-11 ***
+#> cb_tmean_2    0.012584   0.025493   0.494 0.621554    
+#> cb_tmean_3    0.140732   0.043795   3.213 0.001312 ** 
+#> cb_tmean_4    0.270869   0.097282   2.784 0.005363 ** 
+#> cb_tmean_5   -0.027014   0.016290  -1.658 0.097252 .  
+#> cb_tmean_6    0.162029   0.039149   4.139 3.49e-05 ***
+#> cb_rain_1     0.091313   0.025531   3.577 0.000348 ***
+#> cb_rain_2    -0.259121   0.033323  -7.776 7.48e-15 ***
+#> cb_rain_3     0.078788   0.015872   4.964 6.91e-07 ***
+#> cb_rain_4    -0.064189   0.022854  -2.809 0.004975 ** 
+#> cb_rain_5     0.001674   0.036894   0.045 0.963806    
+#> cb_rain_6     0.035621   0.050073   0.711 0.476846    
+#> cb_wetness_1  0.051027   0.003629  14.062  < 2e-16 ***
+#> cb_wetness_2 -0.086751   0.010892  -7.965 1.65e-15 ***
+#> cb_wetness_3  0.049067   0.014053   3.492 0.000480 ***
+#> cb_wetness_4 -0.098276   0.036715  -2.677 0.007434 ** 
+#> cb_wetness_5  0.059851   0.009419   6.355 2.09e-10 ***
+#> cb_wetness_6 -0.084802   0.018470  -4.591 4.40e-06 ***
+#> ---
+#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#> 
+#> (Dispersion parameter for poisson family taken to be 1)
+#> 
+#>     Null deviance: 2866.42  on 519  degrees of freedom
+#> Residual deviance:  955.26  on 501  degrees of freedom
+#> AIC: 3133.2
+#> 
+#> Number of Fisher Scoring iterations: 4
+```
+
+## Conventional random effects
+
+When epidemics are grouped within experimental blocks, observations from
+the same block may share unmeasured conditions. A random intercept can
+account for this hierarchical dependence.
+
+``` r
+
+fit_glmm <- fit_epidlnm(
+  data = dat_poisson,
+  model_engine = "glmmTMB",
+  family = "poisson",
+  random_effect = "block",
+  epiexposure_spec = attr(
+    cb,
+    "spec"
+  )
+)
+
+summary(fit_glmm)
+#>  Family: poisson  ( log )
+#> Formula:          
+#> y_model ~ 1 + cb_tmean_1 + cb_tmean_2 + cb_tmean_3 + cb_tmean_4 +  
+#>     cb_tmean_5 + cb_tmean_6 + cb_rain_1 + cb_rain_2 + cb_rain_3 +  
+#>     cb_rain_4 + cb_rain_5 + cb_rain_6 + cb_wetness_1 + cb_wetness_2 +  
+#>     cb_wetness_3 + cb_wetness_4 + cb_wetness_5 + cb_wetness_6 +  
+#>     (1 | block)
+#> Data: dat_poisson
+#> 
+#>       AIC       BIC    logLik -2*log(L)  df.resid 
+#>    2920.3    3005.4   -1440.2    2880.3       500 
+#> 
+#> Random effects:
+#> 
+#> Conditional model:
+#>  Groups Name        Variance Std.Dev.
+#>  block  (Intercept) 0.04283  0.207   
+#> Number of obs: 520, groups:  block, 20
+#> 
+#> Conditional model:
+#>               Estimate Std. Error z value Pr(>|z|)    
+#> (Intercept)  -2.574612   1.158675  -2.222 0.026281 *  
+#> cb_tmean_1    0.081602   0.014101   5.787 7.17e-09 ***
+#> cb_tmean_2   -0.008901   0.025844  -0.344 0.730544    
+#> cb_tmean_3    0.115294   0.044915   2.567 0.010260 *  
+#> cb_tmean_4    0.170722   0.098491   1.733 0.083031 .  
+#> cb_tmean_5   -0.023288   0.017047  -1.366 0.171890    
+#> cb_tmean_6    0.119456   0.039905   2.994 0.002758 ** 
+#> cb_rain_1     0.129022   0.026462   4.876 1.08e-06 ***
+#> cb_rain_2    -0.239983   0.033977  -7.063 1.63e-12 ***
+#> cb_rain_3     0.056071   0.016278   3.445 0.000572 ***
+#> cb_rain_4    -0.057666   0.023722  -2.431 0.015063 *  
+#> cb_rain_5    -0.038092   0.037558  -1.014 0.310473    
+#> cb_rain_6     0.060427   0.052017   1.162 0.245368    
+#> cb_wetness_1  0.052540   0.003729  14.091  < 2e-16 ***
+#> cb_wetness_2 -0.093637   0.011114  -8.425  < 2e-16 ***
+#> cb_wetness_3  0.053720   0.014580   3.685 0.000229 ***
+#> cb_wetness_4 -0.093537   0.037422  -2.499 0.012437 *  
+#> cb_wetness_5  0.055911   0.009722   5.751 8.87e-09 ***
+#> cb_wetness_6 -0.090618   0.018671  -4.853 1.21e-06 ***
+#> ---
+#> Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+```
+
+The term generated internally is equivalent to:
+
+`(1 | block)`
+
+This effect represents discrete group-level heterogeneity. It does not
+model spatial correlation as a function of distance.
+
+### GAM estimation
+
+The `gam` engine can fit the DLNM design with `mgcv`. Beta and
+negative-binomial models use `mgcv` extended families and are fitted
+through the supported REML route by default.
+
+``` r
+
+data_nb2 = readxl::read_xlsx("data/nb2_data.xlsx")
+```
+
+``` r
+
+
+dat_nb2 <- build_design(
+  data = data_nb2,
+  cb_templates = cb,
+  groups = c(
+    "epi_id",
+    "block"
+  )
+)
+
+dat_nb2 <- prepare_response(
+  data = dat_nb2,
+  response = "y",
+  family = "negative_binomial"
+)
+```
+
+``` r
+
+fit_gam <- fit_epidlnm(
+  data = dat_nb2,
+  model_engine = "gam",
+  family = "negative_binomial",
+  epiexposure_spec = attr(
+    cb,
+    "spec"
+  )
+)
+
+summary(fit_gam)
+```
+
+### GAMM estimation
+
+The `gamm` engine combines the fixed DLNM design with a conventional
+random intercept. In the current `EpiExposure` interface,
+`random_effect` is required.
+
+``` r
+
+fit_gamm <- fit_epidlnm(
+  data = dat_poisson,
+  model_engine = "gamm",
+  family = "poisson",
+  random_effect = "block",
+  epiexposure_spec = attr(
+    cb,
+    "spec"
+  )
+)
+```
+
+The fitted object contains two native components:
+
+``` r
+
+summary(fit_gamm)
+
+summary(
+  fit_gamm,
+  component = "lme"
+)
+```
+
+The default summary describes the fixed/population GAM component. The
+`component = "lme"` option displays the mixed-model component.
+
+For non-Gaussian responses,
+[`mgcv::gamm()`](https://rdrr.io/pkg/mgcv/man/gamm.html) uses a
+PQL-based fitting route. Binary responses should therefore be treated
+cautiously.
+
+## Spatially autocorrelated effects with `spaMM`
+
+Consider a regional study of a foliar rice disease conducted at
+spatially distributed field locations. Daily mean temperature, leaf
+wetness duration, and rainfall are recorded during the 86 days preceding
+the final assessment. The outcome is the final number of lesions per
+plant.
+
+The cross-basis terms estimate nonlinear and delayed weather effects. A
+Matérn random effect accounts for residual geographic similarity among
+nearby fields after those measured weather effects have been considered.
+
+### Dependence spatial fields
+
+``` r
+
+spatial_data = readxl::read_xlsx("data/spamm_st_poisson.xlsx")
+```
+
+``` r
+
+dat_spatial <- build_design(
+  data = spatial_data,
+  cb_templates = cb_spatial,
+  groups = c(
+    "epi_id",
+    "x_coord",
+    "y_coord"
+  )
+)
+
+dat_spatial <- prepare_response(
+  data = dat_spatial,
+  response = "y",
+  family = "poisson"
+)
+```
+
+``` r
+
+fit_spatial <- fit_epidlnm(
+  data = dat_spatial,
+  model_engine = "spamm",
+  family = "poisson",
+  random_effect = NULL,
+  spatial_effect = c(
+    "x_coord",
+    "y_coord"
+  ),
+  spatial_structure = "matern",
+  spatial_group = NULL,
+  epiexposure_spec = attr(
+    cb_spatial,
+    "spec"
+  )
+)
+
+summary(fit_spatial)
+```
+
+This specification generates:
+
+`Matern(1 | x_coord + y_coord)`
+
+The Matérn term is distinct from a conventional random intercept. It
+represents autocorrelation that changes continuously with the distance
+between locations.
+
+### Independent spatial fields by year
+
+If the disease process is expected to have a different spatial
+realization in each growing season, `year` can define independent Matérn
+fields:
+
+``` r
+
+spatial_year = readxl::read_xlsx("data/sim_data_spatial_year.xlsx")
+```
+
+``` r
+
+dat_spatial_year <- build_design(
+  data = spatial_year,
+  cb_templates = cb,
+  groups = c(
+    "epi_id",
+    "x_coord",
+    "y_coord",
+    "year",
+    "location_id"
+    
+  )
+)
+
+dat_spatial_year <- prepare_response(
+  data = dat_spatial_year,
+  response = "y",
+  family = "poisson"
+)
+```
+
+``` r
+
+fit_spatial_year <- fit_epidlnm(
+  data = dat_spatial_year,
+  model_engine = "spamm",
+  family = "poisson",
+  random_effect = "block_id",
+  spatial_effect = c(
+    "x_coord",
+    "y_coord"
+  ),
+  spatial_structure = "matern",
+  spatial_group = "year",
+  epiexposure_spec = attr(
+    cb_spatial,
+    "spec"
+  )
+)
+
+summary(fit_spatial_year)
+```
+
+The resulting spatial term is:
+
+`Matern(1 | x_coord + y_coord %in% year)`
+
+In this model, `(1 | block_id)` represents conventional experimental
+heterogeneity, whereas the Matérn term represents spatially
+autocorrelated residual variation within each year.
+
+### Independent spatial fields across epidemiological replicates
+
+The grouping variable in a Matérn term can identify independent
+repetitions of an entire epidemiological experiment. Consider a field
+study conducted at 130 fixed locations. The same host, pathogen,
+experimental layout, and observation period are used in four independent
+repetitions.
+
+Each repetition contains an 86-day exposure history followed by one
+final disease assessment at each location. Temperature, rainfall, and
+leaf wetness can differ among repetitions, but the temporal positions
+remain comparable: the most recent observation corresponds to lag zero,
+and the oldest observation corresponds to lag 85.
+
+Each combination of location and repetition represents a separate
+epidemic:
+
+`L001_Replicate_1`
+
+`L001_Replicate_2`
+
+`L001_Replicate_3`
+
+`L001_Replicate_4`
+
+The cross-basis terms use the exposure history from each epidemic to
+estimate the shared nonlinear and delayed environmental associations.
+However, the residual spatial pattern of disease is not required to
+remain in the same locations across repetitions.
+
+Independent residual spatial fields can be specified as:
+
+`Matern(1 | x_coord + y_coord %in% epidemic_replicate)`
+
+The model therefore allows each repetition to produce a different
+realized map of residual disease intensity. For example, areas with high
+residual disease in the first repetition do not need to remain high in
+the second repetition.
+
+The Matérn parameters remain shared among repetitions. Consequently, all
+repetitions contribute jointly to estimation of the general magnitude,
+smoothness, and spatial scale of residual dependence, while retaining
+separate realized spatial fields.
+
+``` r
+
+spatial_replicate = readxl::read_xlsx("data/sim_data_spatial_replicate.xlsx")
+```
+
+``` r
+
+dat_spatial_replicate <- build_design(
+  data = spatial_replicate,
+  cb_templates = cb,
+  groups = c(
+    "epi_id",
+    "x_coord",
+    "y_coord",
+    "epidemic_replicate",
+    "location_id"
+    
+  )
+)
+
+dat_spatial_replicate <- prepare_response(
+  data = dat_spatial_replicate,
+  response = "y",
+  family = "poisson"
+)
+```
+
+``` r
+
+fit_spatial_replicate <- fit_epidlnm(
+  data = dat_spatial_replicate,
+  model_engine = "spamm",
+  family = "poisson",
+  random_effect = "block_id",
+  spatial_effect = c(
+    "x_coord",
+    "y_coord"
+  ),
+  spatial_structure = "matern",
+  spatial_group = "epidemic_replicate",
+  epiexposure_spec = attr(
+    cb_replicate,
+    "spec"
+  )
+)
+```
+
+The conventional random intercept and the spatial term represent
+different sources of dependence. The `block_id` effect accounts for
+discrete experimental heterogeneity, whereas the Matérn term accounts
+for continuous residual similarity among nearby locations within each
+epidemiological repetition.
+
+An epidemiological replicate must represent an independent repetition of
+the complete disease process. Repeated assessments made during the
+progression of a single epidemic should not be treated as independent
+replicates.
+
+## Gaussian generalized least squares
+
+The `gls` engine is restricted to Gaussian outcomes with the identity
+link and does not support the `EpiExposure` random-intercept interface.
+
+``` r
+
+fit_gls <- fit_epidlnm(
+  data = dat_gaussian,
+  model_engine = "gls",
+  family = "gaussian",
+  epiexposure_spec = attr(
+    cb_gaussian,
+    "spec"
+  )
+)
+
+summary(fit_gls)
+```
+
+## MCMC estimation with `brms`
+
+The `brms` engine provides posterior sampling for the fixed DLNM
+coefficients and any requested hierarchical components.
+
+``` r
+
+fit_brms <- fit_epidlnm(
+  data = dat,
+  model_engine = "brms",
+  family = "poisson",
+  random_effect = "block",
+  epiexposure_spec = attr(
+    cb,
+    "spec"
+  ),
+  chains = 4,
+  iter = 2000,
+  seed = 123
+)
+
+summary(fit_brms)
+```
+
+## Bayesian DLNM with `bdlnm`
+
+The `bdlnm` engine provides a Bayesian implementation specifically
+designed for distributed lag linear and nonlinear models. Internally,
+the native `bdlnm` package fits the model using Integrated Nested
+Laplace Approximation through
+[`INLA::inla()`](https://rdrr.io/pkg/INLA/man/inla.html) and then draws
+samples from the approximate posterior distribution using
+[`INLA::inla.posterior.sample()`](https://rdrr.io/pkg/INLA/man/posterior.sample.html).
+【1-fe3db1】
+
+Unlike the direct `inla` engine, which receives the epidemic-level
+`cb_*` columns as conventional fixed predictors, the `bdlnm` engine
+receives the original named `crossbasis` objects in the model formula.
+The fitted object stores the underlying INLA model, the basis objects,
+posterior coefficient draws, and summaries of those draws. 【1-fe3db1】
+
+In `EpiExposure`, this engine is integrated into the same prediction and
+uncertainty contract used by the other engines. Posterior fixed-effect
+draws are retained for draw-by-draw propagation through
+[`summarise_effects()`](https://tomazrg.github.io/EpiExposure/reference/summarise_effects.md),
+[`predict_outcomes()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.md),
+and other downstream functions.
+
+``` r
+
+cb_bdlnm <- define_exposures(
+  data = epi_data,
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  max_lag = 85,
+  df_var = 3,
+  df_lag = 2
+)
+
+dat_bdlnm <- build_design(
+  data = epi_data,
+  cb_templates = cb_bdlnm,
+  groups = c(
+    "epi_id",
+    "block"
+  )
+)
+
+basis_bdlnm <- attr(
+  dat_bdlnm,
+  "epiexposure_basis_objects",
+  exact = TRUE
+)
+
+dat_bdlnm <- prepare_response(
+  data = dat_bdlnm,
+  response = "y",
+  family = "poisson"
+)
+```
+
+The model can then be fitted through the harmonized `EpiExposure`
+interface:
+
+``` r
+
+fit_bdlnm <- fit_epidlnm(
+  data = dat_bdlnm,
+  model_engine = "bdlnm",
+  family = "poisson",
+  random_effect = "block",
+  epiexposure_spec = attr(
+    cb_bdlnm,
+    "spec"
+  ),
+  basis_objects = basis_bdlnm,
+  sample.arg = list(
+    n = 1000,
+    seed = 123
+  )
+)
+
+summary(fit_bdlnm)
+```
+
+The `random_effect = "block"` argument is translated internally to an
+independent latent effect of the form:
+
+`f(block, model = "iid")`
+
+The `sample.arg` list controls posterior coefficient sampling performed
+by the native `bdlnm` engine. A nonzero seed provides reproducible
+posterior sampling. The native package uses 1,000 posterior samples by
+default, although the number of samples can be changed according to the
+required precision and available computational resources.
+
+For deterministic `EpiExposure` predictions, posterior means of the
+fixed/population coefficients define the central expected response. When
+uncertainty is requested, the stored joint posterior coefficient draws
+are propagated through the inverse link one draw at a time.
+
+The resulting intervals describe uncertainty in the population-level
+expected response. They do not include observation-level noise or
+group-specific random effects.
+
+## Direct INLA versus B-DLNM
+
+Both engines rely on INLA for approximate Bayesian inference, but they
+enter the `EpiExposure`workflow differently.
+
+- `model_engine = "inla"` fits the epidemic-level `cb_*` columns
+  directly as fixed predictors through
+  [`INLA::inla()`](https://rdrr.io/pkg/INLA/man/inla.html).
+- `model_engine = "bdlnm"` passes named `crossbasis` objects to the
+  native `bdlnm` interface, which fits the underlying INLA model and
+  stores posterior coefficient samples together with the fitted basis
+  objects.
+
+The direct INLA engine is useful when a conventional INLA representation
+of the epidemic-level design is desired. The B-DLNM engine is useful
+when the analysis should retain the native Bayesian DLNM representation
+and its posterior coefficient-sampling workflow.
