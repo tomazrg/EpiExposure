@@ -1,3 +1,15 @@
+<img src="reference/figures/sticker.png"
+     alt="EpiExposure package sticker"
+     width="380px"
+     style="
+       float: right;
+       position: relative;
+       z-index: 10;
+       margin-left: 20px;
+       margin-right: -100px;
+       margin-top: 10px;
+     "/>
+
 # EpiExposure
 
 `EpiExposure` is an R package for modeling, interpreting, simulating, and predicting epidemiological exposure–lag–response relationships between environmental drivers and plant disease outcomes.
