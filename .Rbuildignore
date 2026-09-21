@@ -6,3 +6,5 @@
 ^pkgdown$
 ^doc$
 ^Meta$
+^\\.RData$$
+^\\.RDataTmp$$

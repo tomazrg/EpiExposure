@@ -174,7 +174,7 @@ plot_effects <- function(
     vars = NULL,
     metric = c("effect", "delta"),
     delta_multiplier = 100,
-    metric_labels = c(effect = "Effect", delta = "Δ"),
+    metric_labels = c(effect = "Effect", delta = "Delta"),
     ylab = NULL,
     metric_ncol = 1,
     vars_ncol = NULL,
@@ -340,7 +340,7 @@ plot_effects <- function(
     vars_ncol <- as.integer(vars_ncol)
 
     default_ylab <- c(
-      tmean = "Mean temperature (°C)",
+      tmean = "Mean temperature (\u00B0C)",
       rain = "Daily precipitation (mm)",
       wetness = "Leaf wetness (%)"
     )
@@ -352,7 +352,7 @@ plot_effects <- function(
       arg = "ylab"
     )
 
-    default_metric_labels <- c(effect = "Effect (%)", delta = "Δ")
+    default_metric_labels <- c(effect = "Effect", delta = "Delta")
     metric_labels_use <- .resolve_named_labels(
       x = metric_labels,
       keys = metric,
@@ -386,23 +386,28 @@ plot_effects <- function(
 
       p <- ggplot2::ggplot(
         df,
-        ggplot2::aes(x = lag, y = value)
+        ggplot2::aes(
+          x = .data[["lag"]],
+          y = .data[["value"]]
+        )
       ) +
         ggplot2::geom_raster(
-          ggplot2::aes(fill = z_fill),
+          ggplot2::aes(
+            fill = .data[["z_fill"]]
+          ),
           interpolate = interpolate
         )
 
       if (m == "effect") {
         p <- p +
           ggplot2::geom_contour(
-            ggplot2::aes(z = z_raw),
+            ggplot2::aes(z = .data[["z_raw"]]),
             color = contour_colour,
             linewidth = contour_linewidth,
             breaks = effect_breaks
           ) +
           metR::geom_text_contour(
-            ggplot2::aes(z = z_raw),
+            ggplot2::aes(z = .data[["z_raw"]]),
             breaks = 0,
             stroke = 0.15,
             size = effect_zero_text_size
@@ -423,19 +428,19 @@ plot_effects <- function(
       } else {
         p <- p +
           ggplot2::geom_contour(
-            ggplot2::aes(z = z_raw),
+            ggplot2::aes(z = .data[["z_raw"]]),
             color = contour_colour,
             linewidth = contour_linewidth,
             bins = delta_bins
           ) +
           ggplot2::geom_contour(
-            ggplot2::aes(z = z_raw),
+            ggplot2::aes(z = .data[["z_raw"]]),
             breaks = 0,
             color = contour_colour,
             linewidth = zero_linewidth
           ) +
           metR::geom_text_contour(
-            ggplot2::aes(z = z_raw),
+            ggplot2::aes(z = .data[["z_raw"]]),
             breaks = 0,
             stroke = 0.15,
             size = delta_zero_text_size
@@ -616,10 +621,10 @@ plot_effects <- function(
     p <- ggplot2::ggplot(
       df,
       ggplot2::aes(
-        x = value,
-        y = response_value,
-        group = sample,
-        color = sample
+        x = .data[["value"]],
+        y = .data[["response_value"]],
+        group = .data[["sample"]],
+        color = .data[["sample"]]
       )
     ) +
       ggplot2::geom_smooth(
@@ -643,8 +648,8 @@ plot_effects <- function(
     p <- ggplot2::ggplot(
       df,
       ggplot2::aes(
-        x = value,
-        y = response_value,
+        x = .data[["value"]],
+        y = .data[["response_value"]],
         group = 1
       )
     ) +

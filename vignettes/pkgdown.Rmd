@@ -17,6 +17,10 @@ knitr::opts_chunk$set(
   message = FALSE,
   warning = FALSE
 )
+
+library(EpiExposure)
+library(ggplot2)
+library(dplyr)
 ```
 
 # What does `EpiExposure` do?
@@ -126,7 +130,7 @@ For `max_lag = 85`, the expected result is 86 observations per `epi_id`.
 Visual inspection can reveal temporal trends, unusual exposure profiles, limited variation, and missing observations.
 
 ```{r, message=FALSE, warning=FALSE}
-wetness_plot = epi_data%>% 
+wetness_plot = epi_data |>  
   ggplot(aes(time,wetness, group = epi_id))+
   geom_smooth(se = F, color = "#55A868",linewidth = 0.3)+
   theme_bw()+
@@ -142,7 +146,7 @@ wetness_plot
 
 
 ```{r, message=FALSE, warning=FALSE}
-rain_plot = epi_data%>% 
+rain_plot = epi_data  |>  
   ggplot(aes(time,rain, group = epi_id))+
   geom_smooth(se = F, color = "#4C72B0",linewidth = 0.3)+
   theme_bw()+
@@ -159,7 +163,7 @@ rain_plot
 
 
 ```{r, message=FALSE, warning=FALSE}
-tmean_plot = epi_data%>% 
+tmean_plot = epi_data |> 
   ggplot(aes(time,tmean, group = epi_id))+
   geom_smooth(se = F, color = "#C44E52",linewidth = 0.3)+
   theme_bw()+

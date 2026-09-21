@@ -20,6 +20,7 @@
 #' @return A model summary object. When `component = "both"`, a list
 #'   containing the GAM and LME summaries is returned.
 #'
+#' @keywords internal
 #' @export
 summary.epiexposure_gamm <- function(
     object,
@@ -30,11 +31,11 @@ summary.epiexposure_gamm <- function(
     ),
     ...
 ) {
-  
+
   component <- match.arg(
     component
   )
-  
+
   if (!is.list(object) ||
       is.null(object$gam) ||
       is.null(object$lme)) {
@@ -46,7 +47,7 @@ summary.epiexposure_gamm <- function(
       call. = FALSE
     )
   }
-  
+
   if (identical(component, "gam")) {
     return(
       summary(
@@ -55,7 +56,7 @@ summary.epiexposure_gamm <- function(
       )
     )
   }
-  
+
   if (identical(component, "lme")) {
     return(
       summary(
@@ -64,7 +65,7 @@ summary.epiexposure_gamm <- function(
       )
     )
   }
-  
+
   structure(
     list(
       gam = summary(
@@ -89,34 +90,35 @@ summary.epiexposure_gamm <- function(
 #'
 #' @return The summary object, invisibly.
 #'
+#' @keywords internal
 #' @export
 print.summary_epiexposure_gamm <- function(
     x,
     ...
 ) {
-  
+
   cat(
     "\nEpiExposure GAMM\n"
   )
-  
+
   cat(
     "\nFixed/population component:\n\n"
   )
-  
+
   print(
     x$gam,
     ...
   )
-  
+
   cat(
     "\nMixed-model component:\n\n"
   )
-  
+
   print(
     x$lme,
     ...
   )
-  
+
   invisible(
     x
   )

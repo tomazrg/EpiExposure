@@ -52,6 +52,8 @@
 #'   widths. By default, all displayed panels have equal width. Supply two values
 #'   when two panels are displayed or three values when the overall ECI, lag
 #'   contribution, and exposure-difference panels are displayed together.
+#' @param exposure_y_label Optional character string defining the y-axis label
+#'   used for the exposure panel. If `NULL`, a default label is generated.
 #'
 #' @return A ggplot/cowplot object. When both inputs are supplied, the returned
 #'   object combines the overall ECI panel and the lag-specific panel. When only

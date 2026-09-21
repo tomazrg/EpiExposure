@@ -1,7 +1,7 @@
 ---
 title: "Sensitivity Analysis and Decision Support"
 author: "Ricardo G. Tomáz"
-description: "Identifying critical environmental thresholds and sensitive exposure regions"
+description: "Identifying sensitive environmental regions and supporting epidemiological decisions"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Sensitivity Analysis and Decision Support}
@@ -9,44 +9,67 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.align = "center",
+  message = FALSE,
+  warning = FALSE
+)
+```
+
 # Introduction
 
-Disease responses are often nonlinear.
+Exposure-response relationships are often nonlinear. A small change in an
+environmental exposure may correspond to little change in the expected disease
+response in one region of the fitted curve but a much larger change in another.
 
-A small increase in temperature may have little effect at one point of the exposure-response curve but a very large effect at another.
+Effect summaries describe the direction and magnitude of modeled associations.
+Sensitivity analysis addresses a complementary question:
 
-Consequently, researchers are frequently interested not only in predicting disease outcomes but also in understanding where systems are most sensitive to environmental change.
+> Where does the model-predicted disease response change most rapidly as an
+> exposure changes?
 
-`EpiExposure` provides sensitivity analysis tools that identify:
+`EpiExposure` provides tools for examining:
 
-- critical exposure regions;
-- exposure thresholds;
-- elasticity patterns;
-- management-relevant intervention zones.
+- local rates of change along prediction curves;
+- proportional response changes through elasticity;
+- model-derived critical exposure regions;
+- differences in sensitivity among environmental drivers;
+- potential regions of interest for monitoring and decision support.
 
-These analyses transform predictive models into decision-support tools.
+::: {.tutorial-note}
+**What you will learn.** This tutorial shows how to generate controlled
+exposure gradients, predict disease responses along those gradients, calculate
+local sensitivity and elasticity, and identify regions in which the fitted
+response changes most rapidly.
+:::
 
-# Load data
+Sensitivity results describe mathematical features of the fitted model. They
+do not automatically establish biological thresholds, causal intervention
+points, or management recommendations. Such interpretations require biological
+validation and decision criteria appropriate to the pathosystem.
 
-```{r, message=FALSE, warning=FALSE}
+# Preparing the example model
 
+This vignette uses the same example dataset and DLNM specification introduced
+in the previous tutorials.
+
+```{r load-packages}
 library(EpiExposure)
 library(dplyr)
 library(ggplot2)
-
 ```
 
-```{r}
-
-data("epi_data")
-
-epi_data
-
+```{r load-data}
+data(
+  "epi_data")
 ```
 
-# Fit a DLNM model
+Define the exposure-lag structures:
 
-```{r}
+```{r define-exposures}
 cb <- define_exposures(
   data = epi_data,
   vars = c(
@@ -58,48 +81,117 @@ cb <- define_exposures(
   df_var = 3,
   df_lag = 2
 )
+```
 
+Build the epidemic-level design:
+
+```{r build-design}
 dat <- build_design(
   data = epi_data,
-  cb_templates = cb,
-  max_lag = 85
+  cb_templates = cb
 )
+```
 
+Prepare the disease response:
+
+```{r prepare-response}
 dat <- prepare_response(
   data = dat,
   response = "y",
   family = "beta"
 )
+```
 
+Fit the DLNM:
+
+```{r fit-model}
 fit <- fit_epidlnm(
   data = dat,
   model_engine = "glmmTMB",
   family = "beta",
-  epiexposure_spec = attr(cb,"spec")
+  random_effect = NULL,
+  epiexposure_spec = attr(
+    cb,
+    "spec"
+  )
 )
 ```
 
-# Generating exposure gradients
+The fitted model is now used to predict the expected disease response along
+controlled environmental gradients.
 
-Sensitivity analyses begin by generating controlled gradients of environmental conditions
+# From effect interpretation to sensitivity analysis
 
-```{r}
+The *Understanding Effects* vignette introduced lag-specific, period-specific,
+and cumulative summaries of the fitted exposure-lag-response relationship.
+
+Sensitivity analysis provides a different view. Rather than summarizing the
+magnitude of an effect at an exposure-lag combination, it estimates how rapidly
+the predicted response changes along a selected exposure gradient.
+
+Conceptually:
+
+```text
+effect analysis
+    → What modeled contrast is associated with an exposure?
+
+sensitivity analysis
+    → How rapidly does the predicted response change as the exposure changes?
+```
+
+The two approaches are complementary. A region can have a relatively large
+predicted response but low sensitivity if the curve is locally flat. A region
+with a moderate predicted response can have high sensitivity if the curve is
+changing rapidly.
+
+# Generating controlled exposure gradients
+
+The sensitivity workflow uses `simulate_ranges()` and
+`simulate_scenarios()` to create controlled exposure gradients.
+
+In this vignette, these functions are used specifically to evaluate one
+environmental variable across a sequence of values while the remaining
+variables are held constant.
+
+The broader use of simulation tools for constructing complete exposure
+histories, structured events, and multivariable scenarios is covered in the
+*Simulation and Prediction* vignette.
+
+First, define epidemiological lag periods:
+
+```{r define-periods}
 periods <- define_periods(
   max_lag = 85,
   cuts = c(
     20,
     40,
     60
-  )
+  ),
+  prefix = "Period"
 )
+
+periods
 ```
 
-## Temperature gradient
+These periods divide the retrospective lag interval into four sections.
 
-```{r}
+Remember that lag order is retrospective:
+
+```text
+smaller lag → closer to disease assessment
+larger lag  → earlier exposure condition
+```
+
+# Temperature sensitivity
+
+## Generating a temperature gradient
+
+The following scenario grid evaluates mean temperature from 18 to 34 °C while
+holding rainfall and leaf wetness constant:
+
+```{r temperature-gradient}
 temp_range <- simulate_ranges(
   periods = periods,
-
   vary = list(
     rain = 5,
     wetness = 10,
@@ -109,198 +201,345 @@ temp_range <- simulate_ranges(
       by = 0.5
     )
   ),
-
   scenario_type = "grid",
   scenario_var = "tmean"
 )
 ```
 
-## Predicting responses
+This is a controlled model-based gradient. It does not represent additional
+observed data.
 
-```{r}
+Inspect the first candidate scenarios:
+
+```{r inspect-temperature-gradient, echo=FALSE}
+knitr::kable(
+  utils::head(
+    temp_range,
+    10L
+  ),
+  digits = 3,
+  caption = "First 10 scenarios in the controlled temperature gradient.",
+  align = "c"
+)
+```
+
+## Predicting responses along the gradient
+
+```{r predict-temperature-gradient}
 temp_predictions <- simulate_scenarios(
   fit = fit,
   scenarios = temp_range,
   data = epi_data,
   uncertainty = TRUE,
   output = "summary",
-  n_samples = 50
+  n_samples = 1000,
+  seed = 123
 )
 ```
 
-# Inspecting the response curve
+The predictions from the fitted Beta model are returned as proportions. For
+visualization, they are converted to percentages:
 
-```{r}
-response_curve <- temp_predictions %>%
-  transmute(
+```{r prepare-temperature-response}
+response_curve <- temp_predictions |>
+  dplyr::transmute(
     value = tmean,
     prediction = prediction * 100,
     lower = prediction_lower * 100,
     upper = prediction_upper * 100
-  ) %>%
-  arrange(value)
+  ) |>
+  dplyr::arrange(
+    value
+  )
 ```
 
-Visualize:
+Inspect the response curve:
 
-```{r}
+```{r inspect-temperature-response, echo=FALSE}
+knitr::kable(
+  utils::head(
+    response_curve,
+    10L
+  ),
+  digits = 3,
+  caption = "First 10 predicted responses along the temperature gradient.",
+  align = "c"
+)
+```
 
+## Visualizing the response curve
+
+```{r plot-temperature-response, fig.width=8, fig.height=5}
 ggplot(
   response_curve,
   aes(
-    value,
-    prediction
+    x = value,
+    y = prediction
   )
 ) +
+  geom_ribbon(
+    aes(
+      ymin = lower,
+      ymax = upper
+    ),
+    fill = "#C44E52",
+    alpha = 0.18
+  ) +
   geom_line(
-    linewidth = 1
+    linewidth = 1,
+    color = "#C44E52"
   ) +
   theme_bw() +
   labs(
     x = "Mean temperature (°C)",
-    y = "Predicted disease (%)"
+    y = "Expected disease response (%)",
+    title = "Predicted response along the temperature gradient"
   )
-
 ```
+
+The line represents the central expected response under the fitted model. The
+ribbon represents uncertainty associated with the fitted model coefficients.
+
+The curve should not be interpreted as a causal dose-response relationship
+unless the study design and assumptions support that interpretation.
 
 # Why sensitivity analysis?
 
-Prediction curves describe expected disease levels.
+Prediction curves show the expected response along an exposure gradient.
 
-Sensitivity curves describe how rapidly disease changes along those prediction curves.
+Sensitivity curves describe the local slope of those prediction curves.
 
-Consequently, sensitivity analyses often reveal critical epidemiological regions that are not obvious from predictions alone.
+For a response function \(f(x)\), local sensitivity is conceptually related to:
 
-# Computing sensitivity
+$$
+S(x) = \frac{\partial f(x)}{\partial x}
+$$
 
-```{r}
+where \(x\) is the exposure value.
 
+A large absolute sensitivity indicates that the predicted response is changing
+rapidly at that point of the fitted curve. A sensitivity near zero indicates a
+locally flat region.
+
+# Computing temperature sensitivity
+
+```{r compute-temperature-sensitivity}
 temp_sensitivity <- epi_sensitivity(
   data = response_curve,
   x = "value",
   y = "prediction",
- scenario_var = NULL,
+  scenario_var = NULL,
   elasticity = TRUE,
   critical = TRUE,
-  k = 3)
+  k = 3
+)
 ```
 
-Inspect results:
+Inspect the resulting columns:
 
-```{r}
-
-head(temp_sensitivity)
-
-```
-
-## Visualizing sensitivity
-
-```{r}
-ggplot(
-  temp_sensitivity,
-  aes(
-    value,
-    sensitivity
-  )
-) +
-  geom_line(
-    linewidth = 1
-  ) +
-  theme_bw() +
-  labs(
-    x = "Mean temperature (°C)",
-    y = "Sensitivity"
-  )
+```{r inspect-temperature-sensitivity, echo=FALSE}
+knitr::kable(
+  utils::head(
+    temp_sensitivity,
+    10L
+  ),
+  digits = 4,
+  caption = "First 10 temperature sensitivity results.",
+  align = "c"
+)
 ```
 
 # Interpreting sensitivity
 
-Positive sensitivity values indicate increasing disease risk.
+Positive sensitivity indicates that the expected disease response increases
+locally as the exposure increases.
 
-Negative values indicate decreasing disease risk.
+Negative sensitivity indicates that the expected disease response decreases
+locally as the exposure increases.
 
-Values near zero suggest relatively stable disease responses within that exposure region.
+Values near zero indicate a locally flat region of the model-predicted response
+curve.
+
+Sensitivity describes the local slope of the prediction curve. It should not
+automatically be interpreted as disease risk or as a causal effect of changing
+the exposure.
+
+## Visualizing temperature sensitivity
+
+```{r plot-temperature-sensitivity, fig.width=8, fig.height=5}
+ggplot(
+  temp_sensitivity,
+  aes(
+    x = value,
+    y = sensitivity
+  )
+) +
+  geom_hline(
+    yintercept = 0,
+    color = "grey60",
+    linetype = "dashed"
+  ) +
+  geom_line(
+    linewidth = 1,
+    color = "#C44E52"
+  ) +
+  theme_bw() +
+  labs(
+    x = "Mean temperature (°C)",
+    y = "Local sensitivity",
+    title = "Sensitivity along the temperature gradient"
+  )
+```
+
+The sign describes the direction of local change, whereas the absolute
+magnitude describes how rapidly the prediction changes.
 
 # Elasticity analysis
 
 ## What is elasticity?
 
-Sensitivity measures the absolute rate of change.
+Sensitivity measures the absolute local rate of change in the predicted
+response with respect to an exposure.
 
-Elasticity measures the proportional rate of change.
+Elasticity expresses the local response change relative to the current exposure
+and response scales.
 
-Elasticity therefore answers:
+Conceptually, elasticity can be represented as:
 
-> "How much does disease change (%) when exposure changes by 1%?"
+$$
+E(x)
+=
+\frac{\partial f(x)}{\partial x}
+\frac{x}{f(x)}
+$$
 
-Plot elasticity:
+It addresses the question:
 
-```{r}
+> What proportional change in the expected disease response is associated with
+> a proportional change in the exposure at this point of the fitted curve?
+
+Elasticity is dimensionless, which can facilitate comparisons across variables
+measured in different units.
+
+However, elasticity may become unstable when the exposure or predicted response
+is close to zero. It should be interpreted cautiously in those regions.
+
+## Visualizing elasticity
+
+```{r plot-temperature-elasticity, fig.width=8, fig.height=5}
 ggplot(
   temp_sensitivity,
   aes(
-    value,
-    elasticity
+    x = value,
+    y = elasticity
   )
 ) +
+  geom_hline(
+    yintercept = 0,
+    color = "grey60",
+    linetype = "dashed"
+  ) +
   geom_line(
-    linewidth = 1
+    linewidth = 1,
+    color = "#4C72B0"
   ) +
   theme_bw() +
   labs(
     x = "Mean temperature (°C)",
-    y = "Elasticity"
+    y = "Elasticity",
+    title = "Elasticity along the temperature gradient"
   )
 ```
+
+Elasticity should be interpreted together with the underlying prediction and
+sensitivity curves. A large elasticity value can arise from a small denominator
+rather than from a large absolute response change.
 
 # Identifying critical regions
 
-The critical option in `epi_sensitivity()` automatically identifies regions where disease responses change most strongly.
+When:
 
-These regions often correspond to biologically important epidemiological thresholds.
-
-Extract critical points:
-
-```{r}
-temp_sensitivity %>%
-  filter(critical)
+```r
+critical = TRUE
 ```
 
-Visualize:
+`epi_sensitivity()` identifies points or regions that satisfy the function's
+criterion for comparatively strong local response change.
 
-```{r}
+These locations are model-derived critical regions. They may suggest exposure
+ranges that deserve closer biological investigation, but they should not
+automatically be described as biological thresholds.
+
+A biological or management threshold requires additional justification, such
+as:
+
+- experimental validation;
+- an established disease criterion;
+- a decision-relevant loss boundary;
+- demonstrated management value;
+- acceptable classification or forecasting performance.
+
+## Extracting critical points
+
+```{r inspect-critical-temperature-points}
+critical_temperature <- temp_sensitivity |>
+  dplyr::filter(
+    critical
+  )
+
+critical_temperature
+```
+
+## Visualizing critical points
+
+```{r plot-critical-temperature-points, fig.width=8, fig.height=5}
 ggplot(
   temp_sensitivity,
   aes(
-    value,
-    sensitivity
+    x = value,
+    y = sensitivity
   )
 ) +
-
-  geom_line() +
-
-  geom_point(
-    data = subset(
-      temp_sensitivity,
-      critical
-    ),
-    color = "red",
-    size = 3
+  geom_hline(
+    yintercept = 0,
+    color = "grey60",
+    linetype = "dashed"
   ) +
-
-  theme_bw()
+  geom_line(
+    linewidth = 0.9,
+    color = "#C44E52"
+  ) +
+  geom_point(
+    data = critical_temperature,
+    color = "#B22222",
+    size = 2.8
+  ) +
+  theme_bw() +
+  labs(
+    x = "Mean temperature (°C)",
+    y = "Local sensitivity",
+    title = "Model-derived critical regions along the temperature gradient"
+  )
 ```
+
+The highlighted points indicate comparatively strong local changes according
+to the criterion used by `epi_sensitivity()`. They do not, by themselves,
+establish biologically validated thresholds.
 
 # Comparing environmental drivers
 
-Sensitivity can be compared across multiple variables
+Sensitivity analyses can also be conducted for rainfall and leaf wetness.
 
-## Rainfall
+The following examples evaluate one exposure at a time while holding the other
+environmental variables constant.
 
-```{r}
+# Rainfall sensitivity
+
+## Generating a rainfall gradient
+
+```{r rainfall-gradient}
 rain_range <- simulate_ranges(
   periods = periods,
-
   vary = list(
     tmean = 25,
     wetness = 10,
@@ -310,60 +549,31 @@ rain_range <- simulate_ranges(
       by = 0.5
     )
   ),
-
   scenario_type = "grid",
   scenario_var = "rain"
 )
 ```
 
-## Leaf wetness
+## Predicting rainfall scenarios
 
-```{r}
-wetness_range <- simulate_ranges(
-  periods = periods,
+Sample-level predictions are requested so that sensitivity can be evaluated
+across uncertainty realizations:
 
-  vary = list(
-    tmean = 25,
-    rain = 5,
-    wetness = seq(
-      0,
-      24,
-      by = 0.5
-    )
-  ),
-
-  scenario_type = "grid",
-  scenario_var = "wetness"
-)
-```
-
-Simulate:
-
-```{r}
+```{r predict-rainfall-gradient}
 rain_predictions <- simulate_scenarios(
   fit = fit,
   scenarios = rain_range,
   data = epi_data,
-   uncertainty = TRUE,
+  uncertainty = TRUE,
   output = "samples",
-  n_samples = 20
-)
-
-wetness_predictions <- simulate_scenarios(
-  fit = fit,
-  scenarios = wetness_range,
-  data = epi_data,
-   uncertainty = TRUE,
-  output = "samples",
-  n_samples = 20
+  n_samples = 1000,
+  seed = 123
 )
 ```
 
-Compute sensitivities
+## Computing rainfall sensitivity
 
-```{r}
-
-
+```{r compute-rainfall-sensitivity}
 sens_rain <- epi_sensitivity(
   data = rain_predictions,
   x = "rain",
@@ -374,7 +584,46 @@ sens_rain <- epi_sensitivity(
   method = "finite",
   k = 3
 )
+```
 
+# Leaf wetness sensitivity
+
+## Generating a leaf wetness gradient
+
+```{r wetness-gradient}
+wetness_range <- simulate_ranges(
+  periods = periods,
+  vary = list(
+    tmean = 25,
+    rain = 5,
+    wetness = seq(
+      0,
+      24,
+      by = 0.5
+    )
+  ),
+  scenario_type = "grid",
+  scenario_var = "wetness"
+)
+```
+
+## Predicting leaf wetness scenarios
+
+```{r predict-wetness-gradient}
+wetness_predictions <- simulate_scenarios(
+  fit = fit,
+  scenarios = wetness_range,
+  data = epi_data,
+  uncertainty = TRUE,
+  output = "samples",
+  n_samples = 1000,
+  seed = 456
+)
+```
+
+## Computing leaf wetness sensitivity
+
+```{r compute-wetness-sensitivity}
 sens_wetness <- epi_sensitivity(
   data = wetness_predictions,
   x = "wetness",
@@ -387,66 +636,323 @@ sens_wetness <- epi_sensitivity(
 )
 ```
 
+# Combining sensitivity results
 
-Combine:
+Rainfall and leaf wetness are measured on different scales. Therefore, they
+should not be placed on a shared exposure axis without preserving their
+original units.
 
-```{r}
-sens_rain$variable <- "Rain"
+Create a common exposure-value column and retain the variable identifier:
 
-sens_wetness$variable <- "Wetness"
+```{r combine-sensitivity-results}
+sens_rain_plot <- sens_rain |>
+  dplyr::mutate(
+    variable = "Rainfall",
+    exposure_value = rain
+  )
 
-combined <- bind_rows(
-  sens_rain,
-  sens_wetness
+sens_wetness_plot <- sens_wetness |>
+  dplyr::mutate(
+    variable = "Leaf wetness",
+    exposure_value = wetness
+  )
+
+combined_sensitivity <- dplyr::bind_rows(
+  sens_rain_plot,
+  sens_wetness_plot
 )
 ```
 
-Plot:
+## Visualizing uncertainty realizations
 
-```{r}
+```{r plot-combined-sensitivity-samples, fig.width=9, fig.height=5}
 ggplot(
-  combined,
+  combined_sensitivity,
   aes(
-    prediction,
-    sensitivity,
-    color = variable
+    x = exposure_value,
+    y = sensitivity,
+    group = sample
   )
 ) +
-  geom_line(
-    linewidth = 1
+  geom_hline(
+    yintercept = 0,
+    color = "grey60",
+    linetype = "dashed"
   ) +
-  theme_bw()
+  geom_line(
+    alpha = 0.10,
+    linewidth = 0.35,
+    color = "#4C72B0"
+  ) +
+  facet_wrap(
+    vars(
+      variable
+    ),
+    scales = "free_x"
+  ) +
+  theme_bw() +
+  labs(
+    x = "Exposure value",
+    y = "Local sensitivity",
+    title = "Sensitivity across environmental gradients"
+  )
 ```
 
-# Decision-support applications
+Each line represents one uncertainty realization. The collection of lines shows
+how coefficient uncertainty propagates into the estimated sensitivity curves.
 
-Sensitivity analyses are particularly useful for:
+If the sample identifier returned by `simulate_scenarios()` has a different
+column name, replace:
 
-- identifying risk thresholds;
+```r
+group = sample
+```
+
+with the corresponding sample-identification column.
+
+# Summarizing sensitivity uncertainty
+
+Sample-level sensitivity results can be summarized at each exposure value.
+
+```{r summarize-sensitivity-samples}
+sensitivity_summary <- combined_sensitivity |>
+  dplyr::group_by(
+    variable,
+    exposure_value
+  ) |>
+  dplyr::summarise(
+    sensitivity_median = stats::median(
+      sensitivity,
+      na.rm = TRUE
+    ),
+    sensitivity_lower = stats::quantile(
+      sensitivity,
+      probs = 0.025,
+      na.rm = TRUE
+    ),
+    sensitivity_upper = stats::quantile(
+      sensitivity,
+      probs = 0.975,
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  )
+```
+
+Inspect the summaries:
+
+```{r inspect-sensitivity-summary, echo=FALSE}
+knitr::kable(
+  utils::head(
+    sensitivity_summary,
+    10L
+  ),
+  digits = 4,
+  caption = "First 10 summarized sensitivity estimates.",
+  align = "c"
+)
+```
+
+## Visualizing summarized sensitivity
+
+```{r plot-sensitivity-summary, fig.width=9, fig.height=5}
+ggplot(
+  sensitivity_summary,
+  aes(
+    x = exposure_value,
+    y = sensitivity_median
+  )
+) +
+  geom_hline(
+    yintercept = 0,
+    color = "grey60",
+    linetype = "dashed"
+  ) +
+  geom_ribbon(
+    aes(
+      ymin = sensitivity_lower,
+      ymax = sensitivity_upper
+    ),
+    fill = "#4C72B0",
+    alpha = 0.18
+  ) +
+  geom_line(
+    linewidth = 0.9,
+    color = "#4C72B0"
+  ) +
+  facet_wrap(
+    vars(
+      variable
+    ),
+    scales = "free_x"
+  ) +
+  theme_bw() +
+  labs(
+    x = "Exposure value",
+    y = "Local sensitivity",
+    title = "Summarized sensitivity across environmental gradients"
+  )
+```
+
+The uncertainty interval describes uncertainty propagated from the fitted model
+into the sensitivity calculation. It does not include uncertainty in the
+scenario values or additional observation-level variability.
+
+# Comparing sensitivity across variables
+
+Absolute sensitivity values depend on the units of both the exposure and the
+predicted response.
+
+For example:
+
+- temperature is measured in degrees Celsius;
+- rainfall is measured in millimeters;
+- leaf wetness is measured in its recorded unit.
+
+Consequently, the numerical magnitudes of raw sensitivity should not be
+compared directly across variables without considering their units and scales.
+
+Elasticity can facilitate proportional comparisons because it is
+dimensionless. However, elasticity can be unstable near zero exposure or zero
+predicted response.
+
+A defensible comparison should therefore consider:
+
+- sensitivity;
+- elasticity;
+- predicted disease level;
+- uncertainty;
+- observed exposure support;
+- biological plausibility;
+- the units and feasible range of each exposure.
+
+# Decision-support interpretation
+
+Sensitivity analysis can help identify model-derived regions that merit closer
+attention, but it does not automatically define a management rule.
+
+Potential applications include:
+
+- identifying exposure ranges associated with rapid predicted response change;
 - prioritizing environmental monitoring;
-- defining warning criteria;
-- selecting management intervention points;
-- evaluating climate-change scenarios;
-- improving disease forecasting systems.
+- identifying candidate regions for experimental validation;
+- informing the construction of warning criteria;
+- comparing sensitivity across environmental gradients;
+- examining climate or management scenarios;
+- supporting disease-forecasting research.
+
+A decision-support interpretation should combine sensitivity with additional
+information, including:
+
+- the absolute predicted disease response;
+- uncertainty in the prediction and sensitivity;
+- the frequency of the exposure condition;
+- exposure values supported by the observed data;
+- biological feasibility;
+- intervention timing;
+- management costs;
+- potential yield or economic losses;
+- consequences of false-positive and false-negative decisions.
+
+::: {.tutorial-note}
+**High sensitivity is not automatically high disease.** Sensitivity describes
+the local slope of the predicted response curve. A region can have high
+sensitivity but a moderate predicted response, or high predicted disease but
+low sensitivity if the response curve has reached a plateau.
+:::
 
 # Example interpretation
 
-Suppose sensitivity analysis indicates:
+Suppose the temperature sensitivity analysis indicates:
 
-- low sensitivity below 20 °C;
-- maximum sensitivity between 24 and 28 °C;
+- relatively small local changes below 20 °C;
+- the largest positive sensitivity between 24 and 28 °C;
 - decreasing sensitivity above 30 °C.
 
-In this situation, management efforts would be most valuable when environmental conditions approach the 24–28 °C interval, because small weather changes within that region are expected to generate the largest epidemiological responses.
+Under the fitted model, the expected disease response changes most rapidly
+along the 24–28 °C portion of the evaluated temperature gradient.
+
+This region may deserve closer monitoring or biological investigation.
+However, high sensitivity alone does not establish a management threshold.
+
+A management interpretation should also consider:
+
+- the predicted disease level in that region;
+- uncertainty around the sensitivity estimates;
+- whether temperatures in that interval are common in the target system;
+- whether the exposure can be modified;
+- whether an intervention can be applied in time;
+- the expected yield and economic consequences;
+- the cost and effectiveness of the intervention.
+
+# Interpretation checklist
+
+Before reporting sensitivity or elasticity results, verify:
+
+1. which response family and link were fitted;
+2. which environmental variable was varied;
+3. which variables were held constant;
+4. which lag periods were represented in the scenarios;
+5. whether the evaluated gradient is supported by the observed data;
+6. whether the disease response was analyzed as a proportion or percentage;
+7. whether uncertainty samples were propagated;
+8. how the sensitivity derivative was estimated;
+9. how critical regions were defined;
+10. whether the result is being interpreted as a modeled association or as a
+    validated decision threshold.
 
 # Summary
 
-This section demonstrated how `EpiExposure` can be used to quantify response sensitivity and identify critical environmental thresholds.
+This vignette demonstrated how `EpiExposure` can be used to examine local
+changes along model-predicted response curves.
 
-Key tools include:
+The sensitivity workflow consists of:
 
-- simulate_ranges()
-- simulate_scenarios()
-- epi_sensitivity()
+```text
+controlled exposure gradient
+            ↓
+predicted disease-response curve
+            ↓
+local sensitivity
+            ↓
+elasticity
+            ↓
+model-derived critical regions
+```
 
-Together, these functions help transform predictive models into practical decision-support frameworks capable of identifying the environmental conditions most strongly associated with disease development.
+The principal tools are:
+
+- `simulate_ranges()` for creating controlled exposure gradients;
+- `simulate_scenarios()` for predicting responses along those gradients;
+- `epi_sensitivity()` for calculating sensitivity, elasticity, and critical
+  regions.
+
+Sensitivity analysis complements the effect summaries introduced in the
+*Understanding Effects* vignette.
+
+Lag-specific and period-specific effects describe the fitted exposure-lag
+association, whereas sensitivity describes how rapidly a predicted response
+changes along a selected environmental gradient.
+
+Sensitivity and elasticity are model-derived quantities. Their use in decision
+support requires biological interpretation, uncertainty assessment, and
+decision criteria appropriate to the pathosystem.
+
+# Next steps
+
+The next vignette, *Simulation and Prediction*, expands from controlled
+one-variable gradients to complete hypothetical exposure histories and
+multivariable scenarios.
+
+It introduces:
+
+- `simulate_exposures()` for generating complete chronological profiles;
+- `simulate_ranges()` for constructing candidate exposure combinations;
+- `simulate_scenarios()` for predicting across scenario grids;
+- `predict_outcomes()` for complete exposure histories;
+- `compare_exposures()` for comparing environmental profiles;
+- `compare_predictions()` for comparing their expected disease outcomes.
+
+These tools allow researchers to investigate exposure timing, construct
+alternative environmental histories, propagate parameter uncertainty, and
+compare model-based disease predictions.

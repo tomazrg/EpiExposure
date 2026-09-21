@@ -73,6 +73,9 @@ is now represented by dashed smoothed interval curves. Default is `0.20`.}
 
 \item{overall_x_label, overall_y_label, lag_x_label, lag_y_label, }{exposure_y_label Axis labels.}
 
+\item{exposure_y_label}{Optional character string defining the y-axis label
+used for the exposure panel. If `NULL`, a default label is generated.}
+
 \item{exposure_colors}{Character vector of colors used for exposure-
 difference curves. Named vectors are supported. The default reproduces the
 historical manual palette.}

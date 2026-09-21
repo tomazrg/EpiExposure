@@ -18,3 +18,4 @@ The summary object, invisibly.
 \description{
 Print an EpiExposure GAMM summary
 }
+\keyword{internal}

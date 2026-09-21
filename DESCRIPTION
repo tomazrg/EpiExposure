@@ -23,13 +23,34 @@ Description: Tools for analyzing and interpreting distributed lag nonlinear mode
     reduce DLNM effects to one dimension, and perform sensitivity analyses. 
     Designed for multi-variable environmental epidemiology with support for frequentist and Bayesian models.
 Depends: R (>= 4.1)
-Imports: dlnm, dplyr,tidyr,purrr,stats,glmmTMB,brms,spaMM,rlang,tidyselect,mgcv,nlme
+Imports: 
+    dlnm,
+    stats,
+    glmmTMB,
+    brms,
+    spaMM,
+    rlang,
+    mgcv,
+    nlme,
+    ggplot2,
+    scales
 Suggests:
+    dplyr,
+    tidyr,
+    purrr,
+    tidyselect,
     INLA,
     knitr,
     rmarkdown,
     testthat (>= 3.0.0),
-    pkgdown
+    pkgdown,
+    readxl,
+    patchwork,
+    metR,
+    bdlnm,
+    cowplot,
+    future,
+    future.apply
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true

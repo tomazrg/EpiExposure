@@ -31,3 +31,4 @@ The GAMM object contains separate `gam` and `lme` components.
 By default, the method returns the `gam` summary containing the
 fixed/population coefficients and their inferential statistics.
 }
+\keyword{internal}

@@ -490,7 +490,7 @@
         (!is.null(spatial_group) && !.epix_is_scalar_string(spatial_group)) ||
         !.epix_is_scalar_string(spatial_term)) {
       .epix_stop("Invalid spaMM spatial metadata: expected two coordinates, ",
-                 "a Matérn structure, and a valid optional spatial group/term.")
+                 "a Matern structure, and a valid optional spatial group/term.")
     }
     expected_term <- .build_spamm_spatial_term(
       spatial_effect, spatial_structure, spatial_group

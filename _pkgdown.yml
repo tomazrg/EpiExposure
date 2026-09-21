@@ -41,7 +41,7 @@ articles:
     navbar: Articles
     contents:
       - pkgdown
-      - understading-effects
+      - understanding-effects
       - sensitivity-decision
       - simulation-prediction
       - losses

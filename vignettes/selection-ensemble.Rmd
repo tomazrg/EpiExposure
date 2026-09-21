@@ -38,6 +38,7 @@ This section demonstrates:
 
 library(EpiExposure)
 library(dplyr)
+library(ggplot2)
 
 ```
 
@@ -56,7 +57,7 @@ For example, increasing lag flexibility may improve fit but increase overfitting
 
 Likewise, adding additional predictors may improve prediction in some pathosystems while reducing generalizability in others.
 
-Rather than selecting models manually, EpiExposure can evaluate large combinations of candidate DLNM structures.
+`EpiExposure` can evaluate predefined combinations of candidate DLNM specifications using a consistent fitting and validation workflow.
 
 # Searching candidate models
 
@@ -68,6 +69,17 @@ future::plan(
   workers = 4
 )
 ```
+
+The appropriate number of workers depends on the available hardware and local
+computing policies. Users should avoid requesting more workers than their
+system can support.
+
+```{r, echo=TRUE, eval=FALSE}
+
+future::plan(future::sequential ) 
+
+```
+
 
 ## Run the model search
 
@@ -92,19 +104,26 @@ Inspect results
 head(best_models)
 ```
 
-Typical output includes:
+Depending on the selected validation settings, the resulting object can include:
 
-• model identifier;
-• predictor combination;
-• spline configuration;
-• CCC
-• RMSE
-• MAE
-• bias metrics
+- a model identifier;
+- the fitted predictor combination;
+- exposure and lag spline settings;
+- the modeling engine and response family;
+- the Concordance Correlation Coefficient;
+- the Root Mean Square Error;
+- the Mean Absolute Error;
+- bias-related metrics;
+- the fitted model object when `keep_fits = TRUE`.
 
 # Ranking models
 
-## Top-perfoming models
+## Top-performing models
+
+The following example ranks models by decreasing CCC. This is one possible
+ranking criterion, not a universal rule. Candidate models should also be
+examined using error metrics, bias, convergence diagnostics, model complexity,
+and the scientific plausibility of the exposure-lag structure.
 
 ```{r, echo=TRUE, eval=FALSE}
 best_models %>%
@@ -125,8 +144,8 @@ best_models %>%
 best_models %>%
   mutate(
     splines = paste(
-      df_lag,
       df_var,
+      df_lag,
       sep = " × "
     )
   ) %>%
@@ -141,39 +160,61 @@ best_models %>%
   theme_bw()
 ```
 
+
 # Understanding validation metrics
 
-## Concordance Correlation Coefficient (CCC)
+## Concordance Correlation Coefficient
 
-CCC evaluates both precision and accuracy.
+CCC evaluates agreement between observed and predicted outcomes by combining
+precision and accuracy.
 
-Values close to 1 indicate strong agreement between observed and predicted outcomes.
+Values closer to 1 indicate stronger concordance. However, CCC should be
+interpreted together with error and bias metrics rather than used as the only
+selection criterion.
 
-## Root Mean Square Error (RMSE)
+## Root Mean Square Error
 
-RMSE measures overall prediction error.
+RMSE summarizes the magnitude of prediction errors while assigning greater
+influence to larger errors because residuals are squared before averaging.
 
-Lower values indicate better 
+Lower values indicate better predictive performance when models are evaluated
+on the same response scale and validation data.
 
-## Mean Absolute Error (MAE)
+## Mean Absolute Error
 
-MAE provides a scale-dependent measure of prediction error.
+MAE is the average absolute difference between observed and predicted outcomes.
 
-It is often easier to interpret than RMSE because it is expressed in the original outcome units.
+Lower values indicate better predictive performance. Because MAE remains on the
+response scale, it is often easier to interpret directly than RMSE.
 
 # Inspecting specific models
 
 Suppose the best model is:
 
 ```{r, echo=TRUE, eval=FALSE}
-top_model <- best_models %>%
-  arrange(desc())
+top_model <- best_models |>
+  dplyr::arrange(
+    dplyr::desc(
+      CCC
+    )
+  ) |>
+  dplyr::slice(
+    1L
+  )
 ```
 
 Retrieve the fitted model:
 
 ```{r, echo=TRUE, eval=FALSE}
-fit_best <- best_models$fit[[which.max(best_models$CCC)]]
+fit_best <- best_models$fit[[
+  which.max(
+    best_models$CCC
+  )
+]]
+
+summary(
+  fit_best
+)
 ```
 
 Review model diagnostics:
@@ -192,6 +233,10 @@ Combining predictions from multiple models often improves stability and predicti
 
 # Selecting ensemble candidates
 
+The identifiers below are illustrative. Replace them with model identifiers
+selected from the user's own `best_models` object. 
+
+
 ```{r, echo=TRUE, eval=FALSE}
 candidate_models <- c(
   63,
@@ -200,7 +245,7 @@ candidate_models <- c(
 )
 ```
 
-Replace these identifiers with the best-performing models from your analysis
+Therefore, three candidate models (best ranked [63], and the two lower-ranked models [23, 44]) were selected to be used on the ensemble approaches, with CCC used as the performance metric for the weighted ensemble.
 
 # Unweighted ensemble
 
@@ -212,10 +257,7 @@ ens_unweighted <- ensemble_bestfit(
 
   method = "unweighted",
 
-  model_ids = candidate_models,
-
-  hb = TRUE
-)
+  model_id = candidate_models)
 ```
 
 ## Inspect results
@@ -234,7 +276,7 @@ ens_weighted <- ensemble_bestfit(
 
   method = "weighted",
 
-  model_ids = candidate_models,
+  model_id = candidate_models,
 
   weight_metric = "CCC",
 
@@ -258,7 +300,7 @@ ens_stacked <- ensemble_bestfit(
 
   method = "stacked",
 
-  model_ids = candidate_models,
+  model_id = candidate_models,
 
   stacking_model = "ridge",
 
@@ -272,42 +314,21 @@ ens_stacked <- ensemble_bestfit(
 ens_stacked$ensemble_summary
 ```
 
-
 # Comparing ensemble strategies
 
 ```{r, echo=TRUE, eval=FALSE}
-ensemble_metrics <- rbind(
-
-  unweighted =
-    ens_unweighted$ensemble_summary[
-      ,
-      c(
-        "CCC",
-        "RMSE",
-        "MAE"
-      )
-    ],
-
-  weighted =
-    ens_weighted$ensemble_summary[
-      ,
-      c(
-        "CCC",
-        "RMSE",
-        "MAE"
-      )
-    ],
-
-  stacked =
-    ens_stacked$ensemble_summary[
-      ,
-      c(
-        "CCC",
-        "RMSE",
-        "MAE"
-      )
-    ]
-)
+ensemble_metrics <- dplyr::bind_rows(
+  Unweighted = ens_unweighted$ensemble_summary,
+  Weighted = ens_weighted$ensemble_summary,
+  Stacked = ens_stacked$ensemble_summary,
+  .id = "method"
+) |>
+  dplyr::select(
+    method,
+    CCC,
+    RMSE,
+    MAE
+  )
 
 ensemble_metrics
 ```
@@ -338,8 +359,8 @@ ensemble_all <- bind_rows(
 ggplot(
   ensemble_all,
   aes(
-    observed * 100,
-    predicted_ensemble * 100
+    observed,
+    predicted_ensemble
   )
 ) +
 
@@ -365,8 +386,8 @@ ggplot(
   theme_bw() +
 
   labs(
-    x = "Observed (%)",
-    y = "Predicted (%)"
+    x = "Observed",
+    y = "Predicted"
   )
 ```
 
@@ -374,57 +395,73 @@ ggplot(
 
 Each ensemble method has advantages.
 
-Unweighted:
-- simple;
-- robust;
-- easy to interpret.
+**Unweighted ensemble**
 
-Weighted:
-- incorporates model quality;
-- usually improves performance.
+- gives equal contribution to the selected models;
+- is simple and transparent;
+- avoids estimating additional model weights;
+- can be affected by weak or redundant candidate models.
 
-Stacked:
-- learns optimal prediction combinations;
-- often achieves the highest predictive accuracy;
-- may require larger datasets.
+**Weighted ensemble**
 
-# Best practices
+- assigns different contributions to candidate models;
+- can emphasize models with stronger validation performance;
+- depends on the selected metric and weight transformation;
+- does not guarantee improvement over the best individual model.
 
-For exploratory studies:
+**Stacked ensemble**
 
-✓ weighted ensembles are often sufficient.
+- estimates combination coefficients from model predictions;
+- can account for complementary predictive information;
+- requires careful separation between weight estimation and final evaluation;
+- can overfit when the validation sample is limited or when candidate
+  predictions are highly similar.
 
-For forecasting systems:
+Therefore, no ensemble method is universally superior.
 
-✓ stacked ensembles usually provide the best performance.
+An unweighted ensemble is useful as a transparent reference because every
+candidate contributes equally.
 
-For small datasets:
+A weighted ensemble is appropriate when the selected validation metric provides
+a defensible basis for assigning model contributions.
 
-✓ unweighted and weighted ensembles may be more stable.
+A stacked ensemble can be useful when candidate models contain complementary
+predictive information and the stacking weights are estimated without using
+the same observations reserved for final evaluation.
+
+Regardless of the method, compare the ensemble against:
+
+- the strongest individual candidate;
+- a simple baseline model;
+- alternative ensemble strategies;
+- results on validation data not reused for weight estimation.
+
+## Avoiding optimistic ensemble evaluation
+
+Ensemble weights should be estimated from out-of-sample or cross-validated
+predictions whenever possible. Estimating weights and reporting performance on
+the same fitted predictions can produce optimistic results.
+
+The final evaluation should use observations that were not reused to select
+candidate models or estimate ensemble weights. If a completely independent test
+set is unavailable, nested or repeated cross-validation may provide a more
+defensible assessment.
 
 # Summary
 
-This section introduced the `EpiExposure` model-selection framework.
+This vignette introduced the `EpiExposure` model-selection and ensemble
+framework.
 
-Key tools include:
+The workflow includes:
 
-- find_bestfit()
-- model ranking
-- predictive validation
-- ensemble_bestfit()
+- defining a candidate model space;
+- fitting candidate DLNM specifications;
+- evaluating predictive performance;
+- ranking models using multiple criteria;
+- retaining selected fitted models;
+- combining predictions through unweighted, weighted, or stacked ensembles;
+- comparing ensemble predictions with individual models and simple baselines.
 
-These functions help identify robust exposure-lag-response models and improve prediction reliability through ensemble forecasting.
-
-# Next steps
-
-The next section focuses on advanced sensitivity and scenario analyses.
-
-Topics include:
-
-- epi_sensitivity()
-- elasticity analysis
-- critical thresholds
-- response gradients
-- management scenario evaluation
-
-These tools help identify which environmental factors exert the greatest influence on disease outcomes.
+Model selection and ensemble construction do not remove model uncertainty.
+Their value depends on the candidate model space, validation design, selection
+rules, and independence of the final performance assessment.

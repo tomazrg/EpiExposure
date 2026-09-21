@@ -10,7 +10,7 @@ plot_effects(
   vars = NULL,
   metric = c("effect", "delta"),
   delta_multiplier = 100,
-  metric_labels = c(effect = "Effect", delta = "Δ"),
+  metric_labels = c(effect = "Effect", delta = "Delta"),
   ylab = NULL,
   metric_ncol = 1,
   vars_ncol = NULL,

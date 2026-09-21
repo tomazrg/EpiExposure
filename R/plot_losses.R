@@ -790,12 +790,12 @@ plot_losses <- function(
         )
       ) +
       ggplot2::scale_x_continuous(
-        breaks = if(is_null(x_breaks)) ggplot2::waiver() else x_breaks,
+        breaks = if (is.null(x_breaks)) {ggplot2::waiver()} else {x_breaks},
         limits = x_limits,
         expand = x_expand
       ) +
       ggplot2::scale_y_continuous(
-        breaks = if(is.null(y_breaks)) ggplot2::waiver() else y_breaks,
+        breaks = if(is.null(y_breaks)) {ggplot2::waiver()} else {y_breaks},
         limits = y_limits,
         expand = y_expand
       )

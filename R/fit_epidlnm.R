@@ -1065,8 +1065,8 @@ fit_epidlnm <- function(
       return(switch(
         family_name,
         beta = brms::Beta(link = link_name),
-        gaussian = brms::gaussian(link = link_name),
-        poisson = brms::poisson(link = link_name),
+        gaussian = stats::gaussian(link = link_name),
+        poisson = stats::poisson(link = link_name),
         gamma = stats::Gamma(link = link_name),
         binomial = brms::bernoulli(link = link_name),
         negative_binomial = brms::negbinomial(link = link_name),

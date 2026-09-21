@@ -3608,7 +3608,7 @@ ensemble_bestfit <- function(
             ] <-
               100 *
               abs(
-                method_lag$ECI_percent_ens[
+                method_lag$ECI_weighted_ens[
                   rows
                 ]
               ) /
