@@ -373,28 +373,6 @@ ensemble_metrics
 
 # Visualizing ensemble predictions
 
-```{r, echo=TRUE, eval=FALSE}
-ensemble_all <- bind_rows(
-
-  mutate(
-    ens_unweighted$ensemble_predictions,
-    method = "Unweighted"
-  ),
-
-  mutate(
-    ens_weighted$ensemble_predictions,
-    method = "Weighted"
-  ),
-
-  mutate(
-    ens_stacked$ensemble_predictions,
-    method = "Stacked"
-  )
-)
-
-ensemble_all
-```
-
 ```{r}
 
 ens_unweighted$ensemble_predictions$method = "unweighted"
@@ -415,12 +393,12 @@ ordem_methods <- c(
 )
 
 ensemble_plot <- ensemble_all %>%
-  dplyr::filter(!is.na(method)) %>%
- dplyr::mutate(
+  filter(!is.na(method)) %>%
+  mutate(
     method = as.character(method)
   ) %>%
-  dplyr::filter(method %in% ordem_methods) %>%
-  dplyr::mutate(
+  filter(method %in% ordem_methods) %>%
+  mutate(
     method = factor(
       method,
       levels = ordem_methods
@@ -440,8 +418,8 @@ CCC_plot <- ensemble_metrics %>%
 
 
 pos_CCC <- ensemble_plot %>%
-  dplyr::group_by(method) %>%
-  dplyr::summarise(
+  group_by(method) %>%
+  summarise(
     x = min(observed, na.rm = TRUE) +
       0.05 * diff(range(observed, na.rm = TRUE)),
    
@@ -503,7 +481,7 @@ pos_CCC <- ensemble_plot %>%
 
 ```{r}
 best_models_plot <- best_models %>%
-  dplyr::mutate(
+   mutate(
     splines = paste(df_lag, df_var, sep = " x ")
   )
 
@@ -577,6 +555,7 @@ final_plot <- ensemble_gg + best_plot +
   )
 
 final_plot
+
 ```
 
 # Choosing an ensemble strategy
