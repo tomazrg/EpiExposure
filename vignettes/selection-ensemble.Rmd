@@ -9,6 +9,15 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.align = "center",
+  message = FALSE,
+  warning = FALSE
+)
+```
 
 # Introduction
 
@@ -39,7 +48,7 @@ This section demonstrates:
 library(EpiExposure)
 library(dplyr)
 library(ggplot2)
-
+library(patchwork)
 ```
 
 ```{r}
@@ -117,7 +126,7 @@ plot_performance(
   ncol = 5,
   x_lab = "Observed ",
   y_lab = "Predicted",
-  size = 2.5
+  size = 1.4
 ) +
   ggplot2::theme(
     text = ggplot2::element_text(
@@ -382,42 +391,192 @@ ensemble_all <- bind_rows(
     method = "Stacked"
   )
 )
+
+ensemble_all
+```
+
+```{r}
+
+ens_unweighted$ensemble_predictions$method = "unweighted"
+ens_weighted$ensemble_predictions$method = "weighted"
+ens_stacked$ensemble_predictions$method = "stacked"
+
+ensemble_all = rbind(ens_unweighted$ensemble_predictions,ens_weighted$ensemble_predictions, ens_stacked$ensemble_predictions)
+```
+
+```{r}
+
+ensemble_metrics$method = c("unweighted","weighted","stacked")
+
+ordem_methods <- c(
+  "unweighted",
+  "weighted",
+  "stacked"
+)
+
+ensemble_plot <- ensemble_all %>%
+  dplyr::filter(!is.na(method)) %>%
+ dplyr::mutate(
+    method = as.character(method)
+  ) %>%
+  dplyr::filter(method %in% ordem_methods) %>%
+  dplyr::mutate(
+    method = factor(
+      method,
+      levels = ordem_methods
+    )
+  )
+
+
+
+CCC_plot <- ensemble_metrics %>%
+  mutate(
+    method = factor(
+      method,
+      levels = ordem_methods
+    )
+  )
+
+
+
+pos_CCC <- ensemble_plot %>%
+  dplyr::group_by(method) %>%
+  dplyr::summarise(
+    x = min(observed, na.rm = TRUE) +
+      0.05 * diff(range(observed, na.rm = TRUE)),
+   
+    y = max(predicted_ensemble, na.rm = TRUE) -
+      0.05 * diff(range(predicted_ensemble, na.rm = TRUE)),
+   
+    .groups = "drop"
+  ) %>%
+  left_join(
+    CCC_plot %>% select(method, CCC),
+    by = "method"
+  )
+
+
+
+ ensemble_gg = ggplot(ensemble_plot,
+            aes(observed, predicted_ensemble)) +
+  geom_point()+
+  geom_smooth(method = "lm",se = FALSE, color = "orange") +
+  geom_abline(
+    intercept = 0,
+    slope = 1,
+    color = "red",
+    linetype = "dashed",
+    linewidth = 1) +
+  geom_text(
+    data = pos_CCC,
+    aes(
+      x = 0.02,
+      y = 0.97,
+      label = sprintf("CCC = %.2f", CCC)
+    ),
+    inherit.aes = FALSE,
+    hjust = 0,
+    vjust = 1,
+    size = 4) +
+  facet_wrap(
+    ~method,
+    ncol = 1) +
+  theme_bw() +
+    scale_x_continuous(
+    limits = c(0, 1),
+    breaks = seq(0, 1, 0.20),
+    expand = expansion(mult = 0.03)
+  ) +
+ 
+  scale_y_continuous(
+    limits = c(0, 1),
+    breaks = seq(0, 1, 0.20),
+    expand = expansion(mult = 0.03)
+  ) +
+  labs(
+    x = "Observed",
+    y = "Predicted") +
+  theme(text = element_text(size = 10,face = "bold"),legend.position = "none")
+ 
+ ensemble_gg
+```
+
+```{r}
+best_models_plot <- best_models %>%
+  dplyr::mutate(
+    splines = paste(df_lag, df_var, sep = " x ")
+  )
+
+
+best_plot <- best_models_plot %>%
+  ggplot(aes(
+    Cb, CCC,
+    color = as.factor(splines),
+    shape = as.factor(vars)
+  )) +
+ 
+  geom_point(size = 4) +
+ 
+  scale_color_viridis_d() +
+ 
+  labs(
+    x = "Cb",
+    y = "CCC",
+    color = "Splines",
+    shape = "Predictors"
+  ) +
+ 
+  guides(
+    color = guide_legend(
+      position = "top",
+      nrow = 1,
+      byrow = TRUE,
+      title.position = "left",
+      theme = theme(
+        legend.key.height = unit(0.25, "cm"),
+        legend.key.width = unit(0.45, "cm"),
+        legend.spacing.y = unit(0, "cm"),
+        legend.margin = margin(
+          t = -3,
+          r = 0,
+          b = -3,
+          l = 0
+        )
+      )
+    ),
+   
+    shape = guide_legend(
+      position = "right"
+    )
+  ) +
+ 
+  theme_bw() +
+ 
+  theme(
+    text = element_text(
+      size = 10,
+      face = "bold"
+    )
+  )
 ```
 
 ```{r, echo=TRUE, eval=FALSE}
-ggplot(
-  ensemble_all,
-  aes(
-    observed,
-    predicted_ensemble
+final_plot <- ensemble_gg + best_plot +
+  plot_layout(ncol = 2) +
+  plot_annotation(
+    tag_levels = "a",
+    tag_prefix = "(",
+    tag_suffix = ")"
+  ) &
+  theme(
+    plot.tag = element_text(
+      size = 12,
+      face = "bold"
+    ),
+    plot.tag.position = c(0.02, 0.94)
   )
-) +
 
-  geom_point(alpha = 0.5) +
-
-  geom_abline(
-    slope = 1,
-    intercept = 0,
-    linetype = "dashed",
-    color = "red"
-  ) +
-
-  geom_smooth(
-    method = "lm",
-    se = FALSE,
-    color = "blue"
-  ) +
-
-  facet_wrap(
-    ~method
-  ) +
-
-  theme_bw() +
-
-  labs(
-    x = "Observed",
-    y = "Predicted"
-  )
+final_plot
 ```
 
 # Choosing an ensemble strategy
