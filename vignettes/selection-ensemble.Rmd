@@ -98,6 +98,35 @@ best_models <- find_bestfit(
   keep_fits = TRUE)
 ```
 
+```{r}
+best_models = readRDS("best_models.rds")
+
+best_models
+
+plot_performance(
+  object = best_models,
+ # model_id = c(
+  #  63, 42, 56, 35, 49, 28, 40, 61,
+    #19, 47, 33, 54, 26, 12, 5
+#  ),
+  model_id = c(5,12,19,26,28,33,35,40,42,47,49,54,56,61,63),
+  metrics = c("CCC"),
+  x = "observed",
+  y = "predicted",
+  scale_factor = 1,
+  ncol = 5,
+  x_lab = "Observed ",
+  y_lab = "Predicted",
+  size = 2.5
+) +
+  ggplot2::theme(
+    text = ggplot2::element_text(
+      size = 10,
+      face = "bold"
+    )
+  )
+```
+
 Inspect results
 
 ```{r, echo=TRUE, eval=FALSE}
