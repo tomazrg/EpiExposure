@@ -540,9 +540,14 @@ draws are retained for draw-by-draw propagation through
 `summarise_effects()`, `predict_outcomes()`, and other downstream
 functions.
 
+```{r}
+poisson_data = readxl::read_xlsx("data/poisson_data.xlsx")
+```
+
+
 ```{r, eval=FALSE}
 cb_bdlnm <- define_exposures(
-  data = epi_data,
+  data = poisson_data,
   vars = c(
     "tmean",
     "rain",
@@ -554,7 +559,7 @@ cb_bdlnm <- define_exposures(
 )
 
 dat_bdlnm <- build_design(
-  data = epi_data,
+  data = poisson_data,
   cb_templates = cb_bdlnm,
   groups = c(
     "epi_id",

@@ -632,3 +632,27 @@ The workflow includes:
 Model selection and ensemble construction do not remove model uncertainty.
 Their value depends on the candidate model space, validation design, selection
 rules, and independence of the final performance assessment.
+
+```{r}
+best_binary = readRDS("best_binary.rds")
+
+pred = attr(best_binary, "predictions")
+
+binary = readxl::read_xlsx("data/binomial_data.xlsx")
+
+b01 = pred |> 
+  filter(model_id == 5)
+
+library(caret)
+
+confusionMatrix(data = as.factor(as.numeric(b01$observed > 0.70)),  mode= "everything",  reference = as.factor(b01$predicted_class))
+
+library(PresenceAbsence)
+
+dat_lasso <- data.frame(1, b01$observed, b01$predicted)
+optimal.thresholds(dat_lasso)
+
+
+
+
+```
