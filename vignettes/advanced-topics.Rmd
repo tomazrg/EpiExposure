@@ -27,7 +27,7 @@ library(EpiExposure)
 # Introduction
 
 Most `EpiExposure` workflows can be completed using the default model
-specification introduced in previous vignettes.
+specification introduced in previous sections
 
 However, advanced applications often require additional flexibility
 regarding:
@@ -38,7 +38,7 @@ regarding:
 - identifiability diagnostics;
 - computational performance.
 
-This vignette discusses these advanced topics and provides
+This section discusses these advanced topics and provides
 recommendations for robust DLNM analyses.
 
 # Alternative model engines
@@ -89,12 +89,12 @@ possible. This allows the modeling engines to be compared without
 repeatedly rebuilding the exposure-lag design.
 
 ```{r}
-epi_data = readxl::read_xlsx("data/poisson_data.xlsx")
+poisson_data = readxl::read_xlsx("data/poisson_data.xlsx")
 ```
 
 ```{r}
 cb <- define_exposures(
-  data = epi_data,
+  data = poisson_data,
   vars = c(
     "tmean",
     "rain",
@@ -106,15 +106,13 @@ cb <- define_exposures(
 )
 
 dat <- build_design(
-  data = epi_data,
+  data = poisson_data,
   cb_templates = cb,
   groups = c(
     "epi_id",
     "block"
   )
 )
-
-
 ```
 
 ```{r}
@@ -141,7 +139,9 @@ fit_glm <- fit_epidlnm(
     "spec"
   )
 )
+```
 
+```{r}
 summary(fit_glm)
 ```
 
@@ -162,7 +162,9 @@ fit_glmm <- fit_epidlnm(
     "spec"
   )
 )
+```
 
+```{r}
 summary(fit_glmm)
 ```
 
@@ -183,9 +185,7 @@ through the supported REML route by default.
 data_nb2 = readxl::read_xlsx("data/nb2_data.xlsx")
 ```
 
-
 ```{r}
-
 dat_nb2 <- build_design(
   data = data_nb2,
   cb_templates = cb,
@@ -200,10 +200,9 @@ dat_nb2 <- prepare_response(
   response = "y",
   family = "negative_binomial"
 )
-
 ```
 
-```{r, eval=FALSE}
+```{r}
 fit_gam <- fit_epidlnm(
   data = dat_nb2,
   model_engine = "gam",
@@ -213,7 +212,9 @@ fit_gam <- fit_epidlnm(
     "spec"
   )
 )
+```
 
+```{r}
 summary(fit_gam)
 ```
 
@@ -223,7 +224,7 @@ The `gamm` engine combines the fixed DLNM design with a conventional
 random intercept. In the current `EpiExposure` interface,
 `random_effect` is required.
 
-```{r, eval=FALSE}
+```{r}
 fit_gamm <- fit_epidlnm(
   data = dat_poisson,
   model_engine = "gamm",
@@ -238,9 +239,11 @@ fit_gamm <- fit_epidlnm(
 
 The fitted object contains two native components:
 
-```{r, eval=FALSE}
+```{r}
 summary(fit_gamm)
+```
 
+```{r}
 summary(
   fit_gamm,
   component = "lme"
@@ -271,7 +274,7 @@ nearby fields after those measured weather effects have been considered.
 spatial_data = readxl::read_xlsx("data/spamm_st_poisson.xlsx")
 ```
 
-```{r, eval=FALSE}
+```{r}
 dat_spatial <- build_design(
   data = spatial_data,
   cb_templates = cb_spatial,
@@ -289,7 +292,7 @@ dat_spatial <- prepare_response(
 )
 ```
 
-```{r, eval=FALSE}
+```{r}
 fit_spatial <- fit_epidlnm(
   data = dat_spatial,
   model_engine = "spamm",
@@ -307,6 +310,9 @@ fit_spatial <- fit_epidlnm(
   )
 )
 
+```
+
+```{r}
 summary(fit_spatial)
 ```
 
@@ -328,7 +334,7 @@ fields:
 spatial_year = readxl::read_xlsx("data/sim_data_spatial_year.xlsx")
 ```
 
-```{r, eval=FALSE}
+```{r}
 dat_spatial_year <- build_design(
   data = spatial_year,
   cb_templates = cb,
@@ -349,7 +355,7 @@ dat_spatial_year <- prepare_response(
 )
 ```
 
-```{r, eval=FALSE}
+```{r}
 fit_spatial_year <- fit_epidlnm(
   data = dat_spatial_year,
   model_engine = "spamm",
@@ -367,6 +373,9 @@ fit_spatial_year <- fit_epidlnm(
   )
 )
 
+```
+
+```{r}
 summary(fit_spatial_year)
 ```
 
@@ -426,7 +435,7 @@ separate realized spatial fields.
 spatial_replicate = readxl::read_xlsx("data/sim_data_spatial_replicate.xlsx")
 ```
 
-```{r, eval=FALSE}
+```{r}
 dat_spatial_replicate <- build_design(
   data = spatial_replicate,
   cb_templates = cb,
@@ -447,7 +456,7 @@ dat_spatial_replicate <- prepare_response(
 )
 ```
 
-```{r, eval=FALSE}
+```{r}
 fit_spatial_replicate <- fit_epidlnm(
   data = dat_spatial_replicate,
   model_engine = "spamm",
@@ -466,6 +475,10 @@ fit_spatial_replicate <- fit_epidlnm(
 )
 ```
 
+```{r}
+summary(fit_spatial_replicate)
+```
+
 The conventional random intercept and the spatial term represent
 different sources of dependence. The `block_id` effect accounts for
 discrete experimental heterogeneity, whereas the Matérn term accounts
@@ -482,7 +495,39 @@ replicates.
 The `gls` engine is restricted to Gaussian outcomes with the identity
 link and does not support the `EpiExposure` random-intercept interface.
 
-```{r, eval=FALSE}
+```{r}
+gaussian_data = readxl::read_xlsx("data/gaussian_data.xlsx")
+```
+
+```{r}
+cb_gaussian <- define_exposures(
+  data = gaussian_data,
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  max_lag = 85,
+  df_var = 3,
+  df_lag = 2
+)
+
+dat_gaussian <- build_design(
+  data = gaussian_data,
+  cb_templates = cb_gaussian,
+  groups = c(
+    "epi_id"))
+
+dat_gaussian <- prepare_response(
+  data = dat_gaussian,
+  response = "y",
+  family = "gaussian"
+)
+
+
+```
+
+```{r}
 fit_gls <- fit_epidlnm(
   data = dat_gaussian,
   model_engine = "gls",
@@ -490,9 +535,13 @@ fit_gls <- fit_epidlnm(
   epiexposure_spec = attr(
     cb_gaussian,
     "spec"
-  )
+  ),
+  method = "REML"
 )
 
+```
+
+```{r}
 summary(fit_gls)
 ```
 
@@ -503,7 +552,7 @@ coefficients and any requested hierarchical components.
 
 ```{r, eval=FALSE}
 fit_brms <- fit_epidlnm(
-  data = dat,
+  data = dat_poisson,
   model_engine = "brms",
   family = "poisson",
   random_effect = "block",
@@ -516,8 +565,17 @@ fit_brms <- fit_epidlnm(
   seed = 123
 )
 
+
+```
+
+```{r, include = FALSE}
+fit_brms = readRDS("data/fit_brms.rds")
+```
+
+```{r}
 summary(fit_brms)
 ```
+
 
 # Bayesian DLNM with `bdlnm`
 
@@ -540,10 +598,6 @@ draws are retained for draw-by-draw propagation through
 `summarise_effects()`, `predict_outcomes()`, and other downstream
 functions.
 
-```{r}
-poisson_data = readxl::read_xlsx("data/poisson_data.xlsx")
-```
-
 
 ```{r, eval=FALSE}
 cb_bdlnm <- define_exposures(
@@ -558,55 +612,77 @@ cb_bdlnm <- define_exposures(
   df_lag = 2
 )
 
-dat_bdlnm <- build_design(
+
+cb_bdlnm <- build_design(
   data = poisson_data,
-  cb_templates = cb_bdlnm,
+  cb_templates = basis_bdlnm,
   groups = c(
     "epi_id",
     "block"
   )
 )
 
-basis_bdlnm <- attr(
-  dat_bdlnm,
-  "epiexposure_basis_objects",
-  exact = TRUE
-)
-
 dat_bdlnm <- prepare_response(
-  data = dat_bdlnm,
+  data = cb_bdlnm,
   response = "y",
   family = "poisson"
+)
+
+bdlnm_bases <- attr(
+  dat_bdlnm,
+  "epiexposure_bdlnm_basis_objects",
+  exact = TRUE
 )
 ```
 
 The model can then be fitted through the harmonized `EpiExposure`
 interface:
 
-```{r, eval=FALSE}
+```{r}
 fit_bdlnm <- fit_epidlnm(
   data = dat_bdlnm,
   model_engine = "bdlnm",
   family = "poisson",
   random_effect = "block",
-  epiexposure_spec = attr(
-    cb_bdlnm,
-    "spec"
-  ),
-  basis_objects = basis_bdlnm,
-  sample.arg = list(
-    n = 1000,
-    seed = 123
-  )
-)
+  random_effect_prior = list(
+    prec = list(prior = "pc.prec",param = c(1,0.01))),
+  epiexposure_spec = attr(cb_bdlnm, "epiexposure_spec"),
+  sample.arg = list(n = 1000, seed = 123))
+```
 
+```{r}
 summary(fit_bdlnm)
 ```
 
+```{r}
+fit_bdlnm$model
+fit_bdlnm$coefficients
+fit_bdlnm$coefficients.summary
+
+
+fit_bdlnm$model$summary.random
+fit_bdlnm$model$summary.hyperpar
+
+fit_bdlnm$model$summary.random$.epiexposure_re_index
+
+fit_bdlnm$model$marginals.hyperpar
+
+
+fit_bdlnm$coefficients
+fit_inla$summary.fixed
+```
+
 The `random_effect = "block"` argument is translated internally to an
-independent latent effect of the form:
+independent latent effect of the form
 
 `f(block, model = "iid")`
+
+for INLA-backed engines. When supplied, `random_effect_prior` is passed
+directly to the `hyper` argument of the latent effect specification,
+allowing custom hyperprior definitions for the random-effect precision.
+For example,
+
+`f(block, model = "iid", hyper = random_effect_prior)`
 
 The `sample.arg` list controls posterior coefficient sampling performed
 by the native `bdlnm` engine. A nonzero seed provides reproducible
@@ -621,21 +697,136 @@ are propagated through the inverse link one draw at a time.
 
 The resulting intervals describe uncertainty in the population-level
 expected response. They do not include observation-level noise or
-group-specific random effects.
+group-specific random effects, even when random effects are included in
+the fitted model.
+
+For both `model_engine = "inla"` and `model_engine = "bdlnm"`, random-
+effect hyperparameters can be inspected through the underlying INLA fit
+(e.g., `summary.hyperpar`), allowing users to evaluate posterior
+distributions of random-effect precision parameters.
 
 # Direct INLA versus B-DLNM
 
-Both engines rely on INLA for approximate Bayesian inference, but they
-enter the `EpiExposure`workflow differently.
+Both engines rely on INLA for Bayesian inference and support the same
+likelihood families, random effects, and hyperprior specifications.
+The main difference lies in how the DLNM basis is represented and what
+is returned to the user.
 
 - `model_engine = "inla"` fits the epidemic-level `cb_*` columns
-  directly as fixed predictors through `INLA::inla()`.
-- `model_engine = "bdlnm"` passes named `crossbasis` objects to the
-  native `bdlnm` interface, which fits the underlying INLA model and
-  stores posterior coefficient samples together with the fitted basis
-  objects.
+  directly as fixed predictors through `INLA::inla()`. The resulting
+  object contains the standard INLA outputs, including posterior
+  summaries, marginal distributions, hyperparameter estimates, and
+  random-effect summaries.
 
-The direct INLA engine is useful when a conventional INLA representation
-of the epidemic-level design is desired. The B-DLNM engine is useful
-when the analysis should retain the native Bayesian DLNM representation
-and its posterior coefficient-sampling workflow.
+- `model_engine = "bdlnm"` passes named `crossbasis` objects to the
+  native `bdlnm` interface. Internally, the model is fitted through
+  INLA, but the original DLNM basis representation is preserved and
+  posterior coefficient samples are generated automatically for
+  simulation-based uncertainty propagation.
+  
+  
+```{r}
+fit_inla <- fit_epidlnm(
+  data = dat_poisson,
+  model_engine = "inla",
+  family = "poisson",
+  random_effect = "block",
+  random_effect_prior = list(
+      prec = list(
+      prior = "pc.prec",
+      param = c(1,0.01))),
+  epiexposure_spec = attr(cb, "spec"))
+```
+
+### Outputs shared by INLA and B-DLNM
+
+Fixed-effect posterior summaries:
+
+```{r}
+fit_inla$summary.fixed
+
+fit_bdlnm$model$summary.fixed
+```
+
+Random-effect posterior summaries:
+
+```{r}
+fit_inla$summary.random
+
+fit_bdlnm$model$summary.random
+```
+
+Posterior distributions of hyperparameters:
+
+```{r}
+fit_inla$marginals.hyperpar
+
+fit_bdlnm$model$marginals.hyperpar
+```
+
+Marginal likelihood:
+
+```{r}
+fit_inla$mlik
+
+fit_bdlnm$model$mlik
+```
+
+For both engines, random-effect hyperparameters can be inspected through
+the INLA summaries. For example:
+
+```{r}
+fit_inla$summary.hyperpar
+
+fit_bdlnm$model$summary.hyperpar
+```
+
+## Outputs specific to B-DLNM
+
+```{r}
+names(fit_bdlnm)
+```
+
+```{r}
+names(fit_inla)
+```
+
+Original DLNM basis objects:
+
+```{r}
+fit_bdlnm$basis
+```
+
+Posterior coefficient draws:
+
+```{r}
+
+dim(fit_bdlnm$coefficients)
+
+head(fit_bdlnm$coefficients)
+
+```
+
+Posterior coefficient summaries:
+
+```{r}
+
+fit_bdlnm$coefficients.summary
+```
+
+### Model objects
+
+```{r}
+class(fit_inla)
+
+class(fit_bdlnm)
+
+class(fit_bdlnm$model)
+```
+
+The direct INLA engine is useful when users want a conventional INLA
+representation of the epidemic-level design matrix and direct access
+to standard INLA outputs. The B-DLNM engine is useful when users want
+to retain the native DLNM representation and work directly with
+posterior coefficient samples, fitted basis objects, and Bayesian
+DLNM workflows.

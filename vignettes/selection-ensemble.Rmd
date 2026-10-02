@@ -656,3 +656,28 @@ optimal.thresholds(dat_lasso)
 
 
 ```
+```{r}
+best_bdlnm <- find_bestfit(
+  data = epi_data,
+  response = "y",
+  group = "epi_id",
+  time = "time",
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"),
+  max_lag = 85,
+  df_var_grid = c(3,4),
+  df_lag_grid = c(2,3),
+  model_engine = "bdlnm",
+  family = "poisson",
+  random_effect = "block",
+  random_effect_prior = list(
+    prec = list(prior = "pc.prec",param = c(1,0.01))),
+  cv_method = "k-fold",
+  k = 5,
+  seed = 123,
+  keep_fits = TRUE
+)
+```
+

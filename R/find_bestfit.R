@@ -75,6 +75,19 @@
 #'   held-out predictions are always population-level and therefore set fitted
 #'   random effects to zero. `glm` and `gls` do not accept `random_effect`;
 #'   `gamm` requires it under the current EpiExposure v1 fitting contract.
+#'
+#' @param random_effect_prior Optional named list defining the hyperprior for
+#'   the precision of the random intercept when `model_engine = "inla"` or
+#'   `"bdlnm"`. The list is passed unchanged to the `hyper` argument of the
+#'   internally generated `INLA::f(..., model = "iid")` term.
+#'
+#'   For example,
+#'   `list(prec = list(prior = "pc.prec", param = c(1, 0.01)))`.
+#'   `NULL` retains the engine's default prior. A non-`NULL` value requires
+#'   `random_effect` and is currently supported only for the INLA-backed
+#'   engines. The same prior is used in every cross-validation fold and in
+#'   retained full-data refits.
+#'
 #' @param spatial_effect NULL (default), or two distinct numeric coordinate
 #'   column names for a Matérn term fitted by `model_engine = "spamm"` only.
 #'   Coordinates are constant within each epidemic but may be identical across
@@ -135,9 +148,10 @@
 #'   not alter LOOCV fold membership and is not passed to `fit_epidlnm()`.
 #' @param ... Named additional arguments passed to `fit_epidlnm()`. Core
 #'   arguments managed by `find_bestfit()` (`data`, `model_engine`, `family`,
-#'   `random_effect`, `spatial_effect`, `spatial_structure`, `spatial_group`,
-#'   `epiexposure_spec`, and `basis_objects`) cannot be supplied
-#'   again through `...`. For INLA-backed engines, likelihood availability,
+#'   `random_effect`, `random_effect_prior`, `spatial_effect`,
+#'   `spatial_structure`, `spatial_group`, `epiexposure_spec`, and
+#'   `basis_objects`) cannot be supplied again through `...`.
+#'   For INLA-backed engines, likelihood availability,
 #'   `control.family$control.link$model` consistency, and
 #'   `control.compute$config = TRUE` compatibility are checked before CV.
 #'   `fit_epidlnm()` then supplies required INLA controls during each fit.
@@ -171,8 +185,15 @@
 #'     the numbers of outcome-0 and outcome-1 groups.
 #'
 #'   Standard downstream metadata are stored in `"family"`, `"outcome_type"`,
-#'   `"rank_metric"`, and `"threshold"`. Additional attributes document the
-#'   prediction contract: `"prediction_level" = "population"`,
+#'   `"rank_metric"`, and `"threshold"`. The selected random-intercept column,
+#'   the INLA latent random-effect model, and its optional hyperprior are stored
+#'   in `"random_effect"`, `"random_effect_model"`, and
+#'   `"random_effect_prior"`, respectively. `"random_effect_model"` is `"iid"`
+#'   for INLA-backed random-intercept fits and `NA_character_` when no INLA
+#'   latent random-effect model applies.
+#'
+#'   Additional attributes document the prediction contract:
+#'   `"prediction_level" = "population"`,
 #'   `"prediction_estimand" = "expected_response"`,
 #'   `"prediction_contract" = "central_expected_response"`,
 #'   `"basis_training_only" = TRUE`, `"max_lag"`, `"history_length"`,
@@ -232,7 +253,9 @@
 #' cross-basis is built from those same training parameters so the cross-basis
 #' included in the `bdlnm` formula has exactly one row per epidemic-level
 #' outcome. Its numerical values are checked against the canonical candidate
-#' design before fitting.
+#' design before fitting. Native cross-basis column names are then prefixed
+#' with their exposure-variable names so all internal INLA keys remain unique
+#' when multiple exposure bases are included in the same candidate model.
 #'
 #' The design-matrix attribute `cb_templates` stores the **original training
 #' templates**, not cross-bases reconstructed from the first epidemic. The
@@ -341,6 +364,7 @@ find_bestfit <- function(
     model_engine = "glmmTMB",
     family = "beta",
     random_effect = NULL,
+    random_effect_prior = NULL,
     spatial_effect = NULL,
     spatial_structure = "matern",
     spatial_group = NULL,
@@ -896,6 +920,41 @@ find_bestfit <- function(
     )
   }
 
+  # --------------------------------------------------------------------------
+  # Random-effect prior contract
+  # --------------------------------------------------------------------------
+
+  if (!is.null(random_effect_prior)) {
+
+    if (is.null(random_effect)) {
+      stop(
+        "`random_effect_prior` requires a non-NULL `random_effect`.",
+        call. = FALSE
+      )
+    }
+
+    if (!model_engine %in% c("inla", "bdlnm")) {
+      stop(
+        "`random_effect_prior` is currently supported only for ",
+        "`model_engine = 'inla'` or `model_engine = 'bdlnm'`.",
+        call. = FALSE
+      )
+    }
+
+    if (!is.list(random_effect_prior) ||
+        !length(random_effect_prior) ||
+        is.null(names(random_effect_prior)) ||
+        anyNA(names(random_effect_prior)) ||
+        any(!nzchar(names(random_effect_prior))) ||
+        anyDuplicated(names(random_effect_prior))) {
+      stop(
+        "`random_effect_prior` must be NULL or a non-empty named list ",
+        "accepted by `INLA::f(..., hyper = ...)`.",
+        call. = FALSE
+      )
+    }
+  }
+
   if (!is_whole_scalar(min_success) || min_success < 2) {
     stop(
       "`min_success` must be an integer greater than or equal to 2.",
@@ -924,26 +983,65 @@ find_bestfit <- function(
   # All arguments passed to fit_epidlnm() through ... must be named and must not
   # duplicate the arguments managed by find_bestfit().
   if (length(fit_dots)) {
-    dot_names <- names(fit_dots)
-    if (is.null(dot_names) || anyNA(dot_names) || any(!nzchar(dot_names))) {
+    dot_names <- names(
+      fit_dots
+    )
+
+    if (is.null(dot_names) ||
+        anyNA(dot_names) ||
+        any(!nzchar(dot_names))) {
       stop(
         "All arguments supplied through `...` must be explicitly named.",
         call. = FALSE
       )
     }
 
-    reserved_fit_args <- c(
-      "data", "model_engine", "family", "random_effect",
-      "spatial_effect", "spatial_structure", "spatial_group",
-      "epiexposure_spec", "basis_objects"
-    )
-    duplicated_fit_args <- intersect(dot_names, reserved_fit_args)
+    if (anyDuplicated(dot_names)) {
+      duplicated_dot_names <- unique(
+        dot_names[
+          duplicated(dot_names)
+        ]
+      )
 
-    if (length(duplicated_fit_args)) {
+      stop(
+        "Arguments supplied through `...` must have unique names. ",
+        "Duplicated argument(s): ",
+        paste(
+          duplicated_dot_names,
+          collapse = ", "
+        ),
+        ".",
+        call. = FALSE
+      )
+    }
+
+    reserved_fit_args <- c(
+      "data",
+      "model_engine",
+      "family",
+      "random_effect",
+      "random_effect_prior",
+      "spatial_effect",
+      "spatial_structure",
+      "spatial_group",
+      "epiexposure_spec",
+      "basis_objects"
+    )
+
+    conflicting_fit_args <- intersect(
+      dot_names,
+      reserved_fit_args
+    )
+
+    if (length(conflicting_fit_args)) {
       stop(
         "Argument(s) managed by `find_bestfit()` cannot be supplied again ",
         "through `...`: ",
-        paste(duplicated_fit_args, collapse = ", "), ".",
+        paste(
+          conflicting_fit_args,
+          collapse = ", "
+        ),
+        ".",
         call. = FALSE
       )
     }
@@ -1755,10 +1853,108 @@ find_bestfit <- function(
         )
       }
 
+      # Native dlnm cross-basis names, such as v1.l1, are repeated when
+      # multiple exposure bases are included in the same bdlnm model.
+      # INLA requires unique internal keys. Prefix the native column names
+      # with the exposure name after numerical equivalence has been checked.
+
+      native_basis_names <- colnames(
+        cb_epidemic
+      )
+
+      if (is.null(native_basis_names)) {
+        native_basis_names <- paste0(
+          "basis_",
+          seq_len(
+            ncol(cb_epidemic)
+          )
+        )
+      }
+
+      unique_basis_names <- paste0(
+        variable,
+        "_",
+        native_basis_names
+      )
+
+      if (anyNA(unique_basis_names) ||
+          any(!nzchar(unique_basis_names)) ||
+          anyDuplicated(unique_basis_names)) {
+        stop(
+          "Could not create unique bdlnm cross-basis column names for ",
+          "variable '",
+          variable,
+          "'.",
+          call. = FALSE
+        )
+      }
+
+      colnames(
+        cb_epidemic
+      ) <- unique_basis_names
+
       basis_objects[[variable]] <- cb_epidemic
     }
 
-    attr(basis_objects, "spec") <- template_info$spec
+    # Validate global uniqueness across all bdlnm cross-basis objects.
+    # Each individual basis has already received the exposure-specific
+    # prefix above. This final check ensures that no internal column name
+    # is duplicated across different exposure bases.
+
+    all_bdlnm_basis_names <- unlist(
+      lapply(
+        basis_objects,
+        colnames
+      ),
+      use.names = FALSE
+    )
+
+    if (!length(all_bdlnm_basis_names)) {
+      stop(
+        "No internal column names were found in the candidate bdlnm ",
+        "cross-basis objects.",
+        call. = FALSE
+      )
+    }
+
+    if (anyNA(all_bdlnm_basis_names) ||
+        any(!nzchar(all_bdlnm_basis_names)) ||
+        anyDuplicated(all_bdlnm_basis_names)) {
+
+      duplicated_names <- unique(
+        all_bdlnm_basis_names[
+          duplicated(all_bdlnm_basis_names)
+        ]
+      )
+
+      if (length(duplicated_names)) {
+
+        stop(
+          "The candidate bdlnm cross-basis objects contain duplicated ",
+          "internal column names: ",
+          paste(
+            duplicated_names,
+            collapse = ", "
+          ),
+          ".",
+          call. = FALSE
+        )
+
+      } else {
+
+        stop(
+          "The candidate bdlnm cross-basis objects contain missing or ",
+          "empty internal column names.",
+          call. = FALSE
+        )
+      }
+    }
+
+    attr(
+      basis_objects,
+      "spec"
+    ) <- template_info$spec
+
     basis_objects
   }
 
@@ -1922,6 +2118,7 @@ find_bestfit <- function(
         model_engine = model_engine,
         family = family,
         random_effect = random_effect,
+        random_effect_prior = random_effect_prior,
         spatial_effect = spatial_effect,
         spatial_structure = if (is.null(spatial_effect)) "matern" else spatial_structure,
         spatial_group = spatial_group,
@@ -1936,6 +2133,52 @@ find_bestfit <- function(
     # Enforce the strict metadata/prediction contract immediately, rather than
     # discovering an outdated fit only when a held-out prediction is attempted.
     meta <- .get_epiexposure_metadata(fitted)
+
+    fitted_random_effect_prior <- attr(
+      fitted,
+      "epiexposure_random_effect_prior",
+      exact = TRUE
+    )
+
+    if (!identical(
+      fitted_random_effect_prior,
+      random_effect_prior
+    )) {
+      stop(
+        "The fitted model did not preserve the requested ",
+        "`random_effect_prior` metadata.",
+        call. = FALSE
+      )
+    }
+
+    expected_random_effect_model <- if (
+      !is.null(random_effect) &&
+      model_engine %in% c(
+        "inla",
+        "bdlnm"
+      )
+    ) {
+      "iid"
+    } else {
+      NULL
+    }
+
+    fitted_random_effect_model <- attr(
+      fitted,
+      "epiexposure_random_effect_model",
+      exact = TRUE
+    )
+
+    if (!identical(
+      fitted_random_effect_model,
+      expected_random_effect_model
+    )) {
+      stop(
+        "The fitted model did not preserve the expected ",
+        "`epiexposure_random_effect_model` metadata.",
+        call. = FALSE
+      )
+    }
 
     if (!setequal(meta$vars, candidate$variables)) {
       stop(
@@ -3590,6 +3833,10 @@ find_bestfit <- function(
   attr(results_data, "prediction_level") <- "population"
   attr(results_data, "prediction_estimand") <- "expected_response"
   attr(results_data, "prediction_contract") <- "central_expected_response"
+  attr(results_data, "random_effect") <- random_effect
+  attr(results_data, "random_effect_model") <- if (!is.null(random_effect) &&
+       model_engine %in% c("inla","bdlnm")) {"iid"} else {NA_character_}
+  attr(results_data, "random_effect_prior") <- random_effect_prior
   attr(results_data, "spatial_effect") <- spatial_effect
   attr(results_data, "spatial_structure") <- spatial_structure
   attr(results_data, "spatial_group") <- spatial_group

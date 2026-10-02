@@ -21,6 +21,7 @@ find_bestfit(
   model_engine = "glmmTMB",
   family = "beta",
   random_effect = NULL,
+  random_effect_prior = NULL,
   spatial_effect = NULL,
   spatial_structure = "matern",
   spatial_group = NULL,
@@ -106,6 +107,18 @@ held-out predictions are always population-level and therefore set fitted
 random effects to zero. `glm` and `gls` do not accept `random_effect`;
 `gamm` requires it under the current EpiExposure v1 fitting contract.}
 
+\item{random_effect_prior}{Optional named list defining the hyperprior for
+  the precision of the random intercept when `model_engine = "inla"` or
+  `"bdlnm"`. The list is passed unchanged to the `hyper` argument of the
+  internally generated `INLA::f(..., model = "iid")` term.
+
+  For example,
+  `list(prec = list(prior = "pc.prec", param = c(1, 0.01)))`.
+  `NULL` retains the engine's default prior. A non-`NULL` value requires
+  `random_effect` and is currently supported only for the INLA-backed
+  engines. The same prior is used in every cross-validation fold and in
+  retained full-data refits.}
+
 \item{spatial_effect}{NULL (default), or two distinct numeric coordinate
 column names for a Matérn term fitted by `model_engine = "spamm"` only.
 Coordinates are constant within each epidemic but may be identical across
@@ -178,9 +191,10 @@ not alter LOOCV fold membership and is not passed to `fit_epidlnm()`.}
 
 \item{...}{Named additional arguments passed to `fit_epidlnm()`. Core
 arguments managed by `find_bestfit()` (`data`, `model_engine`, `family`,
-`random_effect`, `spatial_effect`, `spatial_structure`, `spatial_group`,
-`epiexposure_spec`, and `basis_objects`) cannot be supplied
-again through `...`. For INLA-backed engines, likelihood availability,
+`random_effect`, `random_effect_prior`, `spatial_effect`,
+`spatial_structure`, `spatial_group`, `epiexposure_spec`, and
+`basis_objects`) cannot be supplied again through `...`.
+For INLA-backed engines, likelihood availability,
 `control.family$control.link$model` consistency, and
 `control.compute$config = TRUE` compatibility are checked before CV.
 `fit_epidlnm()` then supplies required INLA controls during each fit.}
@@ -215,8 +229,11 @@ A data frame ranked by `rank_metric`. Non-binary families report
     the numbers of outcome-0 and outcome-1 groups.
 
   Standard downstream metadata are stored in `"family"`, `"outcome_type"`,
-  `"rank_metric"`, and `"threshold"`. Additional attributes document the
-  prediction contract: `"prediction_level" = "population"`,
+  `"rank_metric"`, and `"threshold"`. The selected random-intercept column
+  and its optional INLA hyperprior are stored in `"random_effect"` and
+  `"random_effect_prior"`, respectively.
+  Additional attributes document the prediction contract:
+  `"prediction_level" = "population"`,
   `"prediction_estimand" = "expected_response"`,
   `"prediction_contract" = "central_expected_response"`,
   `"basis_training_only" = TRUE`, `"max_lag"`, `"history_length"`,
@@ -300,7 +317,9 @@ For `model_engine = "bdlnm"`, an additional epidemic-level matrix-form
 cross-basis is built from those same training parameters so the cross-basis
 included in the `bdlnm` formula has exactly one row per epidemic-level
 outcome. Its numerical values are checked against the canonical candidate
-design before fitting.
+design before fitting. Native cross-basis column names are then prefixed
+with their exposure-variable names so all internal INLA keys remain unique
+when multiple exposure bases are included in the same candidate model.
 
 The design-matrix attribute `cb_templates` stores the **original training
 templates**, not cross-bases reconstructed from the first epidemic. The

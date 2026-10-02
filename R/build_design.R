@@ -781,6 +781,217 @@ build_design <- function(
   }
 
   # ==========================================================================
+  # BUILD EPIDEMIC-LEVEL CROSS-BASIS OBJECTS FOR bdlnm
+  # ==========================================================================
+
+  bdlnm_basis_objects <- stats::setNames(
+    vector(
+      "list",
+      length(vars)
+    ),
+    vars
+  )
+
+  for (variable in vars) {
+
+    detail <- template_info[[variable]]
+
+    # For matrix-form crossbasis input, each row represents one complete
+    # exposure history. Columns must be ordered as retrospective
+    # lag 0, ..., max_lag, whereas EpiExposure input is chronological.
+
+    histories <- matrix(
+      NA_real_,
+      nrow = length(group_rows),
+      ncol = required_history_length
+    )
+
+    for (i in seq_along(group_rows)) {
+
+      idx <- group_rows[[i]]
+
+      x <- data_ordered[[variable]][idx]
+
+      # Convert chronological order:
+      # oldest -> most recent
+      #
+      # to retrospective lag order:
+      # lag 0 -> max_lag
+
+      histories[i, ] <- rev(x)
+    }
+
+    cb_epidemic <- dlnm::crossbasis(
+      histories,
+      lag = c(
+        0L,
+        common_max_lag
+      ),
+      argvar = detail$argvar,
+      arglag = detail$arglag
+    )
+
+    if (
+      !inherits(cb_epidemic, "crossbasis") ||
+      nrow(cb_epidemic) != nrow(out) ||
+      ncol(cb_epidemic) != detail$ncol
+    ) {
+      stop(
+        "Failed to construct the epidemic-level cross-basis required by ",
+        "`model_engine = 'bdlnm'` for exposure '",
+        variable,
+        "'.",
+        call. = FALSE
+      )
+    }
+
+    reconstructed_names <- colnames(
+      cb_epidemic
+    )
+
+    if (!is.null(detail$native_names)) {
+
+      if (
+        is.null(reconstructed_names) ||
+        !identical(
+          reconstructed_names,
+          detail$native_names
+        )
+      ) {
+        stop(
+          "Epidemic-level bdlnm cross-basis column names/order do not ",
+          "match the training template for exposure '",
+          variable,
+          "'.",
+          call. = FALSE
+        )
+      }
+    }
+
+    # Confirm that the bdlnm representation is numerically equivalent
+    # to the canonical EpiExposure epidemic-level design before changing
+    # the display names of the basis columns.
+
+    design_values <- as.matrix(
+      out[
+        ,
+        detail$canonical_names,
+        drop = FALSE
+      ]
+    )
+
+    basis_values <- as.matrix(
+      cb_epidemic
+    )
+
+    difference <- abs(
+      design_values - basis_values
+    )
+
+    tolerance_basis <- 1e-8 * pmax(
+      1,
+      abs(design_values),
+      abs(basis_values)
+    )
+
+    if (
+      any(!is.finite(basis_values)) ||
+      any(difference > tolerance_basis)
+    ) {
+      stop(
+        "The epidemic-level bdlnm cross-basis is not numerically ",
+        "equivalent to the canonical EpiExposure design for exposure '",
+        variable,
+        "'.",
+        call. = FALSE
+      )
+    }
+
+    # Native dlnm cross-basis names, such as v1.l1, are repeated when
+    # multiple exposure bases are included in the same bdlnm model.
+    # INLA requires every internal key to be unique. Prefix the native
+    # column names with the exposure name without changing basis values,
+    # dimensions, lag metadata, or spline parameterization.
+
+    native_basis_names <- colnames(
+      cb_epidemic
+    )
+
+    if (is.null(native_basis_names)) {
+      native_basis_names <- paste0(
+        "basis_",
+        seq_len(
+          ncol(cb_epidemic)
+        )
+      )
+    }
+
+    unique_basis_names <- paste0(
+      variable,
+      "_",
+      native_basis_names
+    )
+
+    if (
+      anyNA(unique_basis_names) ||
+      any(!nzchar(unique_basis_names)) ||
+      anyDuplicated(unique_basis_names)
+    ) {
+      stop(
+        "Could not create unique bdlnm cross-basis column names for ",
+        "exposure '",
+        variable,
+        "'.",
+        call. = FALSE
+      )
+    }
+
+    colnames(
+      cb_epidemic
+    ) <- unique_basis_names
+
+    bdlnm_basis_objects[[variable]] <- cb_epidemic
+  }
+
+  # Confirm global uniqueness across every exposure basis used by bdlnm.
+
+  all_bdlnm_basis_names <- unlist(
+    lapply(
+      bdlnm_basis_objects,
+      colnames
+    ),
+    use.names = FALSE
+  )
+
+  if (
+    anyNA(all_bdlnm_basis_names) ||
+    any(!nzchar(all_bdlnm_basis_names)) ||
+    anyDuplicated(all_bdlnm_basis_names)
+  ) {
+    duplicated_names <- unique(
+      all_bdlnm_basis_names[
+        duplicated(all_bdlnm_basis_names)
+      ]
+    )
+
+    stop(
+      "The epidemic-level cross-basis objects created for `bdlnm` contain ",
+      "duplicated internal column names: ",
+      paste(
+        duplicated_names,
+        collapse = ", "
+      ),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  attr(
+    bdlnm_basis_objects,
+    "spec"
+  ) <- effective_spec
+
+  # ==========================================================================
   # OPTIONAL RESPONSE
   # ==========================================================================
 
@@ -821,6 +1032,7 @@ build_design <- function(
 
   attr(out, "cb_templates") <- cb_templates
   attr(out, "epiexposure_basis_objects") <- cb_templates
+  attr(out, "epiexposure_bdlnm_basis_objects") <- bdlnm_basis_objects
   attr(out, "epiexposure_spec") <- effective_spec
   attr(out, "epiexposure_cb_cols") <- cb_cols
   attr(out, "epiexposure_vars") <- vars

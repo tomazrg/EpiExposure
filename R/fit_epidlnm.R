@@ -7,10 +7,11 @@
 #'
 #' @param data A data.frame containing `y_model` and the fitted DLNM design
 #'   columns. For all engines except `bdlnm`, cross-basis columns must follow the
-#'   package convention `cb_<variable>_<index>`. For `bdlnm`, the original
-#'   cross-basis objects are supplied through `basis_objects` instead. Data
-#'   prepared by `prepare_response()` may carry the `response_family_name`
-#'   attribute; when present, it must agree with `family`.
+#'   package convention `cb_<variable>_<index>`. For `bdlnm`, epidemic-level,
+#'   matrix-form cross-basis objects are supplied through `basis_objects`
+#'   instead. Data prepared by `prepare_response()` may carry the
+#'   `response_family_name` attribute; when present, it must agree with `family`.
+#'
 #' @param model_engine Character scalar identifying the modeling engine. One of
 #'   `"glm"`, `"glmmTMB"`, `"gam"`, `"gamm"`, `"gls"`, `"spamm"`,
 #'   `"brms"`, `"inla"`, or `"bdlnm"`.
@@ -31,6 +32,18 @@
 #'   EpiExposure metadata. `glm` and `gls` do not support this argument. `gamm`
 #'   requires it in the current EpiExposure interface because its generated
 #'   fixed formula contains no other smooth/random term.
+#'
+#' @param random_effect_prior Optional named list defining the hyperprior for
+#'   the precision of the random intercept when `model_engine = "inla"` or
+#'   `"bdlnm"`. The list is passed unchanged to the `hyper` argument of the
+#'   internally generated `INLA::f(..., model = "iid")` term.
+#'
+#'   For example,
+#'   `list(prec = list(prior = "pc.prec", param = c(1, 0.01)))`.
+#'   `NULL` retains the engine's default prior. A non-`NULL` value requires
+#'   `random_effect` and is currently supported only for the INLA-backed
+#'   engines.
+#'
 #' @param spatial_effect NULL (default) or two distinct names of numeric,
 #'   finite coordinate columns in the epidemic-level design. Only
 #'   `model_engine = "spamm"` supports spatial autocorrelation. Coordinates may
@@ -59,9 +72,14 @@
 #'   epidemic-level design and therefore validates the common fitted `max_lag`;
 #'   exact original history length is validated upstream by the exposure/design
 #'   construction functions.
-#' @param basis_objects Optional named list of original `dlnm::crossbasis()`
-#'   objects. It is required for `model_engine = "bdlnm"`. When supplied for
-#'   other engines, its names must match the fitted exposure variables.
+#' @param basis_objects Optional named list of `dlnm::crossbasis()` objects.
+#'   For `model_engine = "bdlnm"`, these must be the epidemic-level,
+#'   matrix-form cross-basis objects containing exactly one row per model row.
+#'   They are normally recovered from the
+#'   `epiexposure_bdlnm_basis_objects` attribute produced by `build_design()`,
+#'   but may also be supplied explicitly. For other engines, when supplied,
+#'   their names must match the fitted exposure variables.
+#'
 #' @param ... Named additional arguments passed to the selected engine. Core
 #'   arguments managed by EpiExposure (`formula`/`model`, `data`, `family`, and
 #'   the engine-specific random-effect argument) cannot be supplied again in
@@ -76,7 +94,9 @@
 #'   `epiexposure_cb_cols`, `epiexposure_vars`,
 #'   `epiexposure_data_template`, `epiexposure_id_col`, `epiexposure_spec`, and
 #'   `epiexposure_basis_objects`. Additional attributes record the standardized
-#'   family parameterization, random-intercept structure, spatial specification
+#'   family parameterization, random-intercept structure, the INLA latent
+#'   random-effect model in `epiexposure_random_effect_model`, the optional
+#'   `epiexposure_random_effect_prior`, and the spatial specification
 #'   (`epiexposure_spatial_effect`, `epiexposure_spatial_structure`,
 #'   `epiexposure_spatial_group`, and `epiexposure_spatial_term`), common fitted
 #'   `max_lag`, expected history length (`max_lag + 1`), the exact-history
@@ -97,7 +117,9 @@
 #' * `glmmTMB`, `brms`, and `spaMM`: `(1 | group)`;
 #' * `gam`: `s(group, bs = "re")`;
 #' * `gamm`: `random = list(group = ~1)`;
-#' * `INLA` and `bdlnm`: `f(group, model = "iid")`.
+#' * `INLA` and `bdlnm`: `f(group, model = "iid")`, optionally extended to
+#'   `f(group, model = "iid", hyper = random_effect_prior)` when a custom
+#'   random-effect hyperprior is supplied.
 #'
 #' `glm` and `gls` are fixed-effect engines in this interface and reject a
 #' non-`NULL` `random_effect`. The `mgcv::gamm()` implementation uses the
@@ -242,6 +264,7 @@ fit_epidlnm <- function(
     model_engine,
     family,
     random_effect = NULL,
+    random_effect_prior = NULL,
     epiexposure_spec = NULL,
     basis_objects = NULL,
     spatial_effect = NULL,
@@ -250,17 +273,22 @@ fit_epidlnm <- function(
     ...
 ) {
 
+
   # =========================================================
   # SMALL INTERNAL HELPERS
   # =========================================================
 
+
   `%||%` <- function(a, b) if (!is.null(a)) a else b
 
+
   stopf <- function(...) stop(..., call. = FALSE)
+
 
   is_scalar_string <- function(x) {
     is.character(x) && length(x) == 1L && !is.na(x) && nzchar(x)
   }
+
 
   quote_name <- function(x) {
     if (!is_scalar_string(x)) stopf("Internal error: invalid name to quote.")
@@ -270,19 +298,23 @@ fit_epidlnm <- function(
     paste0("`", x, "`")
   }
 
+
   normalize_token <- function(x) {
     x <- tolower(trimws(as.character(x)[1]))
     x <- gsub("[[:space:]-]+", "_", x)
     gsub("[^a-z0-9_]", "", x)
   }
 
+
   extract_family_raw <- function(family_input) {
     if (is_scalar_string(family_input)) return(family_input)
+
 
     if (is.list(family_input) && !is.null(family_input$family) &&
         length(family_input$family) >= 1L) {
       return(as.character(family_input$family[[1]]))
     }
+
 
     stopf(
       "Unsupported `family` specification. Supply one supported canonical ",
@@ -290,13 +322,16 @@ fit_epidlnm <- function(
     )
   }
 
+
   resolve_family_info <- function(family_input) {
     raw <- extract_family_raw(family_input)
     z <- normalize_token(raw)
 
+
     if (z %in% c("ordinal", "cumulative")) {
       return(list(name = "ordinal", variant = "ordinal", raw = raw))
     }
+
 
     if (z %in% c(
       "nb1", "nbinom1", "negative_binomial_1", "negativebinomial1",
@@ -304,6 +339,7 @@ fit_epidlnm <- function(
     )) {
       return(list(name = "negative_binomial", variant = "NB1", raw = raw))
     }
+
 
     if (z %in% c(
       "nb2", "negbin", "nbinom", "nbinom2", "negative_binomial",
@@ -313,6 +349,7 @@ fit_epidlnm <- function(
       return(list(name = "negative_binomial", variant = "NB2", raw = raw))
     }
 
+
     if (grepl("negative_?binomial", z)) {
       stopf(
         "Unknown negative-binomial parameterization: '", raw, "'. ",
@@ -320,31 +357,38 @@ fit_epidlnm <- function(
       )
     }
 
+
     if (z %in% c("beta", "beta_family", "beta_proportion", "beta_regression", "betar", "beta_resp")) {
       return(list(name = "beta", variant = "mean_precision", raw = raw))
     }
+
 
     if (z %in% c("binomial", "bernoulli")) {
       return(list(name = "binomial", variant = "bernoulli", raw = raw))
     }
 
+
     if (z == "poisson") {
       return(list(name = "poisson", variant = "poisson", raw = raw))
     }
+
 
     if (z == "gamma") {
       return(list(name = "gamma", variant = "gamma", raw = raw))
     }
 
+
     if (z %in% c("gaussian", "normal")) {
       return(list(name = "gaussian", variant = "gaussian", raw = raw))
     }
+
 
     stopf(
       "Unsupported family: '", raw, "'. EpiExposure v1 supports: beta, ",
       "binomial, poisson, gamma, gaussian, and negative_binomial (NB2)."
     )
   }
+
 
   extract_input_link <- function(family_input) {
     if (is.list(family_input) && !is.null(family_input$link) &&
@@ -354,6 +398,7 @@ fit_epidlnm <- function(
     }
     NULL
   }
+
 
   default_family_link <- function(family_name) {
     switch(
@@ -368,11 +413,13 @@ fit_epidlnm <- function(
     )
   }
 
+
   validate_link_name <- function(link_name) {
     if (!is_scalar_string(link_name)) stopf("Could not determine a valid model link.")
     link_name <- tolower(link_name)
     link_name
   }
+
 
   validate_family_link <- function(
     family_name,
@@ -445,13 +492,17 @@ fit_epidlnm <- function(
       )
     )
 
+
     registered_families <- engine_links[[model_engine]]
+
 
     if (is.null(registered_families)) {
       stopf("Unsupported `model_engine`: '", model_engine, "'.")
     }
 
+
     allowed <- registered_families[[family_name]]
+
 
     if (is.null(allowed)) {
       stopf(
@@ -461,6 +512,7 @@ fit_epidlnm <- function(
         paste(names(registered_families), collapse = ", "), "."
       )
     }
+
 
     # GLS is intentionally restricted by the EpiExposure contract.
     if (!link_name %in% allowed) {
@@ -474,24 +526,74 @@ fit_epidlnm <- function(
       )
     }
 
+
     invisible(TRUE)
   }
 
-  check_dot_conflicts <- function(dots, reserved, engine) {
-    if (!length(dots)) return(invisible(TRUE))
-    dot_names <- names(dots)
-    if (is.null(dot_names) || anyNA(dot_names) || any(dot_names == "")) {
-      stopf("All arguments supplied through `...` must be explicitly named.")
-    }
-    conflict <- intersect(dot_names, reserved)
-    if (length(conflict)) {
-      stopf(
-        "Argument(s) managed internally by EpiExposure cannot be supplied in `...` ",
-        "for engine '", engine, "': ", paste(conflict, collapse = ", "), "."
+
+  check_dot_conflicts <- function(
+    dots,
+    reserved,
+    engine
+  ) {
+    if (!length(dots)) {
+      return(
+        invisible(TRUE)
       )
     }
+
+    dot_names <- names(
+      dots
+    )
+
+    if (is.null(dot_names) ||
+        anyNA(dot_names) ||
+        any(!nzchar(dot_names))) {
+      stopf(
+        "All arguments supplied through `...` must be explicitly named."
+      )
+    }
+
+    if (anyDuplicated(dot_names)) {
+      duplicated_dot_names <- unique(
+        dot_names[
+          duplicated(dot_names)
+        ]
+      )
+
+      stopf(
+        "Arguments supplied through `...` must have unique names. ",
+        "Duplicated argument(s): ",
+        paste(
+          duplicated_dot_names,
+          collapse = ", "
+        ),
+        "."
+      )
+    }
+
+    conflict <- intersect(
+      dot_names,
+      reserved
+    )
+
+    if (length(conflict)) {
+      stopf(
+        "Argument(s) managed internally by EpiExposure cannot be supplied ",
+        "in `...` for engine '",
+        engine,
+        "': ",
+        paste(
+          conflict,
+          collapse = ", "
+        ),
+        "."
+      )
+    }
+
     invisible(TRUE)
   }
+
 
   fit_with_context <- function(expr, engine, family_name, link_name) {
     tryCatch(
@@ -506,9 +608,11 @@ fit_epidlnm <- function(
     )
   }
 
+
   # =========================================================
   # BASIC VALIDATION
   # =========================================================
+
 
   # Preserve the caller's original data expression for compact model calls.
   # This prevents `do.call()` from leaving the fully evaluated data.frame
@@ -517,8 +621,10 @@ fit_epidlnm <- function(
   data_call <- substitute(data)
   family_call <- substitute(family)
 
+
   if (!is.data.frame(data)) stopf("`data` must be a data.frame.")
   if (!nrow(data)) stopf("`data` must contain at least one row.")
+
 
   if (!"y_model" %in% names(data)) {
     stopf("`data` must contain a column named 'y_model'.")
@@ -528,6 +634,7 @@ fit_epidlnm <- function(
     stopf("`y_model` must contain only finite values before model fitting.")
   }
 
+
   model_engine <- match.arg(
     model_engine,
     choices = c(
@@ -536,7 +643,9 @@ fit_epidlnm <- function(
     )
   )
 
+
   dots <- list(...)
+
 
   # Resolve spaMM spatial specification without changing the legacy intercept.
   # The shared helper is also used for the early find_bestfit() preflight.
@@ -553,8 +662,10 @@ fit_epidlnm <- function(
   spatial_group <- spatial_spec$group
   spatial_term <- spatial_spec$term
 
+
   family_info <- resolve_family_info(family)
   family_name <- family_info$name
+
 
   if (identical(family_name, "ordinal")) {
     stopf(
@@ -564,6 +675,7 @@ fit_epidlnm <- function(
     )
   }
 
+
   if (identical(family_info$variant, "NB1")) {
     stopf(
       "Negative-binomial NB1 was requested, but EpiExposure v1 standardizes ",
@@ -572,11 +684,14 @@ fit_epidlnm <- function(
     )
   }
 
+
   input_link <- extract_input_link(family)
+
 
   link_name <- validate_link_name(
     input_link %||% default_family_link(family_name)
   )
+
 
   validate_family_link(
     family_name = family_name,
@@ -584,21 +699,26 @@ fit_epidlnm <- function(
     model_engine = model_engine
   )
 
+
   link_source <- if (is.null(input_link)) {
     "epiexposure_default"
   } else {
     "family_input"
   }
 
+
   # =========================================================
   # RESPONSE VALIDATION BY CANONICAL FAMILY
   # =========================================================
 
+
   y <- data$y_model
+
 
   if (family_name == "beta" && any(y <= 0 | y >= 1)) {
     stopf("`family = 'beta'` requires every `y_model` value to lie strictly in (0, 1).")
   }
+
 
   if (family_name == "binomial" && !all(y %in% c(0, 1))) {
     stopf(
@@ -606,6 +726,7 @@ fit_epidlnm <- function(
       "outcome; every `y_model` value must be coded 0 or 1."
     )
   }
+
 
   if (family_name %in% c("poisson", "negative_binomial") &&
       (any(y < 0) || any(y != floor(y)))) {
@@ -615,13 +736,16 @@ fit_epidlnm <- function(
     )
   }
 
+
   if (family_name == "gamma" && any(y <= 0)) {
     stopf("`family = 'gamma'` requires strictly positive `y_model` values.")
   }
 
+
   # =========================================================
   # CHECK CONSISTENCY WITH prepare_response()
   # =========================================================
+
 
   prepared_family_name <- attr(data, "response_family_name")
   if (!is.null(prepared_family_name)) {
@@ -637,9 +761,11 @@ fit_epidlnm <- function(
     }
   }
 
+
   # =========================================================
   # RANDOM-INTERCEPT CONTRACT
   # =========================================================
+
 
   if (!is.null(random_effect)) {
     if (!is_scalar_string(random_effect)) {
@@ -656,6 +782,7 @@ fit_epidlnm <- function(
     }
   }
 
+
   if (!is.null(random_effect) && model_engine %in% c("glm", "gls")) {
     stopf(
       "`model_engine = '", model_engine,
@@ -663,6 +790,7 @@ fit_epidlnm <- function(
       "Use `random_effect = NULL` or select a supported mixed-model engine."
     )
   }
+
 
   if (identical(model_engine, "gamm") && is.null(random_effect)) {
     stopf(
@@ -672,11 +800,13 @@ fit_epidlnm <- function(
     )
   }
 
+
   # `mgcv` random-effect smooths and `nlme` random intercepts are most robust
   # when the grouping variable is represented as a factor. Preserve the user's
   # original data object and convert only the engine-specific fitting copy.
   fit_data <- data
   fit_random_effect <- random_effect
+
 
   # Convert the field-replication index in the fit copy only. It is not
   # interchangeable with, or a replacement for, the conventional intercept.
@@ -684,9 +814,11 @@ fit_epidlnm <- function(
     fit_data[[spatial_group]] <- factor(fit_data[[spatial_group]])
   }
 
+
   if (!is.null(random_effect) && model_engine %in% c("gam", "gamm")) {
     fit_data[[random_effect]] <- factor(fit_data[[random_effect]])
   }
+
 
   # INLA latent iid effects are indexed internally. Re-index arbitrary user
   # labels to consecutive integers for fitting while preserving the original
@@ -702,9 +834,54 @@ fit_epidlnm <- function(
     fit_random_effect <- internal_name
   }
 
+
+
+
+  # =========================================================
+  # RANDOM-EFFECT PRIOR CONTRACT
+  # =========================================================
+
+
+  if (!is.null(random_effect_prior)) {
+
+
+    if (is.null(random_effect)) {
+      stopf(
+        "`random_effect_prior` requires a non-NULL `random_effect`."
+      )
+    }
+
+
+    if (!model_engine %in% c(
+      "inla",
+      "bdlnm"
+    )) {
+      stopf(
+        "`random_effect_prior` is currently supported only for ",
+        "`model_engine = 'inla'` or `model_engine = 'bdlnm'`."
+      )
+    }
+
+
+    if (!is.list(random_effect_prior) ||
+        !length(random_effect_prior) ||
+        is.null(names(random_effect_prior)) ||
+        anyNA(names(random_effect_prior)) ||
+        any(!nzchar(names(random_effect_prior))) ||
+        anyDuplicated(names(random_effect_prior))) {
+
+      stopf(
+        "`random_effect_prior` must be NULL or a non-empty named list ",
+        "accepted by `INLA::f(..., hyper = ...)`."
+      )
+    }
+  }
+
+
   # =========================================================
   # NORMALIZE AND VALIDATE EXPOSURE SPECIFICATION
   # =========================================================
+
 
   normalize_spec <- function(spec) {
     if (is.null(spec)) {
@@ -715,19 +892,24 @@ fit_epidlnm <- function(
       )
     }
 
+
     if (!is.list(spec) || is.null(names(spec)) || !length(spec) ||
         anyNA(names(spec)) || any(names(spec) == "") || anyDuplicated(names(spec))) {
       stopf("`epiexposure_spec` must be a non-empty named list with unique names.")
     }
 
+
     for (nm in names(spec)) {
       current <- spec[[nm]]
+
 
       if (!is.list(current)) {
         stopf("Specification for variable '", nm, "' must be a list.")
       }
 
+
       max_lag_value <- current$max_lag
+
 
       if (is.null(max_lag_value) ||
           !is.numeric(max_lag_value) ||
@@ -742,23 +924,28 @@ fit_epidlnm <- function(
         )
       }
 
+
       if (is.null(current$argvar) || !is.list(current$argvar)) {
         stopf("Missing or invalid `argvar` for variable '", nm, "'.")
       }
+
 
       if (is.null(current$arglag) || !is.list(current$arglag)) {
         stopf("Missing or invalid `arglag` for variable '", nm, "'.")
       }
 
+
       current$max_lag <- as.integer(max_lag_value)
       spec[[nm]] <- current
     }
+
 
     fitted_max_lags <- vapply(
       spec,
       function(current) current$max_lag,
       integer(1)
     )
+
 
     if (length(unique(fitted_max_lags)) != 1L) {
       stopf(
@@ -772,22 +959,28 @@ fit_epidlnm <- function(
       )
     }
 
+
     spec
   }
 
+
   epiexposure_spec <- normalize_spec(epiexposure_spec)
+
 
   common_max_lag <- epiexposure_spec[[1L]]$max_lag
   expected_history_length <- common_max_lag + 1L
+
 
   # =========================================================
   # CROSS-BASIS COLUMN / VARIABLE CONTRACT
   # =========================================================
 
+
   parse_cb_variable <- function(columns) {
     out <- sub("^cb_", "", columns)
     sub("_[0-9]+$", "", out)
   }
+
 
   sort_cb_cols <- function(columns) {
     if (!length(columns)) return(columns)
@@ -803,12 +996,15 @@ fit_epidlnm <- function(
     columns[order(match(variables, variable_order), index)]
   }
 
+
   raw_cb_cols <- grep("^cb_", names(fit_data), value = TRUE)
   cb_cols <- sort_cb_cols(raw_cb_cols)
+
 
   if (!length(cb_cols) && model_engine != "bdlnm") {
     stopf("No `cb_*` columns were found in `data`.")
   }
+
 
   if (length(cb_cols)) {
     invalid_cb <- vapply(
@@ -824,17 +1020,21 @@ fit_epidlnm <- function(
     }
   }
 
+
   validate_basis_objects <- function(x, required = FALSE) {
     if (is.null(x)) {
       if (required) {
         stopf(
           "For `model_engine = 'bdlnm'`, `basis_objects` must be a non-empty ",
-          "named list of original `dlnm::crossbasis()` objects."
+          "named list of epidemic-level, matrix-form `dlnm::crossbasis()` ",
+          "objects containing one row per model row."
         )
       }
 
+
       return(NULL)
     }
+
 
     if (is.data.frame(x)) {
       stopf(
@@ -842,6 +1042,7 @@ fit_epidlnm <- function(
         "not a data.frame or an epidemic-level design matrix."
       )
     }
+
 
     if (!is.list(x) ||
         is.null(names(x)) ||
@@ -855,12 +1056,14 @@ fit_epidlnm <- function(
       )
     }
 
+
     valid_crossbasis <- vapply(
       x,
       inherits,
       logical(1),
       what = "crossbasis"
     )
+
 
     if (any(!valid_crossbasis)) {
       stopf(
@@ -871,23 +1074,59 @@ fit_epidlnm <- function(
       )
     }
 
+
     x
   }
+
 
   # Recover basis objects stored by build_design() when they are not
   # supplied explicitly by the user.
   basis_objects_source <- if (is.null(basis_objects)) {
-    "data_attribute"
+    if (identical(model_engine, "bdlnm")) {
+      "data_bdlnm_attribute"
+    } else {
+      "data_attribute"
+    }
   } else {
     "user_argument"
   }
 
+
   if (is.null(basis_objects)) {
-    basis_objects <- attr(
-      data,
-      "epiexposure_basis_objects",
-      exact = TRUE
-    )
+
+
+    if (identical(model_engine, "bdlnm")) {
+
+
+      basis_objects <- attr(
+        data,
+        "epiexposure_bdlnm_basis_objects",
+        exact = TRUE
+      )
+
+
+      if (is.null(basis_objects)) {
+        stopf(
+          "`model_engine = 'bdlnm'` requires epidemic-level cross-basis ",
+          "objects produced by the current `build_design()` pipeline. ",
+          "Rebuild the design with `build_design()` before fitting."
+        )
+      }
+
+
+    } else {
+
+
+      basis_objects <- attr(
+        data,
+        "epiexposure_basis_objects",
+        exact = TRUE
+      )
+    }
+  }
+
+  if (is.null(basis_objects)) {
+    basis_objects_source <- "none"
   }
 
   # Validate the final object regardless of whether it was supplied
@@ -902,9 +1141,11 @@ fit_epidlnm <- function(
     names(basis_objects)
   }
 
+
   if (!length(vars_inferred)) {
     stopf("Could not determine the exposure variables used by the fitted model.")
   }
+
 
   if (!setequal(names(epiexposure_spec), vars_inferred)) {
     missing_spec <- setdiff(vars_inferred, names(epiexposure_spec))
@@ -923,6 +1164,7 @@ fit_epidlnm <- function(
   }
   epiexposure_spec <- epiexposure_spec[vars_inferred]
 
+
   if (!is.null(basis_objects)) {
     if (!setequal(names(basis_objects), vars_inferred)) {
       stopf(
@@ -931,13 +1173,17 @@ fit_epidlnm <- function(
       )
     }
 
+
     basis_objects <- basis_objects[vars_inferred]
+
 
     for (nm in names(basis_objects)) {
       basis_object <- basis_objects[[nm]]
 
+
       if (inherits(basis_object, "crossbasis")) {
         basis_lag <- attr(basis_object, "lag")
+
 
         if (is.null(basis_lag) ||
             !is.numeric(basis_lag) ||
@@ -950,7 +1196,9 @@ fit_epidlnm <- function(
           )
         }
 
+
         basis_max_lag <- as.integer(max(basis_lag))
+
 
         if (basis_max_lag != common_max_lag) {
           stopf(
@@ -963,11 +1211,144 @@ fit_epidlnm <- function(
     }
   }
 
+
+  if (identical(model_engine, "bdlnm")) {
+
+
+    invalid_nrow <- vapply(
+      basis_objects,
+      function(x) nrow(x) != nrow(fit_data),
+      logical(1)
+    )
+
+
+    if (any(invalid_nrow)) {
+      stopf(
+        "For `model_engine = 'bdlnm'`, every cross-basis object must ",
+        "contain one row per epidemic-level model row. `data` has ",
+        nrow(fit_data),
+        " rows, but incompatible basis object(s) were found: ",
+        paste(
+          names(basis_objects)[invalid_nrow],
+          collapse = ", "
+        ),
+        "."
+      )
+    }
+
+    # Ensure that every bdlnm cross-basis has valid and globally unique
+    # internal column names. Native dlnm names such as v1.l1 are repeated
+    # across exposure-specific cross-bases and may collide inside INLA.
+
+    for (nm in names(basis_objects)) {
+
+      current_basis <- basis_objects[[nm]]
+      current_names <- colnames(
+        current_basis
+      )
+
+      if (is.null(current_names)) {
+        current_names <- paste0(
+          "basis_",
+          seq_len(
+            ncol(current_basis)
+          )
+        )
+      }
+
+      if (length(current_names) != ncol(current_basis) ||
+          anyNA(current_names) ||
+          any(!nzchar(current_names)) ||
+          anyDuplicated(current_names)) {
+
+        stopf(
+          "Cross-basis object for exposure '",
+          nm,
+          "' contains invalid internal column names."
+        )
+      }
+
+      expected_prefix <- paste0(
+        nm,
+        "_"
+      )
+
+      has_expected_prefix <- startsWith(
+        current_names,
+        expected_prefix
+      )
+
+      if (any(has_expected_prefix) &&
+          !all(has_expected_prefix)) {
+        stopf(
+          "Cross-basis object for exposure '",
+          nm,
+          "' contains partially prefixed internal column names. ",
+          "Column names must either all include the exposure prefix or ",
+          "all use the native cross-basis names."
+        )
+      }
+
+      if (!any(has_expected_prefix)) {
+        current_names <- paste0(
+          expected_prefix,
+          current_names
+        )
+      }
+
+      colnames(
+        current_basis
+      ) <- current_names
+
+      basis_objects[[nm]] <- current_basis
+    }
+
+    all_bdlnm_basis_names <- unlist(
+      lapply(
+        basis_objects,
+        colnames
+      ),
+      use.names = FALSE
+    )
+
+    if (!length(all_bdlnm_basis_names) ||
+        anyNA(all_bdlnm_basis_names) ||
+        any(!nzchar(all_bdlnm_basis_names)) ||
+        anyDuplicated(all_bdlnm_basis_names)) {
+
+      duplicated_names <- unique(
+        all_bdlnm_basis_names[
+          duplicated(all_bdlnm_basis_names)
+        ]
+      )
+
+      if (length(duplicated_names)) {
+        stopf(
+          "The bdlnm cross-basis objects contain duplicated internal ",
+          "column names: ",
+          paste(
+            duplicated_names,
+            collapse = ", "
+          ),
+          "."
+        )
+      }
+
+      stopf(
+        "The bdlnm cross-basis objects contain missing or empty ",
+        "internal column names."
+      )
+    }
+  }
+
+
   # =========================================================
   # ENGINE-SPECIFIC FAMILY CONSTRUCTION
   # =========================================================
 
+
   resolve_engine_family <- function(engine, family_name, link_name) {
+
 
     if (engine == "glm") {
       return(switch(
@@ -982,6 +1363,7 @@ fit_epidlnm <- function(
         )
       ))
     }
+
 
     if (engine == "glmmTMB") {
       if (!requireNamespace("glmmTMB", quietly = TRUE)) {
@@ -999,6 +1381,7 @@ fit_epidlnm <- function(
       ))
     }
 
+
     if (engine == "gam") {
       if (!requireNamespace("mgcv", quietly = TRUE)) {
         stopf("Package 'mgcv' is required for `model_engine = 'gam'`.")
@@ -1014,6 +1397,7 @@ fit_epidlnm <- function(
         stopf("Unsupported GAM family.")
       ))
     }
+
 
     if (engine == "gamm") {
       if (!requireNamespace("mgcv", quietly = TRUE)) {
@@ -1032,6 +1416,7 @@ fit_epidlnm <- function(
       ))
     }
 
+
     if (engine == "gls") {
       if (family_name != "gaussian") {
         stopf("`model_engine = 'gls'` supports only `family = 'gaussian'`.")
@@ -1041,6 +1426,7 @@ fit_epidlnm <- function(
       }
       return(stats::gaussian(link = "identity"))
     }
+
 
     if (engine == "spamm") {
       if (!requireNamespace("spaMM", quietly = TRUE)) {
@@ -1058,6 +1444,7 @@ fit_epidlnm <- function(
       ))
     }
 
+
     if (engine == "brms") {
       if (!requireNamespace("brms", quietly = TRUE)) {
         stopf("Package 'brms' is required for `model_engine = 'brms'`.")
@@ -1074,6 +1461,7 @@ fit_epidlnm <- function(
       ))
     }
 
+
     if (engine %in% c("inla", "bdlnm")) {
       return(switch(
         family_name,
@@ -1087,10 +1475,13 @@ fit_epidlnm <- function(
       ))
     }
 
+
     stopf("Unsupported `model_engine`: ", engine, ".")
   }
 
+
   engine_family <- resolve_engine_family(model_engine, family_name, link_name)
+
 
   if (model_engine %in% c("inla", "bdlnm")) {
     if (!requireNamespace("INLA", quietly = TRUE)) {
@@ -1100,7 +1491,9 @@ fit_epidlnm <- function(
       )
     }
 
+
     available_likelihoods <- names(INLA::inla.models()$likelihood)
+
 
     if (!engine_family %in% available_likelihoods) {
       stopf(
@@ -1111,14 +1504,17 @@ fit_epidlnm <- function(
     }
   }
 
+
   # =========================================================
   # ENGINE-SPECIFIC DOTS / LINK CONTROL
   # =========================================================
+
 
   if (model_engine == "gam") {
     if (!is.null(dots$method) && !is_scalar_string(dots$method)) {
       stopf("`method` supplied to `gam` must be one non-empty character value.")
     }
+
 
     # mgcv extended families have restricted smoothing-parameter estimation
     # routes. REML is also a stable default for random-effect smooths.
@@ -1126,6 +1522,7 @@ fit_epidlnm <- function(
         (family_name %in% c("beta", "negative_binomial") || !is.null(random_effect))) {
       dots$method <- "REML"
     }
+
 
     if (family_name == "beta" && !is.null(dots$method) &&
         !toupper(dots$method) %in% c("REML", "ML", "NCV")) {
@@ -1135,6 +1532,7 @@ fit_epidlnm <- function(
       )
     }
 
+
     if (family_name == "negative_binomial" && !is.null(dots$method) &&
         !toupper(dots$method) %in% c("REML", "NCV")) {
       stopf(
@@ -1143,16 +1541,19 @@ fit_epidlnm <- function(
     }
   }
 
+
   prepare_inla_family_control <- function(input_dots) {
     control_family <- input_dots$control.family %||% list()
     if (!is.list(control_family)) {
       stopf("INLA `control.family` supplied through `...` must be a list.")
     }
 
+
     control_link <- control_family$control.link %||% list()
     if (!is.list(control_link)) {
       stopf("INLA `control.family$control.link` must be a list.")
     }
+
 
     if (!is.null(control_link$model)) {
       supplied_link <- tolower(as.character(control_link$model)[1])
@@ -1164,15 +1565,18 @@ fit_epidlnm <- function(
       }
     }
 
+
     control_link$model <- link_name
     control_family$control.link <- control_link
     input_dots$control.family <- control_family
     input_dots
   }
 
+
   if (model_engine %in% c("inla", "bdlnm")) {
     dots <- prepare_inla_family_control(dots)
   }
+
 
   if (model_engine %in% c("inla", "bdlnm")) {
     control_compute <- dots$control.compute %||% list()
@@ -1189,9 +1593,32 @@ fit_epidlnm <- function(
     dots$control.compute <- control_compute
   }
 
+
+  # =========================================================
+  # INLA RANDOM-EFFECT PRIOR ENVIRONMENT
+  # =========================================================
+
+
+  inla_formula_env <- new.env(
+    parent = parent.frame()
+  )
+
+
+  if (!is.null(random_effect_prior)) {
+
+
+    assign(
+      ".epiexposure_random_effect_prior",
+      random_effect_prior,
+      envir = inla_formula_env
+    )
+  }
+
+
   # =========================================================
   # FORMULA CONSTRUCTION
   # =========================================================
+
 
   cb_rhs <- paste(vapply(cb_cols, quote_name, character(1)), collapse = " + ")
   fixed_formula_text <- if (nzchar(cb_rhs)) {
@@ -1200,14 +1627,18 @@ fit_epidlnm <- function(
     "y_model ~ 1"
   }
 
+
   fixed_formula <- stats::as.formula(fixed_formula_text)
+
 
   mixed_formula <- fixed_formula
   gam_formula <- fixed_formula
   inla_formula <- fixed_formula
 
+
   if (!is.null(random_effect)) {
     qre <- quote_name(fit_random_effect)
+
 
     if (model_engine %in% c("glmmTMB", "spamm", "brms")) {
       mixed_formula <- stats::as.formula(
@@ -1215,18 +1646,50 @@ fit_epidlnm <- function(
       )
     }
 
+
     if (model_engine == "gam") {
       gam_formula <- stats::as.formula(
         paste0(fixed_formula_text, " + s(", qre, ", bs = 're')")
       )
     }
 
+
     if (model_engine == "inla") {
+
+
+      if (is.null(random_effect_prior)) {
+
+
+        random_term <- paste0(
+          "f(",
+          qre,
+          ", model = 'iid')"
+        )
+
+
+      } else {
+
+
+        random_term <- paste0(
+          "f(",
+          qre,
+          ", model = 'iid', ",
+          "hyper = .epiexposure_random_effect_prior)"
+        )
+      }
+
+
       inla_formula <- stats::as.formula(
-        paste0(fixed_formula_text, " + f(", qre, ", model = 'iid')")
+        paste0(
+          fixed_formula_text,
+          " + ",
+          random_term
+        ),
+        env = inla_formula_env
       )
     }
   }
+
 
   # The spaMM formula receives the spatial special term only when requested.
   # The spaMM namespace is used as its lexical parent, making its formula
@@ -1247,9 +1710,11 @@ fit_epidlnm <- function(
     )
   }
 
+
   # =========================================================
   # STANDARDIZED METADATA
   # =========================================================
+
 
   family_parameterization <- switch(
     family_name,
@@ -1262,11 +1727,13 @@ fit_epidlnm <- function(
     NA_character_
   )
 
+
   random_structure <- if (is.null(random_effect)) {
     "none"
   } else {
     "random_intercept"
   }
+
 
   attach_epiexposure_meta <- function(model_obj) {
     basis_meta <- basis_objects
@@ -1274,6 +1741,7 @@ fit_epidlnm <- function(
         is.list(model_obj) && !is.null(model_obj$basis)) {
       basis_meta <- model_obj$basis
     }
+
 
     attr(model_obj, "epiexposure_engine") <- model_engine
     attr(model_obj, "epiexposure_family_input") <- family
@@ -1308,13 +1776,23 @@ fit_epidlnm <- function(
     attr(model_obj, "epiexposure_prediction_estimand") <- "expected_response"
     attr(model_obj, "epiexposure_point_prediction_contract") <- "central_expected_response"
     attr(model_obj, "epiexposure_uncertainty_contract") <- "draw_by_draw_median_quantiles"
+    attr(model_obj, "epiexposure_random_effect_prior") <- random_effect_prior
+    attr(model_obj, "epiexposure_random_effect_model") <- if (
+      !is.null(random_effect) && model_engine %in% c("inla","bdlnm")
+    ) {
+      "iid"
+    } else {
+      NULL
+    }
 
     model_obj
   }
 
+
   # =========================================================
   # FIT: glm
   # =========================================================
+
 
   if (model_engine == "glm") {
     check_dot_conflicts(
@@ -1327,6 +1805,7 @@ fit_epidlnm <- function(
       model_engine
     )
 
+
     args <- c(
       list(
         formula = fixed_formula,
@@ -1335,6 +1814,7 @@ fit_epidlnm <- function(
       ),
       dots
     )
+
 
     model_obj <- fit_with_context(
       do.call(
@@ -1346,6 +1826,7 @@ fit_epidlnm <- function(
       link_name
     )
 
+
     # `do.call()` receives evaluated arguments and may store the complete
     # function and family object inside the fitted call. Rebuild only the
     # stored call used for printing and re-evaluation, preserving all other
@@ -1353,14 +1834,17 @@ fit_epidlnm <- function(
     if (!is.null(model_obj$call) &&
         is.call(model_obj$call)) {
 
+
       call_parts <- as.list(
         model_obj$call
       )
+
 
       # Replace the embedded function definition with a compact function call.
       call_parts[[1L]] <- quote(
         stats::glm
       )
+
 
       # Preserve the fitted formula while displaying the original family and
       # data expressions supplied by the user.
@@ -1368,10 +1852,12 @@ fit_epidlnm <- function(
       call_parts[["family"]] <- family_call
       call_parts[["data"]] <- data_call
 
+
       model_obj$call <- as.call(
         call_parts
       )
     }
+
 
     return(
       attach_epiexposure_meta(
@@ -1380,9 +1866,11 @@ fit_epidlnm <- function(
     )
   }
 
+
   # =========================================================
   # FIT: glmmTMB
   # =========================================================
+
 
   if (model_engine == "glmmTMB") {
     check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
@@ -1391,12 +1879,14 @@ fit_epidlnm <- function(
       dots
     )
 
+
     model_obj <- fit_with_context(
       do.call(glmmTMB::glmmTMB, args),
       model_engine,
       family_name,
       link_name
     )
+
 
     # `do.call()` evaluates `fit_data` before calling glmmTMB. Consequently,
     # glmmTMB may store the entire evaluated data.frame inside `model_obj$call`.
@@ -1410,18 +1900,22 @@ fit_epidlnm <- function(
     if (!is.null(model_obj$call) && is.call(model_obj$call)) {
       call_parts <- as.list(model_obj$call)
 
+
       if ("data" %in% names(call_parts)) {
         call_parts[["data"]] <- data_call
         model_obj$call <- as.call(call_parts)
       }
     }
 
+
     return(attach_epiexposure_meta(model_obj))
   }
+
 
   # =========================================================
   # FIT: GAM
   # =========================================================
+
 
   if (model_engine == "gam") {
     check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
@@ -1437,9 +1931,11 @@ fit_epidlnm <- function(
     )))
   }
 
+
   # =========================================================
   # FIT: GAMM
   # =========================================================
+
 
   if (model_engine == "gamm") {
     check_dot_conflicts(
@@ -1453,6 +1949,7 @@ fit_epidlnm <- function(
       model_engine
     )
 
+
     if (family_name == "binomial") {
       warning(
         "`mgcv::gamm()` fits non-Gaussian models by PQL and mgcv specifically ",
@@ -1462,6 +1959,7 @@ fit_epidlnm <- function(
       )
     }
 
+
     random_list <- stats::setNames(
       list(
         stats::as.formula(
@@ -1470,6 +1968,7 @@ fit_epidlnm <- function(
       ),
       fit_random_effect
     )
+
 
     args <- c(
       list(
@@ -1481,6 +1980,7 @@ fit_epidlnm <- function(
       dots
     )
 
+
     model_obj <- fit_with_context(
       do.call(
         mgcv::gamm,
@@ -1491,10 +1991,12 @@ fit_epidlnm <- function(
       link_name
     )
 
+
     class(model_obj) <- c(
       "epiexposure_gamm",
       class(model_obj)
     )
+
 
     return(
       attach_epiexposure_meta(
@@ -1503,27 +2005,96 @@ fit_epidlnm <- function(
     )
   }
 
+
   # =========================================================
   # FIT: GLS
   # =========================================================
 
+
   if (model_engine == "gls") {
+
+
     if (!requireNamespace("nlme", quietly = TRUE)) {
       stopf("Package 'nlme' is required for `model_engine = 'gls'`.")
     }
-    check_dot_conflicts(dots, c("model", "data"), model_engine)
-    args <- c(list(model = fixed_formula, data = fit_data), dots)
-    return(attach_epiexposure_meta(fit_with_context(
-      do.call(nlme::gls, args),
+
+
+    check_dot_conflicts(
+      dots,
+      c(
+        "model",
+        "data"
+      ),
+      model_engine
+    )
+
+
+    args <- c(
+      list(
+        model = fixed_formula,
+        data  = fit_data
+      ),
+      dots
+    )
+
+
+    model_obj <- fit_with_context(
+      do.call(
+        nlme::gls,
+        args
+      ),
       model_engine,
       family_name,
       link_name
-    )))
+    )
+
+
+    # `do.call()` receives the evaluated `fit_data` object. Consequently,
+    # `nlme::gls()` may store the complete data.frame inside `model_obj$call`.
+    # This causes `summary(model_obj)` to print the entire evaluated design
+    # instead of the compact data expression originally supplied by the user.
+    #
+    # Replace only the stored `data` component used for display and
+    # re-evaluation. This does not change fitted coefficients, residuals,
+    # likelihood, covariance structures, predictions, or EpiExposure metadata.
+
+
+    if (!is.null(model_obj$call) &&
+        is.call(model_obj$call)) {
+
+
+      call_parts <- as.list(
+        model_obj$call
+      )
+
+
+      if ("data" %in% names(call_parts)) {
+
+
+        call_parts[["data"]] <- data_call
+
+
+        model_obj$call <- as.call(
+          call_parts
+        )
+
+
+      }
+    }
+
+
+    return(
+      attach_epiexposure_meta(
+        model_obj
+      )
+    )
   }
+
 
   # =========================================================
   # FIT: spaMM
   # =========================================================
+
 
   if (model_engine == "spamm") {
     # `spatial_*` are interface arguments and must not enter `fitme()` dots.
@@ -1540,9 +2111,11 @@ fit_epidlnm <- function(
     )))
   }
 
+
   # =========================================================
   # FIT: brms
   # =========================================================
+
 
   if (model_engine == "brms") {
     check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
@@ -1558,9 +2131,11 @@ fit_epidlnm <- function(
     )))
   }
 
+
   # =========================================================
   # FIT: INLA
   # =========================================================
+
 
   if (model_engine == "inla") {
     if (!requireNamespace("INLA", quietly = TRUE)) {
@@ -1579,29 +2154,56 @@ fit_epidlnm <- function(
     )))
   }
 
+
   # =========================================================
   # FIT: Bayesian DLNM (bdlnm)
   # =========================================================
+
 
   if (model_engine == "bdlnm") {
     if (!requireNamespace("bdlnm", quietly = TRUE)) {
       stopf("Package 'bdlnm' is required for `model_engine = 'bdlnm'`.")
     }
 
+
     check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
+
 
     basis_names <- names(basis_objects)
     basis_rhs <- paste(vapply(basis_names, quote_name, character(1)), collapse = " + ")
     bdlnm_formula_text <- paste0("y_model ~ 1 + ", basis_rhs)
 
+
     if (!is.null(random_effect)) {
-      bdlnm_formula_text <- paste0(
-        bdlnm_formula_text,
-        " + f(", quote_name(fit_random_effect), ", model = 'iid')"
-      )
+
+
+      if (is.null(random_effect_prior)) {
+
+
+        bdlnm_formula_text <- paste0(
+          bdlnm_formula_text,
+          " + f(",
+          quote_name(fit_random_effect),
+          ", model = 'iid')"
+        )
+
+
+      } else {
+
+
+        bdlnm_formula_text <- paste0(
+          bdlnm_formula_text,
+          " + f(",
+          quote_name(fit_random_effect),
+          ", model = 'iid', ",
+          "hyper = .epiexposure_random_effect_prior)"
+        )
+      }
     }
 
+
     bdlnm_formula <- stats::as.formula(bdlnm_formula_text)
+
 
     # bdlnm requires the original basis objects to be visible from the formula
     # environment. Preserve the caller as parent so user-supplied terms in `...`
@@ -1610,19 +2212,35 @@ fit_epidlnm <- function(
     for (nm in basis_names) {
       assign(nm, basis_objects[[nm]], envir = eval_env)
     }
+
+
+    if (!is.null(random_effect_prior)) {
+
+
+      assign(
+        ".epiexposure_random_effect_prior",
+        random_effect_prior,
+        envir = eval_env
+      )
+    }
+
+
     environment(bdlnm_formula) <- eval_env
+
 
     args <- c(
       list(formula = bdlnm_formula, data = fit_data, family = engine_family),
       dots
     )
     return(attach_epiexposure_meta(fit_with_context(
-      do.call(bdlnm::bdlnm, args),
+      #do.call(bdlnm::bdlnm, args),
+      do.call(bdlnm::bdlnm, args, envir = eval_env),
       model_engine,
       family_name,
       link_name
     )))
   }
+
 
   stopf("Unsupported `model_engine`.")
 }
