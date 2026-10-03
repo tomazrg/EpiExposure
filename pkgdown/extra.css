@@ -464,3 +464,20 @@ a[href="pkgdown.html"] {
 .tutorial-note strong {
   color: #1f1f1f;
 }
+
+/* Dark theme fix */
+[data-bs-theme="dark"] .tutorial-note {
+  color: #2b2b2b !important;
+}
+
+[data-bs-theme="dark"] .tutorial-note p {
+  color: #2b2b2b !important;
+}
+
+[data-bs-theme="dark"] .tutorial-note strong {
+  color: #111111 !important;
+}
+
+[data-bs-theme="dark"] .tutorial-note a {
+  color: #245f39 !important;
+}

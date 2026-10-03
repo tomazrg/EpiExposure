@@ -107,11 +107,13 @@ best_models <- find_bestfit(
   keep_fits = TRUE)
 ```
 
-```{r}
+```{r, include=FALSE}
 best_models = readRDS("best_models.rds")
 
 best_models
+```
 
+```{r}
 plot_performance(
   object = best_models,
  # model_id = c(
@@ -138,7 +140,7 @@ plot_performance(
 
 Inspect results
 
-```{r, echo=TRUE, eval=FALSE}
+```{r}
 head(best_models)
 ```
 
@@ -163,7 +165,7 @@ ranking criterion, not a universal rule. Candidate models should also be
 examined using error metrics, bias, convergence diagnostics, model complexity,
 and the scientific plausibility of the exposure-lag structure.
 
-```{r, echo=TRUE, eval=FALSE}
+```{r}
 best_models %>%
   arrange(desc(CCC)) %>%
   select(
@@ -178,7 +180,7 @@ best_models %>%
 
 # Visualizing model performance
 
-```{r, echo=TRUE, eval=FALSE}
+```{r}
 best_models %>%
   mutate(
     splines = paste(
@@ -229,7 +231,7 @@ response scale, it is often easier to interpret directly than RMSE.
 
 Suppose the best model is:
 
-```{r, echo=TRUE, eval=FALSE}
+```{r}
 top_model <- best_models |>
   dplyr::arrange(
     dplyr::desc(
@@ -243,7 +245,7 @@ top_model <- best_models |>
 
 Retrieve the fitted model:
 
-```{r, echo=TRUE, eval=FALSE}
+```{r}
 fit_best <- best_models$fit[[
   which.max(
     best_models$CCC
@@ -257,7 +259,7 @@ summary(
 
 Review model diagnostics:
 
-```{r, echo=TRUE, eval=FALSE}
+```{r}
 summary(fit_best)
 ```
 
@@ -275,7 +277,7 @@ The identifiers below are illustrative. Replace them with model identifiers
 selected from the user's own `best_models` object. 
 
 
-```{r, echo=TRUE, eval=FALSE}
+```{r}
 candidate_models <- c(
   63,
   23,
@@ -287,7 +289,7 @@ Therefore, three candidate models (best ranked [63], and the two lower-ranked mo
 
 # Unweighted ensemble
 
-```{r, echo=TRUE, eval=FALSE}
+```{r}
 ens_unweighted <- ensemble_bestfit(
   bestfit = best_models,
 
@@ -300,13 +302,13 @@ ens_unweighted <- ensemble_bestfit(
 
 ## Inspect results
 
-```{r, echo=TRUE, eval=FALSE}
+```{r}
 ens_unweighted$ensemble_summary
 ```
 
 # Weighted ensemble
 
-```{r, echo=TRUE, eval=FALSE}
+```{r}
 ens_weighted <- ensemble_bestfit(
   bestfit = best_models,
 
@@ -324,13 +326,13 @@ ens_weighted <- ensemble_bestfit(
 
 ## Inspect results
 
-```{r, echo=TRUE, eval=FALSE}
+```{r}
 ens_weighted$ensemble_summary
 ```
 
 # Stacked ensemble
 
-```{r, echo=TRUE, eval=FALSE}
+```{r}
 ens_stacked <- ensemble_bestfit(
   bestfit = best_models,
 
@@ -348,13 +350,13 @@ ens_stacked <- ensemble_bestfit(
 
 ## Inspect results
 
-```{r, echo=TRUE, eval=FALSE}
+```{r}
 ens_stacked$ensemble_summary
 ```
 
 # Comparing ensemble strategies
 
-```{r, echo=TRUE, eval=FALSE}
+```{r}
 ensemble_metrics <- dplyr::bind_rows(
   Unweighted = ens_unweighted$ensemble_summary,
   Weighted = ens_weighted$ensemble_summary,
@@ -538,7 +540,7 @@ best_plot <- best_models_plot %>%
   )
 ```
 
-```{r, echo=TRUE, eval=FALSE}
+```{r}
 final_plot <- ensemble_gg + best_plot +
   plot_layout(ncol = 2) +
   plot_annotation(
@@ -616,7 +618,7 @@ defensible assessment.
 
 # Summary
 
-This vignette introduced the `EpiExposure` model-selection and ensemble
+This section introduced the `EpiExposure` model-selection and ensemble
 framework.
 
 The workflow includes:
@@ -632,52 +634,3 @@ The workflow includes:
 Model selection and ensemble construction do not remove model uncertainty.
 Their value depends on the candidate model space, validation design, selection
 rules, and independence of the final performance assessment.
-
-```{r}
-best_binary = readRDS("best_binary.rds")
-
-pred = attr(best_binary, "predictions")
-
-binary = readxl::read_xlsx("data/binomial_data.xlsx")
-
-b01 = pred |> 
-  filter(model_id == 5)
-
-library(caret)
-
-confusionMatrix(data = as.factor(as.numeric(b01$observed > 0.70)),  mode= "everything",  reference = as.factor(b01$predicted_class))
-
-library(PresenceAbsence)
-
-dat_lasso <- data.frame(1, b01$observed, b01$predicted)
-optimal.thresholds(dat_lasso)
-
-
-
-
-```
-```{r}
-best_bdlnm <- find_bestfit(
-  data = epi_data,
-  response = "y",
-  group = "epi_id",
-  time = "time",
-  vars = c(
-    "tmean",
-    "rain",
-    "wetness"),
-  max_lag = 85,
-  df_var_grid = c(3,4),
-  df_lag_grid = c(2,3),
-  model_engine = "bdlnm",
-  family = "poisson",
-  random_effect = "block",
-  random_effect_prior = list(
-    prec = list(prior = "pc.prec",param = c(1,0.01))),
-  cv_method = "k-fold",
-  k = 5,
-  seed = 123,
-  keep_fits = TRUE
-)
-```
-

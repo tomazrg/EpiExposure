@@ -53,7 +53,7 @@ A basic analysis follows five stages:
 4.  prepare the response and fit the model;
 5.  use the fitted model for interpretation, prediction, or simulation.
 
-This vignette introduces the basic workflow but stops before detailed effect interpretation. Lag-specific, period-specific, and cumulative effects are covered in the *Understanding Effects* vignette.
+This section introduces the basic workflow but stops before detailed effect interpretation. Lag-specific, period-specific, and cumulative effects are covered in the *Understanding Effects* section
 
 # Organizing exposure histories
 
@@ -291,7 +291,7 @@ summary(fit)
 
 The individual `cb_*` coefficients are components of the cross-basis expansion. Their signs and $p$-values should not be interpreted as isolated epidemiological effects.
 
-The fitted exposure-lag surface must instead be reconstructed into quantities such as lag-specific, period-specific, and cumulative effects. That process is introduced in the *Understanding Effects* vignette.
+The fitted exposure-lag surface must instead be reconstructed into quantities such as lag-specific, period-specific, and cumulative effects. That process is introduced in the *Understanding Effects* section
 
 # Predicting one complete exposure history
 
@@ -339,7 +339,7 @@ You have now completed the basic `EpiExposure` workflow:
 6.  fitted a DLNM;
 7.  predicted an expected disease outcome.
 
-Continue with the *Understanding Effects* vignette to learn how to:
+Continue with the *Understanding Effects* section to learn how to:
 
 - interpret lag-specific effects;
 - define epidemiological periods;
@@ -347,4 +347,4 @@ Continue with the *Understanding Effects* vignette to learn how to:
 - select meaningful reference exposures;
 - visualize uncertainty across the exposure-lag surface.
 
-More advanced topics, including alternative modeling engines, random effects, spatial Matérn structures, Bayesian estimation, and identifiability diagnostics, are covered in the *Advanced Topics* vignette.
+More advanced topics, including alternative modeling engines, random effects, spatial Matérn structures, Bayesian estimation, and identifiability diagnostics, are covered in the *Advanced Topics* section

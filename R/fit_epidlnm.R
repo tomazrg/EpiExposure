@@ -1486,19 +1486,38 @@ fit_epidlnm <- function(
   if (model_engine %in% c("inla", "bdlnm")) {
     if (!requireNamespace("INLA", quietly = TRUE)) {
       stopf(
-        "Package 'INLA' is required to check likelihood availability for ",
-        "model_engine = '", model_engine, "'."
+        "Package 'INLA' is required for ",
+        "`model_engine = '", model_engine, "'."
       )
     }
 
+    if (identical(model_engine, "bdlnm")) {
+      if (!requireNamespace("bdlnm", quietly = TRUE)) {
+        stopf(
+          "Package 'bdlnm' is required for ",
+          "`model_engine = 'bdlnm'`."
+        )
+      }
 
-    available_likelihoods <- names(INLA::inla.models()$likelihood)
+      if (!requireNamespace("sn", quietly = TRUE)) {
+        stopf(
+          "Package 'sn' is required for posterior sampling with ",
+          "`model_engine = 'bdlnm'`. Install it with ",
+          "`install.packages(\"sn\")`."
+        )
+      }
+    }
 
+    available_likelihoods <- names(
+      INLA::inla.models()$likelihood
+    )
 
     if (!engine_family %in% available_likelihoods) {
       stopf(
-        "Likelihood '", engine_family, "' for EpiExposure family '",
-        family_name, "' and model_engine = '", model_engine, "' is unavailable. ",
+        "Likelihood '", engine_family,
+        "' for EpiExposure family '", family_name,
+        "' and model_engine = '", model_engine,
+        "' is unavailable. ",
         "The current INLA installation does not provide this likelihood."
       )
     }
@@ -2161,10 +2180,6 @@ fit_epidlnm <- function(
 
 
   if (model_engine == "bdlnm") {
-    if (!requireNamespace("bdlnm", quietly = TRUE)) {
-      stopf("Package 'bdlnm' is required for `model_engine = 'bdlnm'`.")
-    }
-
 
     check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
 

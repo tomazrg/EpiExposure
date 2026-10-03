@@ -1,36 +1,36 @@
-#' Find the best DLNM model structure using grouped cross-validation
+#' Find the best DLNM model structure using grouped validation
 #'
 #' Evaluates combinations of exposure variables and cross-basis dimensions using
-#' grouped cross-validation, then ranks candidate models with family-aware
-#' predictive-performance metrics.
+#' grouped validation, then ranks candidate models with family-aware predictive
+#' performance metrics. Three grouped validation strategies are available:
 #'
-#' Two cross-validation schemes are available:
+#' - `"LOOCV"`: grouped leave-one-out cross-validation;
+#' - `"k-fold"`: grouped k-fold cross-validation;
+#' - `"holdout"`: one grouped proportional holdout validation split.
 #'
-#' - `"LOOCV"`: leave one complete group out at a time;
-#' - `"k-fold"`: divide complete groups into `k` approximately equal folds.
+#' The validation unit is always the complete column named by `group`. The
+#' function creates the internal canonical alias `epi_id` from that column, but
+#' never splits a group's exposure-history rows across training and evaluation.
+#' With the default `group = "epi_id"`, complete epidemics are therefore kept
+#' intact in every strategy.
 #'
-#' The unit of cross-validation is always the complete `group`. Exposure-history
-#' rows belonging to one group are never split between training and test data.
-#' For binomial outcomes, grouped k-fold allocation is stratified so the numbers
-#' of outcome-0 and outcome-1 groups are distributed as evenly as possible
-#' across folds.
-#'
-#' The statistical target used for every held-out prediction is the same target
+#' The statistical target used for every validation prediction is the same target
 #' used by the EpiExposure v1 prediction layer: the population/fixed-component
-#' expected response, with fitted random effects set to zero. Cross-validation
-#' ranking uses deterministic predictions from the harmonized central parameter
-#' estimate and does not propagate coefficient, posterior, residual, or
-#' future-observation uncertainty.
+#' expected response, with fitted random effects set to zero. Model ranking uses
+#' deterministic predictions from the harmonized central parameter estimate and
+#' does not propagate coefficient, posterior, residual, or future-observation
+#' uncertainty.
 #'
 #' @param data Long-format data frame containing the response, grouping column,
 #'   chronological time column, and candidate exposure variables.
 #' @param response Character scalar naming the response column in `data`. The
 #'   response may be repeated over exposure-history rows but must be constant
-#'   within each cross-validation group because one outcome is predicted per
+#'   within each complete validation group because one outcome is predicted per
 #'   group.
-#' @param group Character scalar naming the independent cross-validation unit.
-#'   Every row belonging to one group is kept together in either training or
-#'   test data within a fold.
+#' @param group Character scalar naming the independent grouped-validation unit.
+#'   Every row belonging to one group remains together. Internally,
+#'   `data_long$epi_id` is a canonical alias of `data_long[[group]]`; it does not
+#'   redefine the user's grouping structure.
 #' @param time Character scalar naming the chronological time column. Time must
 #'   be finite and unique within groups. Within every group observations must be
 #'   complete and equally spaced, and the time step must be the same across
@@ -65,276 +65,239 @@
 #'   `"binomial"`, `"poisson"`, `"gamma"`, `"gaussian"`, and
 #'   `"negative_binomial"` (NB2). Ordinal outcomes and NB1 are not supported in
 #'   EpiExposure v1. Family-object links are checked against the selected engine
-#'   before cross-validation and passed unchanged to `fit_epidlnm()`.
-#'   To specify a non-default link, supply a supported family object,
-#'   such as family = stats::Gamma(link = "inverse");
-#'   character family names use the EpiExposure default link.
+#'   before validation and passed unchanged to `fit_epidlnm()`. To specify a
+#'   non-default link, supply a supported family object, such as
+#'   `family = stats::Gamma(link = "inverse")`; character family names use the
+#'   EpiExposure default link.
 #' @param random_effect Optional character scalar naming one grouping column used
 #'   as a random intercept by `fit_epidlnm()`. It must be constant within each
-#'   cross-validation group. Random effects may contribute to model fitting, but
-#'   held-out predictions are always population-level and therefore set fitted
+#'   validation group. Random effects may contribute to model fitting, but
+#'   validation predictions are always population-level and therefore set fitted
 #'   random effects to zero. `glm` and `gls` do not accept `random_effect`;
 #'   `gamm` requires it under the current EpiExposure v1 fitting contract.
-#'
-#' @param random_effect_prior Optional named list defining the hyperprior for
-#'   the precision of the random intercept when `model_engine = "inla"` or
+#' @param random_effect_prior Optional named list defining the hyperprior for the
+#'   precision of the random intercept when `model_engine = "inla"` or
 #'   `"bdlnm"`. The list is passed unchanged to the `hyper` argument of the
-#'   internally generated `INLA::f(..., model = "iid")` term.
-#'
-#'   For example,
+#'   internally generated `INLA::f(..., model = "iid")` term. For example,
 #'   `list(prec = list(prior = "pc.prec", param = c(1, 0.01)))`.
-#'   `NULL` retains the engine's default prior. A non-`NULL` value requires
-#'   `random_effect` and is currently supported only for the INLA-backed
-#'   engines. The same prior is used in every cross-validation fold and in
-#'   retained full-data refits.
-#'
-#' @param spatial_effect NULL (default), or two distinct numeric coordinate
+#'   `NULL` retains the engine default. A non-`NULL` value requires
+#'   `random_effect` and is currently supported only for INLA-backed engines.
+#'   The same prior is used in every validation training fit and in retained
+#'   full-data refits.
+#' @param spatial_effect `NULL` (default), or two distinct numeric coordinate
 #'   column names for a Matérn term fitted by `model_engine = "spamm"` only.
 #'   Coordinates are constant within each epidemic but may be identical across
 #'   different epidemics; they never redefine the exposure-history unit.
 #' @param spatial_structure Only `"matern"` is supported (case-insensitive)
 #'   when spatial coordinates are supplied; otherwise this setting is inert.
-#' @param spatial_group NULL for one shared field or a factor, character, or
+#' @param spatial_group `NULL` for one shared field or a factor, character, or
 #'   integer grouping column such as `"year"` for independent spatial fields.
 #'   Requires spatial coordinates and must be constant within each epidemic.
 #'   Spatial effects and `random_effect` are distinct and may coexist.
 #' @param min_success Positive integer of at least 2 giving the minimum number of
-#'   **groups with a finite out-of-fold prediction** required for a candidate to
-#'   be eligible for metric calculation and, when requested, full-data refitting.
-#'
-#'   `min_success` counts successful group-level predictions, not successful
-#'   folds. Under `"LOOCV"` these quantities coincide because each fold contains
-#'   one held-out group. Under `"k-fold"` one fold contains multiple groups, so a
-#'   failed fold can remove several out-of-fold predictions at once.
-#'
-#'   `min_success` is a technical eligibility threshold, not a recommendation
-#'   that large numbers of failed predictions are acceptable. Candidate output
-#'   also reports `n_success`, `n_failed`, `n_success_folds`, and
-#'   `n_failed_folds` so cross-validation completeness can be inspected.
+#'   **evaluation groups with a finite out-of-sample validation prediction**
+#'   required for a candidate to be eligible for metric calculation and, when
+#'   requested, full-data refitting. Under LOOCV and k-fold, all groups are
+#'   evaluation groups. Under holdout, only the fixed test groups count toward
+#'   `n_success`, `n_failed`, and `min_success`; holdout training groups are never
+#'   counted as failed predictions. Candidate diagnostics retain
+#'   `n_success_folds` and `n_failed_folds` as complete-validation-iteration
+#'   counters: for holdout there is one iteration, successful only when every
+#'   designated test group receives a finite prediction.
 #' @param rank_metric Optional character scalar selecting the primary ranking
 #'   metric. If `NULL`, the default is `"CCC"` for non-binary outcomes and
 #'   `"ROC_AUC"` for binary outcomes. Non-binary metrics are `"CCC"`, `"Cb"`,
 #'   `"rho"`, `"RMSE"`, and `"MAE"`. Binary metrics are `"ROC_AUC"`, `"Brier"`,
 #'   `"LogLoss"`, `"Accuracy"`, `"Balanced_Accuracy"`, `"Sensitivity"`,
-#'   `"Specificity"`, `"F1"`, `"MCC"`, and `"Precision"`. Metric direction
-#'   (maximize/minimize) is resolved automatically.
+#'   `"Specificity"`, `"F1"`, `"MCC"`, and `"Precision"`. Metric direction is
+#'   resolved automatically.
 #' @param threshold Numeric probability strictly between 0 and 1 used only for
 #'   binomial classification metrics. The default is `0.5`. Predicted
 #'   probabilities are retained; thresholding is used only to create the
 #'   auxiliary 0/1 class required by classification metrics. ROC AUC, Brier
 #'   score, and Log Loss do not depend on the threshold.
 #' @param top_n Positive integer or `Inf`; number of ranked candidates returned.
-#' @param keep_fits Logical. If `TRUE`, every candidate that reaches
-#'   `min_success` is refitted on the complete data using a full-data basis.
-#'   After ranking and `top_n` filtering, only retained candidate fits are stored
-#'   in `attr(result, "fits")`. This preserves the historical behavior of
-#'   `find_bestfit()`.
-#' @param verbose Logical. Print progress and concise warning summaries.
-#' @param cv_method Character. Cross-validation scheme: `"LOOCV"` (default) or
-#'   `"k-fold"`. `"LOOCV"` leaves one complete group out at a time. `"k-fold"`
-#'   assigns complete groups to `k` folds and never splits exposure-history rows
-#'   from one group across folds.
+#' @param keep_fits Logical. Validation metrics are always calculated first and
+#'   exclusively from out-of-sample predictions produced by the selected
+#'   validation strategy. If `TRUE`, every candidate that reaches `min_success`
+#'   is **then** refitted on the complete data using a full-data basis. These
+#'   full-data refits do not generate, replace, or alter validation predictions
+#'   and do not participate in metric calculation or ranking. After ranking and
+#'   `top_n` filtering, only retained candidate fits are stored in
+#'   `attr(result, "fits")`. They are intended for downstream visualization,
+#'   epidemiological interpretation, exposure-lag-response surfaces, effect
+#'   summaries, lag decomposition, scenario simulation, and later prediction.
+#' @param verbose Logical. Print the validation strategy, candidate grid,
+#'   execution mode, concise warning summaries, and completion information.
+#' @param validation_method Character grouped-validation strategy. `"LOOCV"`
+#'   leaves one complete group out per iteration. `"k-fold"` assigns complete
+#'   groups to `k` approximately balanced folds. `"holdout"` creates one fixed
+#'   grouped proportional training/test split and uses the test groups as the
+#'   validation set for every candidate. All strategies operate on complete
+#'   groups and never split temporal rows from one group across partitions.
 #' @param k Positive integer number of folds used only when
-#'   `cv_method = "k-fold"`. It must satisfy `2 <= k < number of groups`.
-#'
-#'   Fold sizes are made as equal as possible; therefore the number of groups in
-#'   any two folds differs by at most one. For binomial outcomes, allocation is
-#'   additionally stratified by the group-level 0/1 response. Each outcome class
-#'   must contain at least `k` groups so every fold can contain both classes.
-#' @param seed Optional non-negative integer controlling only the random
-#'   assignment of groups to folds when `cv_method = "k-fold"`. Supplying a seed
-#'   makes `attr(result, "fold_assignments")` reproducible. The caller's existing
-#'   global random-number state is restored after fold construction. `seed` does
-#'   not alter LOOCV fold membership and is not passed to `fit_epidlnm()`.
+#'   `validation_method = "k-fold"`. It must satisfy
+#'   `2 <= k < number of groups`. Fold sizes differ by at most one group. For
+#'   binomial outcomes, allocation is additionally stratified by the group-level
+#'   0/1 response and each response class must contain at least `k` groups.
+#' @param test_prop Numeric scalar strictly between 0 and 1 giving the requested
+#'   approximate proportion of complete groups reserved for the test partition
+#'   when `validation_method = "holdout"`. The default `0.30` requests
+#'   approximately 70 percent of groups for training and 30 percent for testing.
+#'   It is validated for every call but ignored by LOOCV and k-fold. For binary
+#'   outcomes, the effective holdout size may be adjusted to the closest feasible
+#'   value that keeps both outcomes 0 and 1 in both training and test partitions.
+#' @param seed Optional non-negative integer controlling grouped allocation for
+#'   `validation_method = "k-fold"` and the grouped train/test split for
+#'   `validation_method = "holdout"`. The same data, group order, validation
+#'   method, `test_prop`, and seed reproduce the same allocation. The caller's
+#'   existing global `.Random.seed` is restored after allocation. `seed` does not
+#'   alter LOOCV membership and is not passed to `fit_epidlnm()`.
 #' @param ... Named additional arguments passed to `fit_epidlnm()`. Core
 #'   arguments managed by `find_bestfit()` (`data`, `model_engine`, `family`,
 #'   `random_effect`, `random_effect_prior`, `spatial_effect`,
 #'   `spatial_structure`, `spatial_group`, `epiexposure_spec`, and
-#'   `basis_objects`) cannot be supplied again through `...`.
-#'   For INLA-backed engines, likelihood availability,
-#'   `control.family$control.link$model` consistency, and
-#'   `control.compute$config = TRUE` compatibility are checked before CV.
-#'   `fit_epidlnm()` then supplies required INLA controls during each fit.
+#'   `basis_objects`) cannot be supplied again through `...`. For INLA-backed
+#'   engines, likelihood availability, `control.family$control.link$model`
+#'   consistency, and `control.compute$config = TRUE` compatibility are checked
+#'   before validation. `fit_epidlnm()` supplies required INLA controls during
+#'   each fit.
 #'
 #' @return A data frame ranked by `rank_metric`. Non-binary families report
-#'   `CCC`, `Cb`, `rho`, `RMSE`, and `MAE`. Binomial models report `ROC_AUC`,
+#'   `CCC`, `Cb`, `rho`, `RMSE`, and `MAE`; binomial models report `ROC_AUC`,
 #'   `Brier`, `LogLoss`, `Accuracy`, `Balanced_Accuracy`, `Sensitivity`,
 #'   `Specificity`, `F1`, `MCC`, and `Precision`.
 #'
-#'   Candidate diagnostics distinguish prediction completeness from fold
-#'   completeness. `n_success` and `n_failed` count held-out groups, whereas
-#'   `n_success_folds` and `n_failed_folds` count folds. A fold is considered
-#'   successful only when every group assigned to that fold receives a finite
-#'   out-of-fold prediction.
+#'   Candidate diagnostics include `n_groups_total`, `n_predictions`,
+#'   `n_success`, `n_failed`, `n_folds`, `n_success_folds`, and
+#'   `n_failed_folds`. `n_predictions` is the number of groups assigned to
+#'   out-of-sample evaluation: all groups for LOOCV/k-fold, but only test groups
+#'   for holdout. The `*_folds` fields are retained as validation-iteration
+#'   counters; holdout therefore has one iteration.
 #'
-#'   The result retains the diagnostic attributes used by earlier versions:
-#'   `"predictions"`, `"predictions_by_model"`, `"failures"`, `"warnings"`,
-#'   `"warning_summary"`, `"timing"`, and `"candidate_times"`. With
-#'   `keep_fits = TRUE`, `"fits"` contains retained full-data refits.
+#'   Diagnostic attributes include `"predictions"`, `"predictions_by_model"`,
+#'   `"failures"`, `"warnings"`, `"warning_summary"`, `"timing"`, and
+#'   `"candidate_times"`. With `keep_fits = TRUE`, `"fits"` contains retained
+#'   full-data refits and `"retained_fit_scope"` is
+#'   `"full_data_refit_after_validation"`; otherwise `"retained_fit_scope"` is
+#'   `NA_character_`.
 #'
-#'   Cross-validation metadata include:
+#'   Grouped-validation metadata include:
 #'
-#'   - `"cv_method"`: `"LOOCV"` or `"k-fold"`;
-#'   - `"cv_scheme"`: normalized descriptive scheme;
-#'   - `"k"`: effective number of folds;
-#'   - `"cv_seed"`: supplied k-fold seed or `NA`;
-#'   - `"cv_stratified"`: whether binomial stratification was used;
-#'   - `"fold_assignments"`: data frame with `group`, `fold`, and `observed`,
-#'     giving the single fold assigned to every independent group;
-#'   - `"fold_balance"`: number of groups per fold and, for binomial outcomes,
-#'     the numbers of outcome-0 and outcome-1 groups.
+#'   - `"validation_method"`: `"LOOCV"`, `"k-fold"`, or `"holdout"`;
+#'   - `"validation_scheme"`: normalized descriptive scheme;
+#'   - `"k"`: number of LOOCV iterations for LOOCV, supplied `k` for k-fold,
+#'     and `NA_integer_` for holdout;
+#'   - `"validation_seed"`: supplied k-fold/holdout seed or `NA_integer_`;
+#'   - `"validation_stratified"`: whether binomial stratification was used;
+#'   - `"test_prop"`: requested holdout proportion, otherwise `NA_real_`;
+#'   - `"n_groups_total"` and `"n_evaluation_groups"`;
+#'   - `"training_groups"`, `"test_groups"`, and `"evaluation_groups"`;
+#'   - `"validation_assignments"`: data frame with `group`, `partition`, `fold`,
+#'     and `observed`; holdout uses fixed `train`/`test` partitions, whereas
+#'     LOOCV/k-fold use `partition = "evaluation"` and the evaluation fold;
+#'   - `"validation_balance"`: fold-level counts for LOOCV/k-fold or train/test
+#'     counts for holdout, including 0/1 class counts for binomial outcomes.
 #'
-#'   Standard downstream metadata are stored in `"family"`, `"outcome_type"`,
-#'   `"rank_metric"`, and `"threshold"`. The selected random-intercept column,
-#'   the INLA latent random-effect model, and its optional hyperprior are stored
-#'   in `"random_effect"`, `"random_effect_model"`, and
-#'   `"random_effect_prior"`, respectively. `"random_effect_model"` is `"iid"`
-#'   for INLA-backed random-intercept fits and `NA_character_` when no INLA
-#'   latent random-effect model applies.
-#'
-#'   Additional attributes document the prediction contract:
-#'   `"prediction_level" = "population"`,
-#'   `"prediction_estimand" = "expected_response"`,
-#'   `"prediction_contract" = "central_expected_response"`,
-#'   `"basis_training_only" = TRUE`, `"max_lag"`, `"history_length"`,
-#'   `"history_contract"`, and `"time_step"`.
+#'   Standard downstream metadata are retained in `"family"`, `"outcome_type"`,
+#'   `"rank_metric"`, `"threshold"`, `"prediction_level"`,
+#'   `"prediction_estimand"`, `"prediction_contract"`, `"random_effect"`,
+#'   `"random_effect_model"`, `"random_effect_prior"`, `"spatial_effect"`,
+#'   `"spatial_structure"`, `"spatial_group"`, `"spatial_term"`,
+#'   `"has_spatial_effect"`, `"basis_training_only"`, `"max_lag"`,
+#'   `"history_length"`, `"history_contract"`, and `"time_step"`.
 #'
 #' @details
-#' ## Grouped cross-validation
+#' ## Grouped validation and cross-validation
 #'
-#' Fold membership is constructed once before candidate evaluation and reused
-#' unchanged for every candidate model. This ensures that candidate metrics are
-#' compared on exactly the same training/test partitions.
+#' Validation membership is constructed once before candidate evaluation and is
+#' reused unchanged for every candidate. This guarantees fair comparison on the
+#' same out-of-sample groups. LOOCV produces one evaluation iteration per group.
+#' Grouped k-fold randomizes complete groups into approximately balanced folds;
+#' for binomial outcomes, allocation is stratified so both classes occur in every
+#' fold whenever the documented class-count requirement is satisfied.
 #'
-#' With `cv_method = "LOOCV"`, a data set containing \eqn{G} groups produces
-#' \eqn{G} folds, each containing one test group.
+#' ## Grouped proportional holdout
 #'
-#' With `cv_method = "k-fold"`, complete groups are randomized into `k`
-#' approximately equal folds. The total number of groups does not need to be
-#' divisible by `k`; for example, 521 groups with `k = 5` produce fold sizes
-#' 105, 104, 104, 104, and 104 in some fold order.
+#' With `validation_method = "holdout"`, the function creates exactly one grouped
+#' training/test split before candidate evaluation. `test_prop` determines the
+#' requested approximate fraction of complete groups assigned to testing. For
+#' non-binary outcomes, test groups are sampled directly. For binary outcomes,
+#' sampling is stratified at the **group-level response**, not at longitudinal
+#' row level, and both outcomes 0 and 1 are required in both partitions. At least
+#' two complete groups in each class are therefore required.
 #'
-#' For binomial outcomes, k-fold allocation is grouped and stratified. Outcome-0
-#' groups and outcome-1 groups are each distributed as evenly as possible while
-#' maintaining overall fold balance. Because every fold is required to contain
-#' both classes, `k` cannot exceed the number of groups in the less frequent
-#' class.
+#' Every candidate uses the same fixed holdout partition. `define_exposures()` is
+#' called only on the holdout training groups, so exposure-basis knots, boundary
+#' knots, effective dimensions, `argvar`, `arglag`, templates, and related
+#' cross-basis attributes are learned exclusively from training data. The stored
+#' training template is then transported unchanged to the holdout test histories
+#' by `.build_design_from_templates()`. Test values never redefine the basis.
 #'
-#' Engine, family, and link compatibility is validated before candidate
-#' evaluation. Unsupported combinations fail immediately rather than producing
-#' repeated fitting failures across folds.
+#' Holdout metrics are calculated exclusively from predictions for the fixed test
+#' groups. Because that same test subset is used to compare and rank candidate
+#' structures, it is a **validation** holdout, not an untouched final external
+#' test set. A final independent external evaluation requires another data set or
+#' partition that was never used for candidate selection. If `keep_fits = TRUE`,
+#' eligible candidates are refitted on all available data only after their
+#' validation metrics have already been calculated; these refits are downstream
+#' models and never replace holdout predictions.
 #'
 #' ## Training-only basis construction
 #'
-#' For every fold, `define_exposures()` is called **only on the training groups**.
-#' The effective `argvar`, `arglag`, lag range, spline knots, and boundary knots
-#' stored in those returned training cross-basis objects are then reused to
-#' transform every held-out exposure history. Held-out values therefore never
-#' determine the training basis parameterization.
+#' For every validation iteration, `define_exposures()` receives only the
+#' corresponding training groups. The effective `argvar`, `arglag`, lag range,
+#' spline knots, boundary knots, and other returned basis attributes are reused
+#' to transform the evaluation histories. For highly skewed predictors or many
+#' repeated values, `splines::ns()` may warn when an interior knot coincides with
+#' a boundary knot; the effective training basis returned after that adjustment
+#' is the template transported to evaluation data.
 #'
-#' For predictors with highly skewed distributions or many repeated values,
-#' `splines::ns()` may issue a knot-placement warning when interior knots
-#' coincide with boundary values. This adjustment is handled automatically
-#' and does not prevent model fitting.
-#'
-#' Reusing the training basis does not mean reusing the same numerical
-#' cross-basis matrix. Held-out exposure values produce new matrix values, but
-#' they are transformed with the **same training basis parameterization**.
-#'
-#' The function validates basis transport explicitly. For every candidate, the
-#' requested `max_lag`, the lag stored in the training cross-basis, and the lag
-#' stored in the exposure specification must agree. Reconstructed training and
-#' held-out cross-bases must have the same number of columns and, when native
-#' cross-basis column names are available, the same native column names/order as
-#' the training template. Canonical EpiExposure columns
-#' `cb_<variable>_<index>` are then assigned deterministically.
-#'
-#' For `model_engine = "bdlnm"`, an additional epidemic-level matrix-form
-#' cross-basis is built from those same training parameters so the cross-basis
-#' included in the `bdlnm` formula has exactly one row per epidemic-level
-#' outcome. Its numerical values are checked against the canonical candidate
-#' design before fitting. Native cross-basis column names are then prefixed
-#' with their exposure-variable names so all internal INLA keys remain unique
-#' when multiple exposure bases are included in the same candidate model.
-#'
-#' The design-matrix attribute `cb_templates` stores the **original training
-#' templates**, not cross-bases reconstructed from the first epidemic. The
-#' effective specification passed to `fit_epidlnm()` is synchronized with the
-#' returned training-template attributes.
+#' The function validates basis transport explicitly. Requested `max_lag`, the
+#' lag stored in training cross-bases, and the lag stored in the exposure
+#' specification must agree. Reconstructed training and evaluation cross-bases
+#' must have matching dimensions and native column names/order. Canonical
+#' `cb_<variable>_<index>` names are assigned deterministically. For
+#' `model_engine = "bdlnm"`, an epidemic-level matrix-form cross-basis is built
+#' from the same training parameters, numerically checked against the canonical
+#' design, and exposure-prefixed so internal INLA names remain globally unique.
 #'
 #' ## Temporal requirements
 #'
-#' A vector supplied to `dlnm::crossbasis()` represents one complete, ordered,
-#' equally spaced exposure history. Accordingly, this function rejects
-#' duplicated or irregular time values, requires the same time step across
-#' groups, and requires **exactly `max_lag + 1` observations in every group**.
-#'
-#' Histories with fewer observations are rejected because the fitted lag window
-#' is incomplete. Histories with more observations are also rejected: they are
-#' not truncated to a trailing window and the function never chooses silently
-#' which observations define the epidemiological history.
-#'
-#' All candidate exposure variables are columns of these same validated
-#' long-format rows and must contain only finite values. Therefore every
-#' candidate variable uses exactly the same number of time points and the same
-#' temporal positions within each group.
+#' Every complete group must contain exactly `max_lag + 1` ordered, equally
+#' spaced observations. Histories are never truncated, padded, or silently
+#' realigned. All candidate exposures are finite columns of the same validated
+#' long-format rows and therefore share identical temporal support.
 #'
 #' ## Optional spatial covariance
 #'
-#' Only spaMM accepts `spatial_effect = c("x_coord", "y_coord")`.
-#' This adds `Matern(1 | x_coord + y_coord)` during fitting; adding
-#' `spatial_group = "year"` uses independent Matérn field realizations.
-#' `random_effect` remains an independent conventional intercept. All spatial
-#' and conventional random effects are set to zero for CV point predictions.
-#' CV still leaves whole epidemics out; it does not automatically hold out
-#' all epidemics sharing the same random-effect or spatial-field level.
+#' Only spaMM accepts `spatial_effect = c("x_coord", "y_coord")`. This adds a
+#' Matérn term during fitting; `spatial_group` may define independent fields.
+#' Conventional random effects remain distinct. All fitted random and spatial
+#' effects are set to zero for population-level validation predictions.
 #'
-#' ## Held-out prediction target
+#' ## Validation prediction target, warnings, and ranking
 #'
-#' Every successful held-out group receives one deterministic out-of-fold
-#' prediction of the expected response from the harmonized central
-#' fixed/population parameter estimate. Group-specific random effects are set to
-#' zero, including when a random intercept was fitted and held-out groups are
-#' unseen. Bayesian engines therefore use posterior-mean fixed parameters for
-#' deterministic CV prediction; candidates are not ranked using medians of
-#' posterior expected predictions.
+#' Every successful evaluation group receives one deterministic out-of-sample
+#' expected-response prediction from the harmonized central fixed/population
+#' parameter estimate. For LOOCV and k-fold these are out-of-fold predictions;
+#' for holdout they are out-of-sample holdout predictions. Coefficient/posterior
+#' uncertainty and residual/future-observation noise are excluded from ranking.
 #'
-#' Coefficient/posterior uncertainty and residual/future-observation noise are
-#' intentionally excluded from model ranking. `find_bestfit()` evaluates point
-#' predictive performance; uncertainty belongs to downstream prediction and
-#' effect functions.
+#' Warnings raised during fitting/prediction are captured and classified as
+#' `"knot"`, `"convergence"`, `"hessian"`, or `"other"`; warnings do not by
+#' themselves make a validation iteration fail. Candidate ranking uses
+#' `rank_metric` first, with the remaining family-appropriate metrics as
+#' deterministic tie-breakers in canonical order.
 #'
-#' ## Performance, warnings, and ranking
-#'
-#' Performance metrics are computed after all successful out-of-fold group
-#' predictions for a candidate have been collected. Both `find_bestfit()` and
-#' `ensemble_bestfit()` use `.compute_performance_metrics()` so metric
-#' definitions are shared across the package.
-#'
-#' For non-binary outcomes (`beta`, `poisson`, `gamma`, `gaussian`, and
-#' `negative_binomial`), performance is summarized by CCC, Cb, Pearson
-#' correlation, RMSE, and MAE. For binomial outcomes, out-of-fold probabilities
-#' are retained for ROC AUC, Brier score, and Log Loss; `threshold` is applied
-#' only when classification metrics are calculated.
-#'
-#' Warnings raised during fold fitting/prediction are captured and classified as
-#' `"knot"`, `"convergence"`, `"hessian"`, or `"other"`. Warning occurrence does
-#' not by itself make a fold fail. Performance-metric warnings are recorded at
-#' candidate level. When `verbose = TRUE`, only concise candidate-level warning
-#' summaries are emitted after evaluation.
-#'
-#' Candidate ranking uses `rank_metric` first. Remaining family-appropriate
-#' metrics are deterministic tie-breakers in canonical order, each with its own
-#' maximize/minimize direction.
-#'
-#' Candidate-level parallelism is preserved: when the caller has configured a
-#' `future` plan with more than one worker, candidates are evaluated in parallel
-#' while all cross-validation folds belonging to one candidate remain
-#' sequential.
+#' Candidate-level parallelism is preserved. When the caller configures a
+#' `future` plan with more than one worker, one future owns each candidate and
+#' that candidate's validation iterations remain sequential. The function does
+#' not change the caller's global `future::plan()`.
 #'
 #' @examples
 #' \dontrun{
-#' # Requires a long-format epidemic data frame `dat` with these columns:
+#' # Existing grouped-validation examples:
 #' find_bestfit(dat, vars = "tmean", max_lag = 10, model_engine = "spamm",
 #'              family = "poisson", random_effect = "epi_id")
 #' find_bestfit(dat, vars = "tmean", max_lag = 10, model_engine = "spamm",
@@ -345,6 +308,40 @@
 #' find_bestfit(dat, vars = "tmean", max_lag = 10, model_engine = "spamm",
 #'              family = "poisson", random_effect = "block_id",
 #'              spatial_effect = c("x_coord", "y_coord"), spatial_group = "year")
+#'
+#' # Grouped proportional holdout for a non-binary response:
+#' best_holdout <- find_bestfit(
+#'   data = dat,
+#'   response = "y",
+#'   group = "epi_id",
+#'   time = "time",
+#'   vars = c("tmean", "rain", "wetness"),
+#'   max_lag = 10,
+#'   model_engine = "glm",
+#'   family = "poisson",
+#'   validation_method = "holdout",
+#'   test_prop = 0.30,
+#'   seed = 123,
+#'   top_n = 1,
+#'   keep_fits = TRUE
+#' )
+#'
+#' # Grouped stratified holdout for a binary response:
+#' best_binary_holdout <- find_bestfit(
+#'   data = dat_binomial,
+#'   response = "y",
+#'   group = "epi_id",
+#'   time = "time",
+#'   vars = c("tmean", "rain"),
+#'   max_lag = 10,
+#'   model_engine = "glm",
+#'   family = "binomial",
+#'   validation_method = "holdout",
+#'   test_prop = 0.30,
+#'   seed = 123,
+#'   top_n = 1,
+#'   keep_fits = TRUE
+#' )
 #' }
 #' @export
 find_bestfit <- function(
@@ -374,8 +371,9 @@ find_bestfit <- function(
     top_n = Inf,
     keep_fits = FALSE,
     verbose = TRUE,
-    cv_method = c("LOOCV", "k-fold"),
+    validation_method = c("LOOCV", "k-fold", "holdout"),
     k = 5,
+    test_prop = 0.30,
     seed = NULL,
     ...
 ) {
@@ -388,9 +386,9 @@ find_bestfit <- function(
     )
   )
 
-  cv_method <- match.arg(
-    cv_method,
-    choices = c("LOOCV", "k-fold")
+  validation_method <- match.arg(
+    validation_method,
+    choices = c("LOOCV", "k-fold", "holdout")
   )
 
   function_start_time <- proc.time()[["elapsed"]]
@@ -628,16 +626,26 @@ find_bestfit <- function(
       is.finite(x) && x == as.integer(x)
   }
 
-  if (identical(cv_method, "k-fold")) {
+  if (identical(validation_method, "k-fold")) {
     if (!is_whole_scalar(k) || k < 2L) {
       stop(
         "`k` must be an integer greater than or equal to 2 when ",
-        "`cv_method = 'k-fold'`.",
+        "`validation_method = 'k-fold'`.",
         call. = FALSE
       )
     }
     k <- as.integer(k)
   }
+
+  if (!is.numeric(test_prop) || length(test_prop) != 1L ||
+      is.na(test_prop) || !is.finite(test_prop) ||
+      test_prop <= 0 || test_prop >= 1) {
+    stop(
+      "`test_prop` must be one finite numeric value strictly between 0 and 1.",
+      call. = FALSE
+    )
+  }
+  test_prop <- as.numeric(test_prop)
 
   if (!is.null(seed)) {
     if (!is.numeric(seed) || length(seed) != 1L || is.na(seed) ||
@@ -1076,8 +1084,8 @@ find_bestfit <- function(
     input_link %||% default_family_link(family_name)
   )
 
-  # Reject unsupported engine/family/link combinations BEFORE starting any CV
-  # candidate. fit_epidlnm() repeats this validation before native fitting.
+  # Reject unsupported engine/family/link combinations BEFORE starting any
+  # validation candidate. fit_epidlnm() repeats this validation before native fitting.
   validate_family_link(
     family_name = family_name,
     link_name = link_name,
@@ -1114,7 +1122,7 @@ find_bestfit <- function(
       )
     }
 
-    # Validate conflicting INLA controls once, before creating CV folds. Do not
+    # Validate conflicting INLA controls once, before creating validation partitions. Do not
     # change fit_dots: fit_epidlnm() injects the required settings for every fit.
     control_family <- fit_dots$control.family %||% list()
     if (!is.list(control_family)) {
@@ -1177,7 +1185,7 @@ find_bestfit <- function(
   if (anyDuplicated(response_check$epi_id)) {
     stop(
       "Multiple distinct response values were found within at least one ",
-      "cross-validation group. One group-level outcome is required.",
+      "validation group. One group-level outcome is required.",
       call. = FALSE
     )
   }
@@ -1241,7 +1249,7 @@ find_bestfit <- function(
     )
 
     stop(
-      "Every cross-validation group must contain exactly ",
+      "Every validation group must contain exactly ",
       required_history_length,
       " equally spaced observations for max_lag = ",
       max_lag,
@@ -1264,21 +1272,21 @@ find_bestfit <- function(
   }
 
   # A random-intercept column used in one epidemic-level model row must itself
-  # be unique/constant inside each cross-validation group.
+  # be unique/constant inside each validation group.
   if (!is.null(random_effect) && random_effect != group) {
     re_check <- unique(
       data_long[, c("epi_id", random_effect), drop = FALSE]
     )
     if (anyDuplicated(re_check$epi_id)) {
       stop(
-        "`random_effect` must be constant within each cross-validation group because ",
+        "`random_effect` must be constant within each validation group because ",
         "the fitted design contains one row per group.",
         call. = FALSE
       )
     }
   }
 
-  # Check the entire original data once, before creating CV folds/candidates.
+  # Check the entire original data once, before creating validation partitions/candidates.
   # Keep epidemic histories separate even when coordinate pairs are repeated.
   .epix_validate_spatial_constancy(
     data = data_long,
@@ -1339,7 +1347,7 @@ find_bestfit <- function(
     if (identical(outcome_type, "binary")) {
       message(
         "Classification threshold = ", format(threshold),
-        ". It is applied only to out-of-fold predicted probabilities when ",
+        ". It is applied only to out-of-sample predicted probabilities when ",
         "classification metrics are computed; ROC_AUC, Brier, and LogLoss ",
         "remain probability-scale metrics."
       )
@@ -1998,7 +2006,7 @@ find_bestfit <- function(
       return(design)
     }
 
-    # When the random intercept is the same as the CV group, the canonical
+    # When the random intercept is the same as the validation group, the canonical
     # epidemic id already contains exactly the required grouping information.
     if (identical(random_effect, group)) {
       if (!identical(group, "epi_id")) {
@@ -2282,7 +2290,7 @@ find_bestfit <- function(
   }
 
   # --------------------------------------------------------------------------
-  # Cross-validation fold construction
+  # Grouped validation partition construction
   # --------------------------------------------------------------------------
 
   group_ids <- as.character(response_check$epi_id)
@@ -2291,49 +2299,58 @@ find_bestfit <- function(
 
   if (n_groups < 2L) {
     stop(
-      "At least two independent groups are required for cross-validation.",
+      "At least two independent groups are required for grouped validation.",
       call. = FALSE
     )
   }
 
   if (anyDuplicated(group_ids)) {
     stop(
-      "Internal cross-validation error: group identifiers are not unique after ",
+      "Internal validation error: group identifiers are not unique after ",
       "canonicalization.",
       call. = FALSE
     )
   }
 
-  if (min_success > n_groups) {
-    stop(
-      "`min_success` cannot exceed the number of independent groups (",
-      n_groups, ").",
-      call. = FALSE
-    )
-  }
+  validation_stratified <- FALSE
+  training_groups <- character(0)
+  test_groups <- character(0)
+  evaluation_groups <- character(0)
+  n_training_groups <- NA_integer_
+  n_test_groups <- NA_integer_
+  effective_test_prop <- NA_real_
 
-  cv_stratified <- FALSE
-
-  if (identical(cv_method, "LOOCV")) {
+  if (identical(validation_method, "LOOCV")) {
 
     n_folds <- n_groups
     effective_k <- n_folds
     fold_assignment <- seq_len(n_groups)
-    cv_scheme <- "leave_one_group_out"
+    validation_scheme <- "leave_one_group_out"
+    evaluation_groups <- group_ids
 
-  } else {
+    validation_assignments <- data.frame(
+      group = group_ids,
+      partition = rep("evaluation", n_groups),
+      fold = as.integer(fold_assignment),
+      observed = group_response,
+      stringsAsFactors = FALSE
+    )
+
+  } else if (identical(validation_method, "k-fold")) {
 
     if (k >= n_groups) {
       stop(
-        "For `cv_method = 'k-fold'`, `k` must be smaller than the number of ",
-        "independent groups. Received k = ", k, " and ", n_groups,
-        " groups. Use `cv_method = 'LOOCV'` to leave one group out at a time.",
+        "For `validation_method = 'k-fold'`, `k` must be smaller than the ",
+        "number of independent groups. Received k = ", k, " and ", n_groups,
+        " groups. Use `validation_method = 'LOOCV'` to leave one group out ",
+        "at a time.",
         call. = FALSE
       )
     }
 
     n_folds <- k
     effective_k <- k
+    evaluation_groups <- group_ids
 
     if (identical(outcome_type, "binary")) {
 
@@ -2358,13 +2375,13 @@ find_bestfit <- function(
           "Grouped stratified k-fold validation cannot place both binomial ",
           "classes in every fold because the less frequent class contains only ",
           minority_count, " group(s), while k = ", k, ". Choose `k <= ",
-          minority_count, "` or use `cv_method = 'LOOCV'`.",
+          minority_count, "` or use `validation_method = 'LOOCV'`.",
           call. = FALSE
         )
       }
 
-      cv_stratified <- TRUE
-      cv_scheme <- "stratified_grouped_k_fold"
+      validation_stratified <- TRUE
+      validation_scheme <- "stratified_grouped_k_fold"
 
       fold_assignment <- .with_local_seed(
         seed,
@@ -2425,7 +2442,7 @@ find_bestfit <- function(
 
     } else {
 
-      cv_scheme <- "grouped_k_fold"
+      validation_scheme <- "grouped_k_fold"
 
       fold_assignment <- .with_local_seed(
         seed,
@@ -2442,109 +2459,417 @@ find_bestfit <- function(
         }
       )
     }
-  }
 
-  if (length(fold_assignment) != n_groups ||
-      anyNA(fold_assignment) ||
-      any(!fold_assignment %in% seq_len(n_folds))) {
-    stop(
-      "Internal cross-validation error: invalid fold assignment.",
-      call. = FALSE
+    if (length(fold_assignment) != n_groups ||
+        anyNA(fold_assignment) ||
+        any(!fold_assignment %in% seq_len(n_folds))) {
+      stop(
+        "Internal validation error: invalid k-fold assignment.",
+        call. = FALSE
+      )
+    }
+
+    validation_assignments <- data.frame(
+      group = group_ids,
+      partition = rep("evaluation", n_groups),
+      fold = as.integer(fold_assignment),
+      observed = group_response,
+      stringsAsFactors = FALSE
     )
-  }
 
-  fold_assignments <- data.frame(
-    group = group_ids,
-    fold = as.integer(fold_assignment),
-    observed = group_response,
-    stringsAsFactors = FALSE
-  )
+  } else {
 
-  fold_sizes <- tabulate(
-    fold_assignments$fold,
-    nbins = n_folds
-  )
-
-  if (any(fold_sizes < 1L)) {
-    stop(
-      "Internal cross-validation error: at least one fold contains no groups.",
-      call. = FALSE
+    # One grouped proportional holdout split is created once and reused by all
+    # candidate models. Complete groups are never divided across partitions.
+    n_test_target <- as.integer(round(n_groups * test_prop))
+    n_test_target <- max(
+      1L,
+      min(n_groups - 1L, n_test_target)
     )
-  }
 
-  if (identical(cv_method, "k-fold") &&
-      max(fold_sizes) - min(fold_sizes) > 1L) {
-    stop(
-      "Internal cross-validation error: grouped k-fold allocation is not ",
-      "balanced by number of groups.",
-      call. = FALSE
-    )
-  }
+    if (n_test_target < 1L || n_test_target >= n_groups) {
+      stop(
+        "Grouped holdout validation could not retain at least one complete ",
+        "group in both training and test partitions.",
+        call. = FALSE
+      )
+    }
 
-  fold_balance <- data.frame(
-    fold = seq_len(n_folds),
-    n_groups = as.integer(fold_sizes),
-    stringsAsFactors = FALSE
-  )
+    n_folds <- 1L
+    effective_k <- NA_integer_
+    effective_test_prop <- test_prop
 
-  if (identical(outcome_type, "binary")) {
-    fold_balance$n_outcome_0 <- vapply(
-      seq_len(n_folds),
-      function(fold_index) {
-        sum(
-          fold_assignments$fold == fold_index &
-            fold_assignments$observed == 0
+    if (identical(outcome_type, "binary")) {
+
+      class_counts <- table(
+        factor(
+          group_response,
+          levels = c(0, 1)
         )
-      },
-      integer(1)
-    )
+      )
 
-    fold_balance$n_outcome_1 <- vapply(
-      seq_len(n_folds),
-      function(fold_index) {
-        sum(
-          fold_assignments$fold == fold_index &
-            fold_assignments$observed == 1
-        )
-      },
-      integer(1)
-    )
-
-    if (identical(cv_method, "k-fold")) {
-      if (max(fold_balance$n_outcome_0) -
-          min(fold_balance$n_outcome_0) > 1L ||
-          max(fold_balance$n_outcome_1) -
-          min(fold_balance$n_outcome_1) > 1L ||
-          any(fold_balance$n_outcome_0 < 1L) ||
-          any(fold_balance$n_outcome_1 < 1L)) {
+      if (any(class_counts < 2L)) {
         stop(
-          "Internal cross-validation error: binomial k-fold stratification is ",
-          "not balanced as required.",
+          "Grouped stratified holdout validation for a binomial outcome ",
+          "requires at least two complete groups in each response class so ",
+          "training and test partitions can both contain outcomes 0 and 1.",
+          call. = FALSE
+        )
+      }
+
+      validation_stratified <- TRUE
+      validation_scheme <- "stratified_grouped_holdout"
+
+      # At least two test groups and two training groups are necessary to place
+      # one group from each response class in both partitions. Choose the closest
+      # feasible test size to the user-requested proportional target.
+      n_test_groups <- max(
+        2L,
+        min(n_groups - 2L, n_test_target)
+      )
+
+      n0 <- as.integer(class_counts[["0"]])
+      n1 <- as.integer(class_counts[["1"]])
+
+      feasible_t0 <- seq.int(1L, n0 - 1L)
+      feasible_t1 <- seq.int(1L, n1 - 1L)
+      allocation_grid <- expand.grid(
+        n_test_0 = feasible_t0,
+        n_test_1 = feasible_t1,
+        KEEP.OUT.ATTRS = FALSE,
+        stringsAsFactors = FALSE
+      )
+      allocation_grid$n_test_total <-
+        allocation_grid$n_test_0 + allocation_grid$n_test_1
+      allocation_grid$total_gap <- abs(
+        allocation_grid$n_test_total - n_test_groups
+      )
+      allocation_grid$class_gap <-
+        abs(allocation_grid$n_test_0 - n0 * test_prop) +
+        abs(allocation_grid$n_test_1 - n1 * test_prop)
+      allocation_grid$composition_gap <- abs(
+        allocation_grid$n_test_0 / allocation_grid$n_test_total -
+          n0 / n_groups
+      )
+
+      allocation_grid <- allocation_grid[
+        order(
+          allocation_grid$total_gap,
+          allocation_grid$class_gap,
+          allocation_grid$composition_gap,
+          allocation_grid$n_test_0
+        ),
+        ,
+        drop = FALSE
+      ]
+
+      selected_allocation <- allocation_grid[1L, , drop = FALSE]
+      n_test_groups <- as.integer(selected_allocation$n_test_total[[1L]])
+      n_test_0 <- as.integer(selected_allocation$n_test_0[[1L]])
+      n_test_1 <- as.integer(selected_allocation$n_test_1[[1L]])
+      n_train_groups <- n_groups - n_test_groups
+
+      selected_test_indices <- .with_local_seed(
+        seed,
+        {
+          index_0 <- which(group_response == 0)
+          index_1 <- which(group_response == 1)
+          c(
+            index_0[sample.int(length(index_0), size = n_test_0)],
+            index_1[sample.int(length(index_1), size = n_test_1)]
+          )
+        }
+      )
+
+    } else {
+
+      validation_scheme <- "grouped_holdout"
+      n_test_groups <- n_test_target
+      n_train_groups <- n_groups - n_test_groups
+
+      selected_test_indices <- .with_local_seed(
+        seed,
+        sample.int(
+          n_groups,
+          size = n_test_groups,
+          replace = FALSE
+        )
+      )
+    }
+
+    if (n_test_groups < 1L || n_train_groups < 1L) {
+      stop(
+        "Grouped holdout validation could not retain at least one complete ",
+        "group in both training and test partitions.",
+        call. = FALSE
+      )
+    }
+
+    selected_test_groups <- group_ids[selected_test_indices]
+    test_groups <- group_ids[group_ids %in% selected_test_groups]
+    training_groups <- group_ids[!group_ids %in% test_groups]
+    evaluation_groups <- test_groups
+    n_training_groups <- as.integer(length(training_groups))
+    n_test_groups <- as.integer(length(test_groups))
+
+    if (length(training_groups) + length(test_groups) != n_groups) {
+      stop(
+        "Internal holdout validation error: training and test group counts do ",
+        "not sum to the total number of groups.",
+        call. = FALSE
+      )
+    }
+
+    if (length(intersect(training_groups, test_groups)) != 0L) {
+      stop(
+        "Internal holdout validation error: at least one group appears in both ",
+        "training and test partitions.",
+        call. = FALSE
+      )
+    }
+
+    if (!setequal(union(training_groups, test_groups), group_ids)) {
+      stop(
+        "Internal holdout validation error: training and test partitions do not ",
+        "cover exactly the original groups.",
+        call. = FALSE
+      )
+    }
+
+    if (length(test_groups) != n_test_groups) {
+      stop(
+        "Internal holdout validation error: the effective number of test groups ",
+        "does not match the constructed test partition.",
+        call. = FALSE
+      )
+    }
+
+    if (identical(outcome_type, "binary")) {
+      train_response <- group_response[match(training_groups, group_ids)]
+      test_response <- group_response[match(test_groups, group_ids)]
+
+      if (!setequal(unique(train_response), c(0, 1))) {
+        stop(
+          "Internal holdout validation error: the stratified training partition ",
+          "does not contain both binomial outcomes 0 and 1.",
+          call. = FALSE
+        )
+      }
+
+      if (!setequal(unique(test_response), c(0, 1))) {
+        stop(
+          "Internal holdout validation error: the stratified test partition ",
+          "does not contain both binomial outcomes 0 and 1.",
           call. = FALSE
         )
       }
     }
+
+    validation_assignments <- data.frame(
+      group = group_ids,
+      partition = ifelse(
+        group_ids %in% test_groups,
+        "test",
+        "train"
+      ),
+      fold = ifelse(
+        group_ids %in% test_groups,
+        1L,
+        NA_integer_
+      ),
+      observed = group_response,
+      stringsAsFactors = FALSE
+    )
+    validation_assignments$fold <- as.integer(validation_assignments$fold)
   }
 
-  if (verbose) {
-    if (identical(cv_method, "LOOCV")) {
-      message(
-        "Cross-validation: LOOCV with ", n_groups,
-        " complete group(s); one held-out group per fold."
+  n_evaluation_groups <- as.integer(length(evaluation_groups))
+  max_success_groups <- n_evaluation_groups
+
+  if (min_success > max_success_groups) {
+    stop(
+      "`min_success` cannot exceed the number of groups assigned to ",
+      "out-of-sample evaluation (", max_success_groups, ").",
+      call. = FALSE
+    )
+  }
+
+  if (identical(validation_method, "holdout")) {
+
+    validation_balance <- data.frame(
+      partition = c("train", "test"),
+      fold = c(NA_integer_, 1L),
+      n_groups = as.integer(c(
+        length(training_groups),
+        length(test_groups)
+      )),
+      stringsAsFactors = FALSE
+    )
+
+    if (identical(outcome_type, "binary")) {
+      validation_balance$n_outcome_0 <- c(
+        sum(validation_assignments$partition == "train" &
+              validation_assignments$observed == 0),
+        sum(validation_assignments$partition == "test" &
+              validation_assignments$observed == 0)
       )
-    } else {
+      validation_balance$n_outcome_1 <- c(
+        sum(validation_assignments$partition == "train" &
+              validation_assignments$observed == 1),
+        sum(validation_assignments$partition == "test" &
+              validation_assignments$observed == 1)
+      )
+
+      if (any(validation_balance$n_outcome_0 < 1L) ||
+          any(validation_balance$n_outcome_1 < 1L)) {
+        stop(
+          "Internal holdout validation error: both binomial classes must be ",
+          "present in both validation partitions.",
+          call. = FALSE
+        )
+      }
+    }
+
+    if (sum(validation_balance$n_groups) != n_groups) {
+      stop(
+        "Internal holdout validation error: validation-balance counts do not ",
+        "sum to the total number of groups.",
+        call. = FALSE
+      )
+    }
+
+    # Reuse the existing fold-oriented evaluation architecture. For holdout,
+    # there is exactly one validation iteration containing all test groups.
+    fold_groups <- list(test_groups)
+    fold_rows <- list(
+      which(as.character(data_long$epi_id) %in% test_groups)
+    )
+
+  } else {
+
+    fold_sizes <- tabulate(
+      validation_assignments$fold,
+      nbins = n_folds
+    )
+
+    if (any(fold_sizes < 1L)) {
+      stop(
+        "Internal validation error: at least one evaluation fold contains no ",
+        "groups.",
+        call. = FALSE
+      )
+    }
+
+    if (identical(validation_method, "k-fold") &&
+        max(fold_sizes) - min(fold_sizes) > 1L) {
+      stop(
+        "Internal validation error: grouped k-fold allocation is not balanced ",
+        "by number of groups.",
+        call. = FALSE
+      )
+    }
+
+    validation_balance <- data.frame(
+      partition = rep("evaluation", n_folds),
+      fold = seq_len(n_folds),
+      n_groups = as.integer(fold_sizes),
+      stringsAsFactors = FALSE
+    )
+
+    if (identical(outcome_type, "binary")) {
+      validation_balance$n_outcome_0 <- vapply(
+        seq_len(n_folds),
+        function(fold_index) {
+          sum(
+            validation_assignments$fold == fold_index &
+              validation_assignments$observed == 0
+          )
+        },
+        integer(1)
+      )
+
+      validation_balance$n_outcome_1 <- vapply(
+        seq_len(n_folds),
+        function(fold_index) {
+          sum(
+            validation_assignments$fold == fold_index &
+              validation_assignments$observed == 1
+          )
+        },
+        integer(1)
+      )
+
+      if (identical(validation_method, "k-fold")) {
+        if (max(validation_balance$n_outcome_0) -
+            min(validation_balance$n_outcome_0) > 1L ||
+            max(validation_balance$n_outcome_1) -
+            min(validation_balance$n_outcome_1) > 1L ||
+            any(validation_balance$n_outcome_0 < 1L) ||
+            any(validation_balance$n_outcome_1 < 1L)) {
+          stop(
+            "Internal validation error: binomial k-fold stratification is not ",
+            "balanced as required.",
+            call. = FALSE
+          )
+        }
+      }
+    }
+
+    row_group_match <- match(
+      as.character(data_long$epi_id),
+      validation_assignments$group
+    )
+
+    if (anyNA(row_group_match)) {
+      stop(
+        "Internal validation error: could not align long-format rows with ",
+        "validation assignments.",
+        call. = FALSE
+      )
+    }
+
+    row_fold <- validation_assignments$fold[row_group_match]
+
+    fold_rows <- lapply(
+      seq_len(n_folds),
+      function(fold_index) which(row_fold == fold_index)
+    )
+
+    fold_groups <- lapply(
+      seq_len(n_folds),
+      function(fold_index) {
+        validation_assignments$group[
+          !is.na(validation_assignments$fold) &
+            validation_assignments$fold == fold_index
+        ]
+      }
+    )
+  }
+
+  test_data_list <- lapply(
+    fold_rows,
+    function(idx) data_long[idx, , drop = FALSE]
+  )
+
+  if (verbose) {
+    if (identical(validation_method, "LOOCV")) {
       message(
-        "Cross-validation: grouped ", k, "-fold with ", n_groups,
-        " group(s); fold sizes = ",
-        paste(fold_balance$n_groups, collapse = ", "),
-        if (cv_stratified) {
+        "Validation: LOOCV with ", n_groups,
+        " complete group(s); one complete group is held out per iteration."
+      )
+    } else if (identical(validation_method, "k-fold")) {
+      message(
+        "Validation: grouped ", k, "-fold with ", n_groups,
+        " complete group(s); fold sizes = ",
+        paste(validation_balance$n_groups, collapse = ", "),
+        if (validation_stratified) {
           paste0(
-            "; binomial stratification 0/1 = ",
+            "; binomial class counts 0/1 by fold = ",
             paste(
               paste0(
-                fold_balance$n_outcome_0,
+                validation_balance$n_outcome_0,
                 "/",
-                fold_balance$n_outcome_1
+                validation_balance$n_outcome_1
               ),
               collapse = ", "
             )
@@ -2554,43 +2879,38 @@ find_bestfit <- function(
         },
         "."
       )
+    } else {
+      message(
+        "Validation: grouped proportional holdout with ", n_groups,
+        " complete group(s); training = ", n_training_groups,
+        ", test = ", n_test_groups,
+        ", requested test_prop = ", format(test_prop),
+        if (validation_stratified) {
+          paste0(
+            "; binomial class counts 0/1: train = ",
+            validation_balance$n_outcome_0[
+              validation_balance$partition == "train"
+            ],
+            "/",
+            validation_balance$n_outcome_1[
+              validation_balance$partition == "train"
+            ],
+            ", test = ",
+            validation_balance$n_outcome_0[
+              validation_balance$partition == "test"
+            ],
+            "/",
+            validation_balance$n_outcome_1[
+              validation_balance$partition == "test"
+            ]
+          )
+        } else {
+          ""
+        },
+        "."
+      )
     }
   }
-
-  # Map every long-format row to the single fold assigned to its complete group.
-  row_group_match <- match(
-    as.character(data_long$epi_id),
-    fold_assignments$group
-  )
-
-  if (anyNA(row_group_match)) {
-    stop(
-      "Internal cross-validation error: could not align long-format rows with ",
-      "fold assignments.",
-      call. = FALSE
-    )
-  }
-
-  row_fold <- fold_assignments$fold[row_group_match]
-
-  fold_rows <- lapply(
-    seq_len(n_folds),
-    function(fold_index) which(row_fold == fold_index)
-  )
-
-  fold_groups <- lapply(
-    seq_len(n_folds),
-    function(fold_index) {
-      fold_assignments$group[
-        fold_assignments$fold == fold_index
-      ]
-    }
-  )
-
-  test_data_list <- lapply(
-    fold_rows,
-    function(idx) data_long[idx, , drop = FALSE]
-  )
 
   # --------------------------------------------------------------------------
   # Warning classification
@@ -2670,6 +2990,29 @@ find_bestfit <- function(
 
   total_candidates <- nrow(candidate_grid)
 
+  if (verbose) {
+    message(
+      "EpiExposure grouped validation search: engine = ", model_engine,
+      ", family = ", family_name,
+      ", link = ", link_name,
+      ", candidates = ", total_candidates,
+      ", ranking metric = ", rank_metric,
+      " (", rank_direction, ")."
+    )
+
+    message("Candidate models:")
+    for (candidate_index in seq_len(total_candidates)) {
+      candidate_row <- candidate_grid[candidate_index, , drop = FALSE]
+      variables <- var_sets[[candidate_row$var_set_id[[1L]]]]
+      message(
+        "  [", candidate_index, "/", total_candidates, "] df_var = ",
+        candidate_row$df_var[[1L]],
+        ", df_lag = ", candidate_row$df_lag[[1L]],
+        ", vars = ", paste(variables, collapse = " + ")
+      )
+    }
+  }
+
   # --------------------------------------------------------------------------
   # Candidate evaluator
   # --------------------------------------------------------------------------
@@ -2693,18 +3036,9 @@ find_bestfit <- function(
       collapse = " + "
     )
 
-    if (verbose) {
-      message(
-        "[", candidate_index, "/", total_candidates,
-        "] df_var = ", exposure_df,
-        ", df_lag = ", lag_df,
-        ", vars = ", variables_label
-      )
-    }
-
-    # Prediction bookkeeping is indexed by independent group, not fold.
-    # This distinction is essential for k-fold CV because one fold contains
-    # multiple held-out groups.
+    # Prediction bookkeeping remains indexed by every independent group.
+    # Metrics are later restricted explicitly to `evaluation_groups`, so holdout
+    # training groups are never counted as failed validation predictions.
     observed <- rep(
       NA_real_,
       n_groups
@@ -2725,8 +3059,8 @@ find_bestfit <- function(
       n_folds
     )
 
-    # Warning bookkeeping remains fold-level because fitting and prediction are
-    # executed once per training/test fold.
+    # Warning bookkeeping remains validation-iteration level. LOOCV and k-fold
+    # use folds; holdout uses one training/test validation iteration.
     warning_fold <- rep(
       FALSE,
       n_folds
@@ -2761,8 +3095,8 @@ find_bestfit <- function(
       )
     )
 
-    # One list slot per fold. Under k-fold each slot may contain multiple
-    # group-level prediction/failure rows.
+    # One list slot per validation iteration. Under k-fold and holdout a slot
+    # may contain multiple group-level prediction/failure rows.
     candidate_predictions <- vector(
       "list",
       n_folds
@@ -2780,14 +3114,10 @@ find_bestfit <- function(
       n_folds + 1L + as.integer(keep_fits)
     )
 
-    cv_stage <- if (identical(cv_method, "LOOCV")) {
-      "LOOCV"
-    } else {
-      "k-fold"
-    }
+    validation_stage <- validation_method
 
-    # IMPORTANT: this loop remains sequential. One future owns one candidate and
-    # executes the complete CV workflow for that candidate.
+    # IMPORTANT: validation iterations remain sequential. One future owns one
+    # candidate and executes its complete validation workflow.
     for (fold_index in seq_len(n_folds)) {
 
       test_groups <- fold_groups[[fold_index]]
@@ -2802,6 +3132,45 @@ find_bestfit <- function(
       ]
 
       test_data <- test_data_list[[fold_index]]
+
+      train_groups_iteration <- unique(as.character(train_data$epi_id))
+      test_groups_iteration <- unique(as.character(test_data$epi_id))
+
+      if (length(intersect(train_groups_iteration, test_groups_iteration)) != 0L) {
+        stop(
+          "Internal validation error: at least one group appears in both ",
+          "training and evaluation data within the same iteration.",
+          call. = FALSE
+        )
+      }
+
+      if (!setequal(
+        union(train_groups_iteration, test_groups_iteration),
+        group_ids
+      )) {
+        stop(
+          "Internal validation error: training and evaluation data do not cover ",
+          "exactly all original groups within the validation iteration.",
+          call. = FALSE
+        )
+      }
+
+      if (!setequal(test_groups_iteration, test_groups)) {
+        stop(
+          "Internal validation error: evaluation rows do not match the groups ",
+          "assigned to the current validation iteration.",
+          call. = FALSE
+        )
+      }
+
+      if (identical(validation_method, "holdout") &&
+          !setequal(train_groups_iteration, training_groups)) {
+        stop(
+          "Internal holdout validation error: training rows do not match the ",
+          "fixed holdout training partition.",
+          call. = FALSE
+        )
+      }
 
       fold_warning_messages <- character(0)
 
@@ -2854,7 +3223,7 @@ find_bestfit <- function(
                 !"epi_id" %in% names(prepared_test) ||
                 !"y_model" %in% names(prepared_test)) {
               stop(
-                "Internal cross-validation error: the held-out design did not ",
+                "Internal validation error: the held-out design did not ",
                 "return exactly one prediction row per test group."
               )
             }
@@ -2867,12 +3236,12 @@ find_bestfit <- function(
                 anyDuplicated(prepared_groups) ||
                 !setequal(prepared_groups, test_groups)) {
               stop(
-                "Internal cross-validation error: held-out group identifiers ",
+                "Internal validation error: held-out group identifiers ",
                 "could not be aligned with the fold assignment."
               )
             }
 
-            # CV ranking uses only the central population/fixed component.
+            # Validation ranking uses only the central population/fixed component.
             # Coefficient/posterior uncertainty, conventional random effects,
             # and spatially autocorrelated effects are all excluded.
             prediction <- .predict_point_population(
@@ -2897,7 +3266,7 @@ find_bestfit <- function(
 
             if (anyNA(alignment)) {
               stop(
-                "Internal cross-validation error: failed to align predicted ",
+                "Internal validation error: failed to align predicted ",
                 "rows with test groups."
               )
             }
@@ -2965,7 +3334,7 @@ find_bestfit <- function(
           } else {
             NA_character_
           },
-          stage = cv_stage,
+          stage = validation_stage,
           df_var = exposure_df,
           df_lag = lag_df,
           vars = variables_label,
@@ -3058,7 +3427,7 @@ find_bestfit <- function(
             length(test_groups)
           ),
           error = rep(
-            "Internal cross-validation error: duplicate or unknown held-out group.",
+            "Internal validation error: duplicate or unknown held-out group.",
             length(test_groups)
           ),
           stringsAsFactors = FALSE
@@ -3116,7 +3485,7 @@ find_bestfit <- function(
           stringsAsFactors = FALSE
         )
 
-        # For binomial outcomes, predicted remains the out-of-fold probability.
+        # For binomial outcomes, predicted remains the out-of-sample validation probability.
         # Thresholded classes are stored separately.
         if (identical(outcome_type, "binary")) {
           prediction_row$predicted_class <-
@@ -3168,14 +3537,17 @@ find_bestfit <- function(
       }
 
       # A fold is successful only when all groups assigned to that fold produced
-      # valid out-of-fold predictions.
+      # valid out-of-sample validation predictions.
       fold_success[fold_index] <-
         length(valid_prediction) == length(test_groups) &&
         all(valid_prediction)
     }
 
-    n_predictions <- n_groups
-    n_success <- sum(success)
+    evaluation_mask <- group_ids %in% evaluation_groups
+    successful_evaluation <- success & evaluation_mask
+
+    n_predictions <- length(evaluation_groups)
+    n_success <- sum(successful_evaluation)
     n_failed <- n_predictions - n_success
 
     n_success_folds <- sum(fold_success)
@@ -3193,18 +3565,18 @@ find_bestfit <- function(
       warning_type_events
     )
 
-    all_cv_warning_messages <- unlist(
+    all_validation_warning_messages <- unlist(
       candidate_warning_messages,
       recursive = FALSE,
       use.names = FALSE
     )
 
-    all_cv_warning_messages <- as.character(
-      all_cv_warning_messages
+    all_validation_warning_messages <- as.character(
+      all_validation_warning_messages
     )
 
-    unique_cv_warning_messages <- unique(
-      all_cv_warning_messages
+    unique_validation_warning_messages <- unique(
+      all_validation_warning_messages
     )
 
     candidate_result <- NULL
@@ -3224,8 +3596,8 @@ find_bestfit <- function(
 
       metrics <- withCallingHandlers(
         .compute_performance_metrics(
-          observed = observed[success],
-          predicted = predicted[success],
+          observed = observed[successful_evaluation],
+          predicted = predicted[successful_evaluation],
           family = family_name,
           threshold = threshold
         ),
@@ -3278,6 +3650,7 @@ find_bestfit <- function(
       )
 
       candidate_diagnostics <- data.frame(
+        n_groups_total = n_groups,
         n_folds = n_folds,
         n_success_folds = n_success_folds,
         n_failed_folds = n_failed_folds,
@@ -3420,6 +3793,7 @@ find_bestfit <- function(
       df_var = exposure_df,
       df_lag = lag_df,
       vars = variables_label,
+      n_groups_total = n_groups,
       n_folds = n_folds,
       n_success_folds = n_success_folds,
       n_failed_folds = n_failed_folds,
@@ -3446,24 +3820,24 @@ find_bestfit <- function(
       n_other_warning_events =
         as.integer(warning_events_by_type[["other"]]),
       n_warning_types =
-        length(unique_cv_warning_messages),
+        length(unique_validation_warning_messages),
       n_warning_classes =
         length(
           unique(
             vapply(
-              unique_cv_warning_messages,
+              unique_validation_warning_messages,
               classify_warning,
               character(1)
             )
           )
         ),
       warning_classes = if (
-        length(unique_cv_warning_messages)
+        length(unique_validation_warning_messages)
       ) {
         paste(
           unique(
             vapply(
-              unique_cv_warning_messages,
+              unique_validation_warning_messages,
               classify_warning,
               character(1)
             )
@@ -3474,10 +3848,10 @@ find_bestfit <- function(
         NA_character_
       },
       warning_messages = if (
-        length(unique_cv_warning_messages)
+        length(unique_validation_warning_messages)
       ) {
         paste(
-          unique_cv_warning_messages,
+          unique_validation_warning_messages,
           collapse = " | "
         )
       } else {
@@ -3582,7 +3956,7 @@ find_bestfit <- function(
       message(
         "Evaluating ", total_candidates,
         " candidate models across ", future::nbrOfWorkers(),
-        " future workers; cross-validation folds remain sequential within each ",
+        " future workers; validation iterations remain sequential within each ",
         "candidate."
       )
     }
@@ -3591,7 +3965,7 @@ find_bestfit <- function(
       X = seq_len(total_candidates),
       FUN = evaluate_candidate,
       future.seed = TRUE,
-      # One future per candidate: folds remain sequential inside each future.
+      # One future per candidate: validation iterations remain sequential inside each future.
       future.scheduling = Inf
     )
   } else {
@@ -3648,7 +4022,7 @@ find_bestfit <- function(
     stringsAsFactors = FALSE
   )
 
-  # Warnings have already been muffled inside each fold. Emit at most one
+  # Warnings have already been muffled inside each validation iteration. Emit at most one
   # concise summary per affected candidate, in deterministic model_id order.
   if (verbose && nrow(warning_summary_data)) {
     affected <- warning_summary_data$n_warning_folds > 0L |
@@ -3657,13 +4031,24 @@ find_bestfit <- function(
 
     for (i in which(affected)) {
       ws <- warning_summary_data[i, , drop = FALSE]
-      cv_warning_text <- if (ws$n_warning_folds > 0L) {
-        paste0(
-          ws$n_warning_folds, "/", ws$n_folds,
-          " CV folds (", ws$n_warning_events, " warning event(s))"
-        )
+      validation_warning_text <- if (ws$n_warning_folds > 0L) {
+        if (identical(validation_method, "holdout")) {
+          paste0(
+            ws$n_warning_folds, "/", ws$n_folds,
+            " holdout validation iteration(s) (",
+            ws$n_warning_events, " warning event(s))"
+          )
+        } else {
+          paste0(
+            ws$n_warning_folds, "/", ws$n_folds,
+            " validation fold(s) (",
+            ws$n_warning_events, " warning event(s))"
+          )
+        }
+      } else if (identical(validation_method, "holdout")) {
+        "0 holdout validation iterations"
       } else {
-        "0 CV folds"
+        "0 validation folds"
       }
 
       type_fold_counts <- c(
@@ -3675,7 +4060,7 @@ find_bestfit <- function(
       type_fold_counts <- type_fold_counts[type_fold_counts > 0L]
       type_text <- if (length(type_fold_counts)) {
         paste0(
-          "; warning classes (affected folds): ",
+          "; warning classes (affected validation iterations): ",
           paste(
             paste0(names(type_fold_counts), "=", as.integer(type_fold_counts)),
             collapse = ", "
@@ -3708,7 +4093,7 @@ find_bestfit <- function(
         "] df_var = ", ws$df_var,
         ", df_lag = ", ws$df_lag,
         ", vars = ", ws$vars,
-        ": ", cv_warning_text, type_text, metric_text, full_fit_text,
+        ": ", validation_warning_text, type_text, metric_text, full_fit_text,
         ". See attr(result, \"warning_summary\") and attr(result, \"warnings\") for details."
       )
     }
@@ -3726,7 +4111,7 @@ find_bestfit <- function(
   if (!length(results)) {
     stop(
       "No candidate model produced at least `min_success` successful ",
-      "group-level out-of-fold predictions.",
+      "group-level out-of-sample validation predictions.",
       call. = FALSE
     )
   }
@@ -3811,8 +4196,25 @@ find_bestfit <- function(
     total_elapsed_seconds = total_elapsed_seconds,
     total_elapsed = format_elapsed(total_elapsed_seconds),
     total_candidates = total_candidates,
-    cv_method = cv_method,
-    n_groups = n_groups,
+    validation_method = validation_method,
+    validation_scheme = validation_scheme,
+    n_groups_total = n_groups,
+    n_evaluation_groups = n_evaluation_groups,
+    n_training_groups = if (identical(validation_method, "holdout")) {
+      n_training_groups
+    } else {
+      NA_integer_
+    },
+    n_test_groups = if (identical(validation_method, "holdout")) {
+      n_test_groups
+    } else {
+      NA_integer_
+    },
+    test_prop = if (identical(validation_method, "holdout")) {
+      effective_test_prop
+    } else {
+      NA_real_
+    },
     n_folds = n_folds,
     parallel = use_future,
     workers = if (use_future) future::nbrOfWorkers() else 1L,
@@ -3835,26 +4237,43 @@ find_bestfit <- function(
   attr(results_data, "prediction_contract") <- "central_expected_response"
   attr(results_data, "random_effect") <- random_effect
   attr(results_data, "random_effect_model") <- if (!is.null(random_effect) &&
-       model_engine %in% c("inla","bdlnm")) {"iid"} else {NA_character_}
+                                                   model_engine %in% c("inla","bdlnm")) {"iid"} else {NA_character_}
   attr(results_data, "random_effect_prior") <- random_effect_prior
   attr(results_data, "spatial_effect") <- spatial_effect
   attr(results_data, "spatial_structure") <- spatial_structure
   attr(results_data, "spatial_group") <- spatial_group
   attr(results_data, "spatial_term") <- spatial_term
   attr(results_data, "has_spatial_effect") <- !is.null(spatial_effect)
-  attr(results_data, "cv_method") <- cv_method
-  attr(results_data, "cv_scheme") <- cv_scheme
+  attr(results_data, "validation_method") <- validation_method
+  attr(results_data, "validation_scheme") <- validation_scheme
   attr(results_data, "k") <- effective_k
-  attr(results_data, "cv_seed") <- if (
-    identical(cv_method, "k-fold") && !is.null(seed)
+  attr(results_data, "validation_seed") <- if (
+    validation_method %in% c("k-fold", "holdout") && !is.null(seed)
   ) {
     seed
   } else {
     NA_integer_
   }
-  attr(results_data, "cv_stratified") <- cv_stratified
-  attr(results_data, "fold_assignments") <- fold_assignments
-  attr(results_data, "fold_balance") <- fold_balance
+  attr(results_data, "validation_stratified") <- validation_stratified
+  attr(results_data, "test_prop") <- if (
+    identical(validation_method, "holdout")
+  ) {
+    effective_test_prop
+  } else {
+    NA_real_
+  }
+  attr(results_data, "n_groups_total") <- n_groups
+  attr(results_data, "n_evaluation_groups") <- n_evaluation_groups
+  attr(results_data, "training_groups") <- training_groups
+  attr(results_data, "test_groups") <- test_groups
+  attr(results_data, "evaluation_groups") <- evaluation_groups
+  attr(results_data, "validation_assignments") <- validation_assignments
+  attr(results_data, "validation_balance") <- validation_balance
+  attr(results_data, "retained_fit_scope") <- if (keep_fits) {
+    "full_data_refit_after_validation"
+  } else {
+    NA_character_
+  }
   attr(results_data, "basis_training_only") <- TRUE
   attr(results_data, "max_lag") <- max_lag
   attr(results_data, "history_length") <- required_history_length
@@ -3871,8 +4290,14 @@ find_bestfit <- function(
       "find_bestfit completed in ",
       timing_data$total_elapsed,
       " (", format(round(total_elapsed_seconds, 2), nsmall = 2),
-      " s). CV = ", cv_method,
-      if (identical(cv_method, "k-fold")) paste0(" (k=", effective_k, ")") else "",
+      " s). Validation = ", validation_method,
+      if (identical(validation_method, "k-fold")) {
+        paste0(" (k=", effective_k, ")")
+      } else if (identical(validation_method, "holdout")) {
+        paste0(" (test_prop=", format(effective_test_prop), ")")
+      } else {
+        ""
+      },
       "; ranked by ", rank_metric, " (", rank_direction, ")."
     )
   }

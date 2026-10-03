@@ -55,7 +55,7 @@ interpretation.
 
 # Preparing the example model
 
-This vignette uses the same dataset and DLNM specification introduced in the
+This section uses the same dataset and DLNM specification introduced in the
 previous tutorials.
 
 ```{r load-packages}
@@ -190,14 +190,7 @@ temperature_profile <- simulate_exposures(
 The result contains the simulated chronological profile:
 
 ```{r inspect-temperature-profile, echo=FALSE}
-knitr::kable(
-  utils::head(
-    temperature_profile,
-    10L
-  ),
-  digits = 3,
-  align = "c"
-)
+head(temperature_profile)
 ```
 
 Visualize the complete profile:
@@ -491,19 +484,6 @@ scenarios <- simulate_ranges(
   ),
   scenario_type = "grid",
   scenario_var = "rain"
-)
-```
-
-Inspect the first scenarios:
-
-```{r inspect-scenarios, echo=FALSE}
-knitr::kable(
-  utils::head(
-    scenarios,
-    10L
-  ),
-  digits = 3,
-  align = "c"
 )
 ```
 
@@ -831,7 +811,7 @@ observation-level variability.
 
 # Summary
 
-This vignette demonstrated how `EpiExposure` transforms a fitted DLNM into a
+This section demonstrated how `EpiExposure` transforms a fitted DLNM into a
 framework for evaluating complete exposure histories.
 
 The workflow allows users to:
@@ -849,7 +829,7 @@ model-based comparisons of complete environmental histories.
 
 # Next steps
 
-The next vignette translates predicted disease outcomes into practical outcomes such as yield and economic losses using the `simulate_losses()` function.
+The next section translates predicted disease outcomes into practical outcomes such as yield and economic losses using the `simulate_losses()` function.
 
 These tools connect exposure-lag-response relationships with agronomic and economic consequences.
 

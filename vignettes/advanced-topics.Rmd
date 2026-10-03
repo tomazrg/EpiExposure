@@ -20,8 +20,6 @@ knitr::opts_chunk$set(
   message = FALSE,
   warning = FALSE
 )
-
-library(EpiExposure)
 ```
 
 # Introduction
@@ -87,6 +85,11 @@ effects, spatial autocorrelation, or Bayesian inference.
 The examples below use the same cross-basis specification whenever
 possible. This allows the modeling engines to be compared without
 repeatedly rebuilding the exposure-lag design.
+
+```{r}
+library(EpiExposure)
+```
+
 
 ```{r}
 poisson_data = readxl::read_xlsx("data/poisson_data.xlsx")
@@ -275,6 +278,19 @@ spatial_data = readxl::read_xlsx("data/spamm_st_poisson.xlsx")
 ```
 
 ```{r}
+
+cb_spatial <- define_exposures(
+  data = poisson_data,
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  max_lag = 85,
+  df_var = 3,
+  df_lag = 2
+)
+
 dat_spatial <- build_design(
   data = spatial_data,
   cb_templates = cb_spatial,
@@ -343,8 +359,8 @@ dat_spatial_year <- build_design(
     "x_coord",
     "y_coord",
     "year",
-    "location_id"
-    
+    "location_id",
+    "block_id"
   )
 )
 
@@ -436,15 +452,29 @@ spatial_replicate = readxl::read_xlsx("data/sim_data_spatial_replicate.xlsx")
 ```
 
 ```{r}
+
+cb_replicate <- define_exposures(
+  data = spatial_replicate,
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  max_lag = 85,
+  df_var = 3,
+  df_lag = 2
+)
+
 dat_spatial_replicate <- build_design(
   data = spatial_replicate,
-  cb_templates = cb,
+  cb_templates = cb_replicate,
   groups = c(
     "epi_id",
     "x_coord",
     "y_coord",
     "epidemic_replicate",
-    "location_id"
+    "location_id",
+    "block_id"
     
   )
 )
@@ -599,7 +629,7 @@ draws are retained for draw-by-draw propagation through
 functions.
 
 
-```{r, eval=FALSE}
+```{r}
 cb_bdlnm <- define_exposures(
   data = poisson_data,
   vars = c(
@@ -613,9 +643,9 @@ cb_bdlnm <- define_exposures(
 )
 
 
-cb_bdlnm <- build_design(
+dat_bdlnm <- build_design(
   data = poisson_data,
-  cb_templates = basis_bdlnm,
+  cb_templates = cb_bdlnm,
   groups = c(
     "epi_id",
     "block"
@@ -623,7 +653,7 @@ cb_bdlnm <- build_design(
 )
 
 dat_bdlnm <- prepare_response(
-  data = cb_bdlnm,
+  data = dat_bdlnm,
   response = "y",
   family = "poisson"
 )
@@ -638,7 +668,7 @@ bdlnm_bases <- attr(
 The model can then be fitted through the harmonized `EpiExposure`
 interface:
 
-```{r}
+```{r, eval=requireNamespace("sn", quietly = TRUE)}
 fit_bdlnm <- fit_epidlnm(
   data = dat_bdlnm,
   model_engine = "bdlnm",
@@ -646,7 +676,7 @@ fit_bdlnm <- fit_epidlnm(
   random_effect = "block",
   random_effect_prior = list(
     prec = list(prior = "pc.prec",param = c(1,0.01))),
-  epiexposure_spec = attr(cb_bdlnm, "epiexposure_spec"),
+  epiexposure_spec = attr(dat_bdlnm, "epiexposure_spec"),
   sample.arg = list(n = 1000, seed = 123))
 ```
 
@@ -656,7 +686,7 @@ summary(fit_bdlnm)
 
 ```{r}
 fit_bdlnm$model
-fit_bdlnm$coefficients
+#fit_bdlnm$coefficients
 fit_bdlnm$coefficients.summary
 
 
@@ -665,11 +695,8 @@ fit_bdlnm$model$summary.hyperpar
 
 fit_bdlnm$model$summary.random$.epiexposure_re_index
 
-fit_bdlnm$model$marginals.hyperpar
+head(fit_bdlnm$model$marginals.hyperpar)
 
-
-fit_bdlnm$coefficients
-fit_inla$summary.fixed
 ```
 
 The `random_effect = "block"` argument is translated internally to an

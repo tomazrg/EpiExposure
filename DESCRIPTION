@@ -50,6 +50,7 @@ Suggests:
     bdlnm,
     cowplot,
     future,
+    sn,
     future.apply
 License: MIT + file LICENSE
 Encoding: UTF-8
