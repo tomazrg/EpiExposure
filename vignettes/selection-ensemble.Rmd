@@ -5,8 +5,11 @@ description: "Model ranking, validation, and ensemble forecasting in EpiExposure
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Model Selection and Ensemble Forecasting}
-  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
 
 ```{r setup, include=FALSE}
@@ -21,7 +24,8 @@ knitr::opts_chunk$set(
 
 # Introduction
 
-Distributed Lag Nonlinear Models (DLNMs) require several modeling decisions, including:
+Distributed Lag Nonlinear Models (DLNMs) require several modeling
+decisions, including:
 
 - exposure variables;
 - lag duration;
@@ -31,7 +35,9 @@ Distributed Lag Nonlinear Models (DLNMs) require several modeling decisions, inc
 
 Different specifications may lead to different predictive performance.
 
-`EpiExposure` provides tools for systematically exploring model configurations, ranking competing models, and combining predictions through ensemble forecasting.
+`EpiExposure` provides tools for systematically exploring model
+configurations, ranking competing models, and combining predictions
+through ensemble forecasting.
 
 This section demonstrates:
 
@@ -60,13 +66,17 @@ epi_data
 
 # Why model selection matters
 
-Exposure-lag-response relationships are highly sensitive to model specification.
+Exposure-lag-response relationships are highly sensitive to model
+specification.
 
-For example, increasing lag flexibility may improve fit but increase overfitting.
+For example, increasing lag flexibility may improve fit but increase
+overfitting.
 
-Likewise, adding additional predictors may improve prediction in some pathosystems while reducing generalizability in others.
+Likewise, adding additional predictors may improve prediction in some
+pathosystems while reducing generalizability in others.
 
-`EpiExposure` can evaluate predefined combinations of candidate DLNM specifications using a consistent fitting and validation workflow.
+`EpiExposure` can evaluate predefined combinations of candidate DLNM
+specifications using a consistent fitting and validation workflow.
 
 # Searching candidate models
 
@@ -79,16 +89,15 @@ future::plan(
 )
 ```
 
-The appropriate number of workers depends on the available hardware and local
-computing policies. Users should avoid requesting more workers than their
-system can support.
+The appropriate number of workers depends on the available hardware and
+local computing policies. Users should avoid requesting more workers
+than their system can support.
 
 ```{r, echo=TRUE, eval=FALSE}
 
 future::plan(future::sequential ) 
 
 ```
-
 
 ## Run the model search
 
@@ -108,12 +117,12 @@ best_models <- find_bestfit(
 ```
 
 ```{r, include=FALSE}
-best_models = readRDS("best_models.rds")
+#best_models = readRDS("best_models.rds")
+best_models = readxl::read_xlsx("best_models.xlsx")
 
-best_models
 ```
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 plot_performance(
   object = best_models,
  # model_id = c(
@@ -138,13 +147,14 @@ plot_performance(
   )
 ```
 
-Inspect results
+![](find_bestfit2.png) Inspect results
 
 ```{r}
 head(best_models)
 ```
 
-Depending on the selected validation settings, the resulting object can include:
+Depending on the selected validation settings, the resulting object can
+include:
 
 - a model identifier;
 - the fitted predictor combination;
@@ -160,10 +170,11 @@ Depending on the selected validation settings, the resulting object can include:
 
 ## Top-performing models
 
-The following example ranks models by decreasing CCC. This is one possible
-ranking criterion, not a universal rule. Candidate models should also be
-examined using error metrics, bias, convergence diagnostics, model complexity,
-and the scientific plausibility of the exposure-lag structure.
+The following example ranks models by decreasing CCC. This is one
+possible ranking criterion, not a universal rule. Candidate models
+should also be examined using error metrics, bias, convergence
+diagnostics, model complexity, and the scientific plausibility of the
+exposure-lag structure.
 
 ```{r}
 best_models %>%
@@ -200,32 +211,34 @@ best_models %>%
   theme_bw()
 ```
 
-
 # Understanding validation metrics
 
 ## Concordance Correlation Coefficient
 
-CCC evaluates agreement between observed and predicted outcomes by combining
-precision and accuracy.
+CCC evaluates agreement between observed and predicted outcomes by
+combining precision and accuracy.
 
 Values closer to 1 indicate stronger concordance. However, CCC should be
-interpreted together with error and bias metrics rather than used as the only
-selection criterion.
+interpreted together with error and bias metrics rather than used as the
+only selection criterion.
 
 ## Root Mean Square Error
 
-RMSE summarizes the magnitude of prediction errors while assigning greater
-influence to larger errors because residuals are squared before averaging.
+RMSE summarizes the magnitude of prediction errors while assigning
+greater influence to larger errors because residuals are squared before
+averaging.
 
-Lower values indicate better predictive performance when models are evaluated
-on the same response scale and validation data.
+Lower values indicate better predictive performance when models are
+evaluated on the same response scale and validation data.
 
 ## Mean Absolute Error
 
-MAE is the average absolute difference between observed and predicted outcomes.
+MAE is the average absolute difference between observed and predicted
+outcomes.
 
-Lower values indicate better predictive performance. Because MAE remains on the
-response scale, it is often easier to interpret directly than RMSE.
+Lower values indicate better predictive performance. Because MAE remains
+on the response scale, it is often easier to interpret directly than
+RMSE.
 
 # Inspecting specific models
 
@@ -243,39 +256,20 @@ top_model <- best_models |>
   )
 ```
 
-Retrieve the fitted model:
-
-```{r}
-fit_best <- best_models$fit[[
-  which.max(
-    best_models$CCC
-  )
-]]
-
-summary(
-  fit_best
-)
-```
-
-Review model diagnostics:
-
-```{r}
-summary(fit_best)
-```
-
 # Why use ensembles?
 
 No single model is guaranteed to be optimal.
 
-Different DLNM structures frequently capture different aspects of the underlying epidemiological process.
+Different DLNM structures frequently capture different aspects of the
+underlying epidemiological process.
 
-Combining predictions from multiple models often improves stability and predictive robustness.
+Combining predictions from multiple models often improves stability and
+predictive robustness.
 
 # Selecting ensemble candidates
 
-The identifiers below are illustrative. Replace them with model identifiers
-selected from the user's own `best_models` object. 
-
+The identifiers below are illustrative. Replace them with model
+identifiers selected from the user's own `best_models` object.
 
 ```{r}
 candidate_models <- c(
@@ -285,11 +279,14 @@ candidate_models <- c(
 )
 ```
 
-Therefore, three candidate models (best ranked [63], and the two lower-ranked models [23, 44]) were selected to be used on the ensemble approaches, with CCC used as the performance metric for the weighted ensemble.
+Therefore, three candidate models (best ranked [63], and the two
+lower-ranked models [23, 44]) were selected to be used on the ensemble
+approaches, with CCC used as the performance metric for the weighted
+ensemble.
 
 # Unweighted ensemble
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 ens_unweighted <- ensemble_bestfit(
   bestfit = best_models,
 
@@ -302,13 +299,25 @@ ens_unweighted <- ensemble_bestfit(
 
 ## Inspect results
 
-```{r}
+The ensemble summary can be extracted from the fitted ensemble object:
+
+```{r, eval = FALSE}
 ens_unweighted$ensemble_summary
+```
+
+The table below shows a precomputed example of the ensemble summary output.
+
+```{r, include=FALSE}
+ens_unweighted <- readxl::read_xlsx("ens_unweighted.xlsx")
+```
+
+```{r}
+ens_unweighted
 ```
 
 # Weighted ensemble
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 ens_weighted <- ensemble_bestfit(
   bestfit = best_models,
 
@@ -326,13 +335,25 @@ ens_weighted <- ensemble_bestfit(
 
 ## Inspect results
 
-```{r}
+The ensemble summary can be extracted from the fitted ensemble object:
+
+```{r, eval = FALSE}
 ens_weighted$ensemble_summary
+```
+
+The table below shows a precomputed example of the ensemble summary output.
+
+```{r, include=FALSE}
+ens_weighted <- readxl::read_xlsx("ens_weighted.xlsx")
+```
+
+```{r}
+ens_weighted
 ```
 
 # Stacked ensemble
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 ens_stacked <- ensemble_bestfit(
   bestfit = best_models,
 
@@ -350,13 +371,25 @@ ens_stacked <- ensemble_bestfit(
 
 ## Inspect results
 
-```{r}
+The ensemble summary can be extracted from the fitted ensemble object:
+
+```{r, eval = FALSE}
 ens_stacked$ensemble_summary
+```
+
+The table below shows a precomputed example of the ensemble summary output.
+
+```{r, include=FALSE}
+ens_stacked <- readxl::read_xlsx("ens_stacked.xlsx")
+```
+
+```{r}
+ens_stacked
 ```
 
 # Comparing ensemble strategies
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 ensemble_metrics <- dplyr::bind_rows(
   Unweighted = ens_unweighted$ensemble_summary,
   Weighted = ens_weighted$ensemble_summary,
@@ -369,19 +402,33 @@ ensemble_metrics <- dplyr::bind_rows(
     RMSE,
     MAE
   )
+```
 
+```{r, include=FALSE}
+ensemble_metrics <- readxl::read_xlsx("ensemble_metrics.xlsx")
+```
+
+```{r}
 ensemble_metrics
 ```
 
 # Visualizing ensemble predictions
 
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 
 ens_unweighted$ensemble_predictions$method = "unweighted"
 ens_weighted$ensemble_predictions$method = "weighted"
 ens_stacked$ensemble_predictions$method = "stacked"
 
 ensemble_all = rbind(ens_unweighted$ensemble_predictions,ens_weighted$ensemble_predictions, ens_stacked$ensemble_predictions)
+```
+
+```{r, include=FALSE}
+ensemble_all <- readxl::read_xlsx("ensemble_all.xlsx")
+```
+
+```{r}
+ensemble_all
 ```
 
 ```{r}
@@ -582,21 +629,23 @@ Each ensemble method has advantages.
 
 - estimates combination coefficients from model predictions;
 - can account for complementary predictive information;
-- requires careful separation between weight estimation and final evaluation;
+- requires careful separation between weight estimation and final
+  evaluation;
 - can overfit when the validation sample is limited or when candidate
   predictions are highly similar.
 
 Therefore, no ensemble method is universally superior.
 
-An unweighted ensemble is useful as a transparent reference because every
-candidate contributes equally.
+An unweighted ensemble is useful as a transparent reference because
+every candidate contributes equally.
 
-A weighted ensemble is appropriate when the selected validation metric provides
-a defensible basis for assigning model contributions.
+A weighted ensemble is appropriate when the selected validation metric
+provides a defensible basis for assigning model contributions.
 
-A stacked ensemble can be useful when candidate models contain complementary
-predictive information and the stacking weights are estimated without using
-the same observations reserved for final evaluation.
+A stacked ensemble can be useful when candidate models contain
+complementary predictive information and the stacking weights are
+estimated without using the same observations reserved for final
+evaluation.
 
 Regardless of the method, compare the ensemble against:
 
@@ -607,14 +656,15 @@ Regardless of the method, compare the ensemble against:
 
 ## Avoiding optimistic ensemble evaluation
 
-Ensemble weights should be estimated from out-of-sample or cross-validated
-predictions whenever possible. Estimating weights and reporting performance on
-the same fitted predictions can produce optimistic results.
+Ensemble weights should be estimated from out-of-sample or
+cross-validated predictions whenever possible. Estimating weights and
+reporting performance on the same fitted predictions can produce
+optimistic results.
 
-The final evaluation should use observations that were not reused to select
-candidate models or estimate ensemble weights. If a completely independent test
-set is unavailable, nested or repeated cross-validation may provide a more
-defensible assessment.
+The final evaluation should use observations that were not reused to
+select candidate models or estimate ensemble weights. If a completely
+independent test set is unavailable, nested or repeated cross-validation
+may provide a more defensible assessment.
 
 # Summary
 
@@ -628,9 +678,12 @@ The workflow includes:
 - evaluating predictive performance;
 - ranking models using multiple criteria;
 - retaining selected fitted models;
-- combining predictions through unweighted, weighted, or stacked ensembles;
-- comparing ensemble predictions with individual models and simple baselines.
+- combining predictions through unweighted, weighted, or stacked
+  ensembles;
+- comparing ensemble predictions with individual models and simple
+  baselines.
 
-Model selection and ensemble construction do not remove model uncertainty.
-Their value depends on the candidate model space, validation design, selection
-rules, and independence of the final performance assessment.
+Model selection and ensemble construction do not remove model
+uncertainty. Their value depends on the candidate model space,
+validation design, selection rules, and independence of the final
+performance assessment.

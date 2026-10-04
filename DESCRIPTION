@@ -1,11 +1,11 @@
 Package: EpiExposure
 Type: Package
-Title: R package designed to advance the epidemiological interpretation of environmental drivers of plant disease epidemics
+Title: Distributed Lag Nonlinear Modeling for Plant Disease Epidemiology
 Version: 0.1.0
 Authors@R: c(person(
   given = "Ricardo Gomes",
   family = "Tomáz",
-  email = "ricardogomes@gmail.com",
+  email = "ricardogomesagro@gmail.com",
   role = c("aut", "cre"),
   comment = c(ORCID = "0000-0001-7708-4263")),
  person(given = "Emerson M.", 
@@ -18,10 +18,10 @@ Authors@R: c(person(
          role = "aut",
          email = "FDallaLana@agcenter.lsu.edu",
          comment = c("ORCID" = "0000-0002-3112-6197")))
-Description: Tools for analyzing and interpreting distributed lag nonlinear models (DLNM) in epidemiological contexts. 
-    Includes functions to simulate exposure scenarios, compute effect summaries, predict exposure-lag-response surfaces, 
-    reduce DLNM effects to one dimension, and perform sensitivity analyses. 
-    Designed for multi-variable environmental epidemiology with support for frequentist and Bayesian models.
+Description: Tools for analyzing and interpreting distributed lag nonlinear models (DLNMs) in epidemiological applications.
+    Provides functions to simulate exposure scenarios, summarize lag-specific and period-specific effects,
+    predict exposure-lag-response relationships, reduce multidimensional DLNM results, and perform sensitivity analyses.
+    Supports both frequentist and Bayesian modeling approaches for environmental and plant disease epidemiology.
 Depends: R (>= 4.1)
 Imports: 
     dlnm,

@@ -58,11 +58,39 @@
 }
 
 .epix_validate_n_samples <- function(n_samples) {
-  if (!.epix_is_scalar_number(n_samples) || n_samples < 1 ||
-      n_samples != as.integer(n_samples)) {
-    .epix_stop("`n_samples` must be one positive integer.")
+  if (!.epix_is_scalar_number(n_samples) ||
+      n_samples < 1 ||
+      n_samples > .Machine$integer.max ||
+      n_samples != floor(n_samples)) {
+    .epix_stop(
+      "`n_samples` must be one positive integer no greater than ",
+      "`.Machine$integer.max`."
+    )
   }
+
   as.integer(n_samples)
+}
+
+
+.epix_validate_seed <- function(seed) {
+  if (is.null(seed)) {
+    return(NULL)
+  }
+
+  if (!is.numeric(seed) ||
+      length(seed) != 1L ||
+      is.na(seed) ||
+      !is.finite(seed) ||
+      seed <= 0 ||
+      seed > .Machine$integer.max ||
+      seed != floor(seed)) {
+    .epix_stop(
+      "`seed` must be NULL or one strictly positive integer no greater than ",
+      "`.Machine$integer.max`."
+    )
+  }
+
+  as.integer(seed)
 }
 
 .epix_validate_probs <- function(probs) {
@@ -1120,11 +1148,12 @@
       standard <- standard_names[j]
       basis_name <- basis_names[j]
 
-      exact_candidates <- unique(c(
-        standard,
-        paste0(variable, basis_name),
-        basis_name
-      ))
+      exact_candidates <- unique(
+        c(
+          standard,
+          basis_name
+        )
+      )
 
       matched <- .epix_match_one_name(
         exact_candidates,
@@ -1133,25 +1162,29 @@
       )
 
       if (!length(matched)) {
-        suffix_candidates <- unique(c(
-          paste0(variable, basis_name),
-          basis_name
-        ))
         suffix_matches <- raw_names[
-          vapply(
+          endsWith(
             raw_names,
-            function(x) any(vapply(suffix_candidates, function(s) endsWith(x, s), logical(1))),
-            logical(1)
+            basis_name
           )
         ]
-        suffix_matches <- unique(suffix_matches)
+
+        suffix_matches <- unique(
+          suffix_matches
+        )
 
         if (length(suffix_matches) == 1L) {
           matched <- suffix_matches
         } else if (length(suffix_matches) > 1L) {
           .epix_stop(
             "Ambiguous bdlnm coefficient mapping for canonical term '",
-            standard, "': ", paste(suffix_matches, collapse = ", "), "."
+            standard,
+            "': ",
+            paste(
+              suffix_matches,
+              collapse = ", "
+            ),
+            "."
           )
         }
       }
@@ -1476,71 +1509,161 @@
   draws[sample.int(nrow(draws), n_samples, replace = FALSE), , drop = FALSE]
 }
 
-.epix_inla_fixed_draws <- function(inla_fit, n_samples) {
-  n_samples <- .epix_validate_n_samples(n_samples)
+.epix_inla_fixed_draws <- function(
+    inla_fit,
+    n_samples,
+    seed = NULL
+) {
+  n_samples <- .epix_validate_n_samples(
+    n_samples
+  )
 
-  if (!requireNamespace("INLA", quietly = TRUE)) {
-    .epix_stop("Package 'INLA' is required for INLA posterior draws.")
+  seed <- .epix_validate_seed(
+    seed
+  )
+
+  if (!requireNamespace(
+    "INLA",
+    quietly = TRUE
+  )) {
+    .epix_stop(
+      "Package 'INLA' is required for INLA posterior draws."
+    )
   }
 
-  if (is.null(inla_fit$summary.fixed) || !nrow(inla_fit$summary.fixed) ||
+  if (is.null(inla_fit$summary.fixed) ||
+      !nrow(inla_fit$summary.fixed) ||
       is.null(rownames(inla_fit$summary.fixed))) {
-    .epix_stop("INLA fit does not contain named fixed-effect summaries.")
+    .epix_stop(
+      "INLA fit does not contain named fixed-effect summaries."
+    )
   }
 
-  fixed_names <- rownames(inla_fit$summary.fixed)
-  selection <- as.list(rep(1L, length(fixed_names)))
+  fixed_names <- rownames(
+    inla_fit$summary.fixed
+  )
+
+  selection <- as.list(
+    rep(
+      1L,
+      length(fixed_names)
+    )
+  )
+
   names(selection) <- fixed_names
 
-  posterior <- INLA::inla.posterior.sample(
+  posterior_args <- list(
     n = n_samples,
     result = inla_fit,
     selection = selection,
     add.names = TRUE
   )
 
-  if (!is.list(posterior) || length(posterior) != n_samples) {
-    .epix_stop("INLA returned an unexpected posterior-sample object.")
+  if (!is.null(seed)) {
+    posterior_args$seed <- seed
+    posterior_args$num.threads <- 1L
   }
 
-  rows <- lapply(posterior, function(sample) {
-    latent <- sample$latent
-    if (is.null(latent)) {
-      .epix_stop("An INLA posterior sample does not contain `$latent`.")
-    }
+  posterior <- do.call(
+    INLA::inla.posterior.sample,
+    posterior_args
+  )
 
-    values <- as.numeric(latent)
-    nm <- names(latent)
-    if (is.null(nm)) nm <- rownames(latent)
-    if (is.null(nm)) {
-      .epix_stop("INLA posterior latent values do not have names.")
-    }
+  if (!is.list(posterior) ||
+      length(posterior) != n_samples) {
+    .epix_stop(
+      "INLA returned an unexpected posterior-sample object."
+    )
+  }
 
-    nm <- sub(":1$", "", nm)
-    if (anyDuplicated(nm)) {
-      .epix_stop("INLA posterior fixed-effect names are duplicated after normalization.")
-    }
+  rows <- lapply(
+    posterior,
+    function(sample) {
+      latent <- sample$latent
 
-    names(values) <- nm
+      if (is.null(latent)) {
+        .epix_stop(
+          "An INLA posterior sample does not contain `$latent`."
+        )
+      }
 
-    missing <- setdiff(fixed_names, nm)
-    if (length(missing)) {
-      .epix_stop(
-        "INLA posterior sample is missing fixed effect(s): ",
-        paste(missing, collapse = ", "), "."
+      values <- as.numeric(
+        latent
       )
+
+      nm <- names(
+        latent
+      )
+
+      if (is.null(nm)) {
+        nm <- rownames(
+          latent
+        )
+      }
+
+      if (is.null(nm)) {
+        .epix_stop(
+          "INLA posterior latent values do not have names."
+        )
+      }
+
+      nm <- sub(
+        ":1$",
+        "",
+        nm
+      )
+
+      if (anyDuplicated(nm)) {
+        .epix_stop(
+          "INLA posterior fixed-effect names are duplicated after ",
+          "normalization."
+        )
+      }
+
+      names(values) <- nm
+
+      missing <- setdiff(
+        fixed_names,
+        nm
+      )
+
+      if (length(missing)) {
+        .epix_stop(
+          "INLA posterior sample is missing fixed effect(s): ",
+          paste(
+            missing,
+            collapse = ", "
+          ),
+          "."
+        )
+      }
+
+      values[
+        fixed_names
+      ]
     }
+  )
 
-    values[fixed_names]
-  })
+  out <- do.call(
+    rbind,
+    rows
+  )
 
-  out <- do.call(rbind, rows)
   colnames(out) <- fixed_names
-  rownames(out) <- paste0("sample", seq_len(nrow(out)))
+
+  rownames(out) <- paste0(
+    "sample",
+    seq_len(
+      nrow(out)
+    )
+  )
+
   storage.mode(out) <- "double"
 
   if (any(!is.finite(out))) {
-    .epix_stop("INLA fixed-effect posterior draws contain non-finite values.")
+    .epix_stop(
+      "INLA fixed-effect posterior draws contain non-finite values."
+    )
   }
 
   out
@@ -1578,56 +1701,170 @@
 #' contrast. This preserves covariance across predictions.
 #'
 #' @noRd
-.extract_parameter_draws <- function(fit, n_samples = 1000L) {
-  n_samples <- .epix_validate_n_samples(n_samples)
-  metadata <- .get_epiexposure_metadata(fit)
+.extract_parameter_draws <- function(
+    fit,
+    n_samples = 1000L,
+    seed = NULL
+) {
+  n_samples <- .epix_validate_n_samples(
+    n_samples
+  )
+
+  seed <- .epix_validate_seed(
+    seed
+  )
+
+  metadata <- .get_epiexposure_metadata(
+    fit
+  )
+
   engine <- metadata$engine
 
-  frequentist <- c("glm", "glmmTMB", "gam", "gamm", "gls", "spamm")
+  frequentist <- c(
+    "glm",
+    "glmmTMB",
+    "gam",
+    "gamm",
+    "gls",
+    "spamm"
+  )
 
   if (engine %in% frequentist) {
-    mu <- .extract_central_parameters(fit)
-    sigma <- .epix_extract_fixed_vcov(fit, metadata)
-    return(.epix_mvn_draws(mu, sigma, n_samples))
+    mu <- .extract_central_parameters(
+      fit
+    )
+
+    sigma <- .epix_extract_fixed_vcov(
+      fit,
+      metadata
+    )
+
+    return(
+      .epix_mvn_draws(
+        mu,
+        sigma,
+        n_samples
+      )
+    )
   }
 
-  if (identical(engine, "brms")) {
-    if (!requireNamespace("brms", quietly = TRUE)) {
-      .epix_stop("Package 'brms' is required for brms posterior draws.")
+  if (identical(
+    engine,
+    "brms"
+  )) {
+    if (!requireNamespace(
+      "brms",
+      quietly = TRUE
+    )) {
+      .epix_stop(
+        "Package 'brms' is required for brms posterior draws."
+      )
     }
 
-    raw <- brms::fixef(fit, summary = FALSE)
-    raw <- .epix_subsample_rows(raw, n_samples)
-    return(.epix_standardize_draw_matrix(fit, metadata, raw))
+    raw <- brms::fixef(
+      fit,
+      summary = FALSE
+    )
+
+    raw <- .epix_subsample_rows(
+      raw,
+      n_samples
+    )
+
+    return(
+      .epix_standardize_draw_matrix(
+        fit,
+        metadata,
+        raw
+      )
+    )
   }
 
-  if (identical(engine, "inla")) {
-    raw <- .epix_inla_fixed_draws(fit, n_samples)
-    return(.epix_standardize_draw_matrix(fit, metadata, raw))
+  if (identical(
+    engine,
+    "inla"
+  )) {
+    raw <- .epix_inla_fixed_draws(
+      inla_fit = fit,
+      n_samples = n_samples,
+      seed = seed
+    )
+
+    return(
+      .epix_standardize_draw_matrix(
+        fit,
+        metadata,
+        raw
+      )
+    )
   }
 
-  if (identical(engine, "bdlnm")) {
-    if (!is.null(fit$coefficients) && is.matrix(fit$coefficients) &&
-        ncol(fit$coefficients) >= n_samples &&
-        !is.null(rownames(fit$coefficients))) {
+  if (identical(
+    engine,
+    "bdlnm"
+  )) {
+    has_stored_draws <-
+      !is.null(fit$coefficients) &&
+      is.matrix(fit$coefficients) &&
+      nrow(fit$coefficients) > 0L &&
+      ncol(fit$coefficients) >= n_samples &&
+      !is.null(rownames(fit$coefficients)) &&
+      !anyNA(rownames(fit$coefficients)) &&
+      all(nzchar(rownames(fit$coefficients)))
+
+    if (has_stored_draws) {
+      if (any(!is.finite(fit$coefficients))) {
+        .epix_stop(
+          "Stored bdlnm coefficient draws contain non-finite values."
+        )
+      }
+
       # bdlnm stores coefficients as parameters x samples.
-      raw <- t(fit$coefficients)
-      raw <- .epix_subsample_rows(raw, n_samples)
-      return(.epix_standardize_draw_matrix(fit, metadata, raw))
+      raw <- t(
+        fit$coefficients
+      )
+
+      raw <- .epix_subsample_rows(
+        raw,
+        n_samples
+      )
+
+      return(
+        .epix_standardize_draw_matrix(
+          fit,
+          metadata,
+          raw
+        )
+      )
     }
 
     if (is.null(fit$model)) {
       .epix_stop(
-        "bdlnm does not contain enough stored coefficient draws and its ",
-        "underlying INLA model is unavailable."
+        "bdlnm does not contain enough valid stored coefficient draws and ",
+        "its underlying INLA model is unavailable."
       )
     }
 
-    raw <- .epix_inla_fixed_draws(fit$model, n_samples)
-    return(.epix_standardize_draw_matrix(fit, metadata, raw))
+    raw <- .epix_inla_fixed_draws(
+      inla_fit = fit$model,
+      n_samples = n_samples,
+      seed = seed
+    )
+
+    return(
+      .epix_standardize_draw_matrix(
+        fit,
+        metadata,
+        raw
+      )
+    )
   }
 
-  .epix_stop("Unsupported EpiExposure engine: ", engine, ".")
+  .epix_stop(
+    "Unsupported EpiExposure engine: ",
+    engine,
+    "."
+  )
 }
 
 
@@ -1902,53 +2139,113 @@
     fit,
     newdata,
     n_samples = 1000L,
-    type = c("response", "link"),
-    parameter_draws = NULL
+    type = c(
+      "response",
+      "link"
+    ),
+    parameter_draws = NULL,
+    seed = NULL
 ) {
-  type <- match.arg(type)
-  n_samples <- .epix_validate_n_samples(n_samples)
-  metadata <- .get_epiexposure_metadata(fit)
-  X <- .epix_standard_fixed_design(newdata, metadata)
+  type <- match.arg(
+    type
+  )
+
+  n_samples <- .epix_validate_n_samples(
+    n_samples
+  )
+
+  seed <- .epix_validate_seed(
+    seed
+  )
+
+  metadata <- .get_epiexposure_metadata(
+    fit
+  )
+
+  X <- .epix_standard_fixed_design(
+    newdata,
+    metadata
+  )
 
   if (is.null(parameter_draws)) {
-    parameter_draws <- .extract_parameter_draws(fit, n_samples = n_samples)
+    parameter_draws <- .extract_parameter_draws(
+      fit = fit,
+      n_samples = n_samples,
+      seed = seed
+    )
   } else {
-    parameter_draws <- as.matrix(parameter_draws)
+    parameter_draws <- as.matrix(
+      parameter_draws
+    )
 
     if (nrow(parameter_draws) != n_samples) {
       .epix_stop(
-        "Supplied `parameter_draws` has ", nrow(parameter_draws),
-        " row(s), but `n_samples = ", n_samples, "`."
+        "Supplied `parameter_draws` has ",
+        nrow(parameter_draws),
+        " row(s), but `n_samples = ",
+        n_samples,
+        "`."
       )
     }
 
-    expected <- .epix_expected_parameter_names(metadata)
+    expected <- .epix_expected_parameter_names(
+      metadata
+    )
+
     if (is.null(colnames(parameter_draws)) ||
-        !identical(colnames(parameter_draws), expected)) {
+        !identical(
+          colnames(parameter_draws),
+          expected
+        )) {
       .epix_stop(
-        "Supplied `parameter_draws` must have canonical columns in this exact ",
-        "order: ", paste(expected, collapse = ", "), "."
+        "Supplied `parameter_draws` must have canonical columns in this ",
+        "exact order: ",
+        paste(
+          expected,
+          collapse = ", "
+        ),
+        "."
       )
     }
 
     storage.mode(parameter_draws) <- "double"
+
     if (any(!is.finite(parameter_draws))) {
-      .epix_stop("Supplied `parameter_draws` contain non-finite values.")
+      .epix_stop(
+        "Supplied `parameter_draws` contain non-finite values."
+      )
     }
   }
 
-  if (!identical(colnames(parameter_draws), colnames(X))) {
-    .epix_stop("Parameter draws and prediction design do not align exactly.")
+  if (!identical(
+    colnames(parameter_draws),
+    colnames(X)
+  )) {
+    .epix_stop(
+      "Parameter draws and prediction design do not align exactly."
+    )
   }
 
-  eta <- parameter_draws %*% t(X)
+  eta <- parameter_draws %*% t(
+    X
+  )
+
   storage.mode(eta) <- "double"
 
-  if (identical(type, "link")) {
+  if (identical(
+    type,
+    "link"
+  )) {
     out <- eta
   } else {
-    link <- .epix_link_object(metadata$link)
-    transformed <- link$linkinv(as.vector(eta))
+    link <- .epix_link_object(
+      metadata$link
+    )
+
+    transformed <- link$linkinv(
+      as.vector(eta)
+    )
+
     out <- matrix(
       as.numeric(transformed),
       nrow = nrow(eta),
@@ -1959,17 +2256,45 @@
 
   if (any(!is.finite(out))) {
     .epix_stop(
-      "Draw-by-draw prediction produced non-finite values. Check the fitted ",
-      "model, link, and extrapolation range."
+      "Draw-by-draw prediction produced non-finite values. Check the ",
+      "fitted model, link, and extrapolation range."
     )
   }
 
-  rownames(out) <- paste0("sample", seq_len(nrow(out)))
-  colnames(out) <- paste0("prediction", seq_len(ncol(out)))
-  attr(out, "epiexposure_prediction_type") <- type
-  attr(out, "epiexposure_prediction_level") <- "population"
-  attr(out, "epiexposure_prediction_estimand") <- "expected_response"
-  attr(out, "epiexposure_parameter_draws") <- parameter_draws
+  rownames(out) <- paste0(
+    "sample",
+    seq_len(
+      nrow(out)
+    )
+  )
+
+  colnames(out) <- paste0(
+    "prediction",
+    seq_len(
+      ncol(out)
+    )
+  )
+
+  attr(
+    out,
+    "epiexposure_prediction_type"
+  ) <- type
+
+  attr(
+    out,
+    "epiexposure_prediction_level"
+  ) <- "population"
+
+  attr(
+    out,
+    "epiexposure_prediction_estimand"
+  ) <- "expected_response"
+
+  attr(
+    out,
+    "epiexposure_parameter_draws"
+  ) <- parameter_draws
+
   out
 }
 

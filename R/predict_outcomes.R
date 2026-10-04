@@ -62,8 +62,11 @@
 #'   empirical uncertainty quantiles. The default `c(0.025, 0.975)` gives a
 #'   95 percent interval. Used only when `uncertainty = TRUE` and
 #'   `output = "summary"`.
-#' @param seed Optional finite integer used for parameter-draw sampling. The
-#'   caller's global random-number state is restored when the function exits.
+#' @param seed `NULL` or one strictly positive finite integer used to make
+#'   parameter-draw sampling reproducible. For INLA-backed predictions, the
+#'   value controls both the R random-number generator and the native
+#'   `INLA::inla.posterior.sample()` seed. The caller's global random-number
+#'   state is restored when the function exits.
 #' @param extrapolation Behavior when prediction exposures extend beyond the
 #'   exposure range stored with the fitted cross-basis: `"warn"` (default),
 #'   `"error"`, or `"allow"`. This controls notification only; the fitted basis
@@ -234,13 +237,9 @@ predict_outcomes <- function(
     }
   }
 
-  if (!is.null(seed)) {
-    if (!is.numeric(seed) || length(seed) != 1L || is.na(seed) ||
-        !is.finite(seed) || seed != as.integer(seed)) {
-      stop("`seed` must be NULL or one finite integer.", call. = FALSE)
-    }
-    seed <- as.integer(seed)
-  }
+  seed <- .epix_validate_seed(
+    seed
+  )
 
   # The current fitted-model metadata must encode exactly the prediction
   # contract agreed for EpiExposure v1. .get_epiexposure_metadata() already
@@ -602,26 +601,37 @@ predict_outcomes <- function(
     # Validate finite values before basis construction so malformed input fails
     # with a profile-specific message rather than inside dlnm.
     for (variable in metadata$vars) {
-      minimum_length <- metadata$spec[[variable]]$max_lag + 1L
+      expected_length <- metadata$spec[[variable]]$max_lag + 1L
 
       for (i in seq_len(n_profiles)) {
         current <- profile_sets[[variable]][[i]]
 
-        if (!length(current) || anyNA(current) ||
+        if (!length(current) ||
+            anyNA(current) ||
             any(!is.finite(current))) {
           stop(
-            "Profile ", i, " for variable '", variable,
+            "Profile ",
+            i,
+            " for variable '",
+            variable,
             "' must contain only finite numeric values.",
             call. = FALSE
           )
         }
 
-        if (length(current) < minimum_length) {
+        if (length(current) != expected_length) {
           stop(
-            "Profile ", i, " for variable '", variable,
-            "' contains ", length(current), " value(s), but at least ",
-            minimum_length, " are required for max_lag = ",
-            metadata$spec[[variable]]$max_lag, ".",
+            "Profile ",
+            i,
+            " for variable '",
+            variable,
+            "' contains ",
+            length(current),
+            " value(s), but exactly ",
+            expected_length,
+            " are required for max_lag = ",
+            metadata$spec[[variable]]$max_lag,
+            ". Histories are not truncated or padded.",
             call. = FALSE
           )
         }
@@ -741,7 +751,8 @@ predict_outcomes <- function(
     fit = fit,
     newdata = prediction_design,
     n_samples = n_samples,
-    type = type
+    type = type,
+    seed = seed
   )
 
   if (identical(output, "samples")) {

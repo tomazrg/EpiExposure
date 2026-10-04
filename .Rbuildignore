@@ -8,3 +8,4 @@
 ^Meta$
 ^\\.RData$$
 ^\\.RDataTmp$$
+^external_models$
