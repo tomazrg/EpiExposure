@@ -174,8 +174,11 @@ empirical uncertainty quantiles. The default `c(0.025, 0.975)` gives a
 
 
 <dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
-<dd><p>Optional finite integer used for parameter-draw sampling. The
-caller's global random-number state is restored when the function exits.</p></dd>
+<dd><p>`NULL` or one strictly positive finite integer used to make
+parameter-draw sampling reproducible. For INLA-backed predictions, the
+value controls both the R random-number generator and the native
+`INLA::inla.posterior.sample()` seed. The caller's global random-number
+state is restored when the function exits.</p></dd>
 
 
 <dt id="arg-extrapolation">extrapolation<a class="anchor" aria-label="anchor" href="#arg-extrapolation"></a></dt>

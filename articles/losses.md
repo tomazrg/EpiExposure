@@ -15,7 +15,7 @@ economic losses.
 2.  expected disease outcomes from the fitted DLNM;
 3.  user-defined disease-yield and economic relationships.
 
-This vignette demonstrates how scenario predictions can be translated
+This section demonstrates how scenario predictions can be translated
 into:
 
 - expected remaining yield;
@@ -40,7 +40,7 @@ losses or causal effects.
 
 ## Preparing the epidemiological model
 
-This vignette uses the same example dataset and DLNM specification
+This section uses the same example dataset and DLNM specification
 introduced in the previous tutorials.
 
 ``` r
@@ -518,7 +518,7 @@ When reporting loss estimates, specify:
 
 ## Summary
 
-This vignette demonstrated how `EpiExposure` connects
+This section demonstrated how `EpiExposure` connects
 exposure-lag-response modeling with agronomic and economic outcomes.
 
 The workflow is:

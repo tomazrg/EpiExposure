@@ -116,8 +116,11 @@ predict_outcomes(
 
 - seed:
 
-  Optional finite integer used for parameter-draw sampling. The caller's
-  global random-number state is restored when the function exits.
+  \`NULL\` or one strictly positive finite integer used to make
+  parameter-draw sampling reproducible. For INLA-backed predictions, the
+  value controls both the R random-number generator and the native
+  \`INLA::inla.posterior.sample()\` seed. The caller's global
+  random-number state is restored when the function exits.
 
 - extrapolation:
 

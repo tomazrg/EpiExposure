@@ -34,7 +34,7 @@ pathosystem.
 
 ## Preparing the example model
 
-This vignette uses the same example dataset and DLNM specification
+This section uses the same example dataset and DLNM specification
 introduced in the previous tutorials.
 
 ``` r
@@ -109,7 +109,7 @@ along controlled environmental gradients.
 
 ## From effect interpretation to sensitivity analysis
 
-The *Understanding Effects* vignette introduced lag-specific,
+The *Understanding Effects* section introduced lag-specific,
 period-specific, and cumulative summaries of the fitted
 exposure-lag-response relationship.
 
@@ -141,13 +141,13 @@ and
 [`simulate_scenarios()`](https://tomazrg.github.io/EpiExposure/reference/simulate_scenarios.md)
 to create controlled exposure gradients.
 
-In this vignette, these functions are used specifically to evaluate one
+In this section, these functions are used specifically to evaluate one
 environmental variable across a sequence of values while the remaining
 variables are held constant.
 
 The broader use of simulation tools for constructing complete exposure
 histories, structured events, and multivariable scenarios is covered in
-the *Simulation and Prediction* vignette.
+the *Simulation and Prediction* section.
 
 First, define epidemiological lag periods:
 
@@ -207,13 +207,6 @@ temp_range <- simulate_ranges(
 
 This is a controlled model-based gradient. It does not represent
 additional observed data.
-
-Inspect the first candidate scenarios:
-
-[TABLE]
-
-First 10 scenarios in the controlled temperature gradient. {.table
-.kable_wrapper}
 
 ### Predicting responses along the gradient
 
@@ -958,8 +951,8 @@ Before reporting sensitivity or elasticity results, verify:
 
 ## Summary
 
-This vignette demonstrated how `EpiExposure` can be used to examine
-local changes along model-predicted response curves.
+This section demonstrated how `EpiExposure` can be used to examine local
+changes along model-predicted response curves.
 
 The sensitivity workflow consists of:
 
@@ -985,7 +978,7 @@ The principal tools are:
   for calculating sensitivity, elasticity, and critical regions.
 
 Sensitivity analysis complements the effect summaries introduced in the
-*Understanding Effects* vignette.
+*Understanding Effects* section
 
 Lag-specific and period-specific effects describe the fitted
 exposure-lag association, whereas sensitivity describes how rapidly a
@@ -997,7 +990,7 @@ assessment, and decision criteria appropriate to the pathosystem.
 
 ## Next steps
 
-The next vignette, *Simulation and Prediction*, expands from controlled
+The next section, *Simulation and Prediction*, expands from controlled
 one-variable gradients to complete hypothetical exposure histories and
 multivariable scenarios.
 

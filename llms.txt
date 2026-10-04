@@ -109,7 +109,7 @@ install.packages("EpiExposure")
 - [`fit_epidlnm()`](https://tomazrg.github.io/EpiExposure/reference/fit_epidlnm.md)
   : Fit a harmonized DLNM inferential model
 - [`find_bestfit()`](https://tomazrg.github.io/EpiExposure/reference/find_bestfit.md)
-  : Find the best DLNM model structure using grouped cross-validation
+  : Find the best DLNM model structure using grouped validation
 - [`ensemble_bestfit()`](https://tomazrg.github.io/EpiExposure/reference/ensemble_bestfit.md)
   : Create model and lag-contribution ensembles from best-fit DLNM
   models

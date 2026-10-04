@@ -29,32 +29,34 @@ This section demonstrates:
 
 ``` r
 
+
 library(EpiExposure)
 library(dplyr)
 library(ggplot2)
+library(patchwork)
 ```
 
 ``` r
 
+
 data("epi_data")
 
 epi_data
+#> # A tibble: 44,720 × 6
+#>    epi_id  time tmean  rain wetness     y
+#>     <dbl> <dbl> <dbl> <dbl>   <dbl> <dbl>
+#>  1      1     0  22.0  0       8.83 0.330
+#>  2      1     1  21.5  0      11.9  0.330
+#>  3      1     2  21.5  5.38   12.5  0.330
+#>  4      1     3  21.8 14.6    12.3  0.330
+#>  5      1     4  20.8  0      11.4  0.330
+#>  6      1     5  23.0  8.24    7.98 0.330
+#>  7      1     6  23.9  4.69   10.8  0.330
+#>  8      1     7  23.1 12.3     8.58 0.330
+#>  9      1     8  25.3  4.14   10.6  0.330
+#> 10      1     9  26.0  1.91   14.1  0.330
+#> # ℹ 44,710 more rows
 ```
-
-    ## # A tibble: 44,720 × 6
-    ##    epi_id  time tmean  rain wetness     y
-    ##     <dbl> <dbl> <dbl> <dbl>   <dbl> <dbl>
-    ##  1      1     0  22.0  0       8.83 0.330
-    ##  2      1     1  21.5  0      11.9  0.330
-    ##  3      1     2  21.5  5.38   12.5  0.330
-    ##  4      1     3  21.8 14.6    12.3  0.330
-    ##  5      1     4  20.8  0      11.4  0.330
-    ##  6      1     5  23.0  8.24    7.98 0.330
-    ##  7      1     6  23.9  4.69   10.8  0.330
-    ##  8      1     7  23.1 12.3     8.58 0.330
-    ##  9      1     8  25.3  4.14   10.6  0.330
-    ## 10      1     9  26.0  1.91   14.1  0.330
-    ## # ℹ 44,710 more rows
 
 ## Why model selection matters
 
@@ -88,6 +90,7 @@ than their system can support.
 
 ``` r
 
+
 future::plan(future::sequential ) 
 ```
 
@@ -109,11 +112,53 @@ best_models <- find_bestfit(
   keep_fits = TRUE)
 ```
 
-Inspect results
+``` r
+
+plot_performance(
+  object = best_models,
+ # model_id = c(
+  #  63, 42, 56, 35, 49, 28, 40, 61,
+    #19, 47, 33, 54, 26, 12, 5
+#  ),
+  model_id = c(5,12,19,26,28,33,35,40,42,47,49,54,56,61,63),
+  metrics = c("CCC"),
+  x = "observed",
+  y = "predicted",
+  scale_factor = 1,
+  ncol = 5,
+  x_lab = "Observed ",
+  y_lab = "Predicted",
+  size = 1.4
+) +
+  ggplot2::theme(
+    text = ggplot2::element_text(
+      size = 10,
+      face = "bold"
+    )
+  )
+```
+
+![](find_bestfit2.png) Inspect results
 
 ``` r
 
 head(best_models)
+#> # A tibble: 6 × 28
+#>    rank model_id df_var df_lag vars       n_vars   CCC    Cb   rho   RMSE    MAE
+#>   <dbl>    <dbl>  <dbl>  <dbl> <chr>       <dbl> <dbl> <dbl> <dbl>  <dbl>  <dbl>
+#> 1     1       63      4      4 tmean + r…      3 0.980 1.000 0.980 0.0529 0.0382
+#> 2     2       42      3      4 tmean + r…      3 0.978 1.000 0.979 0.0550 0.0395
+#> 3     3       56      4      3 tmean + r…      3 0.970 0.999 0.971 0.0642 0.0475
+#> 4     4       35      3      3 tmean + r…      3 0.969 0.999 0.969 0.0656 0.0483
+#> 5     5       49      4      2 tmean + r…      3 0.952 0.998 0.954 0.0803 0.0577
+#> 6     6       28      3      2 tmean + r…      3 0.949 0.998 0.951 0.0825 0.0589
+#> # ℹ 17 more variables: n_folds <dbl>, n_success_folds <dbl>,
+#> #   n_failed_folds <dbl>, n_predictions <dbl>, n_success <dbl>, n_failed <dbl>,
+#> #   n_warning_folds <dbl>, warning_rate <dbl>, n_warning_events <dbl>,
+#> #   n_knot_warning_folds <dbl>, n_convergence_warning_folds <dbl>,
+#> #   n_hessian_warning_folds <dbl>, n_other_warning_folds <dbl>,
+#> #   n_knot_warning_events <dbl>, n_convergence_warning_events <dbl>,
+#> #   n_hessian_warning_events <dbl>, n_other_warning_events <dbl>
 ```
 
 Depending on the selected validation settings, the resulting object can
@@ -151,6 +196,19 @@ best_models %>%
     MAE
   ) %>%
   head(10)
+#> # A tibble: 10 × 5
+#>    model_id vars                     CCC   RMSE    MAE
+#>       <dbl> <chr>                  <dbl>  <dbl>  <dbl>
+#>  1       63 tmean + rain + wetness 0.980 0.0529 0.0382
+#>  2       42 tmean + rain + wetness 0.978 0.0550 0.0395
+#>  3       56 tmean + rain + wetness 0.970 0.0642 0.0475
+#>  4       35 tmean + rain + wetness 0.969 0.0656 0.0483
+#>  5       49 tmean + rain + wetness 0.952 0.0803 0.0577
+#>  6       28 tmean + rain + wetness 0.949 0.0825 0.0589
+#>  7       40 tmean + wetness        0.859 0.132  0.0988
+#>  8       61 tmean + wetness        0.858 0.132  0.0998
+#>  9       19 tmean + wetness        0.851 0.134  0.102 
+#> 10       47 tmean + wetness        0.848 0.136  0.104
 ```
 
 ## Visualizing model performance
@@ -175,6 +233,8 @@ best_models %>%
   geom_point(size = 3) +
   theme_bw()
 ```
+
+![](selection-ensemble_files/figure-html/unnamed-chunk-10-1.png)
 
 ## Understanding validation metrics
 
@@ -222,28 +282,6 @@ top_model <- best_models |>
   )
 ```
 
-Retrieve the fitted model:
-
-``` r
-
-fit_best <- best_models$fit[[
-  which.max(
-    best_models$CCC
-  )
-]]
-
-summary(
-  fit_best
-)
-```
-
-Review model diagnostics:
-
-``` r
-
-summary(fit_best)
-```
-
 ## Why use ensembles?
 
 No single model is guaranteed to be optimal.
@@ -289,9 +327,27 @@ ens_unweighted <- ensemble_bestfit(
 
 ### Inspect results
 
+The ensemble summary can be extracted from the fitted ensemble object:
+
 ``` r
 
 ens_unweighted$ensemble_summary
+```
+
+The table below shows a precomputed example of the ensemble summary
+output.
+
+``` r
+
+ens_unweighted
+#> # A tibble: 1 × 20
+#>   method     n_models n_oof family outcome_type cv_method cv_scheme            k
+#>   <chr>         <dbl> <dbl> <chr>  <chr>        <chr>     <chr>            <dbl>
+#> 1 unweighted        3   520 beta   non_binary   LOOCV     leave_one_group…   520
+#> # ℹ 12 more variables: weight_metric <chr>, metric_direction <chr>,
+#> #   threshold <lgl>, stacking_model <lgl>, stack_objective <lgl>,
+#> #   stack_intercept <lgl>, weight_transform <lgl>, CCC <dbl>, Cb <dbl>,
+#> #   rho <dbl>, RMSE <dbl>, MAE <dbl>
 ```
 
 ## Weighted ensemble
@@ -315,9 +371,27 @@ ens_weighted <- ensemble_bestfit(
 
 ### Inspect results
 
+The ensemble summary can be extracted from the fitted ensemble object:
+
 ``` r
 
 ens_weighted$ensemble_summary
+```
+
+The table below shows a precomputed example of the ensemble summary
+output.
+
+``` r
+
+ens_weighted
+#> # A tibble: 1 × 20
+#>   method   n_models n_oof family outcome_type cv_method cv_scheme              k
+#>   <chr>       <dbl> <dbl> <chr>  <chr>        <chr>     <chr>              <dbl>
+#> 1 weighted        3   520 beta   non_binary   LOOCV     leave_one_group_o…   520
+#> # ℹ 12 more variables: weight_metric <chr>, metric_direction <chr>,
+#> #   threshold <lgl>, stacking_model <lgl>, stack_objective <lgl>,
+#> #   stack_intercept <lgl>, weight_transform <chr>, CCC <dbl>, Cb <dbl>,
+#> #   rho <dbl>, RMSE <dbl>, MAE <dbl>
 ```
 
 ## Stacked ensemble
@@ -341,9 +415,27 @@ ens_stacked <- ensemble_bestfit(
 
 ### Inspect results
 
+The ensemble summary can be extracted from the fitted ensemble object:
+
 ``` r
 
 ens_stacked$ensemble_summary
+```
+
+The table below shows a precomputed example of the ensemble summary
+output.
+
+``` r
+
+ens_stacked
+#> # A tibble: 1 × 20
+#>   method  n_models n_oof family outcome_type cv_method cv_scheme               k
+#>   <chr>      <dbl> <dbl> <chr>  <chr>        <chr>     <chr>               <dbl>
+#> 1 stacked        3   520 beta   non_binary   LOOCV     leave_one_group_out   520
+#> # ℹ 12 more variables: weight_metric <chr>, metric_direction <chr>,
+#> #   threshold <lgl>, stacking_model <chr>, stack_objective <chr>,
+#> #   stack_intercept <dbl>, weight_transform <lgl>, CCC <dbl>, Cb <dbl>,
+#> #   rho <dbl>, RMSE <dbl>, MAE <dbl>
 ```
 
 ## Comparing ensemble strategies
@@ -362,69 +454,231 @@ ensemble_metrics <- dplyr::bind_rows(
     RMSE,
     MAE
   )
+```
+
+``` r
 
 ensemble_metrics
+#> # A tibble: 3 × 4
+#>   method       CCC   RMSE    MAE
+#>   <chr>      <dbl>  <dbl>  <dbl>
+#> 1 Unweighted 0.646 0.174  0.148 
+#> 2 Weighted   0.839 0.125  0.105 
+#> 3 Stacked    0.980 0.0532 0.0385
 ```
 
 ## Visualizing ensemble predictions
 
 ``` r
 
-ensemble_all <- bind_rows(
 
-  mutate(
-    ens_unweighted$ensemble_predictions,
-    method = "Unweighted"
-  ),
+ens_unweighted$ensemble_predictions$method = "unweighted"
+ens_weighted$ensemble_predictions$method = "weighted"
+ens_stacked$ensemble_predictions$method = "stacked"
 
-  mutate(
-    ens_weighted$ensemble_predictions,
-    method = "Weighted"
-  ),
-
-  mutate(
-    ens_stacked$ensemble_predictions,
-    method = "Stacked"
-  )
-)
+ensemble_all = rbind(ens_unweighted$ensemble_predictions,ens_weighted$ensemble_predictions, ens_stacked$ensemble_predictions)
 ```
 
 ``` r
 
-ggplot(
-  ensemble_all,
-  aes(
-    observed,
-    predicted_ensemble
+ensemble_all
+#> # A tibble: 1,560 × 8
+#>    group  fold method     observed predicted_ensemble model_63 model_23 model_44
+#>    <chr> <dbl> <chr>         <dbl>              <dbl>    <dbl>    <dbl>    <dbl>
+#>  1 1         1 unweighted   0.330               0.471   0.365     0.521    0.528
+#>  2 2         2 unweighted   0.0706              0.361   0.0776    0.495    0.510
+#>  3 3         3 unweighted   0.190               0.231   0.194     0.251    0.248
+#>  4 4         4 unweighted   0.0356              0.274   0.0477    0.381    0.393
+#>  5 5         5 unweighted   0.117               0.281   0.121     0.363    0.360
+#>  6 6         6 unweighted   0.126               0.301   0.140     0.381    0.381
+#>  7 7         7 unweighted   0.276               0.274   0.237     0.292    0.293
+#>  8 8         8 unweighted   0.378               0.384   0.436     0.360    0.356
+#>  9 9         9 unweighted   0.0250              0.189   0.0228    0.271    0.272
+#> 10 10       10 unweighted   0.891               0.546   0.903     0.373    0.362
+#> # ℹ 1,550 more rows
+```
+
+``` r
+
+
+ensemble_metrics$method = c("unweighted","weighted","stacked")
+
+ordem_methods <- c(
+  "unweighted",
+  "weighted",
+  "stacked"
+)
+
+ensemble_plot <- ensemble_all %>%
+  filter(!is.na(method)) %>%
+  mutate(
+    method = as.character(method)
+  ) %>%
+  filter(method %in% ordem_methods) %>%
+  mutate(
+    method = factor(
+      method,
+      levels = ordem_methods
+    )
   )
-) +
 
-  geom_point(alpha = 0.5) +
 
+
+CCC_plot <- ensemble_metrics %>%
+  mutate(
+    method = factor(
+      method,
+      levels = ordem_methods
+    )
+  )
+
+
+
+pos_CCC <- ensemble_plot %>%
+  group_by(method) %>%
+  summarise(
+    x = min(observed, na.rm = TRUE) +
+      0.05 * diff(range(observed, na.rm = TRUE)),
+   
+    y = max(predicted_ensemble, na.rm = TRUE) -
+      0.05 * diff(range(predicted_ensemble, na.rm = TRUE)),
+   
+    .groups = "drop"
+  ) %>%
+  left_join(
+    CCC_plot %>% select(method, CCC),
+    by = "method"
+  )
+
+
+
+ ensemble_gg = ggplot(ensemble_plot,
+            aes(observed, predicted_ensemble)) +
+  geom_point()+
+  geom_smooth(method = "lm",se = FALSE, color = "orange") +
   geom_abline(
-    slope = 1,
     intercept = 0,
+    slope = 1,
+    color = "red",
     linetype = "dashed",
-    color = "red"
-  ) +
-
-  geom_smooth(
-    method = "lm",
-    se = FALSE,
-    color = "blue"
-  ) +
-
+    linewidth = 1) +
+  geom_text(
+    data = pos_CCC,
+    aes(
+      x = 0.02,
+      y = 0.97,
+      label = sprintf("CCC = %.2f", CCC)
+    ),
+    inherit.aes = FALSE,
+    hjust = 0,
+    vjust = 1,
+    size = 4) +
   facet_wrap(
-    ~method
-  ) +
-
+    ~method,
+    ncol = 1) +
   theme_bw() +
-
+    scale_x_continuous(
+    limits = c(0, 1),
+    breaks = seq(0, 1, 0.20),
+    expand = expansion(mult = 0.03)
+  ) +
+ 
+  scale_y_continuous(
+    limits = c(0, 1),
+    breaks = seq(0, 1, 0.20),
+    expand = expansion(mult = 0.03)
+  ) +
   labs(
     x = "Observed",
-    y = "Predicted"
+    y = "Predicted") +
+  theme(text = element_text(size = 10,face = "bold"),legend.position = "none")
+ 
+ ensemble_gg
+```
+
+![](selection-ensemble_files/figure-html/unnamed-chunk-31-1.png)
+
+``` r
+
+best_models_plot <- best_models %>%
+   mutate(
+    splines = paste(df_lag, df_var, sep = " x ")
+  )
+
+
+best_plot <- best_models_plot %>%
+  ggplot(aes(
+    Cb, CCC,
+    color = as.factor(splines),
+    shape = as.factor(vars)
+  )) +
+ 
+  geom_point(size = 4) +
+ 
+  scale_color_viridis_d() +
+ 
+  labs(
+    x = "Cb",
+    y = "CCC",
+    color = "Splines",
+    shape = "Predictors"
+  ) +
+ 
+  guides(
+    color = guide_legend(
+      position = "top",
+      nrow = 1,
+      byrow = TRUE,
+      title.position = "left",
+      theme = theme(
+        legend.key.height = unit(0.25, "cm"),
+        legend.key.width = unit(0.45, "cm"),
+        legend.spacing.y = unit(0, "cm"),
+        legend.margin = margin(
+          t = -3,
+          r = 0,
+          b = -3,
+          l = 0
+        )
+      )
+    ),
+   
+    shape = guide_legend(
+      position = "right"
+    )
+  ) +
+ 
+  theme_bw() +
+ 
+  theme(
+    text = element_text(
+      size = 10,
+      face = "bold"
+    )
   )
 ```
+
+``` r
+
+final_plot <- ensemble_gg + best_plot +
+  plot_layout(ncol = 2) +
+  plot_annotation(
+    tag_levels = "a",
+    tag_prefix = "(",
+    tag_suffix = ")"
+  ) &
+  theme(
+    plot.tag = element_text(
+      size = 12,
+      face = "bold"
+    ),
+    plot.tag.position = c(0.02, 0.94)
+  )
+
+final_plot
+```
+
+![](selection-ensemble_files/figure-html/unnamed-chunk-33-1.png)
 
 ## Choosing an ensemble strategy
 
@@ -487,7 +741,7 @@ may provide a more defensible assessment.
 
 ## Summary
 
-This vignette introduced the `EpiExposure` model-selection and ensemble
+This section introduced the `EpiExposure` model-selection and ensemble
 framework.
 
 The workflow includes:

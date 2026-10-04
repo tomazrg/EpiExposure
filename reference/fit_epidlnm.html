@@ -72,6 +72,7 @@ comparison functions.</p>
 <span>  <span class="va">model_engine</span>,</span>
 <span>  <span class="va">family</span>,</span>
 <span>  random_effect <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  random_effect_prior <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  epiexposure_spec <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  basis_objects <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  spatial_effect <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -88,10 +89,10 @@ comparison functions.</p>
 <dl><dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
 <dd><p>A data.frame containing `y_model` and the fitted DLNM design
 columns. For all engines except `bdlnm`, cross-basis columns must follow the
-package convention `cb_&lt;variable&gt;_&lt;index&gt;`. For `bdlnm`, the original
-cross-basis objects are supplied through `basis_objects` instead. Data
-prepared by `prepare_response()` may carry the `response_family_name`
-attribute; when present, it must agree with `family`.</p></dd>
+package convention `cb_&lt;variable&gt;_&lt;index&gt;`. For `bdlnm`, epidemic-level,
+matrix-form cross-basis objects are supplied through `basis_objects`
+instead. Data prepared by `prepare_response()` may carry the
+`response_family_name` attribute; when present, it must agree with `family`.</p></dd>
 
 
 <dt id="arg-model-engine">model_engine<a class="anchor" aria-label="anchor" href="#arg-model-engine"></a></dt>
@@ -123,6 +124,18 @@ requires it in the current EpiExposure interface because its generated
 fixed formula contains no other smooth/random term.</p></dd>
 
 
+<dt id="arg-random-effect-prior">random_effect_prior<a class="anchor" aria-label="anchor" href="#arg-random-effect-prior"></a></dt>
+<dd><p>Optional named list defining the hyperprior for
+  the precision of the random intercept when `model_engine = "inla"` or
+  `"bdlnm"`. The list is passed unchanged to the `hyper` argument of the
+  internally generated `INLA::f(..., model = "iid")` term.</p>
+<p>For example,
+  `list(prec = list(prior = "pc.prec", param = c(1, 0.01)))`.
+  `NULL` retains the engine's default prior. A non-`NULL` value requires
+  `random_effect` and is currently supported only for the INLA-backed
+  engines.</p></dd>
+
+
 <dt id="arg-epiexposure-spec">epiexposure_spec<a class="anchor" aria-label="anchor" href="#arg-epiexposure-spec"></a></dt>
 <dd><p>Named list describing the cross-basis construction
   for every fitted exposure. This metadata is required so downstream
@@ -140,9 +153,13 @@ fixed formula contains no other smooth/random term.</p></dd>
 
 
 <dt id="arg-basis-objects">basis_objects<a class="anchor" aria-label="anchor" href="#arg-basis-objects"></a></dt>
-<dd><p>Optional named list of original `dlnm::crossbasis()`
-objects. It is required for `model_engine = "bdlnm"`. When supplied for
-other engines, its names must match the fitted exposure variables.</p></dd>
+<dd><p>Optional named list of `dlnm::crossbasis()` objects.
+For `model_engine = "bdlnm"`, these must be the epidemic-level,
+matrix-form cross-basis objects containing exactly one row per model row.
+They are normally recovered from the
+`epiexposure_bdlnm_basis_objects` attribute produced by `build_design()`,
+but may also be supplied explicitly. For other engines, when supplied,
+their names must match the fitted exposure variables.</p></dd>
 
 
 <dt id="arg-spatial-effect">spatial_effect<a class="anchor" aria-label="anchor" href="#arg-spatial-effect"></a></dt>
@@ -186,7 +203,9 @@ is supplied, the function stops.</p></dd>
   `epiexposure_cb_cols`, `epiexposure_vars`,
   `epiexposure_data_template`, `epiexposure_id_col`, `epiexposure_spec`, and
   `epiexposure_basis_objects`. Additional attributes record the standardized
-  family parameterization, random-intercept structure, spatial specification
+  family parameterization, random-intercept structure, the INLA latent
+  random-effect model in `epiexposure_random_effect_model`, the optional
+  `epiexposure_random_effect_prior`, and the spatial specification
   (`epiexposure_spatial_effect`, `epiexposure_spatial_structure`,
   `epiexposure_spatial_group`, and `epiexposure_spatial_term`), common fitted
   `max_lag`, expected history length (`max_lag + 1`), the exact-history
@@ -205,7 +224,9 @@ predictions exclude group-specific random-effect contributions.</p>
 <p>* `glmmTMB`, `brms`, and `spaMM`: `(1 | group)`;
 * `gam`: `s(group, bs = "re")`;
 * `gamm`: `random = list(group = ~1)`;
-* `INLA` and `bdlnm`: `f(group, model = "iid")`.</p>
+* `INLA` and `bdlnm`: `f(group, model = "iid")`, optionally extended to
+  `f(group, model = "iid", hyper = random_effect_prior)` when a custom
+  random-effect hyperprior is supplied.</p>
 <p>`glm` and `gls` are fixed-effect engines in this interface and reject a
 non-`NULL` `random_effect`. The `mgcv::gamm()` implementation uses the
 engine's native `random` argument rather than lme4-style syntax. Because

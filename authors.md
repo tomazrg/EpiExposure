@@ -16,13 +16,12 @@
 Source:
 [`DESCRIPTION`](https://github.com/tomazrg/EpiExposure/blob/HEAD/DESCRIPTION)
 
-Tomáz R, Del Ponte E, Dalla Lana F (2026). *EpiExposure: R package
-designed to advance the epidemiological interpretation of environmental
-drivers of plant disease epidemics*. R package version 0.1.0,
-<https://github.com/tomazrg/EpiExposure>.
+Tomáz R, Del Ponte E, Dalla Lana F (2026). *EpiExposure: Distributed Lag
+Nonlinear Modeling for Plant Disease Epidemiology*. R package version
+0.1.0, <https://github.com/tomazrg/EpiExposure>.
 
     @Manual{,
-      title = {EpiExposure: R package designed to advance the epidemiological interpretation of environmental drivers of plant disease epidemics},
+      title = {EpiExposure: Distributed Lag Nonlinear Modeling for Plant Disease Epidemiology},
       author = {Ricardo Gomes Tomáz and Emerson M. {Del Ponte} and Felipe {Dalla Lana}},
       year = {2026},
       note = {R package version 0.1.0},

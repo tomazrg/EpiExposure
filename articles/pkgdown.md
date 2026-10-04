@@ -35,9 +35,9 @@ A basic analysis follows five stages:
 4.  prepare the response and fit the model;
 5.  use the fitted model for interpretation, prediction, or simulation.
 
-This vignette introduces the basic workflow but stops before detailed
+This section introduces the basic workflow but stops before detailed
 effect interpretation. Lag-specific, period-specific, and cumulative
-effects are covered in the *Understanding Effects* vignette.
+effects are covered in the *Understanding Effects* section
 
 ## Organizing exposure histories
 
@@ -360,7 +360,7 @@ isolated epidemiological effects.
 The fitted exposure-lag surface must instead be reconstructed into
 quantities such as lag-specific, period-specific, and cumulative
 effects. That process is introduced in the *Understanding Effects*
-vignette.
+section
 
 ## Predicting one complete exposure history
 
@@ -415,7 +415,7 @@ You have now completed the basic `EpiExposure` workflow:
 6.  fitted a DLNM;
 7.  predicted an expected disease outcome.
 
-Continue with the *Understanding Effects* vignette to learn how to:
+Continue with the *Understanding Effects* section to learn how to:
 
 - interpret lag-specific effects;
 - define epidemiological periods;
@@ -426,4 +426,4 @@ Continue with the *Understanding Effects* vignette to learn how to:
 More advanced topics, including alternative modeling engines, random
 effects, spatial Matérn structures, Bayesian estimation, and
 identifiability diagnostics, are covered in the *Advanced Topics*
-vignette.
+section

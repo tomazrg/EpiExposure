@@ -6,7 +6,7 @@ The primary goal of `EpiExposure` is not only to fit distributed lag
 nonlinear models, but also to translate estimated exposure-lag-response
 surfaces into epidemiologically meaningful quantities.
 
-This vignette introduces four complementary approaches:
+This section introduces four complementary approaches:
 
 - lag-specific effects;
 - period-specific effects;
@@ -27,8 +27,8 @@ fitted DLNM. They do not, by themselves, establish causal effects.
 
 ## Preparing the example model
 
-This vignette uses the same example dataset and basic model
-specification introduced in the *Get Started* vignette.
+This section uses the same example dataset and basic model specification
+introduced in the *Get Started* section
 
 ``` r
 
@@ -677,12 +677,12 @@ isolated `cb_*` estimates.
 
 ## Next steps
 
-The effect summaries presented in this vignette describe the direction,
+The effect summaries presented in this section describe the direction,
 magnitude, and temporal distribution of modeled exposure associations.
 However, researchers may also want to identify the exposure regions in
 which the predicted response changes most rapidly.
 
-The next vignette, *Sensitivity Analysis and Decision Support*,
+The next section, *Sensitivity Analysis and Decision Support*,
 introduces:
 
 - local response sensitivity;
@@ -695,7 +695,7 @@ introduces:
 These tools extend effect interpretation by examining the rate of change
 along model-based prediction curves.
 
-The subsequent *Simulation and Prediction* vignette provides a broader
+The subsequent *Simulation and Prediction* section provides a broader
 introduction to constructing complete hypothetical exposure histories,
 predicting expected disease outcomes, and comparing environmental
 scenarios.
