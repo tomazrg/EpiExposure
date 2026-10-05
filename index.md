@@ -81,9 +81,18 @@ and predict expected disease outcomes.
 
 ## Installation
 
-Install the stable version from CRAN:
+EpiExposure is currently available from GitHub. Install the package
+with:
 
 ``` r
 
-install.packages("EpiExposure")
+install.packages("pak")
+pak::pkg_install("tomazrg/EpiExposure")
+```
+
+Then load the package:
+
+``` r
+
+library(EpiExposure)
 ```

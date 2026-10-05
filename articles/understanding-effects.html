@@ -100,10 +100,11 @@ Tomáz</h4>
 distributed lag nonlinear models, but also to translate estimated
 exposure-lag-response surfaces into epidemiologically meaningful
 quantities.</p>
-<p>This section introduces four complementary approaches:</p>
+<p>This section introduces five complementary approaches:</p>
 <ul>
 <li>lag-specific effects;</li>
 <li>period-specific effects;</li>
+<li>one-dimensional reduction of the fitted DLNM association;</li>
 <li>Exposure Cumulative Impact, or ECI;</li>
 <li>lag-specific decomposition of ECI.</li>
 </ul>
@@ -112,9 +113,10 @@ strongest, compare biologically meaningful lag periods, and summarize
 complete exposure histories.</p>
 <div class="tutorial-note">
 <p><strong>What you will learn.</strong> This tutorial shows how to
-reconstruct and interpret lag-specific and period-specific effects from
-a fitted DLNM, calculate ECI for complete exposure histories, and
-identify the lags contributing most strongly to ECI.</p>
+reconstruct and interpret lag-specific and period-specific effects,
+reduce a fitted DLNM association to one dimension, calculate ECI for
+complete exposure histories, and identify the lags contributing most
+strongly to ECI.</p>
 </div>
 <p>Effect estimates should be interpreted as modeled associations under
 the fitted DLNM. They do not, by themselves, establish causal
@@ -1274,6 +1276,590 @@ comparing periods, exposures, scenarios, or contrasts.</p>
 </div>
 </div>
 <div class="section level2">
+<h2 id="reducing-the-fitted-dlnm-association">Reducing the fitted DLNM association<a class="anchor" aria-label="anchor" href="#reducing-the-fitted-dlnm-association"></a>
+</h2>
+<div class="section level3">
+<h3 id="why-reduce-an-exposure-lag-association">Why reduce an exposure-lag association?<a class="anchor" aria-label="anchor" href="#why-reduce-an-exposure-lag-association"></a>
+</h3>
+<p>A fitted DLNM represents a two-dimensional association across
+exposure values and retrospective lags. Although this complete surface
+is useful, researchers may also need a one-dimensional representation of
+the fitted association.</p>
+<p><code><a href="../reference/reduce_effects.html">reduce_effects()</a></code> uses <code><a href="https://rdrr.io/pkg/dlnm/man/crossreduce.html" class="external-link">dlnm::crossreduce()</a></code>
+to re-express the fitted cross-basis association in one dimension. The
+function supports three complementary reductions:</p>
+<ul>
+<li>
+<code>"overall"</code> summarizes the cumulative exposure-response
+association across the complete fitted lag interval;</li>
+<li>
+<code>"lag"</code> summarizes the exposure-response association at
+one selected lag;</li>
+<li>
+<code>"var"</code> summarizes the lag-response association at one
+selected exposure value.</li>
+</ul>
+<p>The reduction is algebraic. It uses the cross-basis and coefficient
+mapping stored in the fitted EpiExposure model and does not fit a new
+epidemiological model. Knots, boundary knots, basis dimensions, and lag
+definitions are not re-estimated from the supplied data.</p>
+<p>The <code>data</code> argument is used to validate the temporal
+histories, determine method-based reference values, and verify exposure
+support. It is not used to construct a new cross-basis.</p>
+<div class="tutorial-note">
+<p><strong>Reduction and prediction answer different questions.</strong>
+<code><a href="../reference/reduce_effects.html">reduce_effects()</a></code> returns a centered association contrast
+from the fitted DLNM. It does not return an absolute expected disease
+response. Use <code><a href="../reference/summarise_effects.html">summarise_effects()</a></code> or
+<code><a href="../reference/predict_outcomes.html">predict_outcomes()</a></code> when baseline, predicted, or
+response-scale quantities are required.</p>
+</div>
+</div>
+<div class="section level3">
+<h3 id="overall-cumulative-exposure-response-association">Overall cumulative exposure-response association<a class="anchor" aria-label="anchor" href="#overall-cumulative-exposure-response-association"></a>
+</h3>
+<p>The following example reduces the fitted temperature association
+across the complete lag interval.</p>
+<p>Because the fitted Beta model uses a logit link,
+<code>scale = "percent"</code> represents the percentage change in the
+modeled odds relative to the selected temperature reference. It is not a
+percentage-point change in the expected disease proportion.</p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">reduced_tmean</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/reduce_effects.html">reduce_effects</a></span><span class="op">(</span></span>
+<span>  fit <span class="op">=</span> <span class="va">fit</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">epi_data</span>,</span>
+<span>  vars <span class="op">=</span> <span class="st">"tmean"</span>,</span>
+<span>  group <span class="op">=</span> <span class="st">"epi_id"</span>,</span>
+<span>  time <span class="op">=</span> <span class="st">"time"</span>,</span>
+<span>  type <span class="op">=</span> <span class="st">"overall"</span>,</span>
+<span>  scale <span class="op">=</span> <span class="st">"percent"</span>,</span>
+<span>  uncertainty <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  output <span class="op">=</span> <span class="st">"summary"</span>,</span>
+<span>  n_samples <span class="op">=</span> <span class="fl">100</span>,</span>
+<span>  seed <span class="op">=</span> <span class="fl">123</span>,</span>
+<span>  ref <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    method <span class="op">=</span> <span class="st">"median"</span>,</span>
+<span>    value <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  at <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span></span>
+<span>    <span class="fl">15</span>,</span>
+<span>    <span class="fl">35</span>,</span>
+<span>    length.out <span class="op">=</span> <span class="fl">100</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>The median observed temperature is used as the reference. At that
+value, the centered association is neutral:</p>
+<pre class="text"><code>eta = 0
+percent effect = 0</code></pre>
+<p>Values above zero indicate higher modeled odds than at the reference
+temperature, whereas values below zero indicate lower modeled odds.</p>
+<p>Inspect the reduced association:</p>
+<table class="table">
+<colgroup>
+<col width="5%">
+<col width="7%">
+<col width="5%">
+<col width="9%">
+<col width="7%">
+<col width="6%">
+<col width="6%">
+<col width="6%">
+<col width="6%">
+<col width="5%">
+<col width="7%">
+<col width="9%">
+<col width="7%">
+<col width="8%">
+</colgroup>
+<thead><tr class="header">
+<th align="center">var</th>
+<th align="center">type</th>
+<th align="center">value</th>
+<th align="center">reference</th>
+<th align="center">scale</th>
+<th align="center">x</th>
+<th align="center">eta</th>
+<th align="center">eta_sd</th>
+<th align="center">low</th>
+<th align="center">high</th>
+<th align="center">effect</th>
+<th align="center">effect_sd</th>
+<th align="center">low_eff</th>
+<th align="center">high_eff</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="center">tmean</td>
+<td align="center">overall</td>
+<td align="center">NA</td>
+<td align="center">24.971</td>
+<td align="center">percent</td>
+<td align="center">15.000</td>
+<td align="center">-0.203</td>
+<td align="center">0.897</td>
+<td align="center">-1.888</td>
+<td align="center">1.551</td>
+<td align="center">-18.352</td>
+<td align="center">129.602</td>
+<td align="center">-84.508</td>
+<td align="center">371.772</td>
+</tr>
+<tr class="even">
+<td align="center">tmean</td>
+<td align="center">overall</td>
+<td align="center">NA</td>
+<td align="center">24.971</td>
+<td align="center">percent</td>
+<td align="center">15.202</td>
+<td align="center">-0.286</td>
+<td align="center">0.869</td>
+<td align="center">-1.925</td>
+<td align="center">1.413</td>
+<td align="center">-24.877</td>
+<td align="center">112.548</td>
+<td align="center">-85.068</td>
+<td align="center">310.778</td>
+</tr>
+<tr class="odd">
+<td align="center">tmean</td>
+<td align="center">overall</td>
+<td align="center">NA</td>
+<td align="center">24.971</td>
+<td align="center">percent</td>
+<td align="center">15.404</td>
+<td align="center">-0.373</td>
+<td align="center">0.840</td>
+<td align="center">-1.962</td>
+<td align="center">1.279</td>
+<td align="center">-31.116</td>
+<td align="center">97.750</td>
+<td align="center">-85.604</td>
+<td align="center">259.493</td>
+</tr>
+<tr class="even">
+<td align="center">tmean</td>
+<td align="center">overall</td>
+<td align="center">NA</td>
+<td align="center">24.971</td>
+<td align="center">percent</td>
+<td align="center">15.606</td>
+<td align="center">-0.459</td>
+<td align="center">0.812</td>
+<td align="center">-1.998</td>
+<td align="center">1.147</td>
+<td align="center">-36.805</td>
+<td align="center">84.927</td>
+<td align="center">-86.116</td>
+<td align="center">214.792</td>
+</tr>
+<tr class="odd">
+<td align="center">tmean</td>
+<td align="center">overall</td>
+<td align="center">NA</td>
+<td align="center">24.971</td>
+<td align="center">percent</td>
+<td align="center">15.808</td>
+<td align="center">-0.545</td>
+<td align="center">0.784</td>
+<td align="center">-2.034</td>
+<td align="center">1.014</td>
+<td align="center">-41.983</td>
+<td align="center">73.829</td>
+<td align="center">-86.602</td>
+<td align="center">175.879</td>
+</tr>
+<tr class="even">
+<td align="center">tmean</td>
+<td align="center">overall</td>
+<td align="center">NA</td>
+<td align="center">24.971</td>
+<td align="center">percent</td>
+<td align="center">16.010</td>
+<td align="center">-0.631</td>
+<td align="center">0.756</td>
+<td align="center">-2.069</td>
+<td align="center">0.881</td>
+<td align="center">-46.795</td>
+<td align="center">64.234</td>
+<td align="center">-87.062</td>
+<td align="center">141.437</td>
+</tr>
+<tr class="odd">
+<td align="center">tmean</td>
+<td align="center">overall</td>
+<td align="center">NA</td>
+<td align="center">24.971</td>
+<td align="center">percent</td>
+<td align="center">16.212</td>
+<td align="center">-0.716</td>
+<td align="center">0.728</td>
+<td align="center">-2.103</td>
+<td align="center">0.760</td>
+<td align="center">-51.125</td>
+<td align="center">55.942</td>
+<td align="center">-87.493</td>
+<td align="center">113.963</td>
+</tr>
+<tr class="even">
+<td align="center">tmean</td>
+<td align="center">overall</td>
+<td align="center">NA</td>
+<td align="center">24.971</td>
+<td align="center">percent</td>
+<td align="center">16.414</td>
+<td align="center">-0.792</td>
+<td align="center">0.700</td>
+<td align="center">-2.130</td>
+<td align="center">0.644</td>
+<td align="center">-54.698</td>
+<td align="center">48.782</td>
+<td align="center">-87.840</td>
+<td align="center">90.514</td>
+</tr>
+<tr class="odd">
+<td align="center">tmean</td>
+<td align="center">overall</td>
+<td align="center">NA</td>
+<td align="center">24.971</td>
+<td align="center">percent</td>
+<td align="center">16.616</td>
+<td align="center">-0.866</td>
+<td align="center">0.673</td>
+<td align="center">-2.145</td>
+<td align="center">0.530</td>
+<td align="center">-57.939</td>
+<td align="center">42.600</td>
+<td align="center">-88.060</td>
+<td align="center">69.932</td>
+</tr>
+<tr class="even">
+<td align="center">tmean</td>
+<td align="center">overall</td>
+<td align="center">NA</td>
+<td align="center">24.971</td>
+<td align="center">percent</td>
+<td align="center">16.818</td>
+<td align="center">-0.944</td>
+<td align="center">0.647</td>
+<td align="center">-2.159</td>
+<td align="center">0.419</td>
+<td align="center">-61.078</td>
+<td align="center">37.264</td>
+<td align="center">-88.259</td>
+<td align="center">52.022</td>
+</tr>
+</tbody>
+</table>
+<p>The main columns are:</p>
+<ul>
+<li>
+<code>x</code>: temperature value at which the reduced association
+is evaluated;</li>
+<li>
+<code>eta</code>: median centered association on the
+linear-predictor scale;</li>
+<li>
+<code>low</code> and <code>high</code>: empirical uncertainty limits
+for <code>eta</code>;</li>
+<li>
+<code>effect</code>: median transformed association on the requested
+scale;</li>
+<li>
+<code>low_eff</code> and <code>high_eff</code>: empirical
+uncertainty limits for the transformed association;</li>
+<li>
+<code>reference</code>: temperature value used for centering.</li>
+</ul>
+<p>The uncertainty summaries are calculated after transforming each
+coherent parameter draw. They therefore describe uncertainty in the
+reduced fitted association and do not include observation-level or
+posterior-predictive noise.</p>
+</div>
+<div class="section level3">
+<h3 id="visualizing-the-overall-reduction">Visualizing the overall reduction<a class="anchor" aria-label="anchor" href="#visualizing-the-overall-reduction"></a>
+</h3>
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span></span>
+<span>  <span class="va">reduced_tmean</span>,</span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span></span>
+<span>    x <span class="op">=</span> <span class="va">x</span>,</span>
+<span>    y <span class="op">=</span> <span class="va">effect</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_ribbon.html" class="external-link">geom_ribbon</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span></span>
+<span>      ymin <span class="op">=</span> <span class="va">low_eff</span>,</span>
+<span>      ymax <span class="op">=</span> <span class="va">high_eff</span></span>
+<span>    <span class="op">)</span>,</span>
+<span>    fill <span class="op">=</span> <span class="st">"#C44E52"</span>,</span>
+<span>    alpha <span class="op">=</span> <span class="fl">0.20</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html" class="external-link">geom_hline</a></span><span class="op">(</span></span>
+<span>    yintercept <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>    color <span class="op">=</span> <span class="st">"grey50"</span>,</span>
+<span>    linetype <span class="op">=</span> <span class="st">"dashed"</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span></span>
+<span>    color <span class="op">=</span> <span class="st">"#C44E52"</span>,</span>
+<span>    linewidth <span class="op">=</span> <span class="fl">1</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_bw</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span></span>
+<span>    x <span class="op">=</span> <span class="st">"Mean temperature (°C)"</span>,</span>
+<span>    y <span class="op">=</span> <span class="st">"Change in modeled odds (%)"</span>,</span>
+<span>    title <span class="op">=</span> <span class="st">"Overall cumulative temperature association"</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
+<span>    text <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span></span>
+<span>      size <span class="op">=</span> <span class="fl">10</span>,</span>
+<span>      face <span class="op">=</span> <span class="st">"bold"</span></span>
+<span>    <span class="op">)</span></span>
+<span>  <span class="op">)</span></span></code></pre></div>
+<p><img src="understanding-effects_files/figure-html/plot-reduced-temperature-1.png" class="r-plt" alt="" width="672" style="display: block; margin: auto;"></p>
+<p>The solid curve represents the median cumulative association across
+the fitted lag interval. The shaded region represents the empirical
+parameter-uncertainty interval. The horizontal zero line represents the
+median temperature reference.</p>
+<p>This curve is cumulative across lags. It should not be interpreted as
+the association at one specific lag.</p>
+</div>
+<div class="section level3">
+<h3 id="exposure-response-association-at-a-selected-lag">Exposure-response association at a selected lag<a class="anchor" aria-label="anchor" href="#exposure-response-association-at-a-selected-lag"></a>
+</h3>
+<p>A <code>"lag"</code> reduction evaluates the exposure-response
+association at one retrospective lag. The following example evaluates
+rainfall at lag 10:</p>
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">reduced_rain_lag10</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/reduce_effects.html">reduce_effects</a></span><span class="op">(</span></span>
+<span>  fit <span class="op">=</span> <span class="va">fit</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">epi_data</span>,</span>
+<span>  vars <span class="op">=</span> <span class="st">"rain"</span>,</span>
+<span>  group <span class="op">=</span> <span class="st">"epi_id"</span>,</span>
+<span>  time <span class="op">=</span> <span class="st">"time"</span>,</span>
+<span>  type <span class="op">=</span> <span class="st">"lag"</span>,</span>
+<span>  value <span class="op">=</span> <span class="fl">10</span>,</span>
+<span>  scale <span class="op">=</span> <span class="st">"percent"</span>,</span>
+<span>  uncertainty <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  output <span class="op">=</span> <span class="st">"summary"</span>,</span>
+<span>  n_samples <span class="op">=</span> <span class="fl">100</span>,</span>
+<span>  seed <span class="op">=</span> <span class="fl">123</span>,</span>
+<span>  ref <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    method <span class="op">=</span> <span class="st">"median"</span>,</span>
+<span>    value <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  at <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span></span>
+<span>    <span class="fl">0</span>,</span>
+<span>    <span class="fl">15</span>,</span>
+<span>    length.out <span class="op">=</span> <span class="fl">100</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Here:</p>
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">type</span> <span class="op">=</span> <span class="st">"lag"</span></span>
+<span><span class="va">value</span> <span class="op">=</span> <span class="fl">10</span></span></code></pre></div>
+<p>requests the fitted rainfall association ten time units before the
+disease assessment. Other lag coordinates are not part of this
+one-dimensional reduction.</p>
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span></span>
+<span>  <span class="va">reduced_rain_lag10</span>,</span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span></span>
+<span>    x <span class="op">=</span> <span class="va">x</span>,</span>
+<span>    y <span class="op">=</span> <span class="va">effect</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_ribbon.html" class="external-link">geom_ribbon</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span></span>
+<span>      ymin <span class="op">=</span> <span class="va">low_eff</span>,</span>
+<span>      ymax <span class="op">=</span> <span class="va">high_eff</span></span>
+<span>    <span class="op">)</span>,</span>
+<span>    fill <span class="op">=</span> <span class="st">"#4C72B0"</span>,</span>
+<span>    alpha <span class="op">=</span> <span class="fl">0.20</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html" class="external-link">geom_hline</a></span><span class="op">(</span></span>
+<span>    yintercept <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>    color <span class="op">=</span> <span class="st">"grey50"</span>,</span>
+<span>    linetype <span class="op">=</span> <span class="st">"dashed"</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span></span>
+<span>    color <span class="op">=</span> <span class="st">"#4C72B0"</span>,</span>
+<span>    linewidth <span class="op">=</span> <span class="fl">1</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_bw</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span></span>
+<span>    x <span class="op">=</span> <span class="st">"Rainfall"</span>,</span>
+<span>    y <span class="op">=</span> <span class="st">"Change in modeled odds (%)"</span>,</span>
+<span>    title <span class="op">=</span> <span class="st">"Rainfall association at lag 10"</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
+<span>    text <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span></span>
+<span>      size <span class="op">=</span> <span class="fl">10</span>,</span>
+<span>      face <span class="op">=</span> <span class="st">"bold"</span></span>
+<span>    <span class="op">)</span></span>
+<span>  <span class="op">)</span></span></code></pre></div>
+<p><img src="understanding-effects_files/figure-html/plot-reduced-rainfall-lag-1.png" class="r-plt" alt="" width="672" style="display: block; margin: auto;"></p>
+<p>This reduction differs from the overall curve because it describes
+one selected lag rather than the cumulative association across the
+complete lag interval.</p>
+</div>
+<div class="section level3">
+<h3 id="lag-response-association-at-a-selected-exposure-value">Lag-response association at a selected exposure value<a class="anchor" aria-label="anchor" href="#lag-response-association-at-a-selected-exposure-value"></a>
+</h3>
+<p>A <code>"var"</code> reduction reverses the perspective. Instead of
+showing how the association changes across exposure values, it shows how
+the association changes across lags at one selected exposure value.</p>
+<p>The following example evaluates leaf wetness at a fixed value of
+10:</p>
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">reduced_wetness_10</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/reduce_effects.html">reduce_effects</a></span><span class="op">(</span></span>
+<span>  fit <span class="op">=</span> <span class="va">fit</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">epi_data</span>,</span>
+<span>  vars <span class="op">=</span> <span class="st">"wetness"</span>,</span>
+<span>  group <span class="op">=</span> <span class="st">"epi_id"</span>,</span>
+<span>  time <span class="op">=</span> <span class="st">"time"</span>,</span>
+<span>  type <span class="op">=</span> <span class="st">"var"</span>,</span>
+<span>  value <span class="op">=</span> <span class="fl">10</span>,</span>
+<span>  scale <span class="op">=</span> <span class="st">"percent"</span>,</span>
+<span>  uncertainty <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  output <span class="op">=</span> <span class="st">"summary"</span>,</span>
+<span>  n_samples <span class="op">=</span> <span class="fl">100</span>,</span>
+<span>  seed <span class="op">=</span> <span class="fl">123</span>,</span>
+<span>  ref <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    method <span class="op">=</span> <span class="st">"median"</span>,</span>
+<span>    value <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>For this reduction:</p>
+<pre class="text"><code>x = retrospective lag
+value = selected leaf wetness exposure</code></pre>
+<p>The resulting curve describes how the centered association for leaf
+wetness equal to 10 is distributed across the fitted lag interval.</p>
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span></span>
+<span>  <span class="va">reduced_wetness_10</span>,</span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span></span>
+<span>    x <span class="op">=</span> <span class="va">x</span>,</span>
+<span>    y <span class="op">=</span> <span class="va">effect</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_ribbon.html" class="external-link">geom_ribbon</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span></span>
+<span>      ymin <span class="op">=</span> <span class="va">low_eff</span>,</span>
+<span>      ymax <span class="op">=</span> <span class="va">high_eff</span></span>
+<span>    <span class="op">)</span>,</span>
+<span>    fill <span class="op">=</span> <span class="st">"#55A868"</span>,</span>
+<span>    alpha <span class="op">=</span> <span class="fl">0.20</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html" class="external-link">geom_hline</a></span><span class="op">(</span></span>
+<span>    yintercept <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>    color <span class="op">=</span> <span class="st">"grey50"</span>,</span>
+<span>    linetype <span class="op">=</span> <span class="st">"dashed"</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span></span>
+<span>    color <span class="op">=</span> <span class="st">"#55A868"</span>,</span>
+<span>    linewidth <span class="op">=</span> <span class="fl">1</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html" class="external-link">scale_x_reverse</a></span><span class="op">(</span></span>
+<span>    breaks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span></span>
+<span>      <span class="fl">0</span>,</span>
+<span>      <span class="fl">85</span>,</span>
+<span>      by <span class="op">=</span> <span class="fl">15</span></span>
+<span>    <span class="op">)</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_bw</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span></span>
+<span>    x <span class="op">=</span> <span class="st">"Retrospective lag"</span>,</span>
+<span>    y <span class="op">=</span> <span class="st">"Change in modeled odds (%)"</span>,</span>
+<span>    title <span class="op">=</span> <span class="st">"Lag-response association for leaf wetness = 10"</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
+<span>    text <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span></span>
+<span>      size <span class="op">=</span> <span class="fl">10</span>,</span>
+<span>      face <span class="op">=</span> <span class="st">"bold"</span></span>
+<span>    <span class="op">)</span></span>
+<span>  <span class="op">)</span></span></code></pre></div>
+<p><img src="understanding-effects_files/figure-html/plot-reduced-wetness-value-1.png" class="r-plt" alt="" width="672" style="display: block; margin: auto;"></p>
+<p>Lag 0 represents the most recent exposure observation, whereas
+increasing lag values represent progressively older exposure
+conditions.</p>
+</div>
+<div class="section level3">
+<h3 id="summary-versus-sample-output">Summary versus sample output<a class="anchor" aria-label="anchor" href="#summary-versus-sample-output"></a>
+</h3>
+<p>As with other EpiExposure uncertainty functions, draw-level output
+can be requested with:</p>
+<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">uncertainty</span> <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="va">output</span> <span class="op">=</span> <span class="st">"samples"</span></span></code></pre></div>
+<p>For example:</p>
+<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">reduced_tmean_samples</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/reduce_effects.html">reduce_effects</a></span><span class="op">(</span></span>
+<span>  fit <span class="op">=</span> <span class="va">fit</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">epi_data</span>,</span>
+<span>  vars <span class="op">=</span> <span class="st">"tmean"</span>,</span>
+<span>  group <span class="op">=</span> <span class="st">"epi_id"</span>,</span>
+<span>  time <span class="op">=</span> <span class="st">"time"</span>,</span>
+<span>  type <span class="op">=</span> <span class="st">"overall"</span>,</span>
+<span>  scale <span class="op">=</span> <span class="st">"percent"</span>,</span>
+<span>  uncertainty <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  output <span class="op">=</span> <span class="st">"samples"</span>,</span>
+<span>  n_samples <span class="op">=</span> <span class="fl">100</span>,</span>
+<span>  seed <span class="op">=</span> <span class="fl">123</span>,</span>
+<span>  ref <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    method <span class="op">=</span> <span class="st">"median"</span>,</span>
+<span>    value <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  at <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span></span>
+<span>    <span class="fl">15</span>,</span>
+<span>    <span class="fl">35</span>,</span>
+<span>    length.out <span class="op">=</span> <span class="fl">100</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Each <code>sample</code> identifies one coherent joint parameter
+draw. Rows belonging to the same sample should remain associated when
+constructing custom curves or downstream uncertainty calculations.</p>
+<p>With <code>output = "summary"</code>, <code>eta</code> and
+<code>effect</code> are medians across parameter draws. With
+<code>output = "samples"</code>, they retain the draw-specific reduced
+associations.</p>
+</div>
+<div class="section level3">
+<h3 id="interpreting-reduced-associations">Interpreting reduced associations<a class="anchor" aria-label="anchor" href="#interpreting-reduced-associations"></a>
+</h3>
+<p>The three reduction types answer different questions:</p>
+<ul>
+<li>
+<code>type = "overall"</code> asks how the cumulative association
+across the complete lag window changes over exposure values;</li>
+<li>
+<code>type = "lag"</code> asks how the exposure-response association
+changes at one selected lag;</li>
+<li>
+<code>type = "var"</code> asks how the lag-response association
+changes at one selected exposure value.</li>
+</ul>
+<p>These reductions should not be interpreted as new model fits or as
+independent effects. All three are reparameterizations of the same
+fitted cross-basis association.</p>
+<p>For a logit-link model:</p>
+<ul>
+<li>
+<code>scale = "link"</code> reports the centered log-odds
+contrast;</li>
+<li>
+<code>scale = "response"</code> reports an odds ratio;</li>
+<li>
+<code>scale = "percent"</code> reports the percentage change in
+odds.</li>
+</ul>
+<p>None of these transformations alone represents an absolute expected
+disease proportion. Absolute baseline, predicted, and response-scale
+difference quantities require the broader prediction information
+supplied by <code><a href="../reference/summarise_effects.html">summarise_effects()</a></code> or
+<code><a href="../reference/predict_outcomes.html">predict_outcomes()</a></code>.</p>
+</div>
+</div>
+<div class="section level2">
 <h2 id="exposure-cumulative-impact">Exposure Cumulative Impact<a class="anchor" aria-label="anchor" href="#exposure-cumulative-impact"></a>
 </h2>
 <div class="section level3">
@@ -1298,7 +1884,7 @@ epidemic.</li>
 <div class="section level3">
 <h3 id="calculating-eci">Calculating ECI<a class="anchor" aria-label="anchor" href="#calculating-eci"></a>
 </h3>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">eci</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/compute_eci.html">compute_eci</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">epi_data</span>,</span>
 <span>  group <span class="op">=</span> <span class="st">"epi_id"</span>,</span>
@@ -1609,7 +2195,7 @@ quantity.</p>
 <h3 id="comparing-raw-and-weighted-exposure-histories">Comparing raw and weighted exposure histories<a class="anchor" aria-label="anchor" href="#comparing-raw-and-weighted-exposure-histories"></a>
 </h3>
 <p>tmean</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">eci</span><span class="op">[</span></span>
 <span>  <span class="va">eci</span><span class="op">$</span><span class="va">var</span> <span class="op">==</span> <span class="st">"tmean"</span>,</span>
 <span>  ,</span>
@@ -1631,7 +2217,7 @@ quantity.</p>
 <span>    title <span class="op">=</span> <span class="st">"tmean"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="understanding-effects_files/figure-html/compare-eci-tmean-1.png" class="r-plt" alt="" width="672" style="display: block; margin: auto;"></p>
 <p>wetness</p>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb31"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">eci</span><span class="op">[</span></span>
 <span>  <span class="va">eci</span><span class="op">$</span><span class="va">var</span> <span class="op">==</span> <span class="st">"wetness"</span>,</span>
 <span>  ,</span>
@@ -1653,7 +2239,7 @@ quantity.</p>
 <span>    title <span class="op">=</span> <span class="st">"wetness"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="understanding-effects_files/figure-html/compare-eci-wetness-1.png" class="r-plt" alt="" width="672" style="display: block; margin: auto;"></p>
 <p>rain</p>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb32"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">eci</span><span class="op">[</span></span>
 <span>  <span class="va">eci</span><span class="op">$</span><span class="va">var</span> <span class="op">==</span> <span class="st">"rain"</span>,</span>
 <span>  ,</span>
@@ -1705,7 +2291,7 @@ observed in a selected history contribute to that history’s ECI.</li>
 <div class="section level3">
 <h3 id="computing-lag-contributions">Computing lag contributions<a class="anchor" aria-label="anchor" href="#computing-lag-contributions"></a>
 </h3>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb33"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">eci_lag</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/compute_ecilag.html">compute_ecilag</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">epi_data</span>,</span>
 <span>  group <span class="op">=</span> <span class="st">"epi_id"</span>,</span>
@@ -1721,7 +2307,7 @@ observed in a selected history contribute to that history’s ECI.</li>
 <span>  n_samples <span class="op">=</span> <span class="fl">1000</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>In this example:</p>
-<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb34"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">group_level</span> <span class="op">=</span> <span class="fl">1</span></span></code></pre></div>
 <p>selects the epidemic identified by level <code>1</code> of
 <code>epi_id</code>.</p>
@@ -1991,7 +2577,7 @@ to the history of scientific interest.</p>
 <div class="section level3">
 <h3 id="plotting-the-contribution-profile">Plotting the contribution profile<a class="anchor" aria-label="anchor" href="#plotting-the-contribution-profile"></a>
 </h3>
-<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb35"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_eci.html">plot_eci</a></span><span class="op">(</span></span>
 <span>  eci_overall <span class="op">=</span> <span class="va">eci</span>,</span>
 <span>  eci_lag <span class="op">=</span> <span class="va">eci_lag</span>,</span>

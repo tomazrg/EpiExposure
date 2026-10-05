@@ -6,10 +6,11 @@ The primary goal of `EpiExposure` is not only to fit distributed lag
 nonlinear models, but also to translate estimated exposure-lag-response
 surfaces into epidemiologically meaningful quantities.
 
-This section introduces four complementary approaches:
+This section introduces five complementary approaches:
 
 - lag-specific effects;
 - period-specific effects;
+- one-dimensional reduction of the fitted DLNM association;
 - Exposure Cumulative Impact, or ECI;
 - lag-specific decomposition of ECI.
 
@@ -18,9 +19,9 @@ strongest, compare biologically meaningful lag periods, and summarize
 complete exposure histories.
 
 **What you will learn.** This tutorial shows how to reconstruct and
-interpret lag-specific and period-specific effects from a fitted DLNM,
-calculate ECI for complete exposure histories, and identify the lags
-contributing most strongly to ECI.
+interpret lag-specific and period-specific effects, reduce a fitted DLNM
+association to one dimension, calculate ECI for complete exposure
+histories, and identify the lags contributing most strongly to ECI.
 
 Effect estimates should be interpreted as modeled associations under the
 fitted DLNM. They do not, by themselves, establish causal effects.
@@ -493,6 +494,433 @@ analyses, and user-defined visualizations.
 
 The rows belonging to the same draw should remain associated when
 comparing periods, exposures, scenarios, or contrasts.
+
+## Reducing the fitted DLNM association
+
+### Why reduce an exposure-lag association?
+
+A fitted DLNM represents a two-dimensional association across exposure
+values and retrospective lags. Although this complete surface is useful,
+researchers may also need a one-dimensional representation of the fitted
+association.
+
+[`reduce_effects()`](https://tomazrg.github.io/EpiExposure/reference/reduce_effects.md)
+uses
+[`dlnm::crossreduce()`](https://rdrr.io/pkg/dlnm/man/crossreduce.html)
+to re-express the fitted cross-basis association in one dimension. The
+function supports three complementary reductions:
+
+- `"overall"` summarizes the cumulative exposure-response association
+  across the complete fitted lag interval;
+- `"lag"` summarizes the exposure-response association at one selected
+  lag;
+- `"var"` summarizes the lag-response association at one selected
+  exposure value.
+
+The reduction is algebraic. It uses the cross-basis and coefficient
+mapping stored in the fitted EpiExposure model and does not fit a new
+epidemiological model. Knots, boundary knots, basis dimensions, and lag
+definitions are not re-estimated from the supplied data.
+
+The `data` argument is used to validate the temporal histories,
+determine method-based reference values, and verify exposure support. It
+is not used to construct a new cross-basis.
+
+**Reduction and prediction answer different questions.**
+[`reduce_effects()`](https://tomazrg.github.io/EpiExposure/reference/reduce_effects.md)
+returns a centered association contrast from the fitted DLNM. It does
+not return an absolute expected disease response. Use
+[`summarise_effects()`](https://tomazrg.github.io/EpiExposure/reference/summarise_effects.md)
+or
+[`predict_outcomes()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.md)
+when baseline, predicted, or response-scale quantities are required.
+
+### Overall cumulative exposure-response association
+
+The following example reduces the fitted temperature association across
+the complete lag interval.
+
+Because the fitted Beta model uses a logit link, `scale = "percent"`
+represents the percentage change in the modeled odds relative to the
+selected temperature reference. It is not a percentage-point change in
+the expected disease proportion.
+
+``` r
+
+reduced_tmean <- reduce_effects(
+  fit = fit,
+  data = epi_data,
+  vars = "tmean",
+  group = "epi_id",
+  time = "time",
+  type = "overall",
+  scale = "percent",
+  uncertainty = TRUE,
+  output = "summary",
+  n_samples = 100,
+  seed = 123,
+  ref = list(
+    method = "median",
+    value = NULL
+  ),
+  at = seq(
+    15,
+    35,
+    length.out = 100
+  )
+)
+```
+
+The median observed temperature is used as the reference. At that value,
+the centered association is neutral:
+
+``` text
+eta = 0
+percent effect = 0
+```
+
+Values above zero indicate higher modeled odds than at the reference
+temperature, whereas values below zero indicate lower modeled odds.
+
+Inspect the reduced association:
+
+| var | type | value | reference | scale | x | eta | eta_sd | low | high | effect | effect_sd | low_eff | high_eff |
+|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| tmean | overall | NA | 24.971 | percent | 15.000 | -0.203 | 0.897 | -1.888 | 1.551 | -18.352 | 129.602 | -84.508 | 371.772 |
+| tmean | overall | NA | 24.971 | percent | 15.202 | -0.286 | 0.869 | -1.925 | 1.413 | -24.877 | 112.548 | -85.068 | 310.778 |
+| tmean | overall | NA | 24.971 | percent | 15.404 | -0.373 | 0.840 | -1.962 | 1.279 | -31.116 | 97.750 | -85.604 | 259.493 |
+| tmean | overall | NA | 24.971 | percent | 15.606 | -0.459 | 0.812 | -1.998 | 1.147 | -36.805 | 84.927 | -86.116 | 214.792 |
+| tmean | overall | NA | 24.971 | percent | 15.808 | -0.545 | 0.784 | -2.034 | 1.014 | -41.983 | 73.829 | -86.602 | 175.879 |
+| tmean | overall | NA | 24.971 | percent | 16.010 | -0.631 | 0.756 | -2.069 | 0.881 | -46.795 | 64.234 | -87.062 | 141.437 |
+| tmean | overall | NA | 24.971 | percent | 16.212 | -0.716 | 0.728 | -2.103 | 0.760 | -51.125 | 55.942 | -87.493 | 113.963 |
+| tmean | overall | NA | 24.971 | percent | 16.414 | -0.792 | 0.700 | -2.130 | 0.644 | -54.698 | 48.782 | -87.840 | 90.514 |
+| tmean | overall | NA | 24.971 | percent | 16.616 | -0.866 | 0.673 | -2.145 | 0.530 | -57.939 | 42.600 | -88.060 | 69.932 |
+| tmean | overall | NA | 24.971 | percent | 16.818 | -0.944 | 0.647 | -2.159 | 0.419 | -61.078 | 37.264 | -88.259 | 52.022 |
+
+The main columns are:
+
+- `x`: temperature value at which the reduced association is evaluated;
+- `eta`: median centered association on the linear-predictor scale;
+- `low` and `high`: empirical uncertainty limits for `eta`;
+- `effect`: median transformed association on the requested scale;
+- `low_eff` and `high_eff`: empirical uncertainty limits for the
+  transformed association;
+- `reference`: temperature value used for centering.
+
+The uncertainty summaries are calculated after transforming each
+coherent parameter draw. They therefore describe uncertainty in the
+reduced fitted association and do not include observation-level or
+posterior-predictive noise.
+
+### Visualizing the overall reduction
+
+``` r
+
+ggplot(
+  reduced_tmean,
+  aes(
+    x = x,
+    y = effect
+  )
+) +
+  geom_ribbon(
+    aes(
+      ymin = low_eff,
+      ymax = high_eff
+    ),
+    fill = "#C44E52",
+    alpha = 0.20
+  ) +
+  geom_hline(
+    yintercept = 0,
+    color = "grey50",
+    linetype = "dashed"
+  ) +
+  geom_line(
+    color = "#C44E52",
+    linewidth = 1
+  ) +
+  theme_bw() +
+  labs(
+    x = "Mean temperature (°C)",
+    y = "Change in modeled odds (%)",
+    title = "Overall cumulative temperature association"
+  ) +
+  theme(
+    text = element_text(
+      size = 10,
+      face = "bold"
+    )
+  )
+```
+
+![](understanding-effects_files/figure-html/plot-reduced-temperature-1.png)
+
+The solid curve represents the median cumulative association across the
+fitted lag interval. The shaded region represents the empirical
+parameter-uncertainty interval. The horizontal zero line represents the
+median temperature reference.
+
+This curve is cumulative across lags. It should not be interpreted as
+the association at one specific lag.
+
+### Exposure-response association at a selected lag
+
+A `"lag"` reduction evaluates the exposure-response association at one
+retrospective lag. The following example evaluates rainfall at lag 10:
+
+``` r
+
+reduced_rain_lag10 <- reduce_effects(
+  fit = fit,
+  data = epi_data,
+  vars = "rain",
+  group = "epi_id",
+  time = "time",
+  type = "lag",
+  value = 10,
+  scale = "percent",
+  uncertainty = TRUE,
+  output = "summary",
+  n_samples = 100,
+  seed = 123,
+  ref = list(
+    method = "median",
+    value = NULL
+  ),
+  at = seq(
+    0,
+    15,
+    length.out = 100
+  )
+)
+```
+
+Here:
+
+``` r
+
+type = "lag"
+value = 10
+```
+
+requests the fitted rainfall association ten time units before the
+disease assessment. Other lag coordinates are not part of this
+one-dimensional reduction.
+
+``` r
+
+ggplot(
+  reduced_rain_lag10,
+  aes(
+    x = x,
+    y = effect
+  )
+) +
+  geom_ribbon(
+    aes(
+      ymin = low_eff,
+      ymax = high_eff
+    ),
+    fill = "#4C72B0",
+    alpha = 0.20
+  ) +
+  geom_hline(
+    yintercept = 0,
+    color = "grey50",
+    linetype = "dashed"
+  ) +
+  geom_line(
+    color = "#4C72B0",
+    linewidth = 1
+  ) +
+  theme_bw() +
+  labs(
+    x = "Rainfall",
+    y = "Change in modeled odds (%)",
+    title = "Rainfall association at lag 10"
+  ) +
+  theme(
+    text = element_text(
+      size = 10,
+      face = "bold"
+    )
+  )
+```
+
+![](understanding-effects_files/figure-html/plot-reduced-rainfall-lag-1.png)
+
+This reduction differs from the overall curve because it describes one
+selected lag rather than the cumulative association across the complete
+lag interval.
+
+### Lag-response association at a selected exposure value
+
+A `"var"` reduction reverses the perspective. Instead of showing how the
+association changes across exposure values, it shows how the association
+changes across lags at one selected exposure value.
+
+The following example evaluates leaf wetness at a fixed value of 10:
+
+``` r
+
+reduced_wetness_10 <- reduce_effects(
+  fit = fit,
+  data = epi_data,
+  vars = "wetness",
+  group = "epi_id",
+  time = "time",
+  type = "var",
+  value = 10,
+  scale = "percent",
+  uncertainty = TRUE,
+  output = "summary",
+  n_samples = 100,
+  seed = 123,
+  ref = list(
+    method = "median",
+    value = NULL
+  )
+)
+```
+
+For this reduction:
+
+``` text
+x = retrospective lag
+value = selected leaf wetness exposure
+```
+
+The resulting curve describes how the centered association for leaf
+wetness equal to 10 is distributed across the fitted lag interval.
+
+``` r
+
+ggplot(
+  reduced_wetness_10,
+  aes(
+    x = x,
+    y = effect
+  )
+) +
+  geom_ribbon(
+    aes(
+      ymin = low_eff,
+      ymax = high_eff
+    ),
+    fill = "#55A868",
+    alpha = 0.20
+  ) +
+  geom_hline(
+    yintercept = 0,
+    color = "grey50",
+    linetype = "dashed"
+  ) +
+  geom_line(
+    color = "#55A868",
+    linewidth = 1
+  ) +
+  scale_x_reverse(
+    breaks = seq(
+      0,
+      85,
+      by = 15
+    )
+  ) +
+  theme_bw() +
+  labs(
+    x = "Retrospective lag",
+    y = "Change in modeled odds (%)",
+    title = "Lag-response association for leaf wetness = 10"
+  ) +
+  theme(
+    text = element_text(
+      size = 10,
+      face = "bold"
+    )
+  )
+```
+
+![](understanding-effects_files/figure-html/plot-reduced-wetness-value-1.png)
+
+Lag 0 represents the most recent exposure observation, whereas
+increasing lag values represent progressively older exposure conditions.
+
+### Summary versus sample output
+
+As with other EpiExposure uncertainty functions, draw-level output can
+be requested with:
+
+``` r
+
+uncertainty = TRUE
+output = "samples"
+```
+
+For example:
+
+``` r
+
+reduced_tmean_samples <- reduce_effects(
+  fit = fit,
+  data = epi_data,
+  vars = "tmean",
+  group = "epi_id",
+  time = "time",
+  type = "overall",
+  scale = "percent",
+  uncertainty = TRUE,
+  output = "samples",
+  n_samples = 100,
+  seed = 123,
+  ref = list(
+    method = "median",
+    value = NULL
+  ),
+  at = seq(
+    15,
+    35,
+    length.out = 100
+  )
+)
+```
+
+Each `sample` identifies one coherent joint parameter draw. Rows
+belonging to the same sample should remain associated when constructing
+custom curves or downstream uncertainty calculations.
+
+With `output = "summary"`, `eta` and `effect` are medians across
+parameter draws. With `output = "samples"`, they retain the
+draw-specific reduced associations.
+
+### Interpreting reduced associations
+
+The three reduction types answer different questions:
+
+- `type = "overall"` asks how the cumulative association across the
+  complete lag window changes over exposure values;
+- `type = "lag"` asks how the exposure-response association changes at
+  one selected lag;
+- `type = "var"` asks how the lag-response association changes at one
+  selected exposure value.
+
+These reductions should not be interpreted as new model fits or as
+independent effects. All three are reparameterizations of the same
+fitted cross-basis association.
+
+For a logit-link model:
+
+- `scale = "link"` reports the centered log-odds contrast;
+- `scale = "response"` reports an odds ratio;
+- `scale = "percent"` reports the percentage change in odds.
+
+None of these transformations alone represents an absolute expected
+disease proportion. Absolute baseline, predicted, and response-scale
+difference quantities require the broader prediction information
+supplied by
+[`summarise_effects()`](https://tomazrg.github.io/EpiExposure/reference/summarise_effects.md)
+or
+[`predict_outcomes()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.md).
 
 ## Exposure Cumulative Impact
 
