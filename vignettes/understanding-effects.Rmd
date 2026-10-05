@@ -405,7 +405,7 @@ epi_p_samples <- summarise_effects(
 
 Visualizing period-specific effects:
 
-```{r plot-period-effects, fig.width=9, fig.height=7}
+```{r plot-period-effects2, fig.width=9, fig.height=7}
 plot_effects(
   data = epi_p_samples,
   scale = "period",
@@ -526,7 +526,7 @@ causal impact or as a directly observed biological quantity.
 
 tmean
 
-```{r compare-eci, fig.width=7, fig.height=5}
+```{r compare-eci-tmean, fig.width=7, fig.height=5}
 eci[
   eci$var == "tmean",
   ,
@@ -550,7 +550,7 @@ eci[
 
 wetness
 
-```{r compare-eci, fig.width=7, fig.height=5}
+```{r compare-eci-wetness, fig.width=7, fig.height=5}
 eci[
   eci$var == "wetness",
   ,
@@ -574,7 +574,7 @@ eci[
 
 rain
 
-```{r compare-eci, fig.width=7, fig.height=5}
+```{r compare-eci-rain, fig.width=7, fig.height=5}
 eci[
   eci$var == "rain",
   ,
