@@ -19,9 +19,11 @@ Authors@R: c(person(
          email = "FDallaLana@agcenter.lsu.edu",
          comment = c("ORCID" = "0000-0002-3112-6197")))
 Description: Tools for analyzing and interpreting distributed lag nonlinear models (DLNMs) in epidemiological applications.
-    Provides functions to simulate exposure scenarios, summarize lag-specific and period-specific effects,
-    predict exposure-lag-response relationships, reduce multidimensional DLNM results, and perform sensitivity analyses.
-    Supports both frequentist and Bayesian modeling approaches for environmental and plant disease epidemiology.
+    Provides functions to summarize lag-specific and period-specific effects, perform sensitivity analyses,
+    simulate exposure scenarios and predict exposure-lag-response relationships, quantify yield and economic losses,
+    and compare models using ensemble-based approaches. Supports advanced epidemiological workflows through both
+    frequentist and Bayesian modeling frameworks. Built on the DLNM framework implemented in the {dlnm} package
+    (Gasparrini, 2011; doi:10.18637/jss.v043.i08).
 Depends: R (>= 4.1)
 Imports: 
     dlnm,

@@ -122,29 +122,34 @@ wetness to the expected disease response.
 
 # Complete exposure histories
 
-Each exposure supplied to `predict_outcomes()` must contain exactly:
+Each exposure profile supplied to `predict_outcomes()` must contain exactly
+`max_lag + 1` observations. With `max_lag = 85`, each profile therefore
+contains 86 values.
+
+Profiles are supplied in chronological order, from the earliest exposure
+observation to the most recent:
+
+- the first value (`time = 0`) is the oldest observation and corresponds to
+  lag 85;
+- the final value (`time = 85`) is the most recent observation and corresponds
+  to lag 0.
+
+More generally, chronological time and retrospective lag are related by:
 
 \[
-\text{max lag} + 1
+\text{lag} = \text{max\_lag} - \text{time}.
 \]
 
-chronologically ordered observations.
+Profile construction and visualization use chronological time, whereas DLNM
+effects are interpreted on the retrospective lag scale. Thus, chronological
+time increases from the oldest to the most recent observation, while
+retrospective lag increases in the opposite direction, from the most recent to
+progressively older observations.
 
-With:
-
-```r
-max_lag = 85
-```
-
-each profile must contain 86 values:
-
-```text
-position 1  → time 0  → maximum lag
-position 86 → time 85 → lag 0
-```
-
-The order is chronological. `EpiExposure` converts these positions into
-retrospective lags when reconstructing the cross-basis predictors.
+`simulate_exposures()` generates profiles directly in chronological order and
+does not reverse them. Simulated or manually defined profiles should therefore
+be supplied to `predict_outcomes()` in the same order in which they were
+created. Users should not reverse the profiles manually.
 
 ::: {.tutorial-note}
 **Complete profiles are required.** Temperature, rainfall, and leaf wetness
@@ -190,21 +195,33 @@ temperature_profile <- simulate_exposures(
 The result contains the simulated chronological profile:
 
 ```{r inspect-temperature-profile, echo=FALSE}
-head(temperature_profile)
+temperature_profile$profile
 ```
+The profile is ordered from the oldest to the most recent exposure observation.
+For this 86-value history, the first value corresponds to lag 85 and the final
+value corresponds to lag 0. The profile remains in chronological order when it
+is later supplied to `predict_outcomes()`.
 
 Visualize the complete profile:
 
-```{r plot-temperature-profile, fig.width=8, fig.height=4}
-plot(
-  temperature_profile$profile,
-  type = "l",
-  lwd = 1.2,
-  col = "#C44E52",
-  xlab = "Chronological position",
-  ylab = "Mean temperature (°C)",
-  main = "Simulated temperature history"
+```{r}
+
+df_tmean <- data.frame(
+  time = 0:85,
+  value = as.numeric(temperature_profile$profile)
 )
+
+ df_tmean%>% 
+  ggplot(aes(time,value))+
+  geom_line(color = "#C44E52", size = 1.4)+
+  theme_bw()+
+  labs(x = "Days after planting the crop",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10)
+)+
+  theme(text = element_text(size = 10, face = "bold"))
 ```
 
 The autoregressive parameter:
@@ -241,20 +258,30 @@ rain_profile <- simulate_exposures(
 )
 ```
 
-Visualize the rainfall profile:
-
-```{r plot-rainfall-profile, fig.width=8, fig.height=4}
-plot(
-  rain_profile$profile,
-  type = "s",
-  lwd = 1.2,
-  col = "#4C72B0",
-  xlab = "Chronological position",
-  ylab = "Rainfall",
-  main = "Simulated rainfall history"
-)
+```{r inspect-rain-profile, echo=FALSE}
+rain_profile$profile
 ```
 
+Visualize the rainfall profile:
+
+```{r}
+df_rain <- data.frame(
+  time = 0:85,
+  value = as.numeric(rain_profile$profile)
+)
+
+ df_rain%>% 
+  ggplot(aes(time,value))+
+  geom_line(color = "#4C72B0", size = 1.4)+
+  theme_bw()+
+  labs(x = "Days after planting the crop",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10)
+)+
+  theme(text = element_text(size = 10, face = "bold"))
+```
 A leaf wetness profile can be generated independently:
 
 ```{r simulate-wetness}
@@ -271,27 +298,56 @@ wetness_profile <- simulate_exposures(
 )
 ```
 
-```{r plot-wetness-profile, fig.width=8, fig.height=4}
-plot(
-  wetness_profile$profile,
-  type = "l",
-  lwd = 1.2,
-  col = "#55A868",
-  xlab = "Chronological position",
-  ylab = "Leaf wetness duration",
-  main = "Simulated leaf wetness history"
-)
+```{r inspect-wetness-profile, echo=FALSE}
+wetness_profile$profile
 ```
 
+```{r}
+df_wetness <- data.frame(
+  time = 0:85,
+  value = as.numeric(wetness_profile$profile)
+)
+
+
+ df_wetness%>% 
+  ggplot(aes(time,value))+
+  geom_line(color = "#55A868", size = 1.4)+
+  theme_bw()+
+  labs(x = "Days after planting the crop",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10)
+)+
+  theme(text = element_text(size = 10, face = "bold"))
+```
 The three profiles can now be combined into one complete hypothetical
 environmental history.
+
+All three profiles follow the same chronological convention and contain 86
+observations. At each chronological position, the temperature, rainfall, and
+leaf wetness values describe the environmental conditions assigned to that
+point in the hypothetical history.
+
+When these profiles are supplied to `predict_outcomes()`, the function validates
+their length and order and projects each complete history through the
+cross-basis definition stored in the fitted model. The resulting design follows
+the retrospective DLNM lag convention, in which lag 0 represents the most
+recent exposure and increasing lags represent progressively older exposures.
+
+This internal transformation does not require the user to reverse or otherwise
+rearrange the simulated profiles.
 
 # Predicting disease outcomes
 
 ## Deterministic prediction
 
-`predict_outcomes()` reconstructs the fitted cross-basis values from the
-supplied profiles and calculates the expected response under the fitted model.
+`predict_outcomes()` receives the complete profiles in chronological order and
+projects them through the cross-basis definition stored in the fitted model.
+The reconstructed cross-basis predictors represent the exposure histories on
+the retrospective DLNM lag scale, allowing the function to calculate the
+population-level expected response associated with the complete multivariable
+history.
 
 ```{r deterministic-prediction}
 prediction <- predict_outcomes(
@@ -303,23 +359,31 @@ prediction <- predict_outcomes(
   ),
   uncertainty = FALSE
 )
+```
 
+```{r}
 prediction
 ```
 
 The prediction combines:
 
-- all temperature values and lags;
-- all rainfall values and lags;
-- all leaf wetness values and lags;
+- the complete chronological temperature history;
+- the complete chronological rainfall history;
+- the complete chronological leaf wetness history;
+- the corresponding retrospective lag contributions reconstructed from the
+  fitted cross-basis;
 - the fitted joint cross-basis coefficients;
 - the inverse link required by the response family.
+
+The output represents one joint prediction for the three complete exposure
+histories. It is not calculated independently for each day or lag. 
+
+The prediction is not a newly simulated disease observation. It represents the
+central expected response associated with the complete exposure history.
 
 For the fitted Beta model, the result is an expected response on the proportion
 scale.
 
-The prediction is not a newly simulated disease observation. It represents the
-central expected response associated with the complete exposure history.
 
 # Prediction uncertainty
 
@@ -350,6 +414,10 @@ prediction_samples <- predict_outcomes(
   output = "samples",
   seed = 123
 )
+```
+
+```{r}
+head(prediction_samples)
 ```
 
 Inspect the first realizations:
@@ -407,7 +475,9 @@ prediction_summary <- predict_outcomes(
   output = "summary",
   seed = 123
 )
+```
 
+```{r}
 prediction_summary
 ```
 
@@ -445,9 +515,12 @@ periods <- define_periods(
   ),
   prefix = "Period"
 )
+```
 
+```{r}
 periods
 ```
+
 
 The resulting periods divide the retrospective lag interval into four
 subintervals.
@@ -489,21 +562,39 @@ scenarios <- simulate_ranges(
 
 # Predicting scenario outcomes
 
-```{r predict-scenarios}
+`simulate_scenarios()` evaluates the expected disease outcome associated with
+each complete exposure scenario. When `uncertainty = TRUE`, uncertainty in the
+joint fitted model parameters is propagated through the prediction calculation.
+
+## Summarizing scenario predictions
+
+With:
+
+```r
+output = "summary"
+```
+
+the parameter-draw predictions are summarized for each scenario. The
+`prediction` column contains the median expected response across the parameter
+draws, while `prediction_lower` and `prediction_upper` contain the empirical
+uncertainty interval defined by the selected probabilities. The default
+probabilities correspond to a 95% interval.
+
+```{r predict-scenarios-summary}
 pred_scenarios <- simulate_scenarios(
   fit = fit,
   scenarios = scenarios,
   data = epi_data,
   uncertainty = TRUE,
   output = "summary",
-  n_samples = 1000,
+  n_samples = 100,
   seed = 123
 )
 ```
 
-Inspect the predictions:
+Inspect the summarized predictions:
 
-```{r inspect-scenario-predictions, echo=FALSE}
+```{r inspect-scenario-summary, echo=FALSE}
 knitr::kable(
   utils::head(
     pred_scenarios,
@@ -514,47 +605,116 @@ knitr::kable(
 )
 ```
 
-# Visualizing scenario predictions
+## Visualizing summarized scenario predictions
 
-The modeled rainfall association can be displayed across combinations of
-temperature and leaf wetness:
+The modeled rainfall association can be displayed across the selected
+combinations of temperature and leaf wetness. For summary output,
+`plot_scenarios()` displays the central predicted response together with the
+corresponding lower and upper uncertainty limits.
 
-```{r plot-scenario-lines, fig.width=9, fig.height=6}
-ggplot(
-  pred_scenarios,
-  aes(
-    x = rain,
-    y = prediction * 100,
-    group = interaction(
-      wetness,
-      tmean
-    )
-  )
-) +
-  geom_line(
-    linewidth = 0.8,
-    color = "#4C72B0"
-  ) +
-  facet_grid(
-    rows = vars(
-      wetness
-    ),
-    cols = vars(
-      tmean
-    ),
-    labeller = label_both
-  ) +
-  theme_bw() +
-  labs(
-    x = "Rainfall",
-    y = "Expected disease response (%)",
-    title = "Predicted response across environmental scenarios"
-  )
+```{r plot-scenario-summary, fig.width=9, fig.height=6}
+plot_scenarios(
+  data = pred_scenarios,
+  x = "rain",
+  facet = c(
+    "wetness",
+    "tmean"
+  ),
+  x_limits = c(
+    0,
+    15
+  ),
+  output = "summary"
+)
 ```
 
-The figure should be interpreted as a visualization of the fitted model over
-the scenario grid. Predictions far outside the observed exposure support should
-be treated cautiously.
+The central curve represents the median expected response for each scenario,
+whereas the lower and upper curves describe uncertainty arising from the fitted
+model parameters.
+
+## Returning individual prediction samples
+
+With:
+
+```r
+output = "samples"
+```
+
+`simulate_scenarios()` returns every draw-specific prediction instead of
+summarizing the draws. Each row represents one parameter draw for one scenario
+in the exposure grid.
+
+These samples are not additional exposure simulations and are not newly
+simulated disease observations. The exposure scenarios remain fixed; what
+changes across samples is the joint draw of the fitted model parameters used to
+calculate the expected response.
+
+Draw-level output is useful for constructing customized uncertainty summaries,
+examining the complete distribution of expected responses, propagating
+parameter uncertainty into downstream calculations, or creating custom
+visualizations.
+
+```{r predict-scenarios-samples}
+pred_scenarios_s <- simulate_scenarios(
+  fit = fit,
+  scenarios = scenarios,
+  data = epi_data,
+  uncertainty = TRUE,
+  output = "samples",
+  n_samples = 100,
+  seed = 123
+)
+```
+
+Inspect the first draw-specific predictions:
+
+```{r inspect-scenario-samples, echo=FALSE}
+knitr::kable(
+  utils::head(
+    pred_scenarios_s,
+    10L
+  ),
+  digits = 4,
+  align = "c"
+)
+```
+
+## Visualizing individual prediction samples
+
+When draw-level output is supplied, `plot_scenarios()` displays the prediction
+curves associated with the individual parameter draws. The collection of curves
+shows how uncertainty in the fitted parameters propagates across the complete
+scenario grid.
+
+```{r plot-scenario-samples, fig.width=9, fig.height=6}
+plot_scenarios(
+  data = pred_scenarios_s,
+  x = "rain",
+  facet = c(
+    "wetness",
+    "tmean"
+  ),
+  x_limits = c(
+    0,
+    15
+  ),
+  output = "samples"
+)
+```
+
+The summary and sample outputs describe the same parameter-uncertainty
+distribution at different levels of detail:
+
+- `output = "summary"` reports the median expected response and its empirical
+  uncertainty interval for each scenario;
+- `output = "samples"` retains every draw-specific expected response used to
+  construct those summaries.
+
+The figures should be interpreted as visualizations of the fitted model over
+the scenario grid. Predictions outside or near the limits of the observed
+exposure support should be treated cautiously. Neither output includes
+observation-level noise, and neither should be interpreted as a distribution
+of newly simulated disease observations.
 
 # Scenario surfaces
 
@@ -598,169 +758,874 @@ ggplot(
 A smoother surface requires a denser sequence of temperature values in
 `simulate_ranges()`.
 
-# Comparing exposure histories
+# Comparing predictions
 
-## Why compare profiles?
+## Comparing complete simulated histories
 
-Two complete exposure histories can have similar averages while differing in
-timing, variability, persistence, or extreme values.
+A single prediction describes the expected response associated with one complete
+environmental history. `compare_predictions()` extends this analysis by
+contrasting the expected responses associated with two or more complete
+histories.
 
-`compare_exposures()` describes differences between two exposure profiles
-directly, before disease predictions are compared.
+The following example constructs four hypothetical environmental scenarios.
+Each scenario contains chronological temperature, rainfall, and leaf wetness
+profiles generated with autoregressive background processes.
 
-```{r compare-exposure-profiles}
-exposure_comparison <- compare_exposures(
-  exposure1 = temperature_profile$profile,
-  exposure2 = rep(
-    25,
-    86
+The scenarios differ in their mean exposure values, temporal variability, and
+persistence:
+
+- **Scenario A:** moderate temperature and rainfall with prolonged leaf wetness;
+- **Scenario B:** high temperature, moderate rainfall, and low leaf wetness;
+- **Scenario C:** cool and relatively dry conditions with low leaf wetness;
+- **Scenario D:** cooler conditions with high rainfall and prolonged leaf
+  wetness.
+
+Because several exposures differ simultaneously, the resulting prediction
+contrasts represent joint differences between the complete environmental
+histories. They should not be attributed to one exposure individually.
+
+## Defining Scenario A
+
+```{r define-comparison-scenario-a}
+exposure_tmean_A <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 101,
+  background = list(
+    dist = "ar1",
+    mean = 25,
+    sd = 2,
+    phi = 0.90
   ),
-  mode = "timewise"
+  n = 1
+)
+
+exposure_rain_A <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 102,
+  background = list(
+    dist = "ar1",
+    mean = 5,
+    sd = 2,
+    phi = 0.50
+  ),
+  n = 1
+)
+
+exposure_wetness_A <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 103,
+  background = list(
+    dist = "ar1",
+    mean = 15,
+    sd = 3,
+    phi = 0.70
+  ),
+  n = 1
+)
+
+scenario_A <- list(
+  tmean = exposure_tmean_A,
+  rain = exposure_rain_A,
+  wetness = exposure_wetness_A
 )
 ```
 
-Inspect the comparison:
+## Defining Scenario B
 
-```{r inspect-exposure-comparison, echo=FALSE}
+```{r define-comparison-scenario-b}
+exposure_tmean_B <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 201,
+  background = list(
+    dist = "ar1",
+    mean = 34,
+    sd = 2,
+    phi = 0.95
+  ),
+  n = 1
+)
+
+exposure_rain_B <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 202,
+  background = list(
+    dist = "ar1",
+    mean = 5,
+    sd = 1.5,
+    phi = 0.40
+  ),
+  n = 1
+)
+
+exposure_wetness_B <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 203,
+  background = list(
+    dist = "ar1",
+    mean = 2,
+    sd = 0.7,
+    phi = 0.60
+  ),
+  n = 1
+)
+
+scenario_B <- list(
+  tmean = exposure_tmean_B,
+  rain = exposure_rain_B,
+  wetness = exposure_wetness_B
+)
+```
+
+## Defining Scenario C
+
+```{r define-comparison-scenario-c}
+exposure_tmean_C <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 301,
+  background = list(
+    dist = "ar1",
+    mean = 15,
+    sd = 2,
+    phi = 0.90
+  ),
+  n = 1
+)
+
+exposure_rain_C <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 302,
+  background = list(
+    dist = "ar1",
+    mean = 0.5,
+    sd = 0.5,
+    phi = 0.40
+  ),
+  n = 1
+)
+
+exposure_wetness_C <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 303,
+  background = list(
+    dist = "ar1",
+    mean = 2,
+    sd = 0.8,
+    phi = 0.60
+  ),
+  n = 1
+)
+
+scenario_C <- list(
+  tmean = exposure_tmean_C,
+  rain = exposure_rain_C,
+  wetness = exposure_wetness_C
+)
+```
+
+## Defining Scenario D
+
+```{r define-comparison-scenario-d}
+exposure_tmean_D <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 401,
+  background = list(
+    dist = "ar1",
+    mean = 10,
+    sd = 2,
+    phi = 0.90
+  ),
+  n = 1
+)
+
+exposure_rain_D <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 402,
+  background = list(
+    dist = "ar1",
+    mean = 15,
+    sd = 4,
+    phi = 0.60
+  ),
+  n = 1
+)
+
+exposure_wetness_D <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 403,
+  background = list(
+    dist = "ar1",
+    mean = 20,
+    sd = 3,
+    phi = 0.70
+  ),
+  n = 1
+)
+
+scenario_D <- list(
+  tmean = exposure_tmean_D,
+  rain = exposure_rain_D,
+  wetness = exposure_wetness_D
+)
+```
+
+All profiles contain 86 observations and are ordered chronologically from the
+oldest to the most recent exposure. The profiles should not be reversed before
+being supplied to `compare_predictions()`.
+
+## Visualizing the candidate histories
+
+Before comparing their predicted outcomes, the complete exposure profiles can
+be inspected to verify how the scenarios differ.
+
+The following helper converts one simulated exposure profile into a data frame:
+
+```{r prepare-comparison-profiles}
+profile_to_data <- function(
+    exposure,
+    variable,
+    scenario
+) {
+  data.frame(
+    scenario = scenario,
+    var = variable,
+    time = 0:85,
+    lag = 85:0,
+    value = as.numeric(exposure$profile),
+    stringsAsFactors = FALSE
+  )
+}
+
+df_simulations <- dplyr::bind_rows(
+  profile_to_data(
+    exposure_tmean_A,
+    variable = "tmean",
+    scenario = "A"
+  ),
+  profile_to_data(
+    exposure_rain_A,
+    variable = "rain",
+    scenario = "A"
+  ),
+  profile_to_data(
+    exposure_wetness_A,
+    variable = "wetness",
+    scenario = "A"
+  ),
+  profile_to_data(
+    exposure_tmean_B,
+    variable = "tmean",
+    scenario = "B"
+  ),
+  profile_to_data(
+    exposure_rain_B,
+    variable = "rain",
+    scenario = "B"
+  ),
+  profile_to_data(
+    exposure_wetness_B,
+    variable = "wetness",
+    scenario = "B"
+  ),
+  profile_to_data(
+    exposure_tmean_C,
+    variable = "tmean",
+    scenario = "C"
+  ),
+  profile_to_data(
+    exposure_rain_C,
+    variable = "rain",
+    scenario = "C"
+  ),
+  profile_to_data(
+    exposure_wetness_C,
+    variable = "wetness",
+    scenario = "C"
+  ),
+  profile_to_data(
+    exposure_tmean_D,
+    variable = "tmean",
+    scenario = "D"
+  ),
+  profile_to_data(
+    exposure_rain_D,
+    variable = "rain",
+    scenario = "D"
+  ),
+  profile_to_data(
+    exposure_wetness_D,
+    variable = "wetness",
+    scenario = "D"
+  )
+)
+```
+
+Although both chronological time and retrospective lag are retained in
+`df_simulations`, the profiles are visualized below in chronological order.
+Thus, time 0 is the oldest observation and time 85 is the most recent
+observation.
+
+```{r plot-comparison-profiles, fig.width=10, fig.height=7}
+simulation_plot <- ggplot(
+  df_simulations,
+  aes(
+    x = time,
+    y = value,
+    color = var
+  )
+) +
+  geom_line(linewidth = 1) +
+  facet_grid(
+    rows = vars(var),
+    cols = vars(scenario),
+    scales = "free_y"
+  ) +
+  scale_x_continuous(
+    limits = c(
+      0,
+      85
+    ),
+    breaks = seq(
+      0,
+      85,
+      by = 15
+    )
+  ) +
+  scale_color_manual(
+    values = c(
+      tmean = "#C44E52",
+      rain = "#4C72B0",
+      wetness = "#55A868"
+    )
+  ) +
+  theme_bw() +
+  labs(
+    x = "Chronological time",
+    y = "Exposure",
+    color = "Variable"
+  ) +
+  theme(
+    text = element_text(
+      size = 10,
+      face = "bold"
+    ),
+    legend.position = "none",
+    strip.background = element_rect(
+      color = "black",
+      fill = "white"
+    ),
+    strip.text = element_text(
+      face = "bold"
+    )
+  )
+
+simulation_plot
+```
+
+The figure shows the exposure histories exactly as they are supplied to
+`compare_predictions()`. Internally, EpiExposure projects each chronological
+history through the fitted cross-basis, where lag 0 represents the most recent
+exposure and increasing lags represent progressively older exposures.
+
+## Comparing the exposure histories
+
+Before comparing the predicted disease outcomes, the exposure histories
+themselves can be compared directly.
+
+`compare_exposures()` describes how two chronological exposure profiles differ
+across time. This comparison does not use the fitted disease model and does not
+produce a predicted response. It only quantifies differences between the
+supplied exposure histories.
+
+The following example compares Scenarios A and D. These scenarios differ in
+temperature, rainfall, and leaf wetness, so each exposure is compared
+separately.
+
+### Comparing temperature histories
+
+```{r compare-temperature-histories}
+comparison_tmean_AD <- compare_exposures(
+  exposure1 = exposure_tmean_A$profile,
+  exposure2 = exposure_tmean_D$profile,
+  mode = "timewise"
+)
+
+comparison_tmean_AD$var <- "tmean"
+comparison_tmean_AD$scenario1 <- "A"
+comparison_tmean_AD$scenario2 <- "D"
+```
+
+### Comparing rainfall histories
+
+```{r compare-rainfall-histories}
+comparison_rain_AD <- compare_exposures(
+  exposure1 = exposure_rain_A$profile,
+  exposure2 = exposure_rain_D$profile,
+  mode = "timewise"
+)
+
+comparison_rain_AD$var <- "rain"
+comparison_rain_AD$scenario1 <- "A"
+comparison_rain_AD$scenario2 <- "D"
+```
+
+### Comparing leaf wetness histories
+
+```{r compare-wetness-histories}
+comparison_wetness_AD <- compare_exposures(
+  exposure1 = exposure_wetness_A$profile,
+  exposure2 = exposure_wetness_D$profile,
+  mode = "timewise"
+)
+
+comparison_wetness_AD$var <- "wetness"
+comparison_wetness_AD$scenario1 <- "A"
+comparison_wetness_AD$scenario2 <- "D"
+```
+
+The three comparisons can be combined into one data frame:
+
+```{r combine-exposure-comparisons}
+exposure_comparison_AD <- dplyr::bind_rows(
+  comparison_tmean_AD,
+  comparison_rain_AD,
+  comparison_wetness_AD
+)
+
+exposure_comparison_AD$var <- factor(
+  exposure_comparison_AD$var,
+  levels = c(
+    "tmean",
+    "rain",
+    "wetness"
+  )
+)
+```
+
+Inspect the first time-specific differences:
+
+```{r inspect-exposure-comparisons, echo=FALSE}
 knitr::kable(
   utils::head(
-    exposure_comparison,
-    10L
+    exposure_comparison_AD,
+    12L
   ),
   digits = 3,
   align = "c"
 )
 ```
 
-Visualize the differences:
+### Visualizing the exposure differences
 
-```{r plot-exposure-comparison, fig.width=8, fig.height=4}
-ggplot(
-  exposure_comparison,
+The time-specific differences can be displayed separately for each exposure:
+
+```{r plot-exposure-comparisons, fig.width=9, fig.height=7}
+exposure_comparison_plot <- ggplot(
+  exposure_comparison_AD,
   aes(
     x = time,
-    y = diff
+    y = diff,
+    color = var
   )
 ) +
   geom_hline(
     yintercept = 0,
-    color = "grey60",
-    linetype = "dashed"
+    color = "grey50",
+    linetype = "dashed",
+    linewidth = 0.5
   ) +
   geom_line(
-    linewidth = 0.8,
-    color = "#C44E52"
+    linewidth = 1
+  ) +
+  facet_wrap(
+    vars(var),
+    ncol = 1,
+    scales = "free_y",
+    labeller = as_labeller(
+      c(
+        tmean = "Mean temperature",
+        rain = "Rainfall",
+        wetness = "Leaf wetness"
+      )
+    )
+  ) +
+  scale_x_continuous(
+    limits = c(
+      0,
+      85
+    ),
+    breaks = seq(
+      0,
+      85,
+      by = 15
+    )
+  ) +
+  scale_color_manual(
+    values = c(
+      tmean = "#C44E52",
+      rain = "#4C72B0",
+      wetness = "#55A868"
+    )
   ) +
   theme_bw() +
   labs(
-    x = "Chronological position",
-    y = "Exposure difference",
-    title = "Difference between temperature histories"
+    x = "Days after planting the crop",
+    y = "Scenario D - Scenario A",
+    color = "Exposure"
+  ) +
+  theme(
+    text = element_text(
+      size = 10,
+      face = "bold"
+    ),
+    legend.position = "none",
+    strip.background = element_rect(
+      fill = "white",
+      color = "black"
+    ),
+    strip.text = element_text(
+      face = "bold"
+    )
   )
 ```
 
-This comparison describes the exposure profiles themselves. It does not yet
-indicate whether the fitted model predicts different disease outcomes.
-
-# Comparing predictions
-
-## Defining candidate histories
-
-The following profiles represent two complete hypothetical environmental
-histories:
-
-```{r define-comparison-profiles}
-scenario_A <- list(
-  tmean = rep(
-    25,
-    86
-  ),
-  rain = rep(
-    5,
-    86
-  ),
-  wetness = rep(
-    10,
-    86
-  )
-)
-
-scenario_B <- list(
-  tmean = rep(
-    34,
-    86
-  ),
-  rain = rep(
-    15,
-    86
-  ),
-  wetness = rep(
-    20,
-    86
-  )
-)
+```{r}
+exposure_comparison_plot
 ```
 
-The scenarios differ simultaneously in all three exposures. Therefore, the
-resulting prediction contrast represents their combined change and should not
-be attributed to one exposure individually.
+The horizontal zero line represents identical exposure values in Scenarios A
+and D at a given chronological time. Under the difference convention returned
+by `compare_exposures()`:
 
-## Comparing expected outcomes
+- positive values indicate that the exposure is higher in Scenario D than in
+  Scenario A;
+- negative values indicate that the exposure is lower in Scenario D than in
+  Scenario A;
+- values near zero indicate similar exposure values at that chronological
+  position.
 
-```{r compare-predictions}
-prediction_comparison <- compare_predictions(
+The facets use independent y-axis scales because temperature, rainfall, and
+leaf wetness are measured in different units. Consequently, the numerical
+magnitudes of the differences should not be compared directly across
+exposures.
+
+These comparisons describe the environmental histories themselves. They do
+not account for the fitted cross-basis coefficients and do not indicate how
+strongly each exposure difference contributes to the disease response.
+
+The next section uses `compare_predictions()` to determine how the fitted model
+translates the complete multivariable histories into differences in expected
+disease outcomes.
+
+## Comparing the expected outcomes
+
+With four scenarios, `compare_predictions()` returns all pairwise comparisons:
+
+- A versus B;
+- A versus C;
+- A versus D;
+- B versus C;
+- B versus D;
+- C versus D.
+
+The same joint parameter draw is used for both scenarios in each comparison.
+This preserves the covariance between their predictions when calculating
+differences, ratios, and relative changes.
+
+### Summarized comparisons
+
+With:
+
+```r
+output = "summary"
+```
+
+the function summarizes the draw-specific comparisons using their central
+values and empirical uncertainty intervals.
+
+```{r compare-simulated-predictions-summary}
+comp_pred <- compare_predictions(
   fit = fit,
   profiles = list(
     A = scenario_A,
-    B = scenario_B
+    B = scenario_B,
+    C = scenario_C,
+    D = scenario_D
   ),
   uncertainty = TRUE,
-  n_samples = 1000,
+  output = "summary",
+  n_samples = 100,
   seed = 123
 )
 
-prediction_comparison
+comp_pred <- comp_pred |>
+  dplyr::mutate(
+    comparison = paste(
+      scenario1,
+      scenario2,
+      sep = " vs. "
+    )
+  )
 ```
 
-The comparison quantifies the difference in the expected response between the
-two complete histories under the fitted model.
+Inspect selected comparison results:
 
-For a variable-specific comparison, change one exposure at a time while holding
-the other profiles constant.
-
-For example:
-
-```{r compare-rainfall-only}
-scenario_low_rain <- list(
-  tmean = rep(
-    25,
-    86
-  ),
-  rain = rep(
-    2,
-    86
-  ),
-  wetness = rep(
-    10,
-    86
+```{r inspect-simulated-predictions-summary, echo=FALSE}
+comparison_summary <- comp_pred |>
+  dplyr::select(
+    comparison,
+    pred1,
+    pred1_lower,
+    pred1_upper,
+    pred2,
+    pred2_lower,
+    pred2_upper,
+    diff,
+    diff_lower,
+    diff_upper,
+    percentage_point_change,
+    percentage_point_change_lower,
+    percentage_point_change_upper
   )
+
+knitr::kable(
+  comparison_summary,
+  digits = 4,
+  align = "c"
+)
+```
+
+Each row compares the expected response under two complete environmental
+histories. For example, `diff` represents the draw-by-draw difference between
+the expected response for `scenario2` and the expected response for
+`scenario1`, summarized across the joint parameter draws.
+
+For a Beta or Binomial response, `percentage_point_change` expresses the
+absolute change in the expected proportion or probability multiplied by 100.
+It is different from `percent_change`, which describes the relative change
+between predictions when that ratio is defined.
+
+The example uses 100 parameter draws to limit the computational time required
+to build the tutorial. A larger number of draws may be used in a final analysis
+when more stable uncertainty summaries are required.
+
+### Draw-specific comparisons
+
+With:
+
+```r
+output = "samples"
+```
+
+the function retains every draw-specific comparison instead of reducing the
+draws to summary statistics.
+
+```{r compare-simulated-predictions-samples}
+comp_pred_samples <- compare_predictions(
+  fit = fit,
+  profiles = list(
+    A = scenario_A,
+    B = scenario_B,
+    C = scenario_C,
+    D = scenario_D
+  ),
+  uncertainty = TRUE,
+  output = "samples",
+  n_samples = 100,
+  seed = 123
+)
+
+comp_pred_samples <- comp_pred_samples |>
+  dplyr::mutate(
+    comparison = paste(
+      scenario1,
+      scenario2,
+      sep = " vs. "
+    )
+  )
+```
+
+Inspect the first draw-specific comparisons:
+
+```{r inspect-simulated-predictions-samples, echo=FALSE}
+knitr::kable(
+  utils::head(
+    comp_pred_samples,
+    10L
+  ),
+  digits = 4,
+  align = "c"
+)
+```
+
+Each row now represents one joint parameter draw for one scenario pair. These
+samples describe parameter uncertainty in the expected responses and their
+contrasts. They are not new exposure histories and are not newly simulated
+disease observations.
+
+The draw-level output can be used to calculate customized summaries, propagate
+uncertainty into subsequent analyses, or visualize the complete distribution of
+a selected comparison metric.
+
+## Visualizing comparison uncertainty
+
+The summarized and draw-specific outputs can be displayed together. Each
+colored point represents the difference obtained from one joint parameter draw.
+The black point represents the central summarized difference, and the vertical
+line represents its empirical uncertainty interval.
+
+```{r plot-simulated-prediction-comparisons, fig.width=9, fig.height=6}
+comparison_order <- comp_pred |>
+  dplyr::arrange(diff) |>
+  dplyr::pull(comparison)
+
+comp_pred <- comp_pred |>
+  dplyr::mutate(
+    comparison = factor(
+      comparison,
+      levels = comparison_order
+    )
+  )
+
+comp_pred_samples <- comp_pred_samples |>
+  dplyr::mutate(
+    comparison = factor(
+      comparison,
+      levels = comparison_order
+    )
+  )
+
+sc_simu_plot <- ggplot(
+  comp_pred,
+  aes(
+    x = comparison,
+    y = diff
+  )
+) +
+  geom_jitter(
+    data = comp_pred_samples,
+    aes(
+      x = comparison,
+      y = diff,
+      color = sample
+    ),
+    alpha = 0.4,
+    size = 2,
+    width = 0.20,
+    height = 0,
+    inherit.aes = FALSE
+  ) +
+  scale_color_viridis_b() +
+  geom_pointrange(
+    aes(
+      ymin = diff_lower,
+      ymax = diff_upper
+    ),
+    color = "black",
+    linewidth = 0.6
+  ) +
+  geom_hline(
+    yintercept = 0,
+    linetype = 2,
+    color = "gray40",
+    linewidth = 0.5
+  ) +
+  theme_bw() +
+  labs(
+    x = "Scenario comparison",
+    y = "Difference in expected response"
+  ) +
+  theme(
+    text = element_text(
+      size = 10,
+      face = "bold"
+    ),
+    legend.position = "none",
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1
+    )
+  )
+```
+
+```{r}
+sc_simu_plot
+```
+
+The colored points show the complete distribution of draw-specific differences
+for each scenario pair. The black point is the central difference reported in
+the summary output, while the vertical black line extends from `diff_lower` to
+`diff_upper`.
+
+Values above zero indicate that the expected response for `scenario2` is higher
+than the expected response for `scenario1`. Values below zero indicate that the
+expected response for `scenario2` is lower. Comparisons whose uncertainty
+intervals cross zero include both positive and negative differences across the
+joint parameter draws.
+
+
+::: {.tutorial-note}
+**These are joint environmental contrasts.** Temperature, rainfall, and leaf
+wetness differ simultaneously among Scenarios A–D. The resulting differences
+therefore describe contrasts between complete multivariable environmental
+histories and should not be interpreted as the isolated effect of any one
+exposure.
+:::
+
+## Comparing one exposure at a time
+
+When the objective is to investigate a contrast involving one exposure, the
+remaining histories should be held constant. The following example changes
+rainfall while maintaining the same temperature and leaf wetness profiles.
+
+```{r define-rainfall-only-comparison}
+scenario_low_rain <- list(
+  tmean = exposure_tmean_A,
+  rain = simulate_exposures(
+    max_lag = 85,
+    mode = "profile",
+    seed = 501,
+    background = list(
+      dist = "ar1",
+      mean = 2,
+      sd = 1,
+      phi = 0.50
+    ),
+    n = 1
+  ),
+  wetness = exposure_wetness_A
 )
 
 scenario_high_rain <- list(
-  tmean = rep(
-    25,
-    86
+  tmean = exposure_tmean_A,
+  rain = simulate_exposures(
+    max_lag = 85,
+    mode = "profile",
+    seed = 502,
+    background = list(
+      dist = "ar1",
+      mean = 15,
+      sd = 3,
+      phi = 0.50
+    ),
+    n = 1
   ),
-  rain = rep(
-    15,
-    86
-  ),
-  wetness = rep(
-    10,
-    86
-  )
+  wetness = exposure_wetness_A
 )
+```
 
+```{r compare-rainfall-only}
 rainfall_comparison <- compare_predictions(
   fit = fit,
   profiles = list(
@@ -768,16 +1633,23 @@ rainfall_comparison <- compare_predictions(
     high_rain = scenario_high_rain
   ),
   uncertainty = TRUE,
-  n_samples = 1000,
+  output = "summary",
+  n_samples = 100,
   seed = 123
 )
+```
 
+```{r}
 rainfall_comparison
 ```
 
-Because temperature and leaf wetness remain unchanged, this contrast isolates
-the modeled difference associated with the two supplied rainfall histories,
-conditional on the fixed profiles of the other exposures.
+Temperature and leaf wetness are identical in the two histories. Therefore, the
+contrast is specifically associated with the change in the complete rainfall
+profile under the fitted multivariable model.
+
+This remains a model-based associational comparison. It should not
+automatically be interpreted as the causal effect of intervening on rainfall
+unless the study design and assumptions support that interpretation.
 
 # Interpreting simulation and prediction outputs
 
@@ -832,4 +1704,3 @@ model-based comparisons of complete environmental histories.
 The next section translates predicted disease outcomes into practical outcomes such as yield and economic losses using the `simulate_losses()` function.
 
 These tools connect exposure-lag-response relationships with agronomic and economic consequences.
-

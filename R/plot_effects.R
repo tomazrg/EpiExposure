@@ -6,8 +6,8 @@
 #   * delta: viridis palette, symmetric clipping at 2-98%
 #   * effect row above delta row; x-axis labels hidden on the upper row
 #   * independent legends for every variable/metric panel
-#   * period-specific: smoothed sample curves, free facets, viridis colors,
-#     white facet strips, no legend
+#   * period-specific summary: central curve plus lower/upper dashed curves
+#   * period-specific samples: one smoothed curve for each parameter draw
 # ============================================================================
 
 .resolve_plot_theme <- function(theme, base_size) {
@@ -44,8 +44,6 @@
     supplied_names <- names(x)[nzchar(names(x))]
     idx <- intersect(supplied_names, keys)
 
-    # Extra named labels are intentionally ignored so a complete named vector
-    # can still be supplied when only a subset of variables/metrics is plotted.
     if (length(idx) == 0L) {
       stop(
         "None of the names supplied in `", arg,
@@ -104,7 +102,6 @@
     return(character())
   }
 
-  # Reproduces Period4, Period3, Period2, Period1 when names follow PeriodN.
   if (all(grepl("^Period[0-9]+$", x))) {
     n <- as.integer(sub("^Period", "", x))
     return(x[order(n, decreasing = TRUE)])
@@ -113,30 +110,129 @@
   rev(x)
 }
 
+.resolve_period_response <- function(data, period_response) {
+  if (!is.character(period_response) ||
+      length(period_response) != 1L ||
+      is.na(period_response) ||
+      !nzchar(period_response)) {
+    stop(
+      "`period_response` must be one non-empty character value.",
+      call. = FALSE
+    )
+  }
+
+  aliases <- c(
+    linear = "eta",
+    eta = "eta",
+    effect = "effect",
+    exponentiated = "effect",
+    exponential = "effect",
+    percent = "effect",
+    baseline = "baseline",
+    predicted = "predicted",
+    delta = "delta"
+  )
+
+  if (!period_response %in% names(aliases)) {
+    stop(
+      "Unknown `period_response = '", period_response, "'`. Use one of: ",
+      paste(names(aliases), collapse = ", "), ".",
+      call. = FALSE
+    )
+  }
+
+  column <- unname(aliases[[period_response]])
+  effect_measure <- attr(data, "epiexposure_effect_measure", exact = TRUE)
+
+  requested_measure <- switch(
+    period_response,
+    linear = "linear",
+    eta = "linear",
+    exponentiated = "exponentiated",
+    exponential = "exponentiated",
+    percent = "percent",
+    NULL
+  )
+
+  if (!is.null(requested_measure) && requested_measure != "linear") {
+    if (is.null(effect_measure)) {
+      stop(
+        "`period_response = '", period_response,
+        "'` requires the `epiexposure_effect_measure` attribute created by ",
+        "`summarise_effects()`. The input data do not contain this attribute. ",
+        "Use `period_response = 'effect'` to plot the stored effect column ",
+        "without scale verification.",
+        call. = FALSE
+      )
+    }
+
+    if (!identical(as.character(effect_measure), requested_measure)) {
+      stop(
+        "`period_response = '", period_response,
+        "'` is inconsistent with the input data, which were created with ",
+        "`effect_measure = '", as.character(effect_measure), "'`. Re-run ",
+        "`summarise_effects()` with the requested effect measure or use ",
+        "`period_response = 'effect'`.",
+        call. = FALSE
+      )
+    }
+  }
+
+  if (!column %in% names(data)) {
+    stop(
+      "The response column `", column,
+      "` required by `period_response = '", period_response,
+      "'` was not found in `data`.",
+      call. = FALSE
+    )
+  }
+
+  list(
+    request = period_response,
+    column = column,
+    lower = paste0(column, "_lower"),
+    upper = paste0(column, "_upper")
+  )
+}
+
 #' Plot lag-specific or period-specific effects
 #'
-#' @param data Data frame returned by summarise_effects().
-#' @param scale Plot scale. Use only \"lag\" or \"period\".
-#' @param vars Character vector with variables to plot. NULL uses all variables.
-#' @param metric For lag plots, one or both of c("effect", "delta").
-#' @param delta_multiplier Multiplier applied to delta before plotting.
-#' @param metric_labels Named labels for the lag color legends.
+#' Plots lag-specific effect surfaces or period-specific exposure-response
+#' curves from an object returned by `summarise_effects()`.
+#'
+#' For period plots, draw-level input is recognized by the presence of a
+#' `sample` column. One smoothed curve is then drawn for each parameter draw.
+#' Otherwise, the data are treated as deterministic or summary output. The
+#' selected central response is drawn as a solid black curve and, when matching
+#' lower and upper columns are available, the uncertainty limits are drawn as
+#' dashed black curves. The bounds are used exactly as returned by
+#' `summarise_effects()`; `plot_effects()` does not recalculate uncertainty.
+#'
+#' @param data Data frame returned by `summarise_effects()`.
+#' @param scale Plot scale. Use only `"lag"` or `"period"`.
+#' @param vars Character vector containing variables to plot. `NULL` uses all
+#'   available variables.
+#' @param metric For lag plots, one or both of `c("effect", "delta")`.
+#' @param delta_multiplier Multiplier applied to `delta` before plotting.
+#' @param metric_labels Named labels for lag color legends.
 #' @param ylab Lag y-axis labels. Prefer a named vector keyed by variable.
-#' @param metric_ncol Number of metric blocks per row. Default 1 places effect
-#'   above delta, matching the manual figure.
-#' @param vars_ncol Number of variable panels per metric block. NULL uses all
+#' @param metric_ncol Number of metric blocks per row. Default `1` places
+#'   effect above delta.
+#' @param vars_ncol Number of variable panels per metric block. `NULL` uses all
 #'   selected variables in one row.
-#' @param effect_palette Three colors: low, mid, high.
-#' @param delta_palette NULL uses viridis; otherwise a vector of >= 2 colors.
-#' @param delta_viridis_option Viridis option used when delta_palette is NULL.
+#' @param effect_palette Three colors representing low, middle, and high values.
+#' @param delta_palette `NULL` uses viridis; otherwise a vector of at least two
+#'   colors.
+#' @param delta_viridis_option Viridis option used when `delta_palette = NULL`.
 #' @param clip_quantiles Quantiles used to clip lag fill values.
-#' @param effect_breaks Contour breaks for effect.
-#' @param delta_bins Number of contour bins for delta.
-#' @param lag_reverse Reverse the lag axis.
+#' @param effect_breaks Contour breaks for `effect`.
+#' @param delta_bins Number of contour bins for `delta`.
+#' @param lag_reverse Logical; reverse the lag axis.
 #' @param lag_xlab X-axis label for lag plots.
 #' @param legend_position Named positions for effect and delta legends.
-#' @param lag_theme One of "bw", "minimal", "classic", or a ggplot2 theme.
-#' @param lag_base_size Base size for lag theme.
+#' @param lag_theme One of `"bw"`, `"minimal"`, `"classic"`, or a ggplot2
+#'   theme.
+#' @param lag_base_size Base font size for the lag theme.
 #' @param axis_title_size Axis-title size for lag plots.
 #' @param axis_text_size Axis-text size for lag plots.
 #' @param contour_colour Contour color.
@@ -144,29 +240,45 @@
 #' @param zero_linewidth Delta zero-contour line width.
 #' @param effect_zero_text_size Effect zero-contour label size.
 #' @param delta_zero_text_size Delta zero-contour label size.
-#' @param interpolate Passed to geom_raster().
-#' @param period_order Period facet order. NULL reproduces reversed PeriodN order.
-#' @param vars_order Period variable order. NULL follows `vars`.
-#' @param period_response Response column for period plots; default "eta".
-#' @param period_exclude_samples Samples removed from period plot. Default 10
-#'   reproduces the supplied manual plot; use NULL to keep every sample.
-#' @param period_palette NULL uses viridis; otherwise vector of >= 2 colors.
+#' @param interpolate Passed to `ggplot2::geom_raster()`.
+#' @param period_order Period facet order. `NULL` reverses names following the
+#'   `PeriodN` convention.
+#' @param vars_order Period variable order. `NULL` follows `vars`.
+#' @param period_response Response displayed in period plots. Supported values
+#'   are `"eta"` or `"linear"` for the linear-predictor contrast; `"effect"`
+#'   for the effect column as stored; `"exponentiated"` (the alias
+#'   `"exponential"` is also accepted) for an effect generated with
+#'   `effect_measure = "exponentiated"`; `"percent"` for an effect generated
+#'   with `effect_measure = "percent"`; and `"baseline"`, `"predicted"`, or
+#'   `"delta"` for response-scale quantities. For summary input, corresponding
+#'   columns named `<response>_lower` and `<response>_upper`, when present, are
+#'   drawn as dashed uncertainty curves. Because exponentiated and percent
+#'   results are both stored in `effect`, their aliases validate the
+#'   `epiexposure_effect_measure` attribute created by `summarise_effects()`.
+#' @param period_exclude_samples Samples removed from period draw-level plots.
+#'   Default `10` preserves the historical display; use `NULL` to retain all
+#'   samples.
+#' @param period_palette `NULL` uses viridis; otherwise a vector of at least two
+#'   colors.
 #' @param period_viridis_option Viridis option for period curves.
 #' @param period_xlab X-axis label for period plots.
 #' @param period_ylab Y-axis label for period plots.
-#' @param period_theme One of "bw", "minimal", "classic", or a ggplot2 theme.
-#' @param period_base_size Base size for period theme. Default 11 matches theme_bw().
-#' @param period_linewidth Line width passed to geom_smooth().
-#' @param period_show_legend Whether to show the period color legend.
-#' @param panel_labels Character vector used to label the lag-specific metric
-#'   blocks in the combined plot. Default is `c("(a)", "(b)")`, so the
-#'   first selected metric block is labelled "(a)" and the second "(b)".
-#'   Labels are applied only when `scale = "lag"` and `output = "plot"`;
-#'   `output = "list"` returns the original unlabelled component plots.
-#' @param label_size Positive finite size used for `panel_labels`. Default is `12`.
-#' @param output Either "plot" or "list". For lag, "list" returns every panel.
+#' @param period_theme One of `"bw"`, `"minimal"`, `"classic"`, or a ggplot2
+#'   theme.
+#' @param period_base_size Base size for the period theme.
+#' @param period_linewidth Line width passed to `ggplot2::geom_smooth()`.
+#' @param period_interval_linetype Line type used for lower and upper summary
+#'   uncertainty curves.
+#' @param period_interval_linewidth Line width used for lower and upper summary
+#'   uncertainty curves.
+#' @param period_show_legend Logical; show the period color legend.
+#' @param panel_labels Character vector used to label lag-specific metric blocks.
+#' @param label_size Positive finite size used for `panel_labels`.
+#' @param output Either `"plot"` or `"list"`. For lag plots, `"list"` returns
+#'   every component panel; for period plots, it returns `list(period = plot)`.
 #'
-#' @return A ggplot/cowplot object, or a list of ggplots when output = "list".
+#' @return A ggplot/cowplot object, or a list of ggplots when
+#'   `output = "list"`.
 #' @export
 plot_effects <- function(
     data,
@@ -208,12 +320,13 @@ plot_effects <- function(
     period_theme = "bw",
     period_base_size = 11,
     period_linewidth = 1,
+    period_interval_linetype = 2,
+    period_interval_linewidth = 0.5,
     period_show_legend = FALSE,
     panel_labels = c("(a)", "(b)"),
     label_size = 12,
     output = c("plot", "list")
 ) {
-
   if (!is.data.frame(data)) {
     stop("`data` must be a data frame.", call. = FALSE)
   }
@@ -265,11 +378,10 @@ plot_effects <- function(
 
   dat <- data[as.character(data$var) %in% vars, , drop = FALSE]
 
-  # ==========================================================================
+  # ========================================================================
   # LAG-SPECIFIC EFFECTS
-  # ==========================================================================
+  # ========================================================================
   if (scale == "lag") {
-
     required <- c("lag", "value")
     missing_cols <- setdiff(required, names(dat))
     if (length(missing_cols) > 0L) {
@@ -290,7 +402,6 @@ plot_effects <- function(
       )
     }
 
-    # Fixed default order: effect first, delta second.
     metric <- intersect(c("effect", "delta"), metric)
     if (length(metric) == 0L) {
       stop("Select at least one of `effect` or `delta`.", call. = FALSE)
@@ -340,7 +451,7 @@ plot_effects <- function(
     vars_ncol <- as.integer(vars_ncol)
 
     default_ylab <- c(
-      tmean = "Mean temperature (\u00B0C)",
+      tmean = "Mean temperature (°C)",
       rain = "Daily precipitation (mm)",
       wetness = "Leaf wetness (%)"
     )
@@ -371,7 +482,6 @@ plot_effects <- function(
     theme_lag <- .resolve_plot_theme(lag_theme, lag_base_size)
 
     make_lag_panel <- function(v, m, hide_x = FALSE) {
-
       df <- dat[as.character(dat$var) == v, , drop = FALSE]
 
       z <- df[[m]]
@@ -392,9 +502,7 @@ plot_effects <- function(
         )
       ) +
         ggplot2::geom_raster(
-          ggplot2::aes(
-            fill = .data[["z_fill"]]
-          ),
+          ggplot2::aes(fill = .data[["z_fill"]]),
           interpolate = interpolate
         )
 
@@ -505,16 +613,17 @@ plot_effects <- function(
     panels <- list()
     panel_names <- character()
 
-    # metric-major ordering reproduces:
-    # tmean effect, rain effect, wetness effect,
-    # tmean delta,  rain delta,  wetness delta.
     for (m in metric) {
       for (v in vars) {
         hide_x <- length(metric) > 1L &&
           metric_ncol == 1L &&
           m != metric[length(metric)]
 
-        panels[[length(panels) + 1L]] <- make_lag_panel(v, m, hide_x = hide_x)
+        panels[[length(panels) + 1L]] <- make_lag_panel(
+          v,
+          m,
+          hide_x = hide_x
+        )
         panel_names <- c(panel_names, paste(v, m, sep = "__"))
       }
     }
@@ -525,20 +634,12 @@ plot_effects <- function(
       return(panels)
     }
 
-    # With metric_ncol = 1 and vars_ncol = length(vars), this is exactly the
-    # manual 2-row layout. metric_ncol = 2 can place two metric blocks side by side.
     final_ncol <- min(length(panels), vars_ncol * metric_ncol)
 
-    # Label metric blocks without changing panel order, panel content, scales,
-    # smoothing, or layout. Because panels are stored in metric-major order, the
-    # first panel of each metric block receives the corresponding label.
     labels_use <- if (length(panel_labels) >= length(metric)) {
       panel_labels[seq_along(metric)]
     } else {
-      c(
-        panel_labels,
-        rep("", length(metric) - length(panel_labels))
-      )
+      c(panel_labels, rep("", length(metric) - length(panel_labels)))
     }
 
     panel_labels_use <- rep("", length(panels))
@@ -560,11 +661,12 @@ plot_effects <- function(
     )
   }
 
-  # ==========================================================================
+  # ========================================================================
   # PERIOD-SPECIFIC EFFECTS
-  # ==========================================================================
+  # ========================================================================
+  period_spec <- .resolve_period_response(data, period_response)
 
-  required <- c("period", "value", period_response)
+  required <- c("period", "value", period_spec$column)
   missing_cols <- setdiff(required, names(dat))
   if (length(missing_cols) > 0L) {
     stop(
@@ -605,19 +707,105 @@ plot_effects <- function(
     )
   }
 
+  if (!is.numeric(period_linewidth) ||
+      length(period_linewidth) != 1L ||
+      is.na(period_linewidth) ||
+      !is.finite(period_linewidth) ||
+      period_linewidth <= 0) {
+    stop(
+      "`period_linewidth` must be one positive finite number.",
+      call. = FALSE
+    )
+  }
+
+  if (!is.numeric(period_interval_linewidth) ||
+      length(period_interval_linewidth) != 1L ||
+      is.na(period_interval_linewidth) ||
+      !is.finite(period_interval_linewidth) ||
+      period_interval_linewidth <= 0) {
+    stop(
+      "`period_interval_linewidth` must be one positive finite number.",
+      call. = FALSE
+    )
+  }
+
   df <- dat
 
   if ("sample" %in% names(df) && !is.null(period_exclude_samples)) {
-    df <- df[!(df$sample %in% period_exclude_samples), , drop = FALSE]
+    df <- df[
+      !(df$sample %in% period_exclude_samples),
+      ,
+      drop = FALSE
+    ]
+  }
+
+  if (!nrow(df)) {
+    stop(
+      "No rows remain for the period plot after sample exclusion.",
+      call. = FALSE
+    )
   }
 
   df$period <- factor(as.character(df$period), levels = period_order)
   df$var <- factor(as.character(df$var), levels = vars_order)
-  df$response_value <- df[[period_response]]
+  df$response_value <- df[[period_spec$column]]
+
+  if (!is.numeric(df$response_value) ||
+      anyNA(df$response_value) ||
+      any(!is.finite(df$response_value))) {
+    stop(
+      "The period response column `", period_spec$column,
+      "` must contain only finite numeric values.",
+      call. = FALSE
+    )
+  }
 
   theme_period <- .resolve_plot_theme(period_theme, period_base_size)
+  period_is_samples <- "sample" %in% names(df)
 
-  if ("sample" %in% names(df)) {
+  has_lower <- period_spec$lower %in% names(df)
+  has_upper <- period_spec$upper %in% names(df)
+
+  if (!period_is_samples && xor(has_lower, has_upper)) {
+    stop(
+      "Summary period data contain only one uncertainty endpoint for `",
+      period_spec$column, "`. Both `", period_spec$lower, "` and `",
+      period_spec$upper, "` are required to plot uncertainty curves.",
+      call. = FALSE
+    )
+  }
+
+  if (!period_is_samples && has_lower && has_upper) {
+    invalid_bounds <- c(period_spec$lower, period_spec$upper)[
+      !vapply(
+        df[c(period_spec$lower, period_spec$upper)],
+        function(x) {
+          is.numeric(x) &&
+            !anyNA(x) &&
+            all(is.finite(x))
+        },
+        logical(1)
+      )
+    ]
+
+    if (length(invalid_bounds)) {
+      stop(
+        "Period uncertainty columns must contain finite numeric values: ",
+        paste(invalid_bounds, collapse = ", "),
+        ".",
+        call. = FALSE
+      )
+    }
+  }
+
+  if (period_is_samples) {
+    if (anyNA(df$sample)) {
+      stop(
+        "`sample` cannot contain missing values in period draw-level data.",
+        call. = FALSE
+      )
+    }
+
     p <- ggplot2::ggplot(
       df,
       ggplot2::aes(
@@ -633,30 +821,73 @@ plot_effects <- function(
       )
 
     if (is.null(period_palette)) {
-      p <- p + ggplot2::scale_color_viridis_c(
-        option = period_viridis_option
-      )
+      if (is.numeric(df$sample)) {
+        p <- p + ggplot2::scale_color_viridis_c(
+          option = period_viridis_option
+        )
+      } else {
+        p <- p + ggplot2::scale_color_viridis_d(
+          option = period_viridis_option
+        )
+      }
     } else {
       if (length(period_palette) < 2L) {
-        stop("`period_palette` must contain at least two colors.", call. = FALSE)
+        stop(
+          "`period_palette` must contain at least two colors.",
+          call. = FALSE
+        )
       }
-      p <- p + ggplot2::scale_color_gradientn(
-        colours = period_palette
-      )
+
+      if (is.numeric(df$sample)) {
+        p <- p + ggplot2::scale_color_gradientn(
+          colours = period_palette
+        )
+      } else {
+        p <- p + ggplot2::scale_color_manual(
+          values = grDevices::colorRampPalette(period_palette)(
+            length(unique(df$sample))
+          )
+        )
+      }
     }
   } else {
-    p <- ggplot2::ggplot(
-      df,
-      ggplot2::aes(
-        x = .data[["value"]],
-        y = .data[["response_value"]],
-        group = 1
-      )
-    ) +
+    p <- ggplot2::ggplot(df) +
       ggplot2::geom_smooth(
+        ggplot2::aes(
+          x = .data[["value"]],
+          y = .data[["response_value"]],
+          group = 1
+        ),
         se = FALSE,
+        color = "black",
         linewidth = period_linewidth
       )
+
+    if (has_lower && has_upper) {
+      p <- p +
+        ggplot2::geom_smooth(
+          ggplot2::aes(
+            x = .data[["value"]],
+            y = .data[[period_spec$lower]],
+            group = 1
+          ),
+          se = FALSE,
+          color = "black",
+          linetype = period_interval_linetype,
+          linewidth = period_interval_linewidth
+        ) +
+        ggplot2::geom_smooth(
+          ggplot2::aes(
+            x = .data[["value"]],
+            y = .data[[period_spec$upper]],
+            group = 1
+          ),
+          se = FALSE,
+          color = "black",
+          linetype = period_interval_linetype,
+          linewidth = period_interval_linewidth
+        )
+    }
   }
 
   p <- p +
@@ -680,6 +911,16 @@ plot_effects <- function(
       x = period_xlab,
       y = period_ylab
     )
+
+  attr(p, "epiexposure_period_output") <- if (period_is_samples) {
+    "samples"
+  } else if (has_lower && has_upper) {
+    "summary_with_interval"
+  } else {
+    "deterministic"
+  }
+  attr(p, "epiexposure_period_response_request") <- period_spec$request
+  attr(p, "epiexposure_period_response_column") <- period_spec$column
 
   if (output == "list") {
     return(list(period = p))

@@ -44,6 +44,8 @@ plot_effects(
   period_theme = "bw",
   period_base_size = 11,
   period_linewidth = 1,
+  period_interval_linetype = 2,
+  period_interval_linewidth = 0.5,
   period_show_legend = FALSE,
   panel_labels = c("(a)", "(b)"),
   label_size = 12,
@@ -51,47 +53,50 @@ plot_effects(
 )
 }
 \arguments{
-\item{data}{Data frame returned by summarise_effects().}
+\item{data}{Data frame returned by `summarise_effects()`.}
 
-\item{scale}{Plot scale. Use only \"lag\" or \"period\".}
+\item{scale}{Plot scale. Use only `"lag"` or `"period"`.}
 
-\item{vars}{Character vector with variables to plot. NULL uses all variables.}
+\item{vars}{Character vector containing variables to plot. `NULL` uses all
+available variables.}
 
-\item{metric}{For lag plots, one or both of c("effect", "delta").}
+\item{metric}{For lag plots, one or both of `c("effect", "delta")`.}
 
-\item{delta_multiplier}{Multiplier applied to delta before plotting.}
+\item{delta_multiplier}{Multiplier applied to `delta` before plotting.}
 
-\item{metric_labels}{Named labels for the lag color legends.}
+\item{metric_labels}{Named labels for lag color legends.}
 
 \item{ylab}{Lag y-axis labels. Prefer a named vector keyed by variable.}
 
-\item{metric_ncol}{Number of metric blocks per row. Default 1 places effect
-above delta, matching the manual figure.}
+\item{metric_ncol}{Number of metric blocks per row. Default `1` places
+effect above delta.}
 
-\item{vars_ncol}{Number of variable panels per metric block. NULL uses all
+\item{vars_ncol}{Number of variable panels per metric block. `NULL` uses all
 selected variables in one row.}
 
-\item{effect_palette}{Three colors: low, mid, high.}
+\item{effect_palette}{Three colors representing low, middle, and high values.}
 
-\item{delta_palette}{NULL uses viridis; otherwise a vector of >= 2 colors.}
+\item{delta_palette}{`NULL` uses viridis; otherwise a vector of at least two
+colors.}
 
-\item{delta_viridis_option}{Viridis option used when delta_palette is NULL.}
+\item{delta_viridis_option}{Viridis option used when `delta_palette = NULL`.}
 
 \item{clip_quantiles}{Quantiles used to clip lag fill values.}
 
-\item{effect_breaks}{Contour breaks for effect.}
+\item{effect_breaks}{Contour breaks for `effect`.}
 
-\item{delta_bins}{Number of contour bins for delta.}
+\item{delta_bins}{Number of contour bins for `delta`.}
 
-\item{lag_reverse}{Reverse the lag axis.}
+\item{lag_reverse}{Logical; reverse the lag axis.}
 
 \item{lag_xlab}{X-axis label for lag plots.}
 
 \item{legend_position}{Named positions for effect and delta legends.}
 
-\item{lag_theme}{One of "bw", "minimal", "classic", or a ggplot2 theme.}
+\item{lag_theme}{One of `"bw"`, `"minimal"`, `"classic"`, or a ggplot2
+theme.}
 
-\item{lag_base_size}{Base size for lag theme.}
+\item{lag_base_size}{Base font size for the lag theme.}
 
 \item{axis_title_size}{Axis-title size for lag plots.}
 
@@ -107,18 +112,31 @@ selected variables in one row.}
 
 \item{delta_zero_text_size}{Delta zero-contour label size.}
 
-\item{interpolate}{Passed to geom_raster().}
+\item{interpolate}{Passed to `ggplot2::geom_raster()`.}
 
-\item{period_order}{Period facet order. NULL reproduces reversed PeriodN order.}
+\item{period_order}{Period facet order. `NULL` reverses names following the
+`PeriodN` convention.}
 
-\item{vars_order}{Period variable order. NULL follows `vars`.}
+\item{vars_order}{Period variable order. `NULL` follows `vars`.}
 
-\item{period_response}{Response column for period plots; default "eta".}
+\item{period_response}{Response displayed in period plots. Supported values
+are `"eta"` or `"linear"` for the linear-predictor contrast; `"effect"`
+for the effect column as stored; `"exponentiated"` (the alias
+`"exponential"` is also accepted) for an effect generated with
+`effect_measure = "exponentiated"`; `"percent"` for an effect generated
+with `effect_measure = "percent"`; and `"baseline"`, `"predicted"`, or
+`"delta"` for response-scale quantities. For summary input, corresponding
+columns named `<response>_lower` and `<response>_upper`, when present, are
+drawn as dashed uncertainty curves. Because exponentiated and percent
+results are both stored in `effect`, their aliases validate the
+`epiexposure_effect_measure` attribute created by `summarise_effects()`.}
 
-\item{period_exclude_samples}{Samples removed from period plot. Default 10
-reproduces the supplied manual plot; use NULL to keep every sample.}
+\item{period_exclude_samples}{Samples removed from period draw-level plots.
+Default `10` preserves the historical display; use `NULL` to retain all
+samples.}
 
-\item{period_palette}{NULL uses viridis; otherwise vector of >= 2 colors.}
+\item{period_palette}{`NULL` uses viridis; otherwise a vector of at least two
+colors.}
 
 \item{period_viridis_option}{Viridis option for period curves.}
 
@@ -126,27 +144,42 @@ reproduces the supplied manual plot; use NULL to keep every sample.}
 
 \item{period_ylab}{Y-axis label for period plots.}
 
-\item{period_theme}{One of "bw", "minimal", "classic", or a ggplot2 theme.}
+\item{period_theme}{One of `"bw"`, `"minimal"`, `"classic"`, or a ggplot2
+theme.}
 
-\item{period_base_size}{Base size for period theme. Default 11 matches theme_bw().}
+\item{period_base_size}{Base size for the period theme.}
 
-\item{period_linewidth}{Line width passed to geom_smooth().}
+\item{period_linewidth}{Line width passed to `ggplot2::geom_smooth()`.}
 
-\item{period_show_legend}{Whether to show the period color legend.}
+\item{period_interval_linetype}{Line type used for lower and upper summary
+uncertainty curves.}
 
-\item{panel_labels}{Character vector used to label the lag-specific metric
-blocks in the combined plot. Default is `c("(a)", "(b)")`, so the
-first selected metric block is labelled "(a)" and the second "(b)".
-Labels are applied only when `scale = "lag"` and `output = "plot"`;
-`output = "list"` returns the original unlabelled component plots.}
+\item{period_interval_linewidth}{Line width used for lower and upper summary
+uncertainty curves.}
 
-\item{label_size}{Positive finite size used for `panel_labels`. Default is `12`.}
+\item{period_show_legend}{Logical; show the period color legend.}
 
-\item{output}{Either "plot" or "list". For lag, "list" returns every panel.}
+\item{panel_labels}{Character vector used to label lag-specific metric blocks.}
+
+\item{label_size}{Positive finite size used for `panel_labels`.}
+
+\item{output}{Either `"plot"` or `"list"`. For lag plots, `"list"` returns
+every component panel; for period plots, it returns `list(period = plot)`.}
 }
 \value{
-A ggplot/cowplot object, or a list of ggplots when output = "list".
+A ggplot/cowplot object, or a list of ggplots when
+  `output = "list"`.
 }
 \description{
-Plot lag-specific or period-specific effects
+Plots lag-specific effect surfaces or period-specific exposure-response
+curves from an object returned by `summarise_effects()`.
+}
+\details{
+For period plots, draw-level input is recognized by the presence of a
+`sample` column. One smoothed curve is then drawn for each parameter draw.
+Otherwise, the data are treated as deterministic or summary output. The
+selected central response is drawn as a solid black curve and, when matching
+lower and upper columns are available, the uncertainty limits are drawn as
+dashed black curves. The bounds are used exactly as returned by
+`summarise_effects()`; `plot_effects()` does not recalculate uncertainty.
 }

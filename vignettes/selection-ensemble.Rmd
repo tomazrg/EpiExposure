@@ -149,8 +149,15 @@ plot_performance(
 
 ![](find_bestfit2.png) Inspect results
 
-```{r}
-head(best_models)
+```{r echo=FALSE}
+knitr::kable(
+  utils::head(
+    best_models,
+    10L
+  ),
+  digits = 4,
+  align = "c"
+)
 ```
 
 Depending on the selected validation settings, the resulting object can
@@ -607,7 +614,7 @@ final_plot
 
 ```
 
-# Choosing an ensemble strategy
+# Choosing a model-level ensemble strategy
 
 Each ensemble method has advantages.
 
@@ -653,6 +660,438 @@ Regardless of the method, compare the ensemble against:
 - a simple baseline model;
 - alternative ensemble strategies;
 - results on validation data not reused for weight estimation.
+
+The previous sections focused on model-level ensembles, which combine out-of-fold predictions and evaluate their predictive performance. 
+
+`EpiExposure` can also construct lag-contribution ensembles. Instead of combining predicted outcomes, these ensembles combine the lag-specific ECI decompositions obtained from selected full-data model refits.
+
+# Lag-contribution ensembles
+
+## Why construct a lag ensemble?
+
+Model-level ensembles combine predictions from multiple candidate models.
+However, models may also differ in how they distribute the contribution of an
+exposure across the fitted lag interval.
+
+A lag ensemble combines the lag-specific epidemiological contribution indices
+obtained from the selected models. For lag \(l\), the ensemble contribution is
+defined as:
+
+\[
+ECI_{\mathrm{ensemble},l}
+=
+\sum_m \alpha_m ECI_{m,l},
+\]
+
+where \(ECI_{m,l}\) is the lag-specific weighted ECI from model \(m\), and
+\(\alpha_m\) is the model weight derived from out-of-fold model performance.
+
+The model weights therefore come from cross-validation, whereas the
+lag-specific ECI values are calculated from the selected models refitted to the
+complete dataset.
+
+::: {.tutorial-note}
+**Lag ensembles require retained full-data fits or precomputed lag data.**
+For automatic lag decomposition, `best_models` must be the complete object
+returned by `find_bestfit()` and must contain the retained fitted models in
+`attr(best_models, "fits")`. An Excel or CSV export of the ranking table does
+not preserve the attributes, fitted models, or basis metadata required for this
+calculation.
+:::
+
+## Checking the retained fitted models
+
+Before constructing the lag ensemble, verify that the selected full-data fits
+are available:
+
+```{r inspect-retained-fits}
+retained_fits <- attr(
+  best_models,
+  "fits",
+  exact = TRUE
+)
+
+if (is.null(retained_fits)) {
+  stop(
+    "No retained full-data fits were found in `best_models`. ",
+    "Rerun `find_bestfit()` with `keep_fits = TRUE`, supply `fit_list`, ",
+    "or provide precomputed `lag_data`."
+  )
+}
+
+names(retained_fits)
+```
+
+These fitted models are not used to recalculate the cross-validation metrics.
+The model ranking and ensemble weights remain based on the out-of-fold
+predictions produced by `find_bestfit()`. The retained full-data fits are used
+only to obtain the final lag-specific decompositions for the selected models.
+
+## Constructing unweighted and weighted lag ensembles
+
+The following example selects the three highest-ranked models and constructs
+two lag ensembles:
+
+- `"unweighted"` gives equal weight to each selected model;
+- `"weighted"` derives model weights from the selected performance metric.
+
+```{r fit-lag-ensembles}
+
+epi_data1 = epi_data |> 
+  filter(epi_id == 1)
+lag_ensemble <- ensemble_bestfit(
+  bestfit = best_models,
+  data = epi_data1,
+  group = "epi_id",
+  var = c(
+    "tmean"
+  #  "rain",
+   # "wetness"
+  ),
+  ensemble_scope = "lag",
+  method = c(
+    "unweighted",
+    "weighted"
+  ),
+  top_n = 3,
+  weight_metric = NULL,
+  weight_transform = "softmax",
+  lag_group_cols = c(
+    "epi_id",
+    "var",
+    "lag"
+  ),
+  lg_strategy = "requested_available",
+  rl_weights = TRUE,
+  compute_ecilag_args = list(
+    uncertainty = FALSE
+  ),
+  verbose = TRUE
+)
+
+```
+
+When `weight_metric = NULL`, `ensemble_bestfit()` uses the ranking metric stored
+by `find_bestfit()`. The direction of that metric is handled automatically:
+metrics such as CCC are maximized, whereas metrics such as RMSE are minimized.
+
+The argument:
+
+```r
+lg_strategy = "requested_available"
+```
+
+uses each requested exposure when that exposure is available in the selected
+model. Because candidate models may contain different combinations of
+exposures, not every model necessarily contributes to every exposure-specific
+lag ensemble.
+
+With:
+
+```r
+rl_weights = TRUE
+```
+
+the model weights are renormalized among the models available for each
+exposure-lag unit. This ensures that the available model weights sum to one
+within each lag-specific ensemble calculation.
+
+## Inspecting selected models and weights
+
+The selected candidate models can be inspected directly:
+
+```{r inspect-lag-selected-models, echo=FALSE}
+knitr::kable(
+  lag_ensemble$selected_models,
+  digits = 4,
+  align = "c"
+)
+```
+
+The model weights used by each ensemble method are stored separately:
+
+```{r inspect-lag-model-weights, echo=FALSE}
+knitr::kable(
+  lag_ensemble$model_weights,
+  digits = 4,
+  align = "c"
+)
+```
+
+For the unweighted ensemble, the selected models receive equal lag weights.
+For the weighted ensemble, the weights are derived from the selected
+cross-validation performance metric.
+
+These weights describe the relative influence of the selected models in the
+lag ensemble. They are not lag-specific DLNM coefficients.
+
+## Inspecting ensemble lag contributions
+
+The combined lag-specific contributions are returned in:
+
+```r
+lag_ensemble$ensemble_by_lag
+```
+
+Inspect the first rows:
+
+```{r inspect-lag-ensemble, echo=FALSE}
+knitr::kable(
+  utils::head(
+    lag_ensemble$ensemble_by_lag,
+    12L
+  ),
+  digits = 4,
+  align = "c"
+)
+```
+
+The principal output columns are:
+
+- `var`: exposure variable;
+- `lag`: retrospective lag, where lag 0 is the most recent exposure;
+- `method`: ensemble method;
+- `ECI_weighted_ens`: signed ensemble ECI contribution at that lag;
+- `ECI_percent_ens`: absolute percentage contribution of that lag within the
+  corresponding exposure and ensemble method;
+- `n_models`: number of models contributing to that lag unit;
+- `raw_model_weight_sum`: total original model-weight mass available for that
+  lag unit;
+- `weights_renormalized`: whether weights were renormalized among the available
+  models;
+- `models_used`: selected models contributing to the lag unit.
+
+The signed value `ECI_weighted_ens` preserves the direction of the ensemble
+contribution. In contrast, `ECI_percent_ens` is based on the absolute
+contribution magnitude and describes how the total lag contribution is
+distributed across the fitted lag interval.
+
+## Visualizing signed lag contributions
+
+```{r plot-lag-ensemble-signed, fig.width=10, fig.height=7}
+lag_ensemble_signed_plot <- ggplot(
+  lag_ensemble$ensemble_by_lag,
+  aes(
+    x = lag,
+    y = ECI_weighted_ens,
+    color = method
+  )
+) +
+  geom_hline(
+    yintercept = 0,
+    color = "grey50",
+    linetype = "dashed",
+    linewidth = 0.5
+  ) +
+  geom_line(
+    linewidth = 1
+  ) +
+  facet_wrap(
+    vars(var),
+    ncol = 1,
+    scales = "free_y",
+    labeller = as_labeller(
+      c(
+        tmean = "Mean temperature",
+        rain = "Rainfall",
+        wetness = "Leaf wetness"
+      )
+    )
+  ) +
+  scale_x_reverse(
+    breaks = seq(
+      0,
+      85,
+      by = 15
+    )
+  ) +
+  scale_color_manual(
+    values = c(
+      unweighted = "#4C72B0",
+      weighted = "#C44E52"
+    ),
+    labels = c(
+      unweighted = "Unweighted",
+      weighted = "Weighted"
+    )
+  ) +
+  theme_bw() +
+  labs(
+    x = "Retrospective lag",
+    y = "Ensemble weighted ECI",
+    color = "Ensemble method"
+  ) +
+  theme(
+    text = element_text(
+      size = 10,
+      face = "bold"
+    ),
+    strip.background = element_rect(
+      fill = "white",
+      color = "black"
+    ),
+    strip.text = element_text(
+      face = "bold"
+    ),
+    legend.position = "top"
+  )
+
+lag_ensemble_signed_plot
+```
+
+The lag axis is displayed retrospectively. Lag 0 corresponds to the most recent
+exposure observation, whereas increasing lag values represent progressively
+older exposure conditions.
+
+Positive and negative values describe the direction of the combined
+lag-specific contribution. The weighted and unweighted curves may differ when
+the selected models receive substantially different performance-based weights.
+
+## Visualizing relative lag contributions
+
+The percentage contribution provides a complementary interpretation based on
+the absolute contribution magnitude:
+
+```{r plot-lag-ensemble-percent, fig.width=10, fig.height=7}
+lag_ensemble_percent_plot <- ggplot(
+  lag_ensemble$ensemble_by_lag,
+  aes(
+    x = lag,
+    y = ECI_percent_ens,
+    color = method
+  )
+) +
+  geom_line(
+    linewidth = 1
+  ) +
+  facet_wrap(
+    vars(var),
+    ncol = 1,
+    scales = "free_y",
+    labeller = as_labeller(
+      c(
+        tmean = "Mean temperature",
+        rain = "Rainfall",
+        wetness = "Leaf wetness"
+      )
+    )
+  ) +
+  scale_x_reverse(
+    breaks = seq(
+      0,
+      85,
+      by = 15
+    )
+  ) +
+  scale_color_manual(
+    values = c(
+      unweighted = "#4C72B0",
+      weighted = "#C44E52"
+    ),
+    labels = c(
+      unweighted = "Unweighted",
+      weighted = "Weighted"
+    )
+  ) +
+  theme_bw() +
+  labs(
+    x = "Retrospective lag",
+    y = "Absolute lag contribution (%)",
+    color = "Ensemble method"
+  ) +
+  theme(
+    text = element_text(
+      size = 10,
+      face = "bold"
+    ),
+    strip.background = element_rect(
+      fill = "white",
+      color = "black"
+    ),
+    strip.text = element_text(
+      face = "bold"
+    ),
+    legend.position = "top"
+  )
+
+lag_ensemble_percent_plot
+```
+
+`ECI_percent_ens` is calculated from the absolute lag contributions within each
+exposure and ensemble method. Consequently, the percentages describe where the
+ensemble contribution is concentrated across lags, but they do not preserve the
+positive or negative direction of that contribution.
+
+The signed and percentage plots should therefore be interpreted together:
+
+- `ECI_weighted_ens` describes the direction and magnitude of the combined
+  contribution;
+- `ECI_percent_ens` describes the relative concentration of absolute
+  contribution across lags.
+
+## Using strict exposure availability
+
+The previous example used:
+
+```r
+lg_strategy = "requested_available"
+```
+
+which allows different selected models to contribute to different exposures
+when their fitted variable sets differ.
+
+For a stricter comparison, the user can require every selected model to contain
+all requested exposures:
+
+```{r strict-lag-ensemble, eval=FALSE}
+lag_ensemble_strict <- ensemble_bestfit(
+  bestfit = best_models,
+  data = epi_data1,
+  group = "epi_id",
+  var = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  ensemble_scope = "lag",
+  method = c(
+    "unweighted",
+    "weighted"
+  ),
+  top_n = 3,
+  weight_transform = "softmax",
+  lag_group_cols = c(
+    "epi_id",
+    "var",
+    "lag"
+  ),
+  lg_strategy = "strict",
+  rl_weights = TRUE,
+  compute_ecilag_args = list(
+    uncertainty = FALSE
+  )
+)
+
+lag_ensemble_strict
+```
+
+This strict mode stops when a selected model does not contain one of the
+requested exposures or when a lag unit is not available from every selected
+model. It is useful when the analyst wants the same model set to support every
+exposure-specific lag ensemble.
+
+::: {.tutorial-note}
+**Lag-ensemble uncertainty is not generated in EpiExposure v1.** The selected
+models are fitted separately, and independently sampled coefficient or
+posterior draws do not define a valid joint draw distribution across models.
+For this reason, `ensemble_bestfit()` combines deterministic lag-specific ECI
+decompositions and does not pair arbitrary draw indices across fitted models.
+:::
+
+Lag ensembles should be interpreted as model-performance-weighted summaries of
+lag-specific ECI contributions. They do not replace external validation, do not
+represent raw DLNM coefficients, and should not be interpreted as causal
+attribution across lags.
 
 ## Avoiding optimistic ensemble evaluation
 
