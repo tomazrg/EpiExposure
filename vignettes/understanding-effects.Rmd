@@ -326,7 +326,7 @@ epi_p_summary <- summarise_effects(
   lag_periods = periods,
   effect_measure = "percent",
   uncertainty = TRUE,
-  n_samples = 1000,
+  n_samples = 100,
   output = "summary"
 )
 ```
@@ -398,7 +398,7 @@ epi_p_samples <- summarise_effects(
   lag_periods = periods,
   effect_measure = "percent",
   uncertainty = TRUE,
-  n_samples = 1000,
+  n_samples = 100,
   output = "samples"
 )
 ```
