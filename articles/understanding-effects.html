@@ -179,7 +179,24 @@ over exposure values and retrospective lags.</p>
 <p>Exposure-lag effects are interpreted relative to reference
 conditions. When an exposure value is evaluated at a particular lag, the
 other lags are held at their corresponding reference values.</p>
-<p>In the examples below:</p>
+<p>Three effect measures are supported:</p>
+<ul>
+<li>
+<code>"linear"</code> returns the DLNM contrast on the linear
+predictor scale (<code>eta</code>).</li>
+<li>
+<code>"exponentiated"</code> returns <code>exp(eta)</code>,
+corresponding to response ratios for log-link models and odds ratios for
+logit-link models.</li>
+<li>
+<code>"percent"</code> returns <code>100 × (exp(eta) - 1)</code>,
+representing percent changes relative to the selected reference
+profile.</li>
+</ul>
+<p>For links such as <code>"identity"</code>, <code>"probit"</code>,
+<code>"cloglog"</code>, or <code>"inverse"</code>, only
+<code>"linear"</code> is available.</p>
+<p>In the examples below, we use:</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">effect_measure</span> <span class="op">=</span> <span class="st">"percent"</span></span></code></pre></div>
 <p>expresses modeled contrasts as percentage effects relative to the
@@ -651,25 +668,35 @@ more visually distinct effects.</p>
 <span>    <span class="fl">60</span></span>
 <span>  <span class="op">)</span>,</span>
 <span>  prefix <span class="op">=</span> <span class="st">"Period"</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">periods</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">periods</span></span>
 <span><span class="co">#&gt;    period lag_start lag_end</span></span>
 <span><span class="co">#&gt; 1 Period1         0      20</span></span>
 <span><span class="co">#&gt; 2 Period2        21      40</span></span>
 <span><span class="co">#&gt; 3 Period3        41      60</span></span>
 <span><span class="co">#&gt; 4 Period4        61      85</span></span></code></pre></div>
 <p>The selected cut points divide the fitted lag interval into four
-periods.</p>
-<p>Because lag is retrospective, the numerical order of the periods
-should be checked carefully when assigning biological labels. Lower lags
-are closer to the disease assessment, whereas higher lags represent
-earlier exposure conditions.</p>
+periods:</p>
+<ul>
+<li>Period1: lags 0–20 (most recent exposures)</li>
+<li>Period2: lags 21–40</li>
+<li>Period3: lags 41–60</li>
+<li>Period4: lags 61–85 (oldest exposures)</li>
+</ul>
+<p>These periods are defined on the retrospective lag scale used by
+DLNMs and <code>EpiExposure</code> rather than on the original
+chronological time scale. Consequently, Period1 contains exposures
+occurring closest to the disease assessment date, whereas Period4
+contains exposures occurring furthest in the past. When assigning
+biological labels, remember that lower lags represent more recent
+exposure conditions and higher lags represent earlier exposure
+conditions.</p>
 </div>
 <div class="section level3">
 <h3 id="estimating-period-specific-effects">Estimating period-specific effects<a class="anchor" aria-label="anchor" href="#estimating-period-specific-effects"></a>
 </h3>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">epi_p_summary</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summarise_effects.html">summarise_effects</a></span><span class="op">(</span></span>
 <span>  fit <span class="op">=</span> <span class="va">fit</span>,</span>
 <span>  data <span class="op">=</span> <span class="va">epi_data</span>,</span>
@@ -680,6 +707,15 @@ earlier exposure conditions.</p>
 <span>  n_samples <span class="op">=</span> <span class="fl">1000</span>,</span>
 <span>  output <span class="op">=</span> <span class="st">"summary"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
+<p>When <code>output = "summary"</code> and
+<code>uncertainty = TRUE</code>, <code>EpiExposure</code> summarizes the
+simulated parameter draws for each exposure-period combination. The
+reported effect corresponds to the median estimate across draws, while
+the lower and upper bounds represent the empirical uncertainty interval
+defined by <code>interval_probs</code> (95% by default).</p>
+<p>This output is useful when the goal is to summarize the central
+tendency and uncertainty of the estimated effects rather than inspect
+each individual draw.</p>
 <p>Inspect the summary:</p>
 <table style="width:100%;" class="table">
 <colgroup>
@@ -997,11 +1033,12 @@ earlier exposure conditions.</p>
 </tr>
 </tbody>
 </table>
-</div>
-<div class="section level3">
-<h3 id="visualizing-period-specific-effects">Visualizing period-specific effects<a class="anchor" aria-label="anchor" href="#visualizing-period-specific-effects"></a>
-</h3>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<p>The summary output contains one row for each exposure-period
+combination and includes uncertainty summaries for the estimated
+effects, baseline prediction, predicted response, and response-scale
+difference (<code>delta</code>).</p>
+<p>Visualizing period-specific effects:</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_effects.html">plot_effects</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">epi_p_summary</span>,</span>
 <span>  scale <span class="op">=</span> <span class="st">"period"</span>,</span>
@@ -1021,6 +1058,7 @@ earlier exposure conditions.</p>
 <span>    <span class="st">"rain"</span>,</span>
 <span>    <span class="st">"wetness"</span></span>
 <span>  <span class="op">)</span>,</span>
+<span>  period_response <span class="op">=</span> <span class="st">"eta"</span>,</span>
 <span>  period_ylab <span class="op">=</span> <span class="st">"Effect"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p><img src="understanding-effects_files/figure-html/plot-period-effects-1.png" class="r-plt" alt="" width="864" style="display: block; margin: auto;"></p>
@@ -1032,9 +1070,18 @@ arise from the same fitted cross-basis surface.</p>
 <div class="section level3">
 <h3 id="returning-uncertainty-samples">Returning uncertainty samples<a class="anchor" aria-label="anchor" href="#returning-uncertainty-samples"></a>
 </h3>
-<p>When custom uncertainty analyses are needed, return the individual
-draw-specific results instead of their summaries:</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<p>When <code>output = "samples"</code>, the function returns the
+individual draw-specific results instead of summary statistics. Each row
+corresponds to one parameter draw and one exposure-period combination,
+allowing custom uncertainty analyses and visualizations.</p>
+<p>This output is particularly useful when calculating user-defined
+summaries, propagating uncertainty through downstream analyses, or
+building custom graphics.</p>
+<p>In contrast to <code>output = "summary"</code>, which reports median
+estimates and uncertainty intervals across all simulated draws,
+<code>output = "samples"</code> returns the complete draw-by-draw
+results used to construct those summaries.</p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">epi_p_samples</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summarise_effects.html">summarise_effects</a></span><span class="op">(</span></span>
 <span>  fit <span class="op">=</span> <span class="va">fit</span>,</span>
 <span>  data <span class="op">=</span> <span class="va">epi_data</span>,</span>
@@ -1045,6 +1092,31 @@ draw-specific results instead of their summaries:</p>
 <span>  n_samples <span class="op">=</span> <span class="fl">1000</span>,</span>
 <span>  output <span class="op">=</span> <span class="st">"samples"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
+<p>Visualizing period-specific effects:</p>
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_effects.html">plot_effects</a></span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">epi_p_samples</span>,</span>
+<span>  scale <span class="op">=</span> <span class="st">"period"</span>,</span>
+<span>  vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"tmean"</span>,</span>
+<span>    <span class="st">"rain"</span>,</span>
+<span>    <span class="st">"wetness"</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  period_order <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"Period4"</span>,</span>
+<span>    <span class="st">"Period3"</span>,</span>
+<span>    <span class="st">"Period2"</span>,</span>
+<span>    <span class="st">"Period1"</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  vars_order <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"tmean"</span>,</span>
+<span>    <span class="st">"rain"</span>,</span>
+<span>    <span class="st">"wetness"</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  period_response <span class="op">=</span> <span class="st">"eta"</span>,</span>
+<span>  period_ylab <span class="op">=</span> <span class="st">"Effect"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p><img src="understanding-effects_files/figure-html/plot-period-effects2-1.png" class="r-plt" alt="" width="864" style="display: block; margin: auto;"></p>
 <p>Inspect a subset of the sample-level output:</p>
 <table class="table">
 <colgroup>
@@ -1226,7 +1298,7 @@ epidemic.</li>
 <div class="section level3">
 <h3 id="calculating-eci">Calculating ECI<a class="anchor" aria-label="anchor" href="#calculating-eci"></a>
 </h3>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">eci</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/compute_eci.html">compute_eci</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">epi_data</span>,</span>
 <span>  group <span class="op">=</span> <span class="st">"epi_id"</span>,</span>
@@ -1536,16 +1608,17 @@ quantity.</p>
 <div class="section level3">
 <h3 id="comparing-raw-and-weighted-exposure-histories">Comparing raw and weighted exposure histories<a class="anchor" aria-label="anchor" href="#comparing-raw-and-weighted-exposure-histories"></a>
 </h3>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<p>tmean</p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">eci</span><span class="op">[</span></span>
-<span>  <span class="va">eci</span><span class="op">$</span><span class="va">var</span> <span class="op">==</span> <span class="st">"rain"</span>,</span>
+<span>  <span class="va">eci</span><span class="op">$</span><span class="va">var</span> <span class="op">==</span> <span class="st">"tmean"</span>,</span>
 <span>  ,</span>
 <span>  drop <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">]</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span></span>
 <span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span></span>
-<span>      x <span class="op">=</span> <span class="va">ECI_weighted</span>,</span>
-<span>      y <span class="op">=</span> <span class="va">ECI_raw</span></span>
+<span>      x <span class="op">=</span> <span class="va">ECI_raw</span>,</span>
+<span>      y <span class="op">=</span> <span class="va">ECI_weighted</span></span>
 <span>    <span class="op">)</span></span>
 <span>  <span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span></span>
@@ -1553,9 +1626,54 @@ quantity.</p>
 <span>  <span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_bw</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span></span>
-<span>    x <span class="op">=</span> <span class="st">"Weighted ECI"</span>,</span>
-<span>    y <span class="op">=</span> <span class="st">"Raw ECI"</span><span class="op">)</span></span></code></pre></div>
-<p><img src="understanding-effects_files/figure-html/compare-eci-1.png" class="r-plt" alt="" width="672" style="display: block; margin: auto;"></p>
+<span>    x <span class="op">=</span> <span class="st">"Raw ECI"</span>,</span>
+<span>    y <span class="op">=</span> <span class="st">"Weighted ECI"</span>,</span>
+<span>    title <span class="op">=</span> <span class="st">"tmean"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="understanding-effects_files/figure-html/compare-eci-tmean-1.png" class="r-plt" alt="" width="672" style="display: block; margin: auto;"></p>
+<p>wetness</p>
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">eci</span><span class="op">[</span></span>
+<span>  <span class="va">eci</span><span class="op">$</span><span class="va">var</span> <span class="op">==</span> <span class="st">"wetness"</span>,</span>
+<span>  ,</span>
+<span>  drop <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">]</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span></span>
+<span>      x <span class="op">=</span> <span class="va">ECI_raw</span>,</span>
+<span>      y <span class="op">=</span> <span class="va">ECI_weighted</span></span>
+<span>    <span class="op">)</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span></span>
+<span>    alpha <span class="op">=</span> <span class="fl">0.65</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_bw</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span></span>
+<span>    x <span class="op">=</span> <span class="st">"Raw ECI"</span>,</span>
+<span>    y <span class="op">=</span> <span class="st">"Weighted ECI"</span>,</span>
+<span>    title <span class="op">=</span> <span class="st">"wetness"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="understanding-effects_files/figure-html/compare-eci-wetness-1.png" class="r-plt" alt="" width="672" style="display: block; margin: auto;"></p>
+<p>rain</p>
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">eci</span><span class="op">[</span></span>
+<span>  <span class="va">eci</span><span class="op">$</span><span class="va">var</span> <span class="op">==</span> <span class="st">"rain"</span>,</span>
+<span>  ,</span>
+<span>  drop <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">]</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span></span>
+<span>      x <span class="op">=</span> <span class="va">ECI_raw</span>,</span>
+<span>      y <span class="op">=</span> <span class="va">ECI_weighted</span></span>
+<span>    <span class="op">)</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span></span>
+<span>    alpha <span class="op">=</span> <span class="fl">0.65</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_bw</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span></span>
+<span>    x <span class="op">=</span> <span class="st">"Raw ECI"</span>,</span>
+<span>    y <span class="op">=</span> <span class="st">"Weighted ECI"</span>,</span>
+<span>    title <span class="op">=</span> <span class="st">"rain"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="understanding-effects_files/figure-html/compare-eci-rain-1.png" class="r-plt" alt="" width="672" style="display: block; margin: auto;"></p>
 <p>A strong relationship between the two quantities indicates that
 accumulated exposure and model-based weighting produce similar rankings
 for the displayed histories.</p>
@@ -1587,7 +1705,7 @@ observed in a selected history contribute to that history’s ECI.</li>
 <div class="section level3">
 <h3 id="computing-lag-contributions">Computing lag contributions<a class="anchor" aria-label="anchor" href="#computing-lag-contributions"></a>
 </h3>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">eci_lag</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/compute_ecilag.html">compute_ecilag</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">epi_data</span>,</span>
 <span>  group <span class="op">=</span> <span class="st">"epi_id"</span>,</span>
@@ -1603,7 +1721,7 @@ observed in a selected history contribute to that history’s ECI.</li>
 <span>  n_samples <span class="op">=</span> <span class="fl">1000</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>In this example:</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">group_level</span> <span class="op">=</span> <span class="fl">1</span></span></code></pre></div>
 <p>selects the epidemic identified by level <code>1</code> of
 <code>epi_id</code>.</p>
@@ -1873,7 +1991,7 @@ to the history of scientific interest.</p>
 <div class="section level3">
 <h3 id="plotting-the-contribution-profile">Plotting the contribution profile<a class="anchor" aria-label="anchor" href="#plotting-the-contribution-profile"></a>
 </h3>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_eci.html">plot_eci</a></span><span class="op">(</span></span>
 <span>  eci_overall <span class="op">=</span> <span class="va">eci</span>,</span>
 <span>  eci_lag <span class="op">=</span> <span class="va">eci_lag</span>,</span>

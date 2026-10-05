@@ -108,32 +108,38 @@ and leaf wetness to the expected disease response.
 
 ## Complete exposure histories
 
-Each exposure supplied to
+Each exposure profile supplied to
 [`predict_outcomes()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.md)
-must contain exactly:
+must contain exactly `max_lag + 1` observations. With `max_lag = 85`,
+each profile therefore contains 86 values.
+
+Profiles are supplied in chronological order, from the earliest exposure
+observation to the most recent:
+
+- the first value (`time = 0`) is the oldest observation and corresponds
+  to lag 85;
+- the final value (`time = 85`) is the most recent observation and
+  corresponds to lag 0.
+
+More generally, chronological time and retrospective lag are related by:
 
 ``` math
-\text{max lag} + 1
+\text{lag} = \text{max\_lag} - \text{time}.
 ```
 
-chronologically ordered observations.
+Profile construction and visualization use chronological time, whereas
+DLNM effects are interpreted on the retrospective lag scale. Thus,
+chronological time increases from the oldest to the most recent
+observation, while retrospective lag increases in the opposite
+direction, from the most recent to progressively older observations.
 
-With:
-
-``` r
-
-max_lag = 85
-```
-
-each profile must contain 86 values:
-
-``` text
-position 1  → time 0  → maximum lag
-position 86 → time 85 → lag 0
-```
-
-The order is chronological. `EpiExposure` converts these positions into
-retrospective lags when reconstructing the cross-basis predictors.
+[`simulate_exposures()`](https://tomazrg.github.io/EpiExposure/reference/simulate_exposures.md)
+generates profiles directly in chronological order and does not reverse
+them. Simulated or manually defined profiles should therefore be
+supplied to
+[`predict_outcomes()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.md)
+in the same order in which they were created. Users should not reverse
+the profiles manually.
 
 **Complete profiles are required.** Temperature, rainfall, and leaf
 wetness profiles must have the same length and temporal interpretation
@@ -179,8 +185,6 @@ temperature_profile <- simulate_exposures(
 
 The result contains the simulated chronological profile:
 
-    #> $profiles
-    #> $profiles$simulation_1
     #>   time_0   time_1   time_2   time_3   time_4   time_5   time_6   time_7 
     #> 22.75810 22.58096 25.54056 25.60944 25.77392 28.68685 29.12180 26.50391 
     #>   time_8   time_9  time_10  time_11  time_12  time_13  time_14  time_15 
@@ -202,240 +206,38 @@ The result contains the simulated chronological profile:
     #>  time_72  time_73  time_74  time_75  time_76  time_77  time_78  time_79 
     #> 25.69477 24.38876 23.25030 25.21342 24.69556 22.59761 23.15396 23.09640 
     #>  time_80  time_81  time_82  time_83  time_84  time_85 
-    #> 23.29681 24.13889 23.57873 24.84437 24.47550 25.10643 
-    #> 
-    #> 
-    #> $profile
-    #>   time_0   time_1   time_2   time_3   time_4   time_5   time_6   time_7 
-    #> 22.75810 22.58096 25.54056 25.60944 25.77392 28.68685 29.12180 26.50391 
-    #>   time_8   time_9  time_10  time_11  time_12  time_13  time_14  time_15 
-    #> 25.15595 24.36331 26.56124 27.03248 27.52800 27.46818 26.25222 29.24259 
-    #>  time_16  time_17  time_18  time_19  time_20  time_21  time_22  time_23 
-    #> 29.68636 25.78881 26.93278 25.91517 23.96184 23.68560 22.02814 21.05446 
-    #>  time_24  time_25  time_26  time_27  time_28  time_29  time_30  time_31 
-    #> 20.35922 17.88245 20.05494 20.81686 19.25076 22.01179 23.05417 22.73428 
-    #>  time_32  time_33  time_34  time_35  time_36  time_37  time_38  time_39 
-    #> 24.52156 26.10048 27.42291 28.38130 29.00896 28.50012 27.61664 26.69160 
-    #>  time_40  time_41  time_42  time_43  time_44  time_45  time_46  time_47 
-    #> 25.31118 24.91755 22.71950 26.72925 28.66248 26.33803 25.50177 24.63795 
-    #>  time_48  time_49  time_50  time_51  time_52  time_53  time_54  time_55 
-    #> 26.03407 25.78531 26.14845 25.98383 25.81070 28.11587 27.41064 29.81363 
-    #>  time_56  time_57  time_58  time_59  time_60  time_61  time_62  time_63 
-    #> 26.63193 27.48804 27.45519 27.58617 27.98948 26.81470 26.05226 24.17109 
-    #>  time_64  time_65  time_66  time_67  time_68  time_69  time_70  time_71 
-    #> 22.38525 23.17595 24.13983 24.31826 25.99447 29.46946 28.16638 23.82356 
-    #>  time_72  time_73  time_74  time_75  time_76  time_77  time_78  time_79 
-    #> 25.69477 24.38876 23.25030 25.21342 24.69556 22.59761 23.15396 23.09640 
-    #>  time_80  time_81  time_82  time_83  time_84  time_85 
-    #> 23.29681 24.13889 23.57873 24.84437 24.47550 25.10643 
-    #> 
-    #> $simulation_data
-    #>    simulation position time lag  profile
-    #> 1           1        1    0  85 22.75810
-    #> 2           1        2    1  84 22.58096
-    #> 3           1        3    2  83 25.54056
-    #> 4           1        4    3  82 25.60944
-    #> 5           1        5    4  81 25.77392
-    #> 6           1        6    5  80 28.68685
-    #> 7           1        7    6  79 29.12180
-    #> 8           1        8    7  78 26.50391
-    #> 9           1        9    8  77 25.15595
-    #> 10          1       10    9  76 24.36331
-    #> 11          1       11   10  75 26.56124
-    #> 12          1       12   11  74 27.03248
-    #> 13          1       13   12  73 27.52800
-    #> 14          1       14   13  72 27.46818
-    #> 15          1       15   14  71 26.25222
-    #> 16          1       16   15  70 29.24259
-    #> 17          1       17   16  69 29.68636
-    #> 18          1       18   17  68 25.78881
-    #> 19          1       19   18  67 26.93278
-    #> 20          1       20   19  66 25.91517
-    #> 21          1       21   20  65 23.96184
-    #> 22          1       22   21  64 23.68560
-    #> 23          1       23   22  63 22.02814
-    #> 24          1       24   23  62 21.05446
-    #> 25          1       25   24  61 20.35922
-    #> 26          1       26   25  60 17.88245
-    #> 27          1       27   26  59 20.05494
-    #> 28          1       28   27  58 20.81686
-    #> 29          1       29   28  57 19.25076
-    #> 30          1       30   29  56 22.01179
-    #> 31          1       31   30  55 23.05417
-    #> 32          1       32   31  54 22.73428
-    #> 33          1       33   32  53 24.52156
-    #> 34          1       34   33  52 26.10048
-    #> 35          1       35   34  51 27.42291
-    #> 36          1       36   35  50 28.38130
-    #> 37          1       37   36  49 29.00896
-    #> 38          1       38   37  48 28.50012
-    #> 39          1       39   38  47 27.61664
-    #> 40          1       40   39  46 26.69160
-    #> 41          1       41   40  45 25.31118
-    #> 42          1       42   41  44 24.91755
-    #> 43          1       43   42  43 22.71950
-    #> 44          1       44   43  42 26.72925
-    #> 45          1       45   44  41 28.66248
-    #> 46          1       46   45  40 26.33803
-    #> 47          1       47   46  39 25.50177
-    #> 48          1       48   47  38 24.63795
-    #> 49          1       49   48  37 26.03407
-    #> 50          1       50   49  36 25.78531
-    #> 51          1       51   50  35 26.14845
-    #> 52          1       52   51  34 25.98383
-    #> 53          1       53   52  33 25.81070
-    #> 54          1       54   53  32 28.11587
-    #> 55          1       55   54  31 27.41064
-    #> 56          1       56   55  30 29.81363
-    #> 57          1       57   56  29 26.63193
-    #> 58          1       58   57  28 27.48804
-    #> 59          1       59   58  27 27.45519
-    #> 60          1       60   59  26 27.58617
-    #> 61          1       61   60  25 27.98948
-    #> 62          1       62   61  24 26.81470
-    #> 63          1       63   62  23 26.05226
-    #> 64          1       64   63  22 24.17109
-    #> 65          1       65   64  21 22.38525
-    #> 66          1       66   65  20 23.17595
-    #> 67          1       67   66  19 24.13983
-    #> 68          1       68   67  18 24.31826
-    #> 69          1       69   68  17 25.99447
-    #> 70          1       70   69  16 29.46946
-    #> 71          1       71   70  15 28.16638
-    #> 72          1       72   71  14 23.82356
-    #> 73          1       73   72  13 25.69477
-    #> 74          1       74   73  12 24.38876
-    #> 75          1       75   74  11 23.25030
-    #> 76          1       76   75  10 25.21342
-    #> 77          1       77   76   9 24.69556
-    #> 78          1       78   77   8 22.59761
-    #> 79          1       79   78   7 23.15396
-    #> 80          1       80   79   6 23.09640
-    #> 81          1       81   80   5 23.29681
-    #> 82          1       82   81   4 24.13889
-    #> 83          1       83   82   3 23.57873
-    #> 84          1       84   83   2 24.84437
-    #> 85          1       85   84   1 24.47550
-    #> 86          1       86   85   0 25.10643
-    #> 
-    #> $meta
-    #> $meta$max_lag
-    #> [1] 85
-    #> 
-    #> $meta$profile_length
-    #> [1] 86
-    #> 
-    #> $meta$profile_order
-    #> [1] "chronological"
-    #> 
-    #> $meta$chronological_time
-    #>  [1]  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
-    #> [26] 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49
-    #> [51] 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74
-    #> [76] 75 76 77 78 79 80 81 82 83 84 85
-    #> 
-    #> $meta$retrospective_lag
-    #>  [1] 85 84 83 82 81 80 79 78 77 76 75 74 73 72 71 70 69 68 67 66 65 64 63 62 61
-    #> [26] 60 59 58 57 56 55 54 53 52 51 50 49 48 47 46 45 44 43 42 41 40 39 38 37 36
-    #> [51] 35 34 33 32 31 30 29 28 27 26 25 24 23 22 21 20 19 18 17 16 15 14 13 12 11
-    #> [76] 10  9  8  7  6  5  4  3  2  1  0
-    #> 
-    #> $meta$mode
-    #> [1] "profile"
-    #> 
-    #> $meta$pattern
-    #> [1] NA
-    #> 
-    #> $meta$background
-    #> $meta$background$dist
-    #> [1] "ar1"
-    #> 
-    #> $meta$background$mean
-    #> [1] 25
-    #> 
-    #> $meta$background$sd
-    #> [1] 4
-    #> 
-    #> $meta$background$phi
-    #> [1] 0.9
-    #> 
-    #> 
-    #> $meta$bounds
-    #> NULL
-    #> 
-    #> $meta$seed
-    #> [1] 123
-    #> 
-    #> $meta$time_range
-    #>  [1]  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
-    #> [26] 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49
-    #> [51] 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74
-    #> [76] 75 76 77 78 79 80 81 82 83 84 85
-    #> 
-    #> $meta$cumulative
-    #> [1] FALSE
-    #> 
-    #> $meta$bounds_apply_to
-    #> [1] "profile_values"
-    #> 
-    #> $meta$n
-    #> [1] 1
-    #> 
-    #> $meta$n_profiles
-    #> [1] 1
-    #> 
-    #> $meta$profile_contract
-    #> [1] "canonical_profiles_list_chronological"
-    #> 
-    #> $meta$lag_contract
-    #> [1] "lag_0_most_recent"
-    #> 
-    #> $meta$rng_contract
-    #> [1] "local_seed_restores_caller_rng"
-    #> 
-    #> $meta$simulation_contract
-    #> [1] "n_exposure_profiles_no_model_parameter_uncertainty"
-    #> 
-    #> $meta$selected_times
-    #> integer(0)
-    #> 
-    #> $meta$selected_positions
-    #> integer(0)
-    #> 
-    #> $meta$selected_internal_lags
-    #> integer(0)
-    #> 
-    #> 
-    #> $simulation_meta
-    #> $simulation_meta$simulation_1
-    #> $simulation_meta$simulation_1$simulation
-    #> [1] 1
-    #> 
-    #> $simulation_meta$simulation_1$selected_times
-    #> integer(0)
-    #> 
-    #> $simulation_meta$simulation_1$selected_positions
-    #> integer(0)
-    #> 
-    #> $simulation_meta$simulation_1$selected_internal_lags
-    #> integer(0)
+    #> 23.29681 24.13889 23.57873 24.84437 24.47550 25.10643
+
+The profile is ordered from the oldest to the most recent exposure
+observation. For this 86-value history, the first value corresponds to
+lag 85 and the final value corresponds to lag 0. The profile remains in
+chronological order when it is later supplied to
+[`predict_outcomes()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.md).
 
 Visualize the complete profile:
 
 ``` r
 
-plot(
-  temperature_profile$profile,
-  type = "l",
-  lwd = 1.2,
-  col = "#C44E52",
-  xlab = "Chronological position",
-  ylab = "Mean temperature (°C)",
-  main = "Simulated temperature history"
+
+df_tmean <- data.frame(
+  time = 0:85,
+  value = as.numeric(temperature_profile$profile)
 )
+
+ df_tmean%>% 
+  ggplot(aes(time,value))+
+  geom_line(color = "#C44E52", size = 1.4)+
+  theme_bw()+
+  labs(x = "Days after planting the crop",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10)
+)+
+  theme(text = element_text(size = 10, face = "bold"))
 ```
 
-![](simulation-prediction_files/figure-html/plot-temperature-profile-1.png)
+![](simulation-prediction_files/figure-html/unnamed-chunk-1-1.png)
 
 The autoregressive parameter:
 
@@ -473,24 +275,49 @@ rain_profile <- simulate_exposures(
 )
 ```
 
+    #>  time_0  time_1  time_2  time_3  time_4  time_5  time_6  time_7  time_8  time_9 
+    #>      15      15      15      15      15      15      15      15      15      15 
+    #> time_10 time_11 time_12 time_13 time_14 time_15 time_16 time_17 time_18 time_19 
+    #>      15      15      15      15      15      15      15      15      15      15 
+    #> time_20 time_21 time_22 time_23 time_24 time_25 time_26 time_27 time_28 time_29 
+    #>      15      15      15      15      15      15      15      15      15      15 
+    #> time_30 time_31 time_32 time_33 time_34 time_35 time_36 time_37 time_38 time_39 
+    #>      15      15      15      15      15      15      15      15      15      15 
+    #> time_40 time_41 time_42 time_43 time_44 time_45 time_46 time_47 time_48 time_49 
+    #>      15       0       0       0       0       0       0       0       0       0 
+    #> time_50 time_51 time_52 time_53 time_54 time_55 time_56 time_57 time_58 time_59 
+    #>       0       0       0       0       0       0       0       0       0       0 
+    #> time_60 time_61 time_62 time_63 time_64 time_65 time_66 time_67 time_68 time_69 
+    #>       0       0       0       0       0       0       0       0       0       0 
+    #> time_70 time_71 time_72 time_73 time_74 time_75 time_76 time_77 time_78 time_79 
+    #>       0       0       0       0       0       0       0       0       0       0 
+    #> time_80 time_81 time_82 time_83 time_84 time_85 
+    #>       0       0       0       0       0       0
+
 Visualize the rainfall profile:
 
 ``` r
 
-plot(
-  rain_profile$profile,
-  type = "s",
-  lwd = 1.2,
-  col = "#4C72B0",
-  xlab = "Chronological position",
-  ylab = "Rainfall",
-  main = "Simulated rainfall history"
+df_rain <- data.frame(
+  time = 0:85,
+  value = as.numeric(rain_profile$profile)
 )
+
+ df_rain%>% 
+  ggplot(aes(time,value))+
+  geom_line(color = "#4C72B0", size = 1.4)+
+  theme_bw()+
+  labs(x = "Days after planting the crop",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10)
+)+
+  theme(text = element_text(size = 10, face = "bold"))
 ```
 
-![](simulation-prediction_files/figure-html/plot-rainfall-profile-1.png)
-
-A leaf wetness profile can be generated independently:
+![](simulation-prediction_files/figure-html/unnamed-chunk-2-1.png) A
+leaf wetness profile can be generated independently:
 
 ``` r
 
@@ -507,31 +334,81 @@ wetness_profile <- simulate_exposures(
 )
 ```
 
+    #>    time_0    time_1    time_2    time_3    time_4    time_5    time_6    time_7 
+    #>  4.625914  6.247426  8.019056  5.795534  4.970456  4.908391  6.621729  7.396401 
+    #>    time_8    time_9   time_10   time_11   time_12   time_13   time_14   time_15 
+    #>  9.413140 10.471295  8.827395 11.230632 12.831472 15.432048 12.376714 15.534374 
+    #>   time_16   time_17   time_18   time_19   time_20   time_21   time_22   time_23 
+    #> 18.009388 17.884050 21.071020 22.645309 20.553278 16.503720 13.365585 13.392098 
+    #>   time_24   time_25   time_26   time_27   time_28   time_29   time_30   time_31 
+    #> 12.990405 14.669058 13.395137 12.483066 14.823142 12.441433 11.275305 10.112462 
+    #>   time_32   time_33   time_34   time_35   time_36   time_37   time_38   time_39 
+    #>  6.615987  7.470749  8.021169 11.384750 10.094474  9.840489  9.117208  9.137949 
+    #>   time_40   time_41   time_42   time_43   time_44   time_45   time_46   time_47 
+    #>  9.173692  9.941607  9.512229  9.706507 13.360498 13.235160 13.117645 14.148516 
+    #>   time_48   time_49   time_50   time_51   time_52   time_53   time_54   time_55 
+    #> 11.684280 12.229035 10.846750 10.314809 11.466825 12.883845 13.673602 14.581575 
+    #>   time_56   time_57   time_58   time_59   time_60   time_61   time_62   time_63 
+    #> 13.403023 15.778860 16.145459 16.537209 11.952268 10.044761  9.690582 11.283632 
+    #>   time_64   time_65   time_66   time_67   time_68   time_69   time_70   time_71 
+    #> 11.079345 13.843590 16.184937 13.070750 11.814142 10.288002  9.962817  9.895465 
+    #>   time_72   time_73   time_74   time_75   time_76   time_77   time_78   time_79 
+    #>  6.906054  9.733334  9.725104 10.223759 10.004476  8.513481  6.859744  7.560886 
+    #>   time_80   time_81   time_82   time_83   time_84   time_85 
+    #>  5.922656  5.560829  9.527843  9.702088 10.967745 12.353884
+
 ``` r
 
-plot(
-  wetness_profile$profile,
-  type = "l",
-  lwd = 1.2,
-  col = "#55A868",
-  xlab = "Chronological position",
-  ylab = "Leaf wetness duration",
-  main = "Simulated leaf wetness history"
+df_wetness <- data.frame(
+  time = 0:85,
+  value = as.numeric(wetness_profile$profile)
 )
+
+
+ df_wetness%>% 
+  ggplot(aes(time,value))+
+  geom_line(color = "#55A868", size = 1.4)+
+  theme_bw()+
+  labs(x = "Days after planting the crop",
+       y = "Exposure")+
+  scale_x_continuous(
+  limits = c(0, 85),
+  breaks = seq(0, 85, by = 10)
+)+
+  theme(text = element_text(size = 10, face = "bold"))
 ```
 
-![](simulation-prediction_files/figure-html/plot-wetness-profile-1.png)
-
-The three profiles can now be combined into one complete hypothetical
+![](simulation-prediction_files/figure-html/unnamed-chunk-3-1.png) The
+three profiles can now be combined into one complete hypothetical
 environmental history.
+
+All three profiles follow the same chronological convention and contain
+86 observations. At each chronological position, the temperature,
+rainfall, and leaf wetness values describe the environmental conditions
+assigned to that point in the hypothetical history.
+
+When these profiles are supplied to
+[`predict_outcomes()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.md),
+the function validates their length and order and projects each complete
+history through the cross-basis definition stored in the fitted model.
+The resulting design follows the retrospective DLNM lag convention, in
+which lag 0 represents the most recent exposure and increasing lags
+represent progressively older exposures.
+
+This internal transformation does not require the user to reverse or
+otherwise rearrange the simulated profiles.
 
 ## Predicting disease outcomes
 
 ### Deterministic prediction
 
 [`predict_outcomes()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.md)
-reconstructs the fitted cross-basis values from the supplied profiles
-and calculates the expected response under the fitted model.
+receives the complete profiles in chronological order and projects them
+through the cross-basis definition stored in the fitted model. The
+reconstructed cross-basis predictors represent the exposure histories on
+the retrospective DLNM lag scale, allowing the function to calculate the
+population-level expected response associated with the complete
+multivariable history.
 
 ``` r
 
@@ -544,6 +421,9 @@ prediction <- predict_outcomes(
   ),
   uncertainty = FALSE
 )
+```
+
+``` r
 
 prediction
 #>   prediction
@@ -552,18 +432,24 @@ prediction
 
 The prediction combines:
 
-- all temperature values and lags;
-- all rainfall values and lags;
-- all leaf wetness values and lags;
+- the complete chronological temperature history;
+- the complete chronological rainfall history;
+- the complete chronological leaf wetness history;
+- the corresponding retrospective lag contributions reconstructed from
+  the fitted cross-basis;
 - the fitted joint cross-basis coefficients;
 - the inverse link required by the response family.
 
-For the fitted Beta model, the result is an expected response on the
-proportion scale.
+The output represents one joint prediction for the three complete
+exposure histories. It is not calculated independently for each day or
+lag.
 
 The prediction is not a newly simulated disease observation. It
 represents the central expected response associated with the complete
 exposure history.
+
+For the fitted Beta model, the result is an expected response on the
+proportion scale.
 
 ## Prediction uncertainty
 
@@ -597,6 +483,18 @@ prediction_samples <- predict_outcomes(
   output = "samples",
   seed = 123
 )
+```
+
+``` r
+
+head(prediction_samples)
+#>   sample prediction
+#> 1      1 0.14236171
+#> 2      2 0.09544369
+#> 3      3 0.17648177
+#> 4      4 0.10295757
+#> 5      5 0.16410627
+#> 6      6 0.12420052
 ```
 
 Inspect the first realizations:
@@ -660,6 +558,9 @@ prediction_summary <- predict_outcomes(
   output = "summary",
   seed = 123
 )
+```
+
+``` r
 
 prediction_summary
 #>   prediction prediction_sd prediction_lower prediction_upper
@@ -702,6 +603,9 @@ periods <- define_periods(
   ),
   prefix = "Period"
 )
+```
+
+``` r
 
 periods
 #>    period lag_start lag_end
@@ -752,6 +656,27 @@ scenarios <- simulate_ranges(
 
 ## Predicting scenario outcomes
 
+[`simulate_scenarios()`](https://tomazrg.github.io/EpiExposure/reference/simulate_scenarios.md)
+evaluates the expected disease outcome associated with each complete
+exposure scenario. When `uncertainty = TRUE`, uncertainty in the joint
+fitted model parameters is propagated through the prediction
+calculation.
+
+### Summarizing scenario predictions
+
+With:
+
+``` r
+
+output = "summary"
+```
+
+the parameter-draw predictions are summarized for each scenario. The
+`prediction` column contains the median expected response across the
+parameter draws, while `prediction_lower` and `prediction_upper` contain
+the empirical uncertainty interval defined by the selected
+probabilities. The default probabilities correspond to a 95% interval.
+
 ``` r
 
 pred_scenarios <- simulate_scenarios(
@@ -760,70 +685,149 @@ pred_scenarios <- simulate_scenarios(
   data = epi_data,
   uncertainty = TRUE,
   output = "summary",
-  n_samples = 1000,
+  n_samples = 100,
   seed = 123
 )
 ```
 
-Inspect the predictions:
+Inspect the summarized predictions:
 
 | scenario | scenario_point | tmean | rain | wetness | prediction | prediction_sd | prediction_lower | prediction_upper |
 |:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-| RAIN_s1 | 1 | 20 | 0 | 2 | 0.0064 | 0.0023 | 0.0035 | 0.0125 |
-| RAIN_s2 | 1 | 34 | 0 | 2 | 0.0014 | 0.0020 | 0.0003 | 0.0073 |
-| RAIN_s3 | 1 | 20 | 1 | 2 | 0.0346 | 0.0305 | 0.0093 | 0.1184 |
-| RAIN_s4 | 1 | 34 | 1 | 2 | 0.0077 | 0.0154 | 0.0010 | 0.0512 |
-| RAIN_s5 | 1 | 20 | 2 | 2 | 0.0610 | 0.0411 | 0.0188 | 0.1670 |
-| RAIN_s6 | 1 | 34 | 2 | 2 | 0.0137 | 0.0234 | 0.0020 | 0.0871 |
-| RAIN_s7 | 1 | 20 | 3 | 2 | 0.0958 | 0.0480 | 0.0362 | 0.2208 |
-| RAIN_s8 | 1 | 34 | 3 | 2 | 0.0222 | 0.0323 | 0.0036 | 0.1272 |
-| RAIN_s9 | 1 | 20 | 4 | 2 | 0.1428 | 0.0551 | 0.0652 | 0.2805 |
-| RAIN_s10 | 1 | 34 | 4 | 2 | 0.0351 | 0.0446 | 0.0060 | 0.1759 |
+| RAIN_s1 | 1 | 20 | 0 | 2 | 0.0066 | 0.0022 | 0.0039 | 0.0119 |
+| RAIN_s2 | 1 | 34 | 0 | 2 | 0.0015 | 0.0018 | 0.0003 | 0.0063 |
+| RAIN_s3 | 1 | 20 | 1 | 2 | 0.0326 | 0.0339 | 0.0107 | 0.1403 |
+| RAIN_s4 | 1 | 34 | 1 | 2 | 0.0067 | 0.0226 | 0.0016 | 0.0880 |
+| RAIN_s5 | 1 | 20 | 2 | 2 | 0.0591 | 0.0432 | 0.0211 | 0.1866 |
+| RAIN_s6 | 1 | 34 | 2 | 2 | 0.0117 | 0.0318 | 0.0031 | 0.1212 |
+| RAIN_s7 | 1 | 20 | 3 | 2 | 0.0943 | 0.0472 | 0.0398 | 0.2148 |
+| RAIN_s8 | 1 | 34 | 3 | 2 | 0.0206 | 0.0396 | 0.0052 | 0.1504 |
+| RAIN_s9 | 1 | 20 | 4 | 2 | 0.1443 | 0.0514 | 0.0696 | 0.2589 |
+| RAIN_s10 | 1 | 34 | 4 | 2 | 0.0314 | 0.0499 | 0.0088 | 0.1844 |
 
-## Visualizing scenario predictions
+### Visualizing summarized scenario predictions
 
-The modeled rainfall association can be displayed across combinations of
-temperature and leaf wetness:
+The modeled rainfall association can be displayed across the selected
+combinations of temperature and leaf wetness. For summary output,
+[`plot_scenarios()`](https://tomazrg.github.io/EpiExposure/reference/plot_scenarios.md)
+displays the central predicted response together with the corresponding
+lower and upper uncertainty limits.
 
 ``` r
 
-ggplot(
-  pred_scenarios,
-  aes(
-    x = rain,
-    y = prediction * 100,
-    group = interaction(
-      wetness,
-      tmean
-    )
-  )
-) +
-  geom_line(
-    linewidth = 0.8,
-    color = "#4C72B0"
-  ) +
-  facet_grid(
-    rows = vars(
-      wetness
-    ),
-    cols = vars(
-      tmean
-    ),
-    labeller = label_both
-  ) +
-  theme_bw() +
-  labs(
-    x = "Rainfall",
-    y = "Expected disease response (%)",
-    title = "Predicted response across environmental scenarios"
-  )
+plot_scenarios(
+  data = pred_scenarios,
+  x = "rain",
+  facet = c(
+    "wetness",
+    "tmean"
+  ),
+  x_limits = c(
+    0,
+    15
+  ),
+  output = "summary"
+)
 ```
 
-![](simulation-prediction_files/figure-html/plot-scenario-lines-1.png)
+![](simulation-prediction_files/figure-html/plot-scenario-summary-1.png)
 
-The figure should be interpreted as a visualization of the fitted model
-over the scenario grid. Predictions far outside the observed exposure
-support should be treated cautiously.
+The central curve represents the median expected response for each
+scenario, whereas the lower and upper curves describe uncertainty
+arising from the fitted model parameters.
+
+### Returning individual prediction samples
+
+With:
+
+``` r
+
+output = "samples"
+```
+
+[`simulate_scenarios()`](https://tomazrg.github.io/EpiExposure/reference/simulate_scenarios.md)
+returns every draw-specific prediction instead of summarizing the draws.
+Each row represents one parameter draw for one scenario in the exposure
+grid.
+
+These samples are not additional exposure simulations and are not newly
+simulated disease observations. The exposure scenarios remain fixed;
+what changes across samples is the joint draw of the fitted model
+parameters used to calculate the expected response.
+
+Draw-level output is useful for constructing customized uncertainty
+summaries, examining the complete distribution of expected responses,
+propagating parameter uncertainty into downstream calculations, or
+creating custom visualizations.
+
+``` r
+
+pred_scenarios_s <- simulate_scenarios(
+  fit = fit,
+  scenarios = scenarios,
+  data = epi_data,
+  uncertainty = TRUE,
+  output = "samples",
+  n_samples = 100,
+  seed = 123
+)
+```
+
+Inspect the first draw-specific predictions:
+
+| scenario | scenario_point | tmean | rain | wetness | sample | prediction |
+|:--------:|:--------------:|:-----:|:----:|:-------:|:------:|:----------:|
+| RAIN_s1  |       1        |  20   |  0   |    2    |   1    |   0.0067   |
+| RAIN_s1  |       1        |  20   |  0   |    2    |   2    |   0.0070   |
+| RAIN_s1  |       1        |  20   |  0   |    2    |   3    |   0.0099   |
+| RAIN_s1  |       1        |  20   |  0   |    2    |   4    |   0.0062   |
+| RAIN_s1  |       1        |  20   |  0   |    2    |   5    |   0.0056   |
+| RAIN_s1  |       1        |  20   |  0   |    2    |   6    |   0.0120   |
+| RAIN_s1  |       1        |  20   |  0   |    2    |   7    |   0.0050   |
+| RAIN_s1  |       1        |  20   |  0   |    2    |   8    |   0.0050   |
+| RAIN_s1  |       1        |  20   |  0   |    2    |   9    |   0.0046   |
+| RAIN_s1  |       1        |  20   |  0   |    2    |   10   |   0.0047   |
+
+### Visualizing individual prediction samples
+
+When draw-level output is supplied,
+[`plot_scenarios()`](https://tomazrg.github.io/EpiExposure/reference/plot_scenarios.md)
+displays the prediction curves associated with the individual parameter
+draws. The collection of curves shows how uncertainty in the fitted
+parameters propagates across the complete scenario grid.
+
+``` r
+
+plot_scenarios(
+  data = pred_scenarios_s,
+  x = "rain",
+  facet = c(
+    "wetness",
+    "tmean"
+  ),
+  x_limits = c(
+    0,
+    15
+  ),
+  output = "samples"
+)
+```
+
+![](simulation-prediction_files/figure-html/plot-scenario-samples-1.png)
+
+The summary and sample outputs describe the same parameter-uncertainty
+distribution at different levels of detail:
+
+- `output = "summary"` reports the median expected response and its
+  empirical uncertainty interval for each scenario;
+- `output = "samples"` retains every draw-specific expected response
+  used to construct those summaries.
+
+The figures should be interpreted as visualizations of the fitted model
+over the scenario grid. Predictions outside or near the limits of the
+observed exposure support should be treated cautiously. Neither output
+includes observation-level noise, and neither should be interpreted as a
+distribution of newly simulated disease observations.
 
 ## Scenario surfaces
 
@@ -871,193 +875,904 @@ ggplot(
 A smoother surface requires a denser sequence of temperature values in
 [`simulate_ranges()`](https://tomazrg.github.io/EpiExposure/reference/simulate_ranges.md).
 
-## Comparing exposure histories
+## Comparing predictions
 
-### Why compare profiles?
+### Comparing complete simulated histories
 
-Two complete exposure histories can have similar averages while
-differing in timing, variability, persistence, or extreme values.
+A single prediction describes the expected response associated with one
+complete environmental history.
+[`compare_predictions()`](https://tomazrg.github.io/EpiExposure/reference/compare_predictions.md)
+extends this analysis by contrasting the expected responses associated
+with two or more complete histories.
 
-[`compare_exposures()`](https://tomazrg.github.io/EpiExposure/reference/compare_exposures.md)
-describes differences between two exposure profiles directly, before
-disease predictions are compared.
+The following example constructs four hypothetical environmental
+scenarios. Each scenario contains chronological temperature, rainfall,
+and leaf wetness profiles generated with autoregressive background
+processes.
+
+The scenarios differ in their mean exposure values, temporal
+variability, and persistence:
+
+- **Scenario A:** moderate temperature and rainfall with prolonged leaf
+  wetness;
+- **Scenario B:** high temperature, moderate rainfall, and low leaf
+  wetness;
+- **Scenario C:** cool and relatively dry conditions with low leaf
+  wetness;
+- **Scenario D:** cooler conditions with high rainfall and prolonged
+  leaf wetness.
+
+Because several exposures differ simultaneously, the resulting
+prediction contrasts represent joint differences between the complete
+environmental histories. They should not be attributed to one exposure
+individually.
+
+### Defining Scenario A
 
 ``` r
 
-exposure_comparison <- compare_exposures(
-  exposure1 = temperature_profile$profile,
-  exposure2 = rep(
-    25,
-    86
+exposure_tmean_A <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 101,
+  background = list(
+    dist = "ar1",
+    mean = 25,
+    sd = 2,
+    phi = 0.90
   ),
-  mode = "timewise"
+  n = 1
+)
+
+exposure_rain_A <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 102,
+  background = list(
+    dist = "ar1",
+    mean = 5,
+    sd = 2,
+    phi = 0.50
+  ),
+  n = 1
+)
+
+exposure_wetness_A <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 103,
+  background = list(
+    dist = "ar1",
+    mean = 15,
+    sd = 3,
+    phi = 0.70
+  ),
+  n = 1
+)
+
+scenario_A <- list(
+  tmean = exposure_tmean_A,
+  rain = exposure_rain_A,
+  wetness = exposure_wetness_A
 )
 ```
 
-Inspect the comparison:
-
-| exposure1 | exposure2 | position | time | lag | value1 | value2 | diff | abs_diff | ratio | ratio_defined |
-|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-| exposure1 | exposure2 | 1 | 0 | 85 | 22.758 | 25 | -2.242 | 2.242 | 0.910 | TRUE |
-| exposure1 | exposure2 | 2 | 1 | 84 | 22.581 | 25 | -2.419 | 2.419 | 0.903 | TRUE |
-| exposure1 | exposure2 | 3 | 2 | 83 | 25.541 | 25 | 0.541 | 0.541 | 1.022 | TRUE |
-| exposure1 | exposure2 | 4 | 3 | 82 | 25.609 | 25 | 0.609 | 0.609 | 1.024 | TRUE |
-| exposure1 | exposure2 | 5 | 4 | 81 | 25.774 | 25 | 0.774 | 0.774 | 1.031 | TRUE |
-| exposure1 | exposure2 | 6 | 5 | 80 | 28.687 | 25 | 3.687 | 3.687 | 1.147 | TRUE |
-| exposure1 | exposure2 | 7 | 6 | 79 | 29.122 | 25 | 4.122 | 4.122 | 1.165 | TRUE |
-| exposure1 | exposure2 | 8 | 7 | 78 | 26.504 | 25 | 1.504 | 1.504 | 1.060 | TRUE |
-| exposure1 | exposure2 | 9 | 8 | 77 | 25.156 | 25 | 0.156 | 0.156 | 1.006 | TRUE |
-| exposure1 | exposure2 | 10 | 9 | 76 | 24.363 | 25 | -0.637 | 0.637 | 0.975 | TRUE |
-
-Visualize the differences:
+### Defining Scenario B
 
 ``` r
 
-ggplot(
-  exposure_comparison,
+exposure_tmean_B <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 201,
+  background = list(
+    dist = "ar1",
+    mean = 34,
+    sd = 2,
+    phi = 0.95
+  ),
+  n = 1
+)
+
+exposure_rain_B <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 202,
+  background = list(
+    dist = "ar1",
+    mean = 5,
+    sd = 1.5,
+    phi = 0.40
+  ),
+  n = 1
+)
+
+exposure_wetness_B <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 203,
+  background = list(
+    dist = "ar1",
+    mean = 2,
+    sd = 0.7,
+    phi = 0.60
+  ),
+  n = 1
+)
+
+scenario_B <- list(
+  tmean = exposure_tmean_B,
+  rain = exposure_rain_B,
+  wetness = exposure_wetness_B
+)
+```
+
+### Defining Scenario C
+
+``` r
+
+exposure_tmean_C <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 301,
+  background = list(
+    dist = "ar1",
+    mean = 15,
+    sd = 2,
+    phi = 0.90
+  ),
+  n = 1
+)
+
+exposure_rain_C <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 302,
+  background = list(
+    dist = "ar1",
+    mean = 0.5,
+    sd = 0.5,
+    phi = 0.40
+  ),
+  n = 1
+)
+
+exposure_wetness_C <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 303,
+  background = list(
+    dist = "ar1",
+    mean = 2,
+    sd = 0.8,
+    phi = 0.60
+  ),
+  n = 1
+)
+
+scenario_C <- list(
+  tmean = exposure_tmean_C,
+  rain = exposure_rain_C,
+  wetness = exposure_wetness_C
+)
+```
+
+### Defining Scenario D
+
+``` r
+
+exposure_tmean_D <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 401,
+  background = list(
+    dist = "ar1",
+    mean = 10,
+    sd = 2,
+    phi = 0.90
+  ),
+  n = 1
+)
+
+exposure_rain_D <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 402,
+  background = list(
+    dist = "ar1",
+    mean = 15,
+    sd = 4,
+    phi = 0.60
+  ),
+  n = 1
+)
+
+exposure_wetness_D <- simulate_exposures(
+  max_lag = 85,
+  mode = "profile",
+  seed = 403,
+  background = list(
+    dist = "ar1",
+    mean = 20,
+    sd = 3,
+    phi = 0.70
+  ),
+  n = 1
+)
+
+scenario_D <- list(
+  tmean = exposure_tmean_D,
+  rain = exposure_rain_D,
+  wetness = exposure_wetness_D
+)
+```
+
+All profiles contain 86 observations and are ordered chronologically
+from the oldest to the most recent exposure. The profiles should not be
+reversed before being supplied to
+[`compare_predictions()`](https://tomazrg.github.io/EpiExposure/reference/compare_predictions.md).
+
+### Visualizing the candidate histories
+
+Before comparing their predicted outcomes, the complete exposure
+profiles can be inspected to verify how the scenarios differ.
+
+The following helper converts one simulated exposure profile into a data
+frame:
+
+``` r
+
+profile_to_data <- function(
+    exposure,
+    variable,
+    scenario
+) {
+  data.frame(
+    scenario = scenario,
+    var = variable,
+    time = 0:85,
+    lag = 85:0,
+    value = as.numeric(exposure$profile),
+    stringsAsFactors = FALSE
+  )
+}
+
+df_simulations <- dplyr::bind_rows(
+  profile_to_data(
+    exposure_tmean_A,
+    variable = "tmean",
+    scenario = "A"
+  ),
+  profile_to_data(
+    exposure_rain_A,
+    variable = "rain",
+    scenario = "A"
+  ),
+  profile_to_data(
+    exposure_wetness_A,
+    variable = "wetness",
+    scenario = "A"
+  ),
+  profile_to_data(
+    exposure_tmean_B,
+    variable = "tmean",
+    scenario = "B"
+  ),
+  profile_to_data(
+    exposure_rain_B,
+    variable = "rain",
+    scenario = "B"
+  ),
+  profile_to_data(
+    exposure_wetness_B,
+    variable = "wetness",
+    scenario = "B"
+  ),
+  profile_to_data(
+    exposure_tmean_C,
+    variable = "tmean",
+    scenario = "C"
+  ),
+  profile_to_data(
+    exposure_rain_C,
+    variable = "rain",
+    scenario = "C"
+  ),
+  profile_to_data(
+    exposure_wetness_C,
+    variable = "wetness",
+    scenario = "C"
+  ),
+  profile_to_data(
+    exposure_tmean_D,
+    variable = "tmean",
+    scenario = "D"
+  ),
+  profile_to_data(
+    exposure_rain_D,
+    variable = "rain",
+    scenario = "D"
+  ),
+  profile_to_data(
+    exposure_wetness_D,
+    variable = "wetness",
+    scenario = "D"
+  )
+)
+```
+
+Although both chronological time and retrospective lag are retained in
+`df_simulations`, the profiles are visualized below in chronological
+order. Thus, time 0 is the oldest observation and time 85 is the most
+recent observation.
+
+``` r
+
+simulation_plot <- ggplot(
+  df_simulations,
   aes(
     x = time,
-    y = diff
+    y = value,
+    color = var
+  )
+) +
+  geom_line(linewidth = 1) +
+  facet_grid(
+    rows = vars(var),
+    cols = vars(scenario),
+    scales = "free_y"
+  ) +
+  scale_x_continuous(
+    limits = c(
+      0,
+      85
+    ),
+    breaks = seq(
+      0,
+      85,
+      by = 15
+    )
+  ) +
+  scale_color_manual(
+    values = c(
+      tmean = "#C44E52",
+      rain = "#4C72B0",
+      wetness = "#55A868"
+    )
+  ) +
+  theme_bw() +
+  labs(
+    x = "Chronological time",
+    y = "Exposure",
+    color = "Variable"
+  ) +
+  theme(
+    text = element_text(
+      size = 10,
+      face = "bold"
+    ),
+    legend.position = "none",
+    strip.background = element_rect(
+      color = "black",
+      fill = "white"
+    ),
+    strip.text = element_text(
+      face = "bold"
+    )
+  )
+
+simulation_plot
+```
+
+![](simulation-prediction_files/figure-html/plot-comparison-profiles-1.png)
+
+The figure shows the exposure histories exactly as they are supplied to
+[`compare_predictions()`](https://tomazrg.github.io/EpiExposure/reference/compare_predictions.md).
+Internally, EpiExposure projects each chronological history through the
+fitted cross-basis, where lag 0 represents the most recent exposure and
+increasing lags represent progressively older exposures.
+
+### Comparing the exposure histories
+
+Before comparing the predicted disease outcomes, the exposure histories
+themselves can be compared directly.
+
+[`compare_exposures()`](https://tomazrg.github.io/EpiExposure/reference/compare_exposures.md)
+describes how two chronological exposure profiles differ across time.
+This comparison does not use the fitted disease model and does not
+produce a predicted response. It only quantifies differences between the
+supplied exposure histories.
+
+The following example compares Scenarios A and D. These scenarios differ
+in temperature, rainfall, and leaf wetness, so each exposure is compared
+separately.
+
+#### Comparing temperature histories
+
+``` r
+
+comparison_tmean_AD <- compare_exposures(
+  exposure1 = exposure_tmean_A$profile,
+  exposure2 = exposure_tmean_D$profile,
+  mode = "timewise"
+)
+
+comparison_tmean_AD$var <- "tmean"
+comparison_tmean_AD$scenario1 <- "A"
+comparison_tmean_AD$scenario2 <- "D"
+```
+
+#### Comparing rainfall histories
+
+``` r
+
+comparison_rain_AD <- compare_exposures(
+  exposure1 = exposure_rain_A$profile,
+  exposure2 = exposure_rain_D$profile,
+  mode = "timewise"
+)
+
+comparison_rain_AD$var <- "rain"
+comparison_rain_AD$scenario1 <- "A"
+comparison_rain_AD$scenario2 <- "D"
+```
+
+#### Comparing leaf wetness histories
+
+``` r
+
+comparison_wetness_AD <- compare_exposures(
+  exposure1 = exposure_wetness_A$profile,
+  exposure2 = exposure_wetness_D$profile,
+  mode = "timewise"
+)
+
+comparison_wetness_AD$var <- "wetness"
+comparison_wetness_AD$scenario1 <- "A"
+comparison_wetness_AD$scenario2 <- "D"
+```
+
+The three comparisons can be combined into one data frame:
+
+``` r
+
+exposure_comparison_AD <- dplyr::bind_rows(
+  comparison_tmean_AD,
+  comparison_rain_AD,
+  comparison_wetness_AD
+)
+
+exposure_comparison_AD$var <- factor(
+  exposure_comparison_AD$var,
+  levels = c(
+    "tmean",
+    "rain",
+    "wetness"
+  )
+)
+```
+
+Inspect the first time-specific differences:
+
+| exposure1 | exposure2 | position | time | lag | value1 | value2 | diff | abs_diff | ratio | ratio_defined | var | scenario1 | scenario2 |
+|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| exposure1 | exposure2 | 1 | 0 | 85 | 24.348 | 9.808 | 14.540 | 14.540 | 2.482 | TRUE | tmean | A | D |
+| exposure1 | exposure2 | 2 | 1 | 84 | 24.895 | 10.920 | 13.975 | 13.975 | 2.280 | TRUE | tmean | A | D |
+| exposure1 | exposure2 | 3 | 2 | 83 | 24.317 | 11.809 | 12.508 | 12.508 | 2.059 | TRUE | tmean | A | D |
+| exposure1 | exposure2 | 4 | 3 | 82 | 24.572 | 11.225 | 13.347 | 13.347 | 2.189 | TRUE | tmean | A | D |
+| exposure1 | exposure2 | 5 | 4 | 81 | 24.886 | 11.670 | 13.215 | 13.215 | 2.132 | TRUE | tmean | A | D |
+| exposure1 | exposure2 | 6 | 5 | 80 | 25.921 | 12.378 | 13.542 | 13.542 | 2.094 | TRUE | tmean | A | D |
+| exposure1 | exposure2 | 7 | 6 | 79 | 26.368 | 12.086 | 14.282 | 14.282 | 2.182 | TRUE | tmean | A | D |
+| exposure1 | exposure2 | 8 | 7 | 78 | 26.133 | 10.431 | 15.702 | 15.702 | 2.505 | TRUE | tmean | A | D |
+| exposure1 | exposure2 | 9 | 8 | 77 | 26.819 | 9.636 | 17.183 | 17.183 | 2.783 | TRUE | tmean | A | D |
+| exposure1 | exposure2 | 10 | 9 | 76 | 26.443 | 7.942 | 18.501 | 18.501 | 3.330 | TRUE | tmean | A | D |
+| exposure1 | exposure2 | 11 | 10 | 75 | 26.757 | 7.726 | 19.032 | 19.032 | 3.463 | TRUE | tmean | A | D |
+| exposure1 | exposure2 | 12 | 11 | 74 | 25.889 | 8.438 | 17.451 | 17.451 | 3.068 | TRUE | tmean | A | D |
+
+#### Visualizing the exposure differences
+
+The time-specific differences can be displayed separately for each
+exposure:
+
+``` r
+
+exposure_comparison_plot <- ggplot(
+  exposure_comparison_AD,
+  aes(
+    x = time,
+    y = diff,
+    color = var
   )
 ) +
   geom_hline(
     yintercept = 0,
-    color = "grey60",
-    linetype = "dashed"
+    color = "grey50",
+    linetype = "dashed",
+    linewidth = 0.5
   ) +
   geom_line(
-    linewidth = 0.8,
-    color = "#C44E52"
+    linewidth = 1
+  ) +
+  facet_wrap(
+    vars(var),
+    ncol = 1,
+    scales = "free_y",
+    labeller = as_labeller(
+      c(
+        tmean = "Mean temperature",
+        rain = "Rainfall",
+        wetness = "Leaf wetness"
+      )
+    )
+  ) +
+  scale_x_continuous(
+    limits = c(
+      0,
+      85
+    ),
+    breaks = seq(
+      0,
+      85,
+      by = 15
+    )
+  ) +
+  scale_color_manual(
+    values = c(
+      tmean = "#C44E52",
+      rain = "#4C72B0",
+      wetness = "#55A868"
+    )
   ) +
   theme_bw() +
   labs(
-    x = "Chronological position",
-    y = "Exposure difference",
-    title = "Difference between temperature histories"
+    x = "Days after planting the crop",
+    y = "Scenario D - Scenario A",
+    color = "Exposure"
+  ) +
+  theme(
+    text = element_text(
+      size = 10,
+      face = "bold"
+    ),
+    legend.position = "none",
+    strip.background = element_rect(
+      fill = "white",
+      color = "black"
+    ),
+    strip.text = element_text(
+      face = "bold"
+    )
   )
 ```
 
-![](simulation-prediction_files/figure-html/plot-exposure-comparison-1.png)
-
-This comparison describes the exposure profiles themselves. It does not
-yet indicate whether the fitted model predicts different disease
-outcomes.
-
-## Comparing predictions
-
-### Defining candidate histories
-
-The following profiles represent two complete hypothetical environmental
-histories:
-
 ``` r
 
-scenario_A <- list(
-  tmean = rep(
-    25,
-    86
-  ),
-  rain = rep(
-    5,
-    86
-  ),
-  wetness = rep(
-    10,
-    86
-  )
-)
-
-scenario_B <- list(
-  tmean = rep(
-    34,
-    86
-  ),
-  rain = rep(
-    15,
-    86
-  ),
-  wetness = rep(
-    20,
-    86
-  )
-)
+exposure_comparison_plot
 ```
 
-The scenarios differ simultaneously in all three exposures. Therefore,
-the resulting prediction contrast represents their combined change and
-should not be attributed to one exposure individually.
+![](simulation-prediction_files/figure-html/unnamed-chunk-8-1.png)
 
-### Comparing expected outcomes
+The horizontal zero line represents identical exposure values in
+Scenarios A and D at a given chronological time. Under the difference
+convention returned by
+[`compare_exposures()`](https://tomazrg.github.io/EpiExposure/reference/compare_exposures.md):
+
+- positive values indicate that the exposure is higher in Scenario D
+  than in Scenario A;
+- negative values indicate that the exposure is lower in Scenario D than
+  in Scenario A;
+- values near zero indicate similar exposure values at that
+  chronological position.
+
+The facets use independent y-axis scales because temperature, rainfall,
+and leaf wetness are measured in different units. Consequently, the
+numerical magnitudes of the differences should not be compared directly
+across exposures.
+
+These comparisons describe the environmental histories themselves. They
+do not account for the fitted cross-basis coefficients and do not
+indicate how strongly each exposure difference contributes to the
+disease response.
+
+The next section uses
+[`compare_predictions()`](https://tomazrg.github.io/EpiExposure/reference/compare_predictions.md)
+to determine how the fitted model translates the complete multivariable
+histories into differences in expected disease outcomes.
+
+### Comparing the expected outcomes
+
+With four scenarios,
+[`compare_predictions()`](https://tomazrg.github.io/EpiExposure/reference/compare_predictions.md)
+returns all pairwise comparisons:
+
+- A versus B;
+- A versus C;
+- A versus D;
+- B versus C;
+- B versus D;
+- C versus D.
+
+The same joint parameter draw is used for both scenarios in each
+comparison. This preserves the covariance between their predictions when
+calculating differences, ratios, and relative changes.
+
+#### Summarized comparisons
+
+With:
 
 ``` r
 
-prediction_comparison <- compare_predictions(
+output = "summary"
+```
+
+the function summarizes the draw-specific comparisons using their
+central values and empirical uncertainty intervals.
+
+``` r
+
+comp_pred <- compare_predictions(
   fit = fit,
   profiles = list(
     A = scenario_A,
-    B = scenario_B
+    B = scenario_B,
+    C = scenario_C,
+    D = scenario_D
   ),
   uncertainty = TRUE,
-  n_samples = 1000,
+  output = "summary",
+  n_samples = 100,
   seed = 123
 )
 
-prediction_comparison
-#>   scenario1 scenario2     pred1  pred1_sd pred1_lower pred1_upper    pred2
-#> 1         A         B 0.8488397 0.0322545   0.7776632   0.9029296 0.980287
-#>     pred2_sd pred2_lower pred2_upper      diff    diff_sd diff_lower diff_upper
-#> 1 0.03257791   0.8937059   0.9972314 0.1270512 0.05137956 0.02233513    0.21234
-#>    abs_diff abs_diff_sd abs_diff_lower abs_diff_upper percentage_point_change
-#> 1 0.1273395   0.0452089      0.0326767      0.2131056                12.70512
-#>   percentage_point_change_sd percentage_point_change_lower
-#> 1                   5.137956                      2.233513
-#>   percentage_point_change_upper relative_defined_fraction
-#> 1                        21.234                         1
-#>   relative_change_defined    ratio   ratio_sd ratio_lower ratio_upper
-#> 1                    TRUE 1.148629 0.06563577    1.025754    1.272211
-#>   percent_change percent_change_sd percent_change_lower percent_change_upper
-#> 1       14.86291          6.563577             2.575395             27.22106
+comp_pred <- comp_pred |>
+  dplyr::mutate(
+    comparison = paste(
+      scenario1,
+      scenario2,
+      sep = " vs. "
+    )
+  )
 ```
 
-The comparison quantifies the difference in the expected response
-between the two complete histories under the fitted model.
+Inspect selected comparison results:
 
-For a variable-specific comparison, change one exposure at a time while
-holding the other profiles constant.
+| comparison | pred1 | pred1_lower | pred1_upper | pred2 | pred2_lower | pred2_upper | diff | diff_lower | diff_upper | percentage_point_change | percentage_point_change_lower | percentage_point_change_upper |
+|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| A vs. B | 0.9579 | 0.9420 | 0.9714 | 0.1157 | 0.0391 | 0.3447 | -0.8343 | -0.9182 | -0.6255 | -83.4328 | -91.8209 | -62.5461 |
+| A vs. C | 0.9579 | 0.9420 | 0.9714 | 0.0354 | 0.0061 | 0.1601 | -0.9200 | -0.9560 | -0.7921 | -92.0031 | -95.5952 | -79.2087 |
+| A vs. D | 0.9579 | 0.9420 | 0.9714 | 0.9997 | 0.9944 | 1.0000 | 0.0416 | 0.0243 | 0.0577 | 4.1587 | 2.4322 | 5.7701 |
+| B vs. C | 0.1157 | 0.0391 | 0.3447 | 0.0354 | 0.0061 | 0.1601 | -0.0706 | -0.2953 | 0.0206 | -7.0565 | -29.5259 | 2.0589 |
+| B vs. D | 0.1157 | 0.0391 | 0.3447 | 0.9997 | 0.9944 | 1.0000 | 0.8839 | 0.6510 | 0.9591 | 88.3883 | 65.1010 | 95.9142 |
+| C vs. D | 0.0354 | 0.0061 | 0.1601 | 0.9997 | 0.9944 | 1.0000 | 0.9639 | 0.8399 | 0.9898 | 96.3927 | 83.9893 | 98.9832 |
 
-For example:
+Each row compares the expected response under two complete environmental
+histories. For example, `diff` represents the draw-by-draw difference
+between the expected response for `scenario2` and the expected response
+for `scenario1`, summarized across the joint parameter draws.
+
+For a Beta or Binomial response, `percentage_point_change` expresses the
+absolute change in the expected proportion or probability multiplied by
+100. It is different from `percent_change`, which describes the relative
+change between predictions when that ratio is defined.
+
+The example uses 100 parameter draws to limit the computational time
+required to build the tutorial. A larger number of draws may be used in
+a final analysis when more stable uncertainty summaries are required.
+
+#### Draw-specific comparisons
+
+With:
+
+``` r
+
+output = "samples"
+```
+
+the function retains every draw-specific comparison instead of reducing
+the draws to summary statistics.
+
+``` r
+
+comp_pred_samples <- compare_predictions(
+  fit = fit,
+  profiles = list(
+    A = scenario_A,
+    B = scenario_B,
+    C = scenario_C,
+    D = scenario_D
+  ),
+  uncertainty = TRUE,
+  output = "samples",
+  n_samples = 100,
+  seed = 123
+)
+
+comp_pred_samples <- comp_pred_samples |>
+  dplyr::mutate(
+    comparison = paste(
+      scenario1,
+      scenario2,
+      sep = " vs. "
+    )
+  )
+```
+
+Inspect the first draw-specific comparisons:
+
+| scenario1 | scenario2 | sample | pred1 | pred2 | diff | abs_diff | ratio | percent_change | relative_change_defined | percentage_point_change | comparison |
+|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| A | B | 1 | 0.9701 | 0.4976 | -0.4725 | 0.4725 | 0.5129 | -48.7083 | TRUE | -47.2536 | A vs. B |
+| A | B | 2 | 0.9714 | 0.3447 | -0.6267 | 0.6267 | 0.3549 | -64.5112 | TRUE | -62.6669 | A vs. B |
+| A | B | 3 | 0.9554 | 0.1223 | -0.8331 | 0.8331 | 0.1280 | -87.2032 | TRUE | -83.3096 | A vs. B |
+| A | B | 4 | 0.9603 | 0.0799 | -0.8804 | 0.8804 | 0.0832 | -91.6805 | TRUE | -88.0417 | A vs. B |
+| A | B | 5 | 0.9581 | 0.1939 | -0.7642 | 0.7642 | 0.2024 | -79.7637 | TRUE | -76.4188 | A vs. B |
+| A | B | 6 | 0.9441 | 0.0988 | -0.8454 | 0.8454 | 0.1046 | -89.5400 | TRUE | -84.5369 | A vs. B |
+| A | B | 7 | 0.9482 | 0.0913 | -0.8569 | 0.8569 | 0.0963 | -90.3678 | TRUE | -85.6904 | A vs. B |
+| A | B | 8 | 0.9582 | 0.0789 | -0.8793 | 0.8793 | 0.0823 | -91.7705 | TRUE | -87.9342 | A vs. B |
+| A | B | 9 | 0.9675 | 0.2654 | -0.7020 | 0.7020 | 0.2744 | -72.5639 | TRUE | -70.2048 | A vs. B |
+| A | B | 10 | 0.9576 | 0.0706 | -0.8869 | 0.8869 | 0.0737 | -92.6260 | TRUE | -88.6946 | A vs. B |
+
+Each row now represents one joint parameter draw for one scenario pair.
+These samples describe parameter uncertainty in the expected responses
+and their contrasts. They are not new exposure histories and are not
+newly simulated disease observations.
+
+The draw-level output can be used to calculate customized summaries,
+propagate uncertainty into subsequent analyses, or visualize the
+complete distribution of a selected comparison metric.
+
+### Visualizing comparison uncertainty
+
+The summarized and draw-specific outputs can be displayed together. Each
+colored point represents the difference obtained from one joint
+parameter draw. The black point represents the central summarized
+difference, and the vertical line represents its empirical uncertainty
+interval.
+
+``` r
+
+comparison_order <- comp_pred |>
+  dplyr::arrange(diff) |>
+  dplyr::pull(comparison)
+
+comp_pred <- comp_pred |>
+  dplyr::mutate(
+    comparison = factor(
+      comparison,
+      levels = comparison_order
+    )
+  )
+
+comp_pred_samples <- comp_pred_samples |>
+  dplyr::mutate(
+    comparison = factor(
+      comparison,
+      levels = comparison_order
+    )
+  )
+
+sc_simu_plot <- ggplot(
+  comp_pred,
+  aes(
+    x = comparison,
+    y = diff
+  )
+) +
+  geom_jitter(
+    data = comp_pred_samples,
+    aes(
+      x = comparison,
+      y = diff,
+      color = sample
+    ),
+    alpha = 0.4,
+    size = 2,
+    width = 0.20,
+    height = 0,
+    inherit.aes = FALSE
+  ) +
+  scale_color_viridis_b() +
+  geom_pointrange(
+    aes(
+      ymin = diff_lower,
+      ymax = diff_upper
+    ),
+    color = "black",
+    linewidth = 0.6
+  ) +
+  geom_hline(
+    yintercept = 0,
+    linetype = 2,
+    color = "gray40",
+    linewidth = 0.5
+  ) +
+  theme_bw() +
+  labs(
+    x = "Scenario comparison",
+    y = "Difference in expected response"
+  ) +
+  theme(
+    text = element_text(
+      size = 10,
+      face = "bold"
+    ),
+    legend.position = "none",
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1
+    )
+  )
+```
+
+``` r
+
+sc_simu_plot
+```
+
+![](simulation-prediction_files/figure-html/unnamed-chunk-9-1.png)
+
+The colored points show the complete distribution of draw-specific
+differences for each scenario pair. The black point is the central
+difference reported in the summary output, while the vertical black line
+extends from `diff_lower` to `diff_upper`.
+
+Values above zero indicate that the expected response for `scenario2` is
+higher than the expected response for `scenario1`. Values below zero
+indicate that the expected response for `scenario2` is lower.
+Comparisons whose uncertainty intervals cross zero include both positive
+and negative differences across the joint parameter draws.
+
+**These are joint environmental contrasts.** Temperature, rainfall, and
+leaf wetness differ simultaneously among Scenarios A–D. The resulting
+differences therefore describe contrasts between complete multivariable
+environmental histories and should not be interpreted as the isolated
+effect of any one exposure.
+
+### Comparing one exposure at a time
+
+When the objective is to investigate a contrast involving one exposure,
+the remaining histories should be held constant. The following example
+changes rainfall while maintaining the same temperature and leaf wetness
+profiles.
 
 ``` r
 
 scenario_low_rain <- list(
-  tmean = rep(
-    25,
-    86
+  tmean = exposure_tmean_A,
+  rain = simulate_exposures(
+    max_lag = 85,
+    mode = "profile",
+    seed = 501,
+    background = list(
+      dist = "ar1",
+      mean = 2,
+      sd = 1,
+      phi = 0.50
+    ),
+    n = 1
   ),
-  rain = rep(
-    2,
-    86
-  ),
-  wetness = rep(
-    10,
-    86
-  )
+  wetness = exposure_wetness_A
 )
 
 scenario_high_rain <- list(
-  tmean = rep(
-    25,
-    86
+  tmean = exposure_tmean_A,
+  rain = simulate_exposures(
+    max_lag = 85,
+    mode = "profile",
+    seed = 502,
+    background = list(
+      dist = "ar1",
+      mean = 15,
+      sd = 3,
+      phi = 0.50
+    ),
+    n = 1
   ),
-  rain = rep(
-    15,
-    86
-  ),
-  wetness = rep(
-    10,
-    86
-  )
+  wetness = exposure_wetness_A
 )
+```
+
+``` r
 
 rainfall_comparison <- compare_predictions(
   fit = fit,
@@ -1066,31 +1781,41 @@ rainfall_comparison <- compare_predictions(
     high_rain = scenario_high_rain
   ),
   uncertainty = TRUE,
-  n_samples = 1000,
+  output = "summary",
+  n_samples = 100,
   seed = 123
 )
-
-rainfall_comparison
-#>   scenario1 scenario2     pred1 pred1_sd pred1_lower pred1_upper     pred2
-#> 1  low_rain high_rain 0.5818581 0.116623   0.3443916   0.7858604 0.9910837
-#>      pred2_sd pred2_lower pred2_upper      diff   diff_sd diff_lower diff_upper
-#> 1 0.004417166   0.9806425   0.9961524 0.4096384 0.1196277  0.2007757  0.6515508
-#>    abs_diff abs_diff_sd abs_diff_lower abs_diff_upper percentage_point_change
-#> 1 0.4096384   0.1196277      0.2007757      0.6515508                40.96384
-#>   percentage_point_change_sd percentage_point_change_lower
-#> 1                   11.96277                      20.07757
-#>   percentage_point_change_upper relative_defined_fraction
-#> 1                      65.15508                         1
-#>   relative_change_defined    ratio  ratio_sd ratio_lower ratio_upper
-#> 1                    TRUE 1.703248 0.4325714    1.255485    2.891892
-#>   percent_change percent_change_sd percent_change_lower percent_change_upper
-#> 1       70.32475          43.25714             25.54854             189.1892
 ```
 
-Because temperature and leaf wetness remain unchanged, this contrast
-isolates the modeled difference associated with the two supplied
-rainfall histories, conditional on the fixed profiles of the other
-exposures.
+``` r
+
+rainfall_comparison
+#>   scenario1 scenario2     pred1   pred1_sd pred1_lower pred1_upper     pred2
+#> 1  low_rain high_rain 0.8852602 0.04879873   0.7618158   0.9553559 0.9981504
+#>       pred2_sd pred2_lower pred2_upper      diff    diff_sd diff_lower
+#> 1 0.0009853875   0.9952408   0.9991543 0.1133656 0.04937617 0.04094392
+#>   diff_upper  abs_diff abs_diff_sd abs_diff_lower abs_diff_upper
+#> 1  0.2372621 0.1133656  0.04937617     0.04094392      0.2372621
+#>   percentage_point_change percentage_point_change_sd
+#> 1                11.33656                   4.937617
+#>   percentage_point_change_lower percentage_point_change_upper
+#> 1                      4.094392                      23.72621
+#>   relative_defined_fraction relative_change_defined    ratio   ratio_sd
+#> 1                         1                    TRUE 1.128128 0.06699667
+#>   ratio_lower ratio_upper percent_change percent_change_sd percent_change_lower
+#> 1    1.042867    1.311432       12.81284          6.699667             4.286725
+#>   percent_change_upper
+#> 1             31.14316
+```
+
+Temperature and leaf wetness are identical in the two histories.
+Therefore, the contrast is specifically associated with the change in
+the complete rainfall profile under the fitted multivariable model.
+
+This remains a model-based associational comparison. It should not
+automatically be interpreted as the causal effect of intervening on
+rainfall unless the study design and assumptions support that
+interpretation.
 
 ## Interpreting simulation and prediction outputs
 

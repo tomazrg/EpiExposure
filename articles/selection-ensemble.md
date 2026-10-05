@@ -116,10 +116,6 @@ best_models <- find_bestfit(
 
 plot_performance(
   object = best_models,
- # model_id = c(
-  #  63, 42, 56, 35, 49, 28, 40, 61,
-    #19, 47, 33, 54, 26, 12, 5
-#  ),
   model_id = c(5,12,19,26,28,33,35,40,42,47,49,54,56,61,63),
   metrics = c("CCC"),
   x = "observed",
@@ -140,26 +136,18 @@ plot_performance(
 
 ![](find_bestfit2.png) Inspect results
 
-``` r
-
-head(best_models)
-#> # A tibble: 6 × 28
-#>    rank model_id df_var df_lag vars       n_vars   CCC    Cb   rho   RMSE    MAE
-#>   <dbl>    <dbl>  <dbl>  <dbl> <chr>       <dbl> <dbl> <dbl> <dbl>  <dbl>  <dbl>
-#> 1     1       63      4      4 tmean + r…      3 0.980 1.000 0.980 0.0529 0.0382
-#> 2     2       42      3      4 tmean + r…      3 0.978 1.000 0.979 0.0550 0.0395
-#> 3     3       56      4      3 tmean + r…      3 0.970 0.999 0.971 0.0642 0.0475
-#> 4     4       35      3      3 tmean + r…      3 0.969 0.999 0.969 0.0656 0.0483
-#> 5     5       49      4      2 tmean + r…      3 0.952 0.998 0.954 0.0803 0.0577
-#> 6     6       28      3      2 tmean + r…      3 0.949 0.998 0.951 0.0825 0.0589
-#> # ℹ 17 more variables: n_folds <dbl>, n_success_folds <dbl>,
-#> #   n_failed_folds <dbl>, n_predictions <dbl>, n_success <dbl>, n_failed <dbl>,
-#> #   n_warning_folds <dbl>, warning_rate <dbl>, n_warning_events <dbl>,
-#> #   n_knot_warning_folds <dbl>, n_convergence_warning_folds <dbl>,
-#> #   n_hessian_warning_folds <dbl>, n_other_warning_folds <dbl>,
-#> #   n_knot_warning_events <dbl>, n_convergence_warning_events <dbl>,
-#> #   n_hessian_warning_events <dbl>, n_other_warning_events <dbl>
-```
+| rank | model_id | df_var | df_lag | vars | n_vars | CCC | Cb | rho | RMSE | MAE | n_folds | n_success_folds | n_failed_folds | n_predictions | n_success | n_failed | n_warning_folds | warning_rate | n_warning_events | n_knot_warning_folds | n_convergence_warning_folds | n_hessian_warning_folds | n_other_warning_folds | n_knot_warning_events | n_convergence_warning_events | n_hessian_warning_events | n_other_warning_events |
+|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| 1 | 63 | 4 | 4 | tmean + rain + wetness | 3 | 0.9800 | 0.9997 | 0.9802 | 0.0529 | 0.0382 | 520 | 520 | 0 | 520 | 520 | 0 | 520 | 1 | 1010 | 520 | 490 | 0 | 0 | 520 | 490 | 0 | 0 |
+| 2 | 42 | 3 | 4 | tmean + rain + wetness | 3 | 0.9783 | 0.9996 | 0.9786 | 0.0550 | 0.0395 | 520 | 520 | 0 | 520 | 520 | 0 | 520 | 1 | 523 | 520 | 3 | 0 | 0 | 520 | 3 | 0 | 0 |
+| 3 | 56 | 4 | 3 | tmean + rain + wetness | 3 | 0.9702 | 0.9994 | 0.9708 | 0.0642 | 0.0475 | 520 | 520 | 0 | 520 | 520 | 0 | 520 | 1 | 530 | 520 | 10 | 0 | 0 | 520 | 10 | 0 | 0 |
+| 4 | 35 | 3 | 3 | tmean + rain + wetness | 3 | 0.9688 | 0.9993 | 0.9695 | 0.0656 | 0.0483 | 520 | 520 | 0 | 520 | 520 | 0 | 520 | 1 | 520 | 520 | 0 | 0 | 0 | 520 | 0 | 0 | 0 |
+| 5 | 49 | 4 | 2 | tmean + rain + wetness | 3 | 0.9523 | 0.9982 | 0.9540 | 0.0803 | 0.0577 | 520 | 520 | 0 | 520 | 520 | 0 | 520 | 1 | 520 | 520 | 0 | 0 | 0 | 520 | 0 | 0 | 0 |
+| 6 | 28 | 3 | 2 | tmean + rain + wetness | 3 | 0.9493 | 0.9979 | 0.9513 | 0.0825 | 0.0589 | 520 | 520 | 0 | 520 | 520 | 0 | 520 | 1 | 520 | 520 | 0 | 0 | 0 | 520 | 0 | 0 | 0 |
+| 7 | 40 | 3 | 4 | tmean + wetness | 2 | 0.8590 | 0.9863 | 0.8710 | 0.1316 | 0.0988 | 520 | 520 | 0 | 520 | 520 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| 8 | 61 | 4 | 4 | tmean + wetness | 2 | 0.8575 | 0.9869 | 0.8689 | 0.1325 | 0.0998 | 520 | 520 | 0 | 520 | 520 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| 9 | 19 | 2 | 4 | tmean + wetness | 2 | 0.8511 | 0.9834 | 0.8655 | 0.1343 | 0.1016 | 520 | 520 | 0 | 520 | 520 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| 10 | 47 | 4 | 2 | tmean + wetness | 2 | 0.8482 | 0.9837 | 0.8623 | 0.1357 | 0.1035 | 520 | 520 | 0 | 520 | 520 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 Depending on the selected validation settings, the resulting object can
 include:
@@ -334,21 +322,9 @@ The ensemble summary can be extracted from the fitted ensemble object:
 ens_unweighted$ensemble_summary
 ```
 
-The table below shows a precomputed example of the ensemble summary
-output.
-
-``` r
-
-ens_unweighted
-#> # A tibble: 1 × 20
-#>   method     n_models n_oof family outcome_type cv_method cv_scheme            k
-#>   <chr>         <dbl> <dbl> <chr>  <chr>        <chr>     <chr>            <dbl>
-#> 1 unweighted        3   520 beta   non_binary   LOOCV     leave_one_group…   520
-#> # ℹ 12 more variables: weight_metric <chr>, metric_direction <chr>,
-#> #   threshold <lgl>, stacking_model <lgl>, stack_objective <lgl>,
-#> #   stack_intercept <lgl>, weight_transform <lgl>, CCC <dbl>, Cb <dbl>,
-#> #   rho <dbl>, RMSE <dbl>, MAE <dbl>
-```
+| method | n_models | n_oof | family | outcome_type | cv_method | cv_scheme | k | weight_metric | metric_direction | threshold | stacking_model | stack_objective | stack_intercept | weight_transform | CCC | Cb | rho | RMSE | MAE |
+|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| unweighted | 3 | 520 | beta | non_binary | LOOCV | leave_one_group_out | 520 | CCC | maximize | NA | NA | NA | NA | NA | 0.6455 | 0.739 | 0.8735 | 0.1741 | 0.1476 |
 
 ## Weighted ensemble
 
@@ -378,21 +354,9 @@ The ensemble summary can be extracted from the fitted ensemble object:
 ens_weighted$ensemble_summary
 ```
 
-The table below shows a precomputed example of the ensemble summary
-output.
-
-``` r
-
-ens_weighted
-#> # A tibble: 1 × 20
-#>   method   n_models n_oof family outcome_type cv_method cv_scheme              k
-#>   <chr>       <dbl> <dbl> <chr>  <chr>        <chr>     <chr>              <dbl>
-#> 1 weighted        3   520 beta   non_binary   LOOCV     leave_one_group_o…   520
-#> # ℹ 12 more variables: weight_metric <chr>, metric_direction <chr>,
-#> #   threshold <lgl>, stacking_model <lgl>, stack_objective <lgl>,
-#> #   stack_intercept <lgl>, weight_transform <chr>, CCC <dbl>, Cb <dbl>,
-#> #   rho <dbl>, RMSE <dbl>, MAE <dbl>
-```
+| method | n_models | n_oof | family | outcome_type | cv_method | cv_scheme | k | weight_metric | metric_direction | threshold | stacking_model | stack_objective | stack_intercept | weight_transform | CCC | Cb | rho | RMSE | MAE |
+|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| weighted | 3 | 520 | beta | non_binary | LOOCV | leave_one_group_out | 520 | CCC | maximize | NA | NA | NA | NA | rank_inverse | 0.8386 | 0.8788 | 0.9542 | 0.125 | 0.1053 |
 
 ## Stacked ensemble
 
@@ -422,21 +386,9 @@ The ensemble summary can be extracted from the fitted ensemble object:
 ens_stacked$ensemble_summary
 ```
 
-The table below shows a precomputed example of the ensemble summary
-output.
-
-``` r
-
-ens_stacked
-#> # A tibble: 1 × 20
-#>   method  n_models n_oof family outcome_type cv_method cv_scheme               k
-#>   <chr>      <dbl> <dbl> <chr>  <chr>        <chr>     <chr>               <dbl>
-#> 1 stacked        3   520 beta   non_binary   LOOCV     leave_one_group_out   520
-#> # ℹ 12 more variables: weight_metric <chr>, metric_direction <chr>,
-#> #   threshold <lgl>, stacking_model <chr>, stack_objective <chr>,
-#> #   stack_intercept <dbl>, weight_transform <lgl>, CCC <dbl>, Cb <dbl>,
-#> #   rho <dbl>, RMSE <dbl>, MAE <dbl>
-```
+| method | n_models | n_oof | family | outcome_type | cv_method | cv_scheme | k | weight_metric | metric_direction | threshold | stacking_model | stack_objective | stack_intercept | weight_transform | CCC | Cb | rho | RMSE | MAE |
+|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| stacked | 3 | 520 | beta | non_binary | LOOCV | leave_one_group_out | 520 | CCC | maximize | NA | ridge | regularized | -0.004 | NA | 0.9798 | 0.9998 | 0.98 | 0.0532 | 0.0385 |
 
 ## Comparing ensemble strategies
 
@@ -680,7 +632,7 @@ final_plot
 
 ![](selection-ensemble_files/figure-html/unnamed-chunk-33-1.png)
 
-## Choosing an ensemble strategy
+## Choosing a model-level ensemble strategy
 
 Each ensemble method has advantages.
 
@@ -726,6 +678,472 @@ Regardless of the method, compare the ensemble against:
 - a simple baseline model;
 - alternative ensemble strategies;
 - results on validation data not reused for weight estimation.
+
+The previous sections focused on model-level ensembles, which combine
+out-of-fold predictions and evaluate their predictive performance.
+
+`EpiExposure` can also construct lag-contribution ensembles. Instead of
+combining predicted outcomes, these ensembles combine the lag-specific
+ECI decompositions obtained from selected full-data model refits.
+
+## Lag-contribution ensembles
+
+### Why construct a lag ensemble?
+
+Model-level ensembles combine predictions from multiple candidate
+models. However, models may also differ in how they distribute the
+contribution of an exposure across the fitted lag interval.
+
+A lag ensemble combines the lag-specific epidemiological contribution
+indices obtained from the selected models. For lag $`l`$, the ensemble
+contribution is defined as:
+
+``` math
+ECI_{\mathrm{ensemble},l}
+=
+\sum_m \alpha_m ECI_{m,l},
+```
+
+where $`ECI_{m,l}`$ is the lag-specific weighted ECI from model $`m`$,
+and $`\alpha_m`$ is the model weight derived from out-of-fold model
+performance.
+
+The model weights therefore come from cross-validation, whereas the
+lag-specific ECI values are calculated from the selected models refitted
+to the complete dataset.
+
+**Lag ensembles require retained full-data fits or precomputed lag
+data.** For automatic lag decomposition, `best_models` must be the
+complete object returned by
+[`find_bestfit()`](https://tomazrg.github.io/EpiExposure/reference/find_bestfit.md)
+and must contain the retained fitted models in
+`attr(best_models, "fits")`. An Excel or CSV export of the ranking table
+does not preserve the attributes, fitted models, or basis metadata
+required for this calculation.
+
+The fitted models are not used to recalculate the cross-validation
+metrics. The model ranking and ensemble weights remain based on the
+out-of-fold predictions produced by
+[`find_bestfit()`](https://tomazrg.github.io/EpiExposure/reference/find_bestfit.md).
+The retained full-data fits are used only to obtain the final
+lag-specific decompositions for the selected models.
+
+### Constructing unweighted and weighted lag ensembles
+
+The following example selects the three highest-ranked models and
+constructs two lag ensembles:
+
+- `"unweighted"` gives equal weight to each selected model;
+- `"weighted"` derives model weights from the selected performance
+  metric.
+
+To keep the example computationally efficient, the lag ensemble is
+demonstrated using one complete epidemic history. Users may instead
+supply all available epidemic histories, provided that each history
+contains the complete `max_lag + 1` observations required by the fitted
+models. The computational cost will increase with the number of
+epidemics, exposures, selected models, and lags. The results shown here
+are therefore specific to Epidemic 1.
+
+``` r
+
+epi_data1 = epi_data |> 
+  filter(epi_id == 1)
+```
+
+``` r
+
+lag_ensemble <- ensemble_bestfit(
+  bestfit = best_models,
+  data = epi_data1,
+  group = "epi_id",
+  var = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  ensemble_scope = "lag",
+  method = c(
+    "unweighted",
+    "weighted"
+  ),
+  top_n = 3,
+  weight_metric = NULL,
+  weight_transform = "softmax",
+  lag_group_cols = c(
+    "epi_id",
+    "var",
+    "lag"
+  ),
+  lg_strategy = "requested_available",
+  rl_weights = TRUE,
+  compute_ecilag_args = list(
+    uncertainty = FALSE
+  ),
+  verbose = TRUE
+)
+```
+
+When `weight_metric = NULL`,
+[`ensemble_bestfit()`](https://tomazrg.github.io/EpiExposure/reference/ensemble_bestfit.md)
+uses the ranking metric stored by
+[`find_bestfit()`](https://tomazrg.github.io/EpiExposure/reference/find_bestfit.md).
+The direction of that metric is handled automatically: metrics such as
+CCC are maximized, whereas metrics such as RMSE are minimized.
+
+The argument:
+
+``` r
+
+lg_strategy = "requested_available"
+```
+
+uses each requested exposure when that exposure is available in the
+selected model. Because candidate models may contain different
+combinations of exposures, not every model necessarily contributes to
+every exposure-specific lag ensemble.
+
+With:
+
+``` r
+
+rl_weights = TRUE
+```
+
+the model weights are renormalized among the models available for each
+exposure-lag unit. This ensures that the available model weights sum to
+one within each lag-specific ensemble calculation.
+
+### Inspecting selected models and weights
+
+The selected candidate models can be inspected directly:
+
+``` r
+
+lag_ensemble$selected_models
+```
+
+| rank | model_id | df_var | df_lag | vars | n_vars | CCC | Cb | rho | RMSE | MAE | n_folds | n_success_folds | n_failed_folds | n_predictions | n_success | n_failed | n_warning_folds | warning_rate | n_warning_events | n_knot_warning_folds | n_convergence_warning_folds | n_hessian_warning_folds | n_other_warning_folds | n_knot_warning_events | n_convergence_warning_events | n_hessian_warning_events | n_other_warning_events |
+|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| 1 | 63 | 4 | 4 | tmean + rain + wetness | 3 | 0.9800 | 0.9997 | 0.9802 | 0.0529 | 0.0382 | 520 | 520 | 0 | 520 | 520 | 0 | 520 | 1 | 1010 | 520 | 490 | 0 | 0 | 520 | 490 | 0 | 0 |
+| 2 | 42 | 3 | 4 | tmean + rain + wetness | 3 | 0.9783 | 0.9996 | 0.9786 | 0.0550 | 0.0395 | 520 | 520 | 0 | 520 | 520 | 0 | 520 | 1 | 523 | 520 | 3 | 0 | 0 | 520 | 3 | 0 | 0 |
+| 3 | 56 | 4 | 3 | tmean + rain + wetness | 3 | 0.9702 | 0.9994 | 0.9708 | 0.0642 | 0.0475 | 520 | 520 | 0 | 520 | 520 | 0 | 520 | 1 | 530 | 520 | 10 | 0 | 0 | 520 | 10 | 0 | 0 |
+
+The model weights used by each ensemble method are stored separately:
+
+``` r
+
+lag_ensemble$model_weights
+```
+
+|   method   | model_id | metric_value | prediction_weight | lag_weight |
+|:----------:|:--------:|:------------:|:-----------------:|:----------:|
+| unweighted |    63    |    0.9800    |        NA         |   0.3333   |
+| unweighted |    42    |    0.9783    |        NA         |   0.3333   |
+| unweighted |    56    |    0.9702    |        NA         |   0.3333   |
+|  weighted  |    63    |    0.9800    |        NA         |   0.3346   |
+|  weighted  |    42    |    0.9783    |        NA         |   0.3340   |
+|  weighted  |    56    |    0.9702    |        NA         |   0.3314   |
+
+For the unweighted ensemble, the selected models receive equal lag
+weights. For the weighted ensemble, the weights are derived from the
+selected cross-validation performance metric.
+
+These weights describe the relative influence of the selected models in
+the lag ensemble. They are not lag-specific DLNM coefficients.
+
+### Inspecting ensemble lag contributions
+
+The combined lag-specific contributions are returned in:
+
+``` r
+
+lag_ensemble$ensemble_by_lag
+```
+
+Inspect the first rows:
+
+| epi_id | var | lag | method | ECI_weighted_ens | n_models | n_selected_models | raw_model_weight_sum | weights_renormalized | models_used | ECI_percent_ens |
+|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| 1 | tmean | 0 | unweighted | -0.0189 | 3 | 3 | 1 | TRUE | 42, 56, 63 | 1.4481 |
+| 1 | tmean | 1 | unweighted | -0.0167 | 3 | 3 | 1 | TRUE | 42, 56, 63 | 1.2743 |
+| 1 | tmean | 2 | unweighted | -0.0242 | 3 | 3 | 1 | TRUE | 42, 56, 63 | 1.8470 |
+| 1 | tmean | 3 | unweighted | -0.0181 | 3 | 3 | 1 | TRUE | 42, 56, 63 | 1.3854 |
+| 1 | tmean | 4 | unweighted | -0.0180 | 3 | 3 | 1 | TRUE | 42, 56, 63 | 1.3787 |
+| 1 | tmean | 5 | unweighted | -0.0182 | 3 | 3 | 1 | TRUE | 42, 56, 63 | 1.3889 |
+| 1 | tmean | 6 | unweighted | -0.0268 | 3 | 3 | 1 | TRUE | 42, 56, 63 | 2.0472 |
+| 1 | tmean | 7 | unweighted | -0.0180 | 3 | 3 | 1 | TRUE | 42, 56, 63 | 1.3757 |
+| 1 | tmean | 8 | unweighted | 0.0090 | 3 | 3 | 1 | TRUE | 42, 56, 63 | 0.6871 |
+| 1 | tmean | 9 | unweighted | 0.0268 | 3 | 3 | 1 | TRUE | 42, 56, 63 | 2.0466 |
+| 1 | tmean | 10 | unweighted | 0.0129 | 3 | 3 | 1 | TRUE | 42, 56, 63 | 0.9838 |
+| 1 | tmean | 11 | unweighted | -0.0279 | 3 | 3 | 1 | TRUE | 42, 56, 63 | 2.1334 |
+
+The principal output columns are:
+
+- `var`: exposure variable;
+- `lag`: retrospective lag, where lag 0 is the most recent exposure;
+- `method`: ensemble method;
+- `ECI_weighted_ens`: signed ensemble ECI contribution at that lag;
+- `ECI_percent_ens`: absolute percentage contribution of that lag within
+  the corresponding exposure and ensemble method;
+- `n_models`: number of models contributing to that lag unit;
+- `raw_model_weight_sum`: total original model-weight mass available for
+  that lag unit;
+- `weights_renormalized`: whether weights were renormalized among the
+  available models;
+- `models_used`: selected models contributing to the lag unit.
+
+The signed value `ECI_weighted_ens` preserves the direction of the
+ensemble contribution. In contrast, `ECI_percent_ens` is based on the
+absolute contribution magnitude and describes how the total lag
+contribution is distributed across the fitted lag interval.
+
+### Visualizing signed lag contributions
+
+``` r
+
+ensemble_by_lag = lag_ensemble$ensemble_by_lag
+```
+
+``` r
+
+lag_ensemble_signed_plot <- ggplot(
+  ensemble_by_lag,
+  aes(
+    x = lag,
+    y = ECI_weighted_ens,
+    color = method
+  )
+) +
+  geom_hline(
+    yintercept = 0,
+    color = "grey50",
+    linetype = "dashed",
+    linewidth = 0.5
+  ) +
+  geom_line(
+    linewidth = 1
+  ) +
+  facet_wrap(
+    vars(var),
+    ncol = 1,
+    scales = "free_y",
+    labeller = as_labeller(
+      c(
+        tmean = "Mean temperature",
+        rain = "Rainfall",
+        wetness = "Leaf wetness"
+      )
+    )
+  ) +
+  scale_x_reverse(
+    breaks = seq(
+      0,
+      85,
+      by = 15
+    )
+  ) +
+  scale_color_manual(
+    values = c(
+      unweighted = "#4C72B0",
+      weighted = "#C44E52"
+    ),
+    labels = c(
+      unweighted = "Unweighted",
+      weighted = "Weighted"
+    )
+  ) +
+  theme_bw() +
+  labs(
+    x = "Retrospective lag",
+    y = "Ensemble weighted ECI",
+    color = "Ensemble method"
+  ) +
+  theme(
+    text = element_text(
+      size = 10,
+      face = "bold"
+    ),
+    strip.background = element_rect(
+      fill = "white",
+      color = "black"
+    ),
+    strip.text = element_text(
+      face = "bold"
+    ),
+    legend.position = "top"
+  )
+```
+
+``` r
+
+lag_ensemble_signed_plot
+```
+
+![](selection-ensemble_files/figure-html/unnamed-chunk-42-1.png)
+
+The lag axis is displayed retrospectively. Lag 0 corresponds to the most
+recent exposure observation, whereas increasing lag values represent
+progressively older exposure conditions.
+
+Positive and negative values describe the direction of the combined
+lag-specific contribution. The weighted and unweighted curves may differ
+when the selected models receive substantially different
+performance-based weights.
+
+### Visualizing relative lag contributions
+
+The percentage contribution provides a complementary interpretation
+based on the absolute contribution magnitude:
+
+``` r
+
+lag_ensemble_percent_plot <- ggplot(
+  ensemble_by_lag,
+  aes(
+    x = lag,
+    y = ECI_percent_ens,
+    color = method
+  )
+) +
+  geom_line(
+    linewidth = 1
+  ) +
+  facet_wrap(
+    vars(var),
+    ncol = 1,
+    scales = "free_y",
+    labeller = as_labeller(
+      c(
+        tmean = "Mean temperature",
+        rain = "Rainfall",
+        wetness = "Leaf wetness"
+      )
+    )
+  ) +
+  scale_x_reverse(
+    breaks = seq(
+      0,
+      85,
+      by = 15
+    )
+  ) +
+  scale_color_manual(
+    values = c(
+      unweighted = "#4C72B0",
+      weighted = "#C44E52"
+    ),
+    labels = c(
+      unweighted = "Unweighted",
+      weighted = "Weighted"
+    )
+  ) +
+  theme_bw() +
+  labs(
+    x = "Retrospective lag",
+    y = "Absolute lag contribution (%)",
+    color = "Ensemble method"
+  ) +
+  theme(
+    text = element_text(
+      size = 10,
+      face = "bold"
+    ),
+    strip.background = element_rect(
+      fill = "white",
+      color = "black"
+    ),
+    strip.text = element_text(
+      face = "bold"
+    ),
+    legend.position = "top"
+  )
+```
+
+``` r
+
+lag_ensemble_percent_plot
+```
+
+![](selection-ensemble_files/figure-html/unnamed-chunk-43-1.png)
+
+`ECI_percent_ens` is calculated from the absolute lag contributions
+within each exposure and ensemble method. Consequently, the percentages
+describe where the ensemble contribution is concentrated across lags,
+but they do not preserve the positive or negative direction of that
+contribution.
+
+The signed and percentage plots should therefore be interpreted
+together:
+
+- `ECI_weighted_ens` describes the direction and magnitude of the
+  combined contribution;
+- `ECI_percent_ens` describes the relative concentration of absolute
+  contribution across lags.
+
+### Using strict exposure availability
+
+The previous example used:
+
+``` r
+
+lg_strategy = "requested_available"
+```
+
+which allows different selected models to contribute to different
+exposures when their fitted variable sets differ.
+
+For a stricter comparison, the user can require every selected model to
+contain all requested exposures:
+
+``` r
+
+lag_ensemble_strict <- ensemble_bestfit(
+  bestfit = best_models,
+  data = epi_data1,
+  group = "epi_id",
+  var = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  ensemble_scope = "lag",
+  method = c(
+    "unweighted",
+    "weighted"
+  ),
+  top_n = 3,
+  weight_transform = "softmax",
+  lag_group_cols = c(
+    "epi_id",
+    "var",
+    "lag"
+  ),
+  lg_strategy = "strict",
+  rl_weights = TRUE,
+  compute_ecilag_args = list(
+    uncertainty = FALSE
+  )
+)
+```
+
+This strict mode stops when a selected model does not contain one of the
+requested exposures or when a lag unit is not available from every
+selected model. It is useful when the analyst wants the same model set
+to support every exposure-specific lag ensemble.
+
+**Lag-ensemble uncertainty is not generated in EpiExposure v1.** The
+selected models are fitted separately, and independently sampled
+coefficient or posterior draws do not define a valid joint draw
+distribution across models. For this reason,
+[`ensemble_bestfit()`](https://tomazrg.github.io/EpiExposure/reference/ensemble_bestfit.md)
+combines deterministic lag-specific ECI decompositions and does not pair
+arbitrary draw indices across fitted models.
+
+Lag ensembles should be interpreted as model-performance-weighted
+summaries of lag-specific ECI contributions. They do not replace
+external validation, do not represent raw DLNM coefficients, and should
+not be interpreted as causal attribution across lags.
 
 ### Avoiding optimistic ensemble evaluation
 

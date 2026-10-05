@@ -196,10 +196,6 @@ than their system can support.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/plot_performance.html">plot_performance</a></span><span class="op">(</span></span>
 <span>  object <span class="op">=</span> <span class="va">best_models</span>,</span>
-<span> <span class="co"># model_id = c(</span></span>
-<span>  <span class="co">#  63, 42, 56, 35, 49, 28, 40, 61,</span></span>
-<span>    <span class="co">#19, 47, 33, 54, 26, 12, 5</span></span>
-<span><span class="co">#  ),</span></span>
 <span>  model_id <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">5</span>,<span class="fl">12</span>,<span class="fl">19</span>,<span class="fl">26</span>,<span class="fl">28</span>,<span class="fl">33</span>,<span class="fl">35</span>,<span class="fl">40</span>,<span class="fl">42</span>,<span class="fl">47</span>,<span class="fl">49</span>,<span class="fl">54</span>,<span class="fl">56</span>,<span class="fl">61</span>,<span class="fl">63</span><span class="op">)</span>,</span>
 <span>  metrics <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"CCC"</span><span class="op">)</span>,</span>
 <span>  x <span class="op">=</span> <span class="st">"observed"</span>,</span>
@@ -217,24 +213,370 @@ than their system can support.</p>
 <span>    <span class="op">)</span></span>
 <span>  <span class="op">)</span></span></code></pre></div>
 <p><img src="find_bestfit2.png"> Inspect results</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">best_models</span><span class="op">)</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 6 × 28</span></span></span>
-<span><span class="co">#&gt;    rank model_id df_var df_lag vars       n_vars   CCC    Cb   rho   RMSE    MAE</span></span>
-<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span>     1       63      4      4 tmean + r…      3 0.980 1.000 0.980 0.052<span style="text-decoration: underline;">9</span> 0.038<span style="text-decoration: underline;">2</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span>     2       42      3      4 tmean + r…      3 0.978 1.000 0.979 0.055<span style="text-decoration: underline;">0</span> 0.039<span style="text-decoration: underline;">5</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span>     3       56      4      3 tmean + r…      3 0.970 0.999 0.971 0.064<span style="text-decoration: underline;">2</span> 0.047<span style="text-decoration: underline;">5</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">4</span>     4       35      3      3 tmean + r…      3 0.969 0.999 0.969 0.065<span style="text-decoration: underline;">6</span> 0.048<span style="text-decoration: underline;">3</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">5</span>     5       49      4      2 tmean + r…      3 0.952 0.998 0.954 0.080<span style="text-decoration: underline;">3</span> 0.057<span style="text-decoration: underline;">7</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">6</span>     6       28      3      2 tmean + r…      3 0.949 0.998 0.951 0.082<span style="text-decoration: underline;">5</span> 0.058<span style="text-decoration: underline;">9</span></span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># ℹ 17 more variables: n_folds &lt;dbl&gt;, n_success_folds &lt;dbl&gt;,</span></span></span>
-<span><span class="co">#&gt; <span style="color: #949494;">#   n_failed_folds &lt;dbl&gt;, n_predictions &lt;dbl&gt;, n_success &lt;dbl&gt;, n_failed &lt;dbl&gt;,</span></span></span>
-<span><span class="co">#&gt; <span style="color: #949494;">#   n_warning_folds &lt;dbl&gt;, warning_rate &lt;dbl&gt;, n_warning_events &lt;dbl&gt;,</span></span></span>
-<span><span class="co">#&gt; <span style="color: #949494;">#   n_knot_warning_folds &lt;dbl&gt;, n_convergence_warning_folds &lt;dbl&gt;,</span></span></span>
-<span><span class="co">#&gt; <span style="color: #949494;">#   n_hessian_warning_folds &lt;dbl&gt;, n_other_warning_folds &lt;dbl&gt;,</span></span></span>
-<span><span class="co">#&gt; <span style="color: #949494;">#   n_knot_warning_events &lt;dbl&gt;, n_convergence_warning_events &lt;dbl&gt;,</span></span></span>
-<span><span class="co">#&gt; <span style="color: #949494;">#   n_hessian_warning_events &lt;dbl&gt;, n_other_warning_events &lt;dbl&gt;</span></span></span></code></pre></div>
+<table class="table">
+<colgroup>
+<col width="1%">
+<col width="2%">
+<col width="1%">
+<col width="1%">
+<col width="5%">
+<col width="1%">
+<col width="1%">
+<col width="1%">
+<col width="1%">
+<col width="1%">
+<col width="1%">
+<col width="2%">
+<col width="3%">
+<col width="3%">
+<col width="3%">
+<col width="2%">
+<col width="2%">
+<col width="3%">
+<col width="3%">
+<col width="4%">
+<col width="5%">
+<col width="6%">
+<col width="5%">
+<col width="5%">
+<col width="5%">
+<col width="6%">
+<col width="6%">
+<col width="5%">
+</colgroup>
+<thead><tr class="header">
+<th align="center">rank</th>
+<th align="center">model_id</th>
+<th align="center">df_var</th>
+<th align="center">df_lag</th>
+<th align="center">vars</th>
+<th align="center">n_vars</th>
+<th align="center">CCC</th>
+<th align="center">Cb</th>
+<th align="center">rho</th>
+<th align="center">RMSE</th>
+<th align="center">MAE</th>
+<th align="center">n_folds</th>
+<th align="center">n_success_folds</th>
+<th align="center">n_failed_folds</th>
+<th align="center">n_predictions</th>
+<th align="center">n_success</th>
+<th align="center">n_failed</th>
+<th align="center">n_warning_folds</th>
+<th align="center">warning_rate</th>
+<th align="center">n_warning_events</th>
+<th align="center">n_knot_warning_folds</th>
+<th align="center">n_convergence_warning_folds</th>
+<th align="center">n_hessian_warning_folds</th>
+<th align="center">n_other_warning_folds</th>
+<th align="center">n_knot_warning_events</th>
+<th align="center">n_convergence_warning_events</th>
+<th align="center">n_hessian_warning_events</th>
+<th align="center">n_other_warning_events</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="center">1</td>
+<td align="center">63</td>
+<td align="center">4</td>
+<td align="center">4</td>
+<td align="center">tmean + rain + wetness</td>
+<td align="center">3</td>
+<td align="center">0.9800</td>
+<td align="center">0.9997</td>
+<td align="center">0.9802</td>
+<td align="center">0.0529</td>
+<td align="center">0.0382</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">1</td>
+<td align="center">1010</td>
+<td align="center">520</td>
+<td align="center">490</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">490</td>
+<td align="center">0</td>
+<td align="center">0</td>
+</tr>
+<tr class="even">
+<td align="center">2</td>
+<td align="center">42</td>
+<td align="center">3</td>
+<td align="center">4</td>
+<td align="center">tmean + rain + wetness</td>
+<td align="center">3</td>
+<td align="center">0.9783</td>
+<td align="center">0.9996</td>
+<td align="center">0.9786</td>
+<td align="center">0.0550</td>
+<td align="center">0.0395</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">1</td>
+<td align="center">523</td>
+<td align="center">520</td>
+<td align="center">3</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">3</td>
+<td align="center">0</td>
+<td align="center">0</td>
+</tr>
+<tr class="odd">
+<td align="center">3</td>
+<td align="center">56</td>
+<td align="center">4</td>
+<td align="center">3</td>
+<td align="center">tmean + rain + wetness</td>
+<td align="center">3</td>
+<td align="center">0.9702</td>
+<td align="center">0.9994</td>
+<td align="center">0.9708</td>
+<td align="center">0.0642</td>
+<td align="center">0.0475</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">1</td>
+<td align="center">530</td>
+<td align="center">520</td>
+<td align="center">10</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">10</td>
+<td align="center">0</td>
+<td align="center">0</td>
+</tr>
+<tr class="even">
+<td align="center">4</td>
+<td align="center">35</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">tmean + rain + wetness</td>
+<td align="center">3</td>
+<td align="center">0.9688</td>
+<td align="center">0.9993</td>
+<td align="center">0.9695</td>
+<td align="center">0.0656</td>
+<td align="center">0.0483</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">1</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+</tr>
+<tr class="odd">
+<td align="center">5</td>
+<td align="center">49</td>
+<td align="center">4</td>
+<td align="center">2</td>
+<td align="center">tmean + rain + wetness</td>
+<td align="center">3</td>
+<td align="center">0.9523</td>
+<td align="center">0.9982</td>
+<td align="center">0.9540</td>
+<td align="center">0.0803</td>
+<td align="center">0.0577</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">1</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+</tr>
+<tr class="even">
+<td align="center">6</td>
+<td align="center">28</td>
+<td align="center">3</td>
+<td align="center">2</td>
+<td align="center">tmean + rain + wetness</td>
+<td align="center">3</td>
+<td align="center">0.9493</td>
+<td align="center">0.9979</td>
+<td align="center">0.9513</td>
+<td align="center">0.0825</td>
+<td align="center">0.0589</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">1</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+</tr>
+<tr class="odd">
+<td align="center">7</td>
+<td align="center">40</td>
+<td align="center">3</td>
+<td align="center">4</td>
+<td align="center">tmean + wetness</td>
+<td align="center">2</td>
+<td align="center">0.8590</td>
+<td align="center">0.9863</td>
+<td align="center">0.8710</td>
+<td align="center">0.1316</td>
+<td align="center">0.0988</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+</tr>
+<tr class="even">
+<td align="center">8</td>
+<td align="center">61</td>
+<td align="center">4</td>
+<td align="center">4</td>
+<td align="center">tmean + wetness</td>
+<td align="center">2</td>
+<td align="center">0.8575</td>
+<td align="center">0.9869</td>
+<td align="center">0.8689</td>
+<td align="center">0.1325</td>
+<td align="center">0.0998</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+</tr>
+<tr class="odd">
+<td align="center">9</td>
+<td align="center">19</td>
+<td align="center">2</td>
+<td align="center">4</td>
+<td align="center">tmean + wetness</td>
+<td align="center">2</td>
+<td align="center">0.8511</td>
+<td align="center">0.9834</td>
+<td align="center">0.8655</td>
+<td align="center">0.1343</td>
+<td align="center">0.1016</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+</tr>
+<tr class="even">
+<td align="center">10</td>
+<td align="center">47</td>
+<td align="center">4</td>
+<td align="center">2</td>
+<td align="center">tmean + wetness</td>
+<td align="center">2</td>
+<td align="center">0.8482</td>
+<td align="center">0.9837</td>
+<td align="center">0.8623</td>
+<td align="center">0.1357</td>
+<td align="center">0.1035</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">0</td>
+</tr>
+</tbody>
+</table>
 <p>Depending on the selected validation settings, the resulting object
 can include:</p>
 <ul>
@@ -261,7 +603,7 @@ possible ranking criterion, not a universal rule. Candidate models
 should also be examined using error metrics, bias, convergence
 diagnostics, model complexity, and the scientific plausibility of the
 exposure-lag structure.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">best_models</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
 <span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/arrange.html" class="external-link">arrange</a></span><span class="op">(</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/desc.html" class="external-link">desc</a></span><span class="op">(</span><span class="va">CCC</span><span class="op">)</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
 <span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/select.html" class="external-link">select</a></span><span class="op">(</span></span>
@@ -290,7 +632,7 @@ exposure-lag structure.</p>
 <div class="section level2">
 <h2 id="visualizing-model-performance">Visualizing model performance<a class="anchor" aria-label="anchor" href="#visualizing-model-performance"></a>
 </h2>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">best_models</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
 <span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span></span>
 <span>    splines <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span></span>
@@ -345,7 +687,7 @@ than RMSE.</p>
 <h2 id="inspecting-specific-models">Inspecting specific models<a class="anchor" aria-label="anchor" href="#inspecting-specific-models"></a>
 </h2>
 <p>Suppose the best model is:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">top_model</span> <span class="op">&lt;-</span> <span class="va">best_models</span> <span class="op">|&gt;</span></span>
 <span>  <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/arrange.html" class="external-link">arrange</a></span><span class="op">(</span></span>
 <span>    <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/desc.html" class="external-link">desc</a></span><span class="op">(</span></span>
@@ -371,7 +713,7 @@ and predictive robustness.</p>
 <p>The identifiers below are illustrative. Replace them with model
 identifiers selected from the user’s own <code>best_models</code>
 object.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">candidate_models</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="fl">63</span>,</span>
 <span>  <span class="fl">23</span>,</span>
@@ -385,7 +727,7 @@ ensemble.</p>
 <div class="section level2">
 <h2 id="unweighted-ensemble">Unweighted ensemble<a class="anchor" aria-label="anchor" href="#unweighted-ensemble"></a>
 </h2>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ens_unweighted</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ensemble_bestfit.html">ensemble_bestfit</a></span><span class="op">(</span></span>
 <span>  bestfit <span class="op">=</span> <span class="va">best_models</span>,</span>
 <span></span>
@@ -399,26 +741,82 @@ ensemble.</p>
 </h3>
 <p>The ensemble summary can be extracted from the fitted ensemble
 object:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ens_unweighted</span><span class="op">$</span><span class="va">ensemble_summary</span></span></code></pre></div>
-<p>The table below shows a precomputed example of the ensemble summary
-output.</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">ens_unweighted</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 1 × 20</span></span></span>
-<span><span class="co">#&gt;   method     n_models n_oof family outcome_type cv_method cv_scheme            k</span></span>
-<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> unweighted        3   520 beta   non_binary   LOOCV     leave_one_group…   520</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># ℹ 12 more variables: weight_metric &lt;chr&gt;, metric_direction &lt;chr&gt;,</span></span></span>
-<span><span class="co">#&gt; <span style="color: #949494;">#   threshold &lt;lgl&gt;, stacking_model &lt;lgl&gt;, stack_objective &lt;lgl&gt;,</span></span></span>
-<span><span class="co">#&gt; <span style="color: #949494;">#   stack_intercept &lt;lgl&gt;, weight_transform &lt;lgl&gt;, CCC &lt;dbl&gt;, Cb &lt;dbl&gt;,</span></span></span>
-<span><span class="co">#&gt; <span style="color: #949494;">#   rho &lt;dbl&gt;, RMSE &lt;dbl&gt;, MAE &lt;dbl&gt;</span></span></span></code></pre></div>
+<table style="width:100%;" class="table">
+<colgroup>
+<col width="5%">
+<col width="4%">
+<col width="2%">
+<col width="3%">
+<col width="5%">
+<col width="4%">
+<col width="8%">
+<col width="2%">
+<col width="6%">
+<col width="7%">
+<col width="4%">
+<col width="6%">
+<col width="7%">
+<col width="7%">
+<col width="7%">
+<col width="3%">
+<col width="2%">
+<col width="3%">
+<col width="3%">
+<col width="3%">
+</colgroup>
+<thead><tr class="header">
+<th align="center">method</th>
+<th align="center">n_models</th>
+<th align="center">n_oof</th>
+<th align="center">family</th>
+<th align="center">outcome_type</th>
+<th align="center">cv_method</th>
+<th align="center">cv_scheme</th>
+<th align="center">k</th>
+<th align="center">weight_metric</th>
+<th align="center">metric_direction</th>
+<th align="center">threshold</th>
+<th align="center">stacking_model</th>
+<th align="center">stack_objective</th>
+<th align="center">stack_intercept</th>
+<th align="center">weight_transform</th>
+<th align="center">CCC</th>
+<th align="center">Cb</th>
+<th align="center">rho</th>
+<th align="center">RMSE</th>
+<th align="center">MAE</th>
+</tr></thead>
+<tbody><tr class="odd">
+<td align="center">unweighted</td>
+<td align="center">3</td>
+<td align="center">520</td>
+<td align="center">beta</td>
+<td align="center">non_binary</td>
+<td align="center">LOOCV</td>
+<td align="center">leave_one_group_out</td>
+<td align="center">520</td>
+<td align="center">CCC</td>
+<td align="center">maximize</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">0.6455</td>
+<td align="center">0.739</td>
+<td align="center">0.8735</td>
+<td align="center">0.1741</td>
+<td align="center">0.1476</td>
+</tr></tbody>
+</table>
 </div>
 </div>
 <div class="section level2">
 <h2 id="weighted-ensemble">Weighted ensemble<a class="anchor" aria-label="anchor" href="#weighted-ensemble"></a>
 </h2>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ens_weighted</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ensemble_bestfit.html">ensemble_bestfit</a></span><span class="op">(</span></span>
 <span>  bestfit <span class="op">=</span> <span class="va">best_models</span>,</span>
 <span></span>
@@ -437,26 +835,82 @@ output.</p>
 </h3>
 <p>The ensemble summary can be extracted from the fitted ensemble
 object:</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ens_weighted</span><span class="op">$</span><span class="va">ensemble_summary</span></span></code></pre></div>
-<p>The table below shows a precomputed example of the ensemble summary
-output.</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">ens_weighted</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 1 × 20</span></span></span>
-<span><span class="co">#&gt;   method   n_models n_oof family outcome_type cv_method cv_scheme              k</span></span>
-<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>       <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> weighted        3   520 beta   non_binary   LOOCV     leave_one_group_o…   520</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># ℹ 12 more variables: weight_metric &lt;chr&gt;, metric_direction &lt;chr&gt;,</span></span></span>
-<span><span class="co">#&gt; <span style="color: #949494;">#   threshold &lt;lgl&gt;, stacking_model &lt;lgl&gt;, stack_objective &lt;lgl&gt;,</span></span></span>
-<span><span class="co">#&gt; <span style="color: #949494;">#   stack_intercept &lt;lgl&gt;, weight_transform &lt;chr&gt;, CCC &lt;dbl&gt;, Cb &lt;dbl&gt;,</span></span></span>
-<span><span class="co">#&gt; <span style="color: #949494;">#   rho &lt;dbl&gt;, RMSE &lt;dbl&gt;, MAE &lt;dbl&gt;</span></span></span></code></pre></div>
+<table class="table">
+<colgroup>
+<col width="4%">
+<col width="4%">
+<col width="2%">
+<col width="3%">
+<col width="5%">
+<col width="4%">
+<col width="8%">
+<col width="2%">
+<col width="6%">
+<col width="7%">
+<col width="4%">
+<col width="6%">
+<col width="7%">
+<col width="7%">
+<col width="7%">
+<col width="3%">
+<col width="3%">
+<col width="3%">
+<col width="2%">
+<col width="3%">
+</colgroup>
+<thead><tr class="header">
+<th align="center">method</th>
+<th align="center">n_models</th>
+<th align="center">n_oof</th>
+<th align="center">family</th>
+<th align="center">outcome_type</th>
+<th align="center">cv_method</th>
+<th align="center">cv_scheme</th>
+<th align="center">k</th>
+<th align="center">weight_metric</th>
+<th align="center">metric_direction</th>
+<th align="center">threshold</th>
+<th align="center">stacking_model</th>
+<th align="center">stack_objective</th>
+<th align="center">stack_intercept</th>
+<th align="center">weight_transform</th>
+<th align="center">CCC</th>
+<th align="center">Cb</th>
+<th align="center">rho</th>
+<th align="center">RMSE</th>
+<th align="center">MAE</th>
+</tr></thead>
+<tbody><tr class="odd">
+<td align="center">weighted</td>
+<td align="center">3</td>
+<td align="center">520</td>
+<td align="center">beta</td>
+<td align="center">non_binary</td>
+<td align="center">LOOCV</td>
+<td align="center">leave_one_group_out</td>
+<td align="center">520</td>
+<td align="center">CCC</td>
+<td align="center">maximize</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">rank_inverse</td>
+<td align="center">0.8386</td>
+<td align="center">0.8788</td>
+<td align="center">0.9542</td>
+<td align="center">0.125</td>
+<td align="center">0.1053</td>
+</tr></tbody>
+</table>
 </div>
 </div>
 <div class="section level2">
 <h2 id="stacked-ensemble">Stacked ensemble<a class="anchor" aria-label="anchor" href="#stacked-ensemble"></a>
 </h2>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ens_stacked</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ensemble_bestfit.html">ensemble_bestfit</a></span><span class="op">(</span></span>
 <span>  bestfit <span class="op">=</span> <span class="va">best_models</span>,</span>
 <span></span>
@@ -475,26 +929,82 @@ output.</p>
 </h3>
 <p>The ensemble summary can be extracted from the fitted ensemble
 object:</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ens_stacked</span><span class="op">$</span><span class="va">ensemble_summary</span></span></code></pre></div>
-<p>The table below shows a precomputed example of the ensemble summary
-output.</p>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">ens_stacked</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 1 × 20</span></span></span>
-<span><span class="co">#&gt;   method  n_models n_oof family outcome_type cv_method cv_scheme               k</span></span>
-<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>      <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>  <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>               <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> stacked        3   520 beta   non_binary   LOOCV     leave_one_group_out   520</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># ℹ 12 more variables: weight_metric &lt;chr&gt;, metric_direction &lt;chr&gt;,</span></span></span>
-<span><span class="co">#&gt; <span style="color: #949494;">#   threshold &lt;lgl&gt;, stacking_model &lt;chr&gt;, stack_objective &lt;chr&gt;,</span></span></span>
-<span><span class="co">#&gt; <span style="color: #949494;">#   stack_intercept &lt;dbl&gt;, weight_transform &lt;lgl&gt;, CCC &lt;dbl&gt;, Cb &lt;dbl&gt;,</span></span></span>
-<span><span class="co">#&gt; <span style="color: #949494;">#   rho &lt;dbl&gt;, RMSE &lt;dbl&gt;, MAE &lt;dbl&gt;</span></span></span></code></pre></div>
+<table class="table">
+<colgroup>
+<col width="3%">
+<col width="4%">
+<col width="2%">
+<col width="3%">
+<col width="5%">
+<col width="4%">
+<col width="8%">
+<col width="2%">
+<col width="6%">
+<col width="7%">
+<col width="4%">
+<col width="6%">
+<col width="7%">
+<col width="7%">
+<col width="7%">
+<col width="3%">
+<col width="3%">
+<col width="2%">
+<col width="3%">
+<col width="3%">
+</colgroup>
+<thead><tr class="header">
+<th align="center">method</th>
+<th align="center">n_models</th>
+<th align="center">n_oof</th>
+<th align="center">family</th>
+<th align="center">outcome_type</th>
+<th align="center">cv_method</th>
+<th align="center">cv_scheme</th>
+<th align="center">k</th>
+<th align="center">weight_metric</th>
+<th align="center">metric_direction</th>
+<th align="center">threshold</th>
+<th align="center">stacking_model</th>
+<th align="center">stack_objective</th>
+<th align="center">stack_intercept</th>
+<th align="center">weight_transform</th>
+<th align="center">CCC</th>
+<th align="center">Cb</th>
+<th align="center">rho</th>
+<th align="center">RMSE</th>
+<th align="center">MAE</th>
+</tr></thead>
+<tbody><tr class="odd">
+<td align="center">stacked</td>
+<td align="center">3</td>
+<td align="center">520</td>
+<td align="center">beta</td>
+<td align="center">non_binary</td>
+<td align="center">LOOCV</td>
+<td align="center">leave_one_group_out</td>
+<td align="center">520</td>
+<td align="center">CCC</td>
+<td align="center">maximize</td>
+<td align="center">NA</td>
+<td align="center">ridge</td>
+<td align="center">regularized</td>
+<td align="center">-0.004</td>
+<td align="center">NA</td>
+<td align="center">0.9798</td>
+<td align="center">0.9998</td>
+<td align="center">0.98</td>
+<td align="center">0.0532</td>
+<td align="center">0.0385</td>
+</tr></tbody>
+</table>
 </div>
 </div>
 <div class="section level2">
 <h2 id="comparing-ensemble-strategies">Comparing ensemble strategies<a class="anchor" aria-label="anchor" href="#comparing-ensemble-strategies"></a>
 </h2>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ensemble_metrics</span> <span class="op">&lt;-</span> <span class="fu">dplyr</span><span class="fu">::</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/bind_rows.html" class="external-link">bind_rows</a></span><span class="op">(</span></span>
 <span>  Unweighted <span class="op">=</span> <span class="va">ens_unweighted</span><span class="op">$</span><span class="va">ensemble_summary</span>,</span>
 <span>  Weighted <span class="op">=</span> <span class="va">ens_weighted</span><span class="op">$</span><span class="va">ensemble_summary</span>,</span>
@@ -507,7 +1017,7 @@ output.</p>
 <span>    <span class="va">RMSE</span>,</span>
 <span>    <span class="va">MAE</span></span>
 <span>  <span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ensemble_metrics</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 3 × 4</span></span></span>
 <span><span class="co">#&gt;   method       CCC   RMSE    MAE</span></span>
@@ -519,14 +1029,14 @@ output.</p>
 <div class="section level2">
 <h2 id="visualizing-ensemble-predictions">Visualizing ensemble predictions<a class="anchor" aria-label="anchor" href="#visualizing-ensemble-predictions"></a>
 </h2>
-<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="va">ens_unweighted</span><span class="op">$</span><span class="va">ensemble_predictions</span><span class="op">$</span><span class="va">method</span> <span class="op">=</span> <span class="st">"unweighted"</span></span>
 <span><span class="va">ens_weighted</span><span class="op">$</span><span class="va">ensemble_predictions</span><span class="op">$</span><span class="va">method</span> <span class="op">=</span> <span class="st">"weighted"</span></span>
 <span><span class="va">ens_stacked</span><span class="op">$</span><span class="va">ensemble_predictions</span><span class="op">$</span><span class="va">method</span> <span class="op">=</span> <span class="st">"stacked"</span></span>
 <span></span>
 <span><span class="va">ensemble_all</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span><span class="va">ens_unweighted</span><span class="op">$</span><span class="va">ensemble_predictions</span>,<span class="va">ens_weighted</span><span class="op">$</span><span class="va">ensemble_predictions</span>, <span class="va">ens_stacked</span><span class="op">$</span><span class="va">ensemble_predictions</span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ensemble_all</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 1,560 × 8</span></span></span>
 <span><span class="co">#&gt;    group  fold method     observed predicted_ensemble model_63 model_23 model_44</span></span>
@@ -542,7 +1052,7 @@ output.</p>
 <span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span> 9         9 unweighted   0.025<span style="text-decoration: underline;">0</span>              0.189   0.022<span style="text-decoration: underline;">8</span>    0.271    0.272</span></span>
 <span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span> 10       10 unweighted   0.891               0.546   0.903     0.373    0.362</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># ℹ 1,550 more rows</span></span></span></code></pre></div>
-<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="va">ensemble_metrics</span><span class="op">$</span><span class="va">method</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"unweighted"</span>,<span class="st">"weighted"</span>,<span class="st">"stacked"</span><span class="op">)</span></span>
 <span></span>
@@ -638,7 +1148,7 @@ output.</p>
 <span> </span>
 <span> <span class="va">ensemble_gg</span></span></code></pre></div>
 <p><img src="selection-ensemble_files/figure-html/unnamed-chunk-31-1.png" class="r-plt" alt="" width="700" style="display: block; margin: auto;"></p>
-<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">best_models_plot</span> <span class="op">&lt;-</span> <span class="va">best_models</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
 <span>   <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span></span>
 <span>    splines <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="va">df_lag</span>, <span class="va">df_var</span>, sep <span class="op">=</span> <span class="st">" x "</span><span class="op">)</span></span>
@@ -695,7 +1205,7 @@ output.</p>
 <span>      face <span class="op">=</span> <span class="st">"bold"</span></span>
 <span>    <span class="op">)</span></span>
 <span>  <span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">final_plot</span> <span class="op">&lt;-</span> <span class="va">ensemble_gg</span> <span class="op">+</span> <span class="va">best_plot</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://patchwork.data-imaginist.com/reference/plot_layout.html" class="external-link">plot_layout</a></span><span class="op">(</span>ncol <span class="op">=</span> <span class="fl">2</span><span class="op">)</span> <span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://patchwork.data-imaginist.com/reference/plot_annotation.html" class="external-link">plot_annotation</a></span><span class="op">(</span></span>
@@ -715,7 +1225,7 @@ output.</p>
 <p><img src="selection-ensemble_files/figure-html/unnamed-chunk-33-1.png" class="r-plt" alt="" width="700" style="display: block; margin: auto;"></p>
 </div>
 <div class="section level2">
-<h2 id="choosing-an-ensemble-strategy">Choosing an ensemble strategy<a class="anchor" aria-label="anchor" href="#choosing-an-ensemble-strategy"></a>
+<h2 id="choosing-a-model-level-ensemble-strategy">Choosing a model-level ensemble strategy<a class="anchor" aria-label="anchor" href="#choosing-a-model-level-ensemble-strategy"></a>
 </h2>
 <p>Each ensemble method has advantages.</p>
 <p><strong>Unweighted ensemble</strong></p>
@@ -758,6 +1268,809 @@ evaluation.</p>
 <li>alternative ensemble strategies;</li>
 <li>results on validation data not reused for weight estimation.</li>
 </ul>
+<p>The previous sections focused on model-level ensembles, which combine
+out-of-fold predictions and evaluate their predictive performance.</p>
+<p><code>EpiExposure</code> can also construct lag-contribution
+ensembles. Instead of combining predicted outcomes, these ensembles
+combine the lag-specific ECI decompositions obtained from selected
+full-data model refits.</p>
+</div>
+<div class="section level2">
+<h2 id="lag-contribution-ensembles">Lag-contribution ensembles<a class="anchor" aria-label="anchor" href="#lag-contribution-ensembles"></a>
+</h2>
+<div class="section level3">
+<h3 id="why-construct-a-lag-ensemble">Why construct a lag ensemble?<a class="anchor" aria-label="anchor" href="#why-construct-a-lag-ensemble"></a>
+</h3>
+<p>Model-level ensembles combine predictions from multiple candidate
+models. However, models may also differ in how they distribute the
+contribution of an exposure across the fitted lag interval.</p>
+<p>A lag ensemble combines the lag-specific epidemiological contribution
+indices obtained from the selected models. For lag
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>l</mi><annotation encoding="application/x-tex">l</annotation></semantics></math>,
+the ensemble contribution is defined as:</p>
+<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>E</mi><mi>C</mi><msub><mi>I</mi><mrow><mrow><mi mathvariant="normal">e</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">m</mi><mi mathvariant="normal">b</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">e</mi></mrow><mo>,</mo><mi>l</mi></mrow></msub><mo>=</mo><munder><mo>∑</mo><mi>m</mi></munder><msub><mi>α</mi><mi>m</mi></msub><mi>E</mi><mi>C</mi><msub><mi>I</mi><mrow><mi>m</mi><mo>,</mo><mi>l</mi></mrow></msub><mo>,</mo></mrow><annotation encoding="application/x-tex">
+ECI_{\mathrm{ensemble},l}
+=
+\sum_m \alpha_m ECI_{m,l},
+</annotation></semantics></math></p>
+<p>where
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>E</mi><mi>C</mi><msub><mi>I</mi><mrow><mi>m</mi><mo>,</mo><mi>l</mi></mrow></msub></mrow><annotation encoding="application/x-tex">ECI_{m,l}</annotation></semantics></math>
+is the lag-specific weighted ECI from model
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>m</mi><annotation encoding="application/x-tex">m</annotation></semantics></math>,
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>α</mi><mi>m</mi></msub><annotation encoding="application/x-tex">\alpha_m</annotation></semantics></math>
+is the model weight derived from out-of-fold model performance.</p>
+<p>The model weights therefore come from cross-validation, whereas the
+lag-specific ECI values are calculated from the selected models refitted
+to the complete dataset.</p>
+<div class="tutorial-note">
+<p><strong>Lag ensembles require retained full-data fits or precomputed
+lag data.</strong> For automatic lag decomposition,
+<code>best_models</code> must be the complete object returned by
+<code><a href="../reference/find_bestfit.html">find_bestfit()</a></code> and must contain the retained fitted models
+in <code>attr(best_models, "fits")</code>. An Excel or CSV export of the
+ranking table does not preserve the attributes, fitted models, or basis
+metadata required for this calculation.</p>
+</div>
+<p>The fitted models are not used to recalculate the cross-validation
+metrics. The model ranking and ensemble weights remain based on the
+out-of-fold predictions produced by <code><a href="../reference/find_bestfit.html">find_bestfit()</a></code>. The
+retained full-data fits are used only to obtain the final lag-specific
+decompositions for the selected models.</p>
+</div>
+<div class="section level3">
+<h3 id="constructing-unweighted-and-weighted-lag-ensembles">Constructing unweighted and weighted lag ensembles<a class="anchor" aria-label="anchor" href="#constructing-unweighted-and-weighted-lag-ensembles"></a>
+</h3>
+<p>The following example selects the three highest-ranked models and
+constructs two lag ensembles:</p>
+<ul>
+<li>
+<code>"unweighted"</code> gives equal weight to each selected
+model;</li>
+<li>
+<code>"weighted"</code> derives model weights from the selected
+performance metric.</li>
+</ul>
+<p>To keep the example computationally efficient, the lag ensemble is
+demonstrated using one complete epidemic history. Users may instead
+supply all available epidemic histories, provided that each history
+contains the complete <code>max_lag + 1</code> observations required by
+the fitted models. The computational cost will increase with the number
+of epidemics, exposures, selected models, and lags. The results shown
+here are therefore specific to Epidemic 1.</p>
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">epi_data1</span> <span class="op">=</span> <span class="va">epi_data</span> <span class="op">|&gt;</span> </span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="va">epi_id</span> <span class="op">==</span> <span class="fl">1</span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">lag_ensemble</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ensemble_bestfit.html">ensemble_bestfit</a></span><span class="op">(</span></span>
+<span>  bestfit <span class="op">=</span> <span class="va">best_models</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">epi_data1</span>,</span>
+<span>  group <span class="op">=</span> <span class="st">"epi_id"</span>,</span>
+<span>  var <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"tmean"</span>,</span>
+<span>    <span class="st">"rain"</span>,</span>
+<span>    <span class="st">"wetness"</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  ensemble_scope <span class="op">=</span> <span class="st">"lag"</span>,</span>
+<span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"unweighted"</span>,</span>
+<span>    <span class="st">"weighted"</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  top_n <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>  weight_metric <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  weight_transform <span class="op">=</span> <span class="st">"softmax"</span>,</span>
+<span>  lag_group_cols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"epi_id"</span>,</span>
+<span>    <span class="st">"var"</span>,</span>
+<span>    <span class="st">"lag"</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  lg_strategy <span class="op">=</span> <span class="st">"requested_available"</span>,</span>
+<span>  rl_weights <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  compute_ecilag_args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    uncertainty <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>When <code>weight_metric = NULL</code>,
+<code><a href="../reference/ensemble_bestfit.html">ensemble_bestfit()</a></code> uses the ranking metric stored by
+<code><a href="../reference/find_bestfit.html">find_bestfit()</a></code>. The direction of that metric is handled
+automatically: metrics such as CCC are maximized, whereas metrics such
+as RMSE are minimized.</p>
+<p>The argument:</p>
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">lg_strategy</span> <span class="op">=</span> <span class="st">"requested_available"</span></span></code></pre></div>
+<p>uses each requested exposure when that exposure is available in the
+selected model. Because candidate models may contain different
+combinations of exposures, not every model necessarily contributes to
+every exposure-specific lag ensemble.</p>
+<p>With:</p>
+<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">rl_weights</span> <span class="op">=</span> <span class="cn">TRUE</span></span></code></pre></div>
+<p>the model weights are renormalized among the models available for
+each exposure-lag unit. This ensures that the available model weights
+sum to one within each lag-specific ensemble calculation.</p>
+</div>
+<div class="section level3">
+<h3 id="inspecting-selected-models-and-weights">Inspecting selected models and weights<a class="anchor" aria-label="anchor" href="#inspecting-selected-models-and-weights"></a>
+</h3>
+<p>The selected candidate models can be inspected directly:</p>
+<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">lag_ensemble</span><span class="op">$</span><span class="va">selected_models</span></span></code></pre></div>
+<table class="table">
+<colgroup>
+<col width="1%">
+<col width="2%">
+<col width="1%">
+<col width="1%">
+<col width="5%">
+<col width="1%">
+<col width="1%">
+<col width="1%">
+<col width="1%">
+<col width="1%">
+<col width="1%">
+<col width="2%">
+<col width="3%">
+<col width="3%">
+<col width="3%">
+<col width="2%">
+<col width="2%">
+<col width="3%">
+<col width="3%">
+<col width="4%">
+<col width="5%">
+<col width="6%">
+<col width="5%">
+<col width="5%">
+<col width="5%">
+<col width="6%">
+<col width="6%">
+<col width="5%">
+</colgroup>
+<thead><tr class="header">
+<th align="center">rank</th>
+<th align="center">model_id</th>
+<th align="center">df_var</th>
+<th align="center">df_lag</th>
+<th align="center">vars</th>
+<th align="center">n_vars</th>
+<th align="center">CCC</th>
+<th align="center">Cb</th>
+<th align="center">rho</th>
+<th align="center">RMSE</th>
+<th align="center">MAE</th>
+<th align="center">n_folds</th>
+<th align="center">n_success_folds</th>
+<th align="center">n_failed_folds</th>
+<th align="center">n_predictions</th>
+<th align="center">n_success</th>
+<th align="center">n_failed</th>
+<th align="center">n_warning_folds</th>
+<th align="center">warning_rate</th>
+<th align="center">n_warning_events</th>
+<th align="center">n_knot_warning_folds</th>
+<th align="center">n_convergence_warning_folds</th>
+<th align="center">n_hessian_warning_folds</th>
+<th align="center">n_other_warning_folds</th>
+<th align="center">n_knot_warning_events</th>
+<th align="center">n_convergence_warning_events</th>
+<th align="center">n_hessian_warning_events</th>
+<th align="center">n_other_warning_events</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="center">1</td>
+<td align="center">63</td>
+<td align="center">4</td>
+<td align="center">4</td>
+<td align="center">tmean + rain + wetness</td>
+<td align="center">3</td>
+<td align="center">0.9800</td>
+<td align="center">0.9997</td>
+<td align="center">0.9802</td>
+<td align="center">0.0529</td>
+<td align="center">0.0382</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">1</td>
+<td align="center">1010</td>
+<td align="center">520</td>
+<td align="center">490</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">490</td>
+<td align="center">0</td>
+<td align="center">0</td>
+</tr>
+<tr class="even">
+<td align="center">2</td>
+<td align="center">42</td>
+<td align="center">3</td>
+<td align="center">4</td>
+<td align="center">tmean + rain + wetness</td>
+<td align="center">3</td>
+<td align="center">0.9783</td>
+<td align="center">0.9996</td>
+<td align="center">0.9786</td>
+<td align="center">0.0550</td>
+<td align="center">0.0395</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">1</td>
+<td align="center">523</td>
+<td align="center">520</td>
+<td align="center">3</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">3</td>
+<td align="center">0</td>
+<td align="center">0</td>
+</tr>
+<tr class="odd">
+<td align="center">3</td>
+<td align="center">56</td>
+<td align="center">4</td>
+<td align="center">3</td>
+<td align="center">tmean + rain + wetness</td>
+<td align="center">3</td>
+<td align="center">0.9702</td>
+<td align="center">0.9994</td>
+<td align="center">0.9708</td>
+<td align="center">0.0642</td>
+<td align="center">0.0475</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">520</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">1</td>
+<td align="center">530</td>
+<td align="center">520</td>
+<td align="center">10</td>
+<td align="center">0</td>
+<td align="center">0</td>
+<td align="center">520</td>
+<td align="center">10</td>
+<td align="center">0</td>
+<td align="center">0</td>
+</tr>
+</tbody>
+</table>
+<p>The model weights used by each ensemble method are stored
+separately:</p>
+<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">lag_ensemble</span><span class="op">$</span><span class="va">model_weights</span></span></code></pre></div>
+<table style="width:100%;" class="table">
+<colgroup>
+<col width="17%">
+<col width="14%">
+<col width="20%">
+<col width="28%">
+<col width="17%">
+</colgroup>
+<thead><tr class="header">
+<th align="center">method</th>
+<th align="center">model_id</th>
+<th align="center">metric_value</th>
+<th align="center">prediction_weight</th>
+<th align="center">lag_weight</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="center">unweighted</td>
+<td align="center">63</td>
+<td align="center">0.9800</td>
+<td align="center">NA</td>
+<td align="center">0.3333</td>
+</tr>
+<tr class="even">
+<td align="center">unweighted</td>
+<td align="center">42</td>
+<td align="center">0.9783</td>
+<td align="center">NA</td>
+<td align="center">0.3333</td>
+</tr>
+<tr class="odd">
+<td align="center">unweighted</td>
+<td align="center">56</td>
+<td align="center">0.9702</td>
+<td align="center">NA</td>
+<td align="center">0.3333</td>
+</tr>
+<tr class="even">
+<td align="center">weighted</td>
+<td align="center">63</td>
+<td align="center">0.9800</td>
+<td align="center">NA</td>
+<td align="center">0.3346</td>
+</tr>
+<tr class="odd">
+<td align="center">weighted</td>
+<td align="center">42</td>
+<td align="center">0.9783</td>
+<td align="center">NA</td>
+<td align="center">0.3340</td>
+</tr>
+<tr class="even">
+<td align="center">weighted</td>
+<td align="center">56</td>
+<td align="center">0.9702</td>
+<td align="center">NA</td>
+<td align="center">0.3314</td>
+</tr>
+</tbody>
+</table>
+<p>For the unweighted ensemble, the selected models receive equal lag
+weights. For the weighted ensemble, the weights are derived from the
+selected cross-validation performance metric.</p>
+<p>These weights describe the relative influence of the selected models
+in the lag ensemble. They are not lag-specific DLNM coefficients.</p>
+</div>
+<div class="section level3">
+<h3 id="inspecting-ensemble-lag-contributions">Inspecting ensemble lag contributions<a class="anchor" aria-label="anchor" href="#inspecting-ensemble-lag-contributions"></a>
+</h3>
+<p>The combined lag-specific contributions are returned in:</p>
+<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">lag_ensemble</span><span class="op">$</span><span class="va">ensemble_by_lag</span></span></code></pre></div>
+<p>Inspect the first rows:</p>
+<table style="width:100%;" class="table">
+<colgroup>
+<col width="5%">
+<col width="4%">
+<col width="3%">
+<col width="7%">
+<col width="11%">
+<col width="6%">
+<col width="12%">
+<col width="14%">
+<col width="14%">
+<col width="8%">
+<col width="11%">
+</colgroup>
+<thead><tr class="header">
+<th align="center">epi_id</th>
+<th align="center">var</th>
+<th align="center">lag</th>
+<th align="center">method</th>
+<th align="center">ECI_weighted_ens</th>
+<th align="center">n_models</th>
+<th align="center">n_selected_models</th>
+<th align="center">raw_model_weight_sum</th>
+<th align="center">weights_renormalized</th>
+<th align="center">models_used</th>
+<th align="center">ECI_percent_ens</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="center">1</td>
+<td align="center">tmean</td>
+<td align="center">0</td>
+<td align="center">unweighted</td>
+<td align="center">-0.0189</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">1</td>
+<td align="center">TRUE</td>
+<td align="center">42, 56, 63</td>
+<td align="center">1.4481</td>
+</tr>
+<tr class="even">
+<td align="center">1</td>
+<td align="center">tmean</td>
+<td align="center">1</td>
+<td align="center">unweighted</td>
+<td align="center">-0.0167</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">1</td>
+<td align="center">TRUE</td>
+<td align="center">42, 56, 63</td>
+<td align="center">1.2743</td>
+</tr>
+<tr class="odd">
+<td align="center">1</td>
+<td align="center">tmean</td>
+<td align="center">2</td>
+<td align="center">unweighted</td>
+<td align="center">-0.0242</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">1</td>
+<td align="center">TRUE</td>
+<td align="center">42, 56, 63</td>
+<td align="center">1.8470</td>
+</tr>
+<tr class="even">
+<td align="center">1</td>
+<td align="center">tmean</td>
+<td align="center">3</td>
+<td align="center">unweighted</td>
+<td align="center">-0.0181</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">1</td>
+<td align="center">TRUE</td>
+<td align="center">42, 56, 63</td>
+<td align="center">1.3854</td>
+</tr>
+<tr class="odd">
+<td align="center">1</td>
+<td align="center">tmean</td>
+<td align="center">4</td>
+<td align="center">unweighted</td>
+<td align="center">-0.0180</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">1</td>
+<td align="center">TRUE</td>
+<td align="center">42, 56, 63</td>
+<td align="center">1.3787</td>
+</tr>
+<tr class="even">
+<td align="center">1</td>
+<td align="center">tmean</td>
+<td align="center">5</td>
+<td align="center">unweighted</td>
+<td align="center">-0.0182</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">1</td>
+<td align="center">TRUE</td>
+<td align="center">42, 56, 63</td>
+<td align="center">1.3889</td>
+</tr>
+<tr class="odd">
+<td align="center">1</td>
+<td align="center">tmean</td>
+<td align="center">6</td>
+<td align="center">unweighted</td>
+<td align="center">-0.0268</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">1</td>
+<td align="center">TRUE</td>
+<td align="center">42, 56, 63</td>
+<td align="center">2.0472</td>
+</tr>
+<tr class="even">
+<td align="center">1</td>
+<td align="center">tmean</td>
+<td align="center">7</td>
+<td align="center">unweighted</td>
+<td align="center">-0.0180</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">1</td>
+<td align="center">TRUE</td>
+<td align="center">42, 56, 63</td>
+<td align="center">1.3757</td>
+</tr>
+<tr class="odd">
+<td align="center">1</td>
+<td align="center">tmean</td>
+<td align="center">8</td>
+<td align="center">unweighted</td>
+<td align="center">0.0090</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">1</td>
+<td align="center">TRUE</td>
+<td align="center">42, 56, 63</td>
+<td align="center">0.6871</td>
+</tr>
+<tr class="even">
+<td align="center">1</td>
+<td align="center">tmean</td>
+<td align="center">9</td>
+<td align="center">unweighted</td>
+<td align="center">0.0268</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">1</td>
+<td align="center">TRUE</td>
+<td align="center">42, 56, 63</td>
+<td align="center">2.0466</td>
+</tr>
+<tr class="odd">
+<td align="center">1</td>
+<td align="center">tmean</td>
+<td align="center">10</td>
+<td align="center">unweighted</td>
+<td align="center">0.0129</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">1</td>
+<td align="center">TRUE</td>
+<td align="center">42, 56, 63</td>
+<td align="center">0.9838</td>
+</tr>
+<tr class="even">
+<td align="center">1</td>
+<td align="center">tmean</td>
+<td align="center">11</td>
+<td align="center">unweighted</td>
+<td align="center">-0.0279</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">1</td>
+<td align="center">TRUE</td>
+<td align="center">42, 56, 63</td>
+<td align="center">2.1334</td>
+</tr>
+</tbody>
+</table>
+<p>The principal output columns are:</p>
+<ul>
+<li>
+<code>var</code>: exposure variable;</li>
+<li>
+<code>lag</code>: retrospective lag, where lag 0 is the most recent
+exposure;</li>
+<li>
+<code>method</code>: ensemble method;</li>
+<li>
+<code>ECI_weighted_ens</code>: signed ensemble ECI contribution at
+that lag;</li>
+<li>
+<code>ECI_percent_ens</code>: absolute percentage contribution of
+that lag within the corresponding exposure and ensemble method;</li>
+<li>
+<code>n_models</code>: number of models contributing to that lag
+unit;</li>
+<li>
+<code>raw_model_weight_sum</code>: total original model-weight mass
+available for that lag unit;</li>
+<li>
+<code>weights_renormalized</code>: whether weights were renormalized
+among the available models;</li>
+<li>
+<code>models_used</code>: selected models contributing to the lag
+unit.</li>
+</ul>
+<p>The signed value <code>ECI_weighted_ens</code> preserves the
+direction of the ensemble contribution. In contrast,
+<code>ECI_percent_ens</code> is based on the absolute contribution
+magnitude and describes how the total lag contribution is distributed
+across the fitted lag interval.</p>
+</div>
+<div class="section level3">
+<h3 id="visualizing-signed-lag-contributions">Visualizing signed lag contributions<a class="anchor" aria-label="anchor" href="#visualizing-signed-lag-contributions"></a>
+</h3>
+<div class="sourceCode" id="cb31"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ensemble_by_lag</span> <span class="op">=</span> <span class="va">lag_ensemble</span><span class="op">$</span><span class="va">ensemble_by_lag</span></span></code></pre></div>
+<div class="sourceCode" id="cb32"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">lag_ensemble_signed_plot</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span></span>
+<span>  <span class="va">ensemble_by_lag</span>,</span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span></span>
+<span>    x <span class="op">=</span> <span class="va">lag</span>,</span>
+<span>    y <span class="op">=</span> <span class="va">ECI_weighted_ens</span>,</span>
+<span>    color <span class="op">=</span> <span class="va">method</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html" class="external-link">geom_hline</a></span><span class="op">(</span></span>
+<span>    yintercept <span class="op">=</span> <span class="fl">0</span>,</span>
+<span>    color <span class="op">=</span> <span class="st">"grey50"</span>,</span>
+<span>    linetype <span class="op">=</span> <span class="st">"dashed"</span>,</span>
+<span>    linewidth <span class="op">=</span> <span class="fl">0.5</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span></span>
+<span>    linewidth <span class="op">=</span> <span class="fl">1</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://dplyr.tidyverse.org/reference/vars.html" class="external-link">vars</a></span><span class="op">(</span><span class="va">var</span><span class="op">)</span>,</span>
+<span>    ncol <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>    scales <span class="op">=</span> <span class="st">"free_y"</span>,</span>
+<span>    labeller <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/as_labeller.html" class="external-link">as_labeller</a></span><span class="op">(</span></span>
+<span>      <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>        tmean <span class="op">=</span> <span class="st">"Mean temperature"</span>,</span>
+<span>        rain <span class="op">=</span> <span class="st">"Rainfall"</span>,</span>
+<span>        wetness <span class="op">=</span> <span class="st">"Leaf wetness"</span></span>
+<span>      <span class="op">)</span></span>
+<span>    <span class="op">)</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html" class="external-link">scale_x_reverse</a></span><span class="op">(</span></span>
+<span>    breaks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span></span>
+<span>      <span class="fl">0</span>,</span>
+<span>      <span class="fl">85</span>,</span>
+<span>      by <span class="op">=</span> <span class="fl">15</span></span>
+<span>    <span class="op">)</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_color_manual</a></span><span class="op">(</span></span>
+<span>    values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>      unweighted <span class="op">=</span> <span class="st">"#4C72B0"</span>,</span>
+<span>      weighted <span class="op">=</span> <span class="st">"#C44E52"</span></span>
+<span>    <span class="op">)</span>,</span>
+<span>    labels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>      unweighted <span class="op">=</span> <span class="st">"Unweighted"</span>,</span>
+<span>      weighted <span class="op">=</span> <span class="st">"Weighted"</span></span>
+<span>    <span class="op">)</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_bw</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span></span>
+<span>    x <span class="op">=</span> <span class="st">"Retrospective lag"</span>,</span>
+<span>    y <span class="op">=</span> <span class="st">"Ensemble weighted ECI"</span>,</span>
+<span>    color <span class="op">=</span> <span class="st">"Ensemble method"</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
+<span>    text <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span></span>
+<span>      size <span class="op">=</span> <span class="fl">10</span>,</span>
+<span>      face <span class="op">=</span> <span class="st">"bold"</span></span>
+<span>    <span class="op">)</span>,</span>
+<span>    strip.background <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_rect</a></span><span class="op">(</span></span>
+<span>      fill <span class="op">=</span> <span class="st">"white"</span>,</span>
+<span>      color <span class="op">=</span> <span class="st">"black"</span></span>
+<span>    <span class="op">)</span>,</span>
+<span>    strip.text <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span></span>
+<span>      face <span class="op">=</span> <span class="st">"bold"</span></span>
+<span>    <span class="op">)</span>,</span>
+<span>    legend.position <span class="op">=</span> <span class="st">"top"</span></span>
+<span>  <span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb33"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">lag_ensemble_signed_plot</span></span></code></pre></div>
+<p><img src="selection-ensemble_files/figure-html/unnamed-chunk-42-1.png" class="r-plt" alt="" width="700" style="display: block; margin: auto;"></p>
+<p>The lag axis is displayed retrospectively. Lag 0 corresponds to the
+most recent exposure observation, whereas increasing lag values
+represent progressively older exposure conditions.</p>
+<p>Positive and negative values describe the direction of the combined
+lag-specific contribution. The weighted and unweighted curves may differ
+when the selected models receive substantially different
+performance-based weights.</p>
+</div>
+<div class="section level3">
+<h3 id="visualizing-relative-lag-contributions">Visualizing relative lag contributions<a class="anchor" aria-label="anchor" href="#visualizing-relative-lag-contributions"></a>
+</h3>
+<p>The percentage contribution provides a complementary interpretation
+based on the absolute contribution magnitude:</p>
+<div class="sourceCode" id="cb34"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">lag_ensemble_percent_plot</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span></span>
+<span>  <span class="va">ensemble_by_lag</span>,</span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span></span>
+<span>    x <span class="op">=</span> <span class="va">lag</span>,</span>
+<span>    y <span class="op">=</span> <span class="va">ECI_percent_ens</span>,</span>
+<span>    color <span class="op">=</span> <span class="va">method</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span></span>
+<span>    linewidth <span class="op">=</span> <span class="fl">1</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://dplyr.tidyverse.org/reference/vars.html" class="external-link">vars</a></span><span class="op">(</span><span class="va">var</span><span class="op">)</span>,</span>
+<span>    ncol <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>    scales <span class="op">=</span> <span class="st">"free_y"</span>,</span>
+<span>    labeller <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/as_labeller.html" class="external-link">as_labeller</a></span><span class="op">(</span></span>
+<span>      <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>        tmean <span class="op">=</span> <span class="st">"Mean temperature"</span>,</span>
+<span>        rain <span class="op">=</span> <span class="st">"Rainfall"</span>,</span>
+<span>        wetness <span class="op">=</span> <span class="st">"Leaf wetness"</span></span>
+<span>      <span class="op">)</span></span>
+<span>    <span class="op">)</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html" class="external-link">scale_x_reverse</a></span><span class="op">(</span></span>
+<span>    breaks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span></span>
+<span>      <span class="fl">0</span>,</span>
+<span>      <span class="fl">85</span>,</span>
+<span>      by <span class="op">=</span> <span class="fl">15</span></span>
+<span>    <span class="op">)</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_manual.html" class="external-link">scale_color_manual</a></span><span class="op">(</span></span>
+<span>    values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>      unweighted <span class="op">=</span> <span class="st">"#4C72B0"</span>,</span>
+<span>      weighted <span class="op">=</span> <span class="st">"#C44E52"</span></span>
+<span>    <span class="op">)</span>,</span>
+<span>    labels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>      unweighted <span class="op">=</span> <span class="st">"Unweighted"</span>,</span>
+<span>      weighted <span class="op">=</span> <span class="st">"Weighted"</span></span>
+<span>    <span class="op">)</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_bw</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span></span>
+<span>    x <span class="op">=</span> <span class="st">"Retrospective lag"</span>,</span>
+<span>    y <span class="op">=</span> <span class="st">"Absolute lag contribution (%)"</span>,</span>
+<span>    color <span class="op">=</span> <span class="st">"Ensemble method"</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
+<span>    text <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span></span>
+<span>      size <span class="op">=</span> <span class="fl">10</span>,</span>
+<span>      face <span class="op">=</span> <span class="st">"bold"</span></span>
+<span>    <span class="op">)</span>,</span>
+<span>    strip.background <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_rect</a></span><span class="op">(</span></span>
+<span>      fill <span class="op">=</span> <span class="st">"white"</span>,</span>
+<span>      color <span class="op">=</span> <span class="st">"black"</span></span>
+<span>    <span class="op">)</span>,</span>
+<span>    strip.text <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span></span>
+<span>      face <span class="op">=</span> <span class="st">"bold"</span></span>
+<span>    <span class="op">)</span>,</span>
+<span>    legend.position <span class="op">=</span> <span class="st">"top"</span></span>
+<span>  <span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb35"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">lag_ensemble_percent_plot</span></span></code></pre></div>
+<p><img src="selection-ensemble_files/figure-html/unnamed-chunk-43-1.png" class="r-plt" alt="" width="700" style="display: block; margin: auto;"></p>
+<p><code>ECI_percent_ens</code> is calculated from the absolute lag
+contributions within each exposure and ensemble method. Consequently,
+the percentages describe where the ensemble contribution is concentrated
+across lags, but they do not preserve the positive or negative direction
+of that contribution.</p>
+<p>The signed and percentage plots should therefore be interpreted
+together:</p>
+<ul>
+<li>
+<code>ECI_weighted_ens</code> describes the direction and magnitude
+of the combined contribution;</li>
+<li>
+<code>ECI_percent_ens</code> describes the relative concentration of
+absolute contribution across lags.</li>
+</ul>
+</div>
+<div class="section level3">
+<h3 id="using-strict-exposure-availability">Using strict exposure availability<a class="anchor" aria-label="anchor" href="#using-strict-exposure-availability"></a>
+</h3>
+<p>The previous example used:</p>
+<div class="sourceCode" id="cb36"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">lg_strategy</span> <span class="op">=</span> <span class="st">"requested_available"</span></span></code></pre></div>
+<p>which allows different selected models to contribute to different
+exposures when their fitted variable sets differ.</p>
+<p>For a stricter comparison, the user can require every selected model
+to contain all requested exposures:</p>
+<div class="sourceCode" id="cb37"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">lag_ensemble_strict</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ensemble_bestfit.html">ensemble_bestfit</a></span><span class="op">(</span></span>
+<span>  bestfit <span class="op">=</span> <span class="va">best_models</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">epi_data1</span>,</span>
+<span>  group <span class="op">=</span> <span class="st">"epi_id"</span>,</span>
+<span>  var <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"tmean"</span>,</span>
+<span>    <span class="st">"rain"</span>,</span>
+<span>    <span class="st">"wetness"</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  ensemble_scope <span class="op">=</span> <span class="st">"lag"</span>,</span>
+<span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"unweighted"</span>,</span>
+<span>    <span class="st">"weighted"</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  top_n <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>  weight_transform <span class="op">=</span> <span class="st">"softmax"</span>,</span>
+<span>  lag_group_cols <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"epi_id"</span>,</span>
+<span>    <span class="st">"var"</span>,</span>
+<span>    <span class="st">"lag"</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  lg_strategy <span class="op">=</span> <span class="st">"strict"</span>,</span>
+<span>  rl_weights <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  compute_ecilag_args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    uncertainty <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>This strict mode stops when a selected model does not contain one of
+the requested exposures or when a lag unit is not available from every
+selected model. It is useful when the analyst wants the same model set
+to support every exposure-specific lag ensemble.</p>
+<div class="tutorial-note">
+<p><strong>Lag-ensemble uncertainty is not generated in EpiExposure
+v1.</strong> The selected models are fitted separately, and
+independently sampled coefficient or posterior draws do not define a
+valid joint draw distribution across models. For this reason,
+<code><a href="../reference/ensemble_bestfit.html">ensemble_bestfit()</a></code> combines deterministic lag-specific ECI
+decompositions and does not pair arbitrary draw indices across fitted
+models.</p>
+</div>
+<p>Lag ensembles should be interpreted as model-performance-weighted
+summaries of lag-specific ECI contributions. They do not replace
+external validation, do not represent raw DLNM coefficients, and should
+not be interpreted as causal attribution across lags.</p>
+</div>
 <div class="section level3">
 <h3 id="avoiding-optimistic-ensemble-evaluation">Avoiding optimistic ensemble evaluation<a class="anchor" aria-label="anchor" href="#avoiding-optimistic-ensemble-evaluation"></a>
 </h3>

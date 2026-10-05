@@ -1,6 +1,7 @@
 # Plot lag-specific or period-specific effects
 
-Plot lag-specific or period-specific effects
+Plots lag-specific effect surfaces or period-specific exposure-response
+curves from an object returned by \`summarise_effects()\`.
 
 ## Usage
 
@@ -45,6 +46,8 @@ plot_effects(
   period_theme = "bw",
   period_base_size = 11,
   period_linewidth = 1,
+  period_interval_linetype = 2,
+  period_interval_linewidth = 0.5,
   period_show_legend = FALSE,
   panel_labels = c("(a)", "(b)"),
   label_size = 12,
@@ -56,27 +59,28 @@ plot_effects(
 
 - data:
 
-  Data frame returned by summarise_effects().
+  Data frame returned by \`summarise_effects()\`.
 
 - scale:
 
-  Plot scale. Use only \\lag\\ or \\period\\.
+  Plot scale. Use only \`"lag"\` or \`"period"\`.
 
 - vars:
 
-  Character vector with variables to plot. NULL uses all variables.
+  Character vector containing variables to plot. \`NULL\` uses all
+  available variables.
 
 - metric:
 
-  For lag plots, one or both of c("effect", "delta").
+  For lag plots, one or both of \`c("effect", "delta")\`.
 
 - delta_multiplier:
 
-  Multiplier applied to delta before plotting.
+  Multiplier applied to \`delta\` before plotting.
 
 - metric_labels:
 
-  Named labels for the lag color legends.
+  Named labels for lag color legends.
 
 - ylab:
 
@@ -84,25 +88,25 @@ plot_effects(
 
 - metric_ncol:
 
-  Number of metric blocks per row. Default 1 places effect above delta,
-  matching the manual figure.
+  Number of metric blocks per row. Default \`1\` places effect above
+  delta.
 
 - vars_ncol:
 
-  Number of variable panels per metric block. NULL uses all selected
+  Number of variable panels per metric block. \`NULL\` uses all selected
   variables in one row.
 
 - effect_palette:
 
-  Three colors: low, mid, high.
+  Three colors representing low, middle, and high values.
 
 - delta_palette:
 
-  NULL uses viridis; otherwise a vector of \>= 2 colors.
+  \`NULL\` uses viridis; otherwise a vector of at least two colors.
 
 - delta_viridis_option:
 
-  Viridis option used when delta_palette is NULL.
+  Viridis option used when \`delta_palette = NULL\`.
 
 - clip_quantiles:
 
@@ -110,15 +114,15 @@ plot_effects(
 
 - effect_breaks:
 
-  Contour breaks for effect.
+  Contour breaks for \`effect\`.
 
 - delta_bins:
 
-  Number of contour bins for delta.
+  Number of contour bins for \`delta\`.
 
 - lag_reverse:
 
-  Reverse the lag axis.
+  Logical; reverse the lag axis.
 
 - lag_xlab:
 
@@ -130,11 +134,11 @@ plot_effects(
 
 - lag_theme:
 
-  One of "bw", "minimal", "classic", or a ggplot2 theme.
+  One of \`"bw"\`, \`"minimal"\`, \`"classic"\`, or a ggplot2 theme.
 
 - lag_base_size:
 
-  Base size for lag theme.
+  Base font size for the lag theme.
 
 - axis_title_size:
 
@@ -166,28 +170,40 @@ plot_effects(
 
 - interpolate:
 
-  Passed to geom_raster().
+  Passed to \`ggplot2::geom_raster()\`.
 
 - period_order:
 
-  Period facet order. NULL reproduces reversed PeriodN order.
+  Period facet order. \`NULL\` reverses names following the \`PeriodN\`
+  convention.
 
 - vars_order:
 
-  Period variable order. NULL follows \`vars\`.
+  Period variable order. \`NULL\` follows \`vars\`.
 
 - period_response:
 
-  Response column for period plots; default "eta".
+  Response displayed in period plots. Supported values are \`"eta"\` or
+  \`"linear"\` for the linear-predictor contrast; \`"effect"\` for the
+  effect column as stored; \`"exponentiated"\` (the alias
+  \`"exponential"\` is also accepted) for an effect generated with
+  \`effect_measure = "exponentiated"\`; \`"percent"\` for an effect
+  generated with \`effect_measure = "percent"\`; and \`"baseline"\`,
+  \`"predicted"\`, or \`"delta"\` for response-scale quantities. For
+  summary input, corresponding columns named \`\<response\>\_lower\` and
+  \`\<response\>\_upper\`, when present, are drawn as dashed uncertainty
+  curves. Because exponentiated and percent results are both stored in
+  \`effect\`, their aliases validate the \`epiexposure_effect_measure\`
+  attribute created by \`summarise_effects()\`.
 
 - period_exclude_samples:
 
-  Samples removed from period plot. Default 10 reproduces the supplied
-  manual plot; use NULL to keep every sample.
+  Samples removed from period draw-level plots. Default \`10\` preserves
+  the historical display; use \`NULL\` to retain all samples.
 
 - period_palette:
 
-  NULL uses viridis; otherwise vector of \>= 2 colors.
+  \`NULL\` uses viridis; otherwise a vector of at least two colors.
 
 - period_viridis_option:
 
@@ -203,36 +219,53 @@ plot_effects(
 
 - period_theme:
 
-  One of "bw", "minimal", "classic", or a ggplot2 theme.
+  One of \`"bw"\`, \`"minimal"\`, \`"classic"\`, or a ggplot2 theme.
 
 - period_base_size:
 
-  Base size for period theme. Default 11 matches theme_bw().
+  Base size for the period theme.
 
 - period_linewidth:
 
-  Line width passed to geom_smooth().
+  Line width passed to \`ggplot2::geom_smooth()\`.
+
+- period_interval_linetype:
+
+  Line type used for lower and upper summary uncertainty curves.
+
+- period_interval_linewidth:
+
+  Line width used for lower and upper summary uncertainty curves.
 
 - period_show_legend:
 
-  Whether to show the period color legend.
+  Logical; show the period color legend.
 
 - panel_labels:
 
-  Character vector used to label the lag-specific metric blocks in the
-  combined plot. Default is \`c("(a)", "(b)")\`, so the first selected
-  metric block is labelled "(a)" and the second "(b)". Labels are
-  applied only when \`scale = "lag"\` and \`output = "plot"\`; \`output
-  = "list"\` returns the original unlabelled component plots.
+  Character vector used to label lag-specific metric blocks.
 
 - label_size:
 
-  Positive finite size used for \`panel_labels\`. Default is \`12\`.
+  Positive finite size used for \`panel_labels\`.
 
 - output:
 
-  Either "plot" or "list". For lag, "list" returns every panel.
+  Either \`"plot"\` or \`"list"\`. For lag plots, \`"list"\` returns
+  every component panel; for period plots, it returns \`list(period =
+  plot)\`.
 
 ## Value
 
-A ggplot/cowplot object, or a list of ggplots when output = "list".
+A ggplot/cowplot object, or a list of ggplots when \`output = "list"\`.
+
+## Details
+
+For period plots, draw-level input is recognized by the presence of a
+\`sample\` column. One smoothed curve is then drawn for each parameter
+draw. Otherwise, the data are treated as deterministic or summary
+output. The selected central response is drawn as a solid black curve
+and, when matching lower and upper columns are available, the
+uncertainty limits are drawn as dashed black curves. The bounds are used
+exactly as returned by \`summarise_effects()\`; \`plot_effects()\` does
+not recalculate uncertainty.

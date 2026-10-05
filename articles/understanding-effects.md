@@ -106,7 +106,19 @@ Exposure-lag effects are interpreted relative to reference conditions.
 When an exposure value is evaluated at a particular lag, the other lags
 are held at their corresponding reference values.
 
-In the examples below:
+Three effect measures are supported:
+
+- `"linear"` returns the DLNM contrast on the linear predictor scale
+  (`eta`).
+- `"exponentiated"` returns `exp(eta)`, corresponding to response ratios
+  for log-link models and odds ratios for logit-link models.
+- `"percent"` returns `100 × (exp(eta) - 1)`, representing percent
+  changes relative to the selected reference profile.
+
+For links such as `"identity"`, `"probit"`, `"cloglog"`, or `"inverse"`,
+only `"linear"` is available.
+
+In the examples below, we use:
 
 ``` r
 
@@ -292,6 +304,9 @@ periods <- define_periods(
   ),
   prefix = "Period"
 )
+```
+
+``` r
 
 periods
 #>    period lag_start lag_end
@@ -302,12 +317,20 @@ periods
 ```
 
 The selected cut points divide the fitted lag interval into four
-periods.
+periods:
 
-Because lag is retrospective, the numerical order of the periods should
-be checked carefully when assigning biological labels. Lower lags are
-closer to the disease assessment, whereas higher lags represent earlier
-exposure conditions.
+- Period1: lags 0–20 (most recent exposures)
+- Period2: lags 21–40
+- Period3: lags 41–60
+- Period4: lags 61–85 (oldest exposures)
+
+These periods are defined on the retrospective lag scale used by DLNMs
+and `EpiExposure` rather than on the original chronological time scale.
+Consequently, Period1 contains exposures occurring closest to the
+disease assessment date, whereas Period4 contains exposures occurring
+furthest in the past. When assigning biological labels, remember that
+lower lags represent more recent exposure conditions and higher lags
+represent earlier exposure conditions.
 
 ### Estimating period-specific effects
 
@@ -325,6 +348,16 @@ epi_p_summary <- summarise_effects(
 )
 ```
 
+When `output = "summary"` and `uncertainty = TRUE`, `EpiExposure`
+summarizes the simulated parameter draws for each exposure-period
+combination. The reported effect corresponds to the median estimate
+across draws, while the lower and upper bounds represent the empirical
+uncertainty interval defined by `interval_probs` (95% by default).
+
+This output is useful when the goal is to summarize the central tendency
+and uncertainty of the estimated effects rather than inspect each
+individual draw.
+
 Inspect the summary:
 
 | var | period | scale | value | eta | eta_sd | eta_lower | eta_upper | effect | effect_sd | effect_lower | effect_upper | baseline | baseline_sd | baseline_lower | baseline_upper | predicted | predicted_sd | predicted_lower | predicted_upper | delta | delta_sd | delta_lower | delta_upper |
@@ -340,7 +373,11 @@ Inspect the summary:
 | tmean | Period1 | period | 20.737 | -1.250 | 0.085 | -1.417 | -1.093 | -71.360 | 2.440 | -75.768 | -66.480 | 0.14 | 0.019 | 0.109 | 0.184 | 0.045 | 0.005 | 0.036 | 0.056 | -0.096 | 0.015 | -0.129 | -0.071 |
 | tmean | Period1 | period | 20.902 | -1.208 | 0.082 | -1.367 | -1.055 | -70.130 | 2.453 | -74.518 | -65.197 | 0.14 | 0.019 | 0.109 | 0.184 | 0.047 | 0.005 | 0.037 | 0.058 | -0.094 | 0.015 | -0.127 | -0.069 |
 
-### Visualizing period-specific effects
+The summary output contains one row for each exposure-period combination
+and includes uncertainty summaries for the estimated effects, baseline
+prediction, predicted response, and response-scale difference (`delta`).
+
+Visualizing period-specific effects:
 
 ``` r
 
@@ -363,6 +400,7 @@ plot_effects(
     "rain",
     "wetness"
   ),
+  period_response = "eta",
   period_ylab = "Effect"
 )
 ```
@@ -376,8 +414,19 @@ fitted cross-basis surface.
 
 ### Returning uncertainty samples
 
-When custom uncertainty analyses are needed, return the individual
-draw-specific results instead of their summaries:
+When `output = "samples"`, the function returns the individual
+draw-specific results instead of summary statistics. Each row
+corresponds to one parameter draw and one exposure-period combination,
+allowing custom uncertainty analyses and visualizations.
+
+This output is particularly useful when calculating user-defined
+summaries, propagating uncertainty through downstream analyses, or
+building custom graphics.
+
+In contrast to `output = "summary"`, which reports median estimates and
+uncertainty intervals across all simulated draws, `output = "samples"`
+returns the complete draw-by-draw results used to construct those
+summaries.
 
 ``` r
 
@@ -392,6 +441,36 @@ epi_p_samples <- summarise_effects(
   output = "samples"
 )
 ```
+
+Visualizing period-specific effects:
+
+``` r
+
+plot_effects(
+  data = epi_p_samples,
+  scale = "period",
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  period_order = c(
+    "Period4",
+    "Period3",
+    "Period2",
+    "Period1"
+  ),
+  vars_order = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  period_response = "eta",
+  period_ylab = "Effect"
+)
+```
+
+![](understanding-effects_files/figure-html/plot-period-effects2-1.png)
 
 Inspect a subset of the sample-level output:
 
@@ -494,6 +573,62 @@ quantity.
 
 ### Comparing raw and weighted exposure histories
 
+tmean
+
+``` r
+
+eci[
+  eci$var == "tmean",
+  ,
+  drop = FALSE
+] |>
+  ggplot(
+    aes(
+      x = ECI_raw,
+      y = ECI_weighted
+    )
+  ) +
+  geom_point(
+    alpha = 0.65
+  ) +
+  theme_bw() +
+  labs(
+    x = "Raw ECI",
+    y = "Weighted ECI",
+    title = "tmean")
+```
+
+![](understanding-effects_files/figure-html/compare-eci-tmean-1.png)
+
+wetness
+
+``` r
+
+eci[
+  eci$var == "wetness",
+  ,
+  drop = FALSE
+] |>
+  ggplot(
+    aes(
+      x = ECI_raw,
+      y = ECI_weighted
+    )
+  ) +
+  geom_point(
+    alpha = 0.65
+  ) +
+  theme_bw() +
+  labs(
+    x = "Raw ECI",
+    y = "Weighted ECI",
+    title = "wetness")
+```
+
+![](understanding-effects_files/figure-html/compare-eci-wetness-1.png)
+
+rain
+
 ``` r
 
 eci[
@@ -503,8 +638,8 @@ eci[
 ] |>
   ggplot(
     aes(
-      x = ECI_weighted,
-      y = ECI_raw
+      x = ECI_raw,
+      y = ECI_weighted
     )
   ) +
   geom_point(
@@ -512,11 +647,12 @@ eci[
   ) +
   theme_bw() +
   labs(
-    x = "Weighted ECI",
-    y = "Raw ECI")
+    x = "Raw ECI",
+    y = "Weighted ECI",
+    title = "rain")
 ```
 
-![](understanding-effects_files/figure-html/compare-eci-1.png)
+![](understanding-effects_files/figure-html/compare-eci-rain-1.png)
 
 A strong relationship between the two quantities indicates that
 accumulated exposure and model-based weighting produce similar rankings

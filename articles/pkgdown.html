@@ -298,7 +298,7 @@ profiles, limited variation, and missing observations.</p>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span><span class="va">time</span>,<span class="va">wetness</span>, group <span class="op">=</span> <span class="va">epi_id</span><span class="op">)</span><span class="op">)</span><span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_smooth.html" class="external-link">geom_smooth</a></span><span class="op">(</span>se <span class="op">=</span> <span class="cn">F</span>, color <span class="op">=</span> <span class="st">"#55A868"</span>,linewidth <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span><span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_bw</a></span><span class="op">(</span><span class="op">)</span><span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">"Days after planting the rice"</span>,</span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">"Days after planting the crop"</span>,</span>
 <span>       y <span class="op">=</span> <span class="st">"Leaf wetness (%)"</span><span class="op">)</span><span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html" class="external-link">scale_x_continuous</a></span><span class="op">(</span>limits <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">85</span><span class="op">)</span>, expand <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">0</span><span class="op">)</span>,</span>
 <span>                     breaks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/pretty.html" class="external-link">pretty</a></span><span class="op">(</span><span class="va">epi_data</span><span class="op">$</span><span class="va">time</span>, n <span class="op">=</span> <span class="fl">8</span><span class="op">)</span><span class="op">)</span><span class="op">+</span></span>
@@ -312,12 +312,11 @@ profiles, limited variation, and missing observations.</p>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span><span class="va">time</span>,<span class="va">rain</span>, group <span class="op">=</span> <span class="va">epi_id</span><span class="op">)</span><span class="op">)</span><span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_smooth.html" class="external-link">geom_smooth</a></span><span class="op">(</span>se <span class="op">=</span> <span class="cn">F</span>, color <span class="op">=</span> <span class="st">"#4C72B0"</span>,linewidth <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span><span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_bw</a></span><span class="op">(</span><span class="op">)</span><span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">""</span>,</span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">"Days after planting the crop"</span>,</span>
 <span>       y <span class="op">=</span> <span class="st">"Daily precipitation (mm)"</span><span class="op">)</span><span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html" class="external-link">scale_x_continuous</a></span><span class="op">(</span>limits <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">85</span><span class="op">)</span>, expand <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">0</span><span class="op">)</span>,</span>
 <span>                     breaks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/pretty.html" class="external-link">pretty</a></span><span class="op">(</span><span class="va">epi_data</span><span class="op">$</span><span class="va">time</span>, n <span class="op">=</span> <span class="fl">8</span><span class="op">)</span><span class="op">)</span><span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>axis.text.x <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_blank</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>        text <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>size <span class="op">=</span> <span class="fl">10</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>text <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>size <span class="op">=</span> <span class="fl">10</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span></span>
 <span><span class="va">rain_plot</span></span></code></pre></div>
@@ -327,12 +326,11 @@ profiles, limited variation, and missing observations.</p>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span><span class="va">time</span>,<span class="va">tmean</span>, group <span class="op">=</span> <span class="va">epi_id</span><span class="op">)</span><span class="op">)</span><span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_smooth.html" class="external-link">geom_smooth</a></span><span class="op">(</span>se <span class="op">=</span> <span class="cn">F</span>, color <span class="op">=</span> <span class="st">"#C44E52"</span>,linewidth <span class="op">=</span> <span class="fl">0.3</span><span class="op">)</span><span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_bw</a></span><span class="op">(</span><span class="op">)</span><span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">""</span>,</span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">"Days after planting the crop"</span>,</span>
 <span>       y <span class="op">=</span> <span class="st">"Mean temperature (°C)"</span><span class="op">)</span><span class="op">+</span></span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html" class="external-link">scale_x_continuous</a></span><span class="op">(</span>limits <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">85</span><span class="op">)</span>, expand <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">0</span><span class="op">)</span>,</span>
 <span>                     breaks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/pretty.html" class="external-link">pretty</a></span><span class="op">(</span><span class="va">epi_data</span><span class="op">$</span><span class="va">time</span>, n <span class="op">=</span> <span class="fl">8</span><span class="op">)</span><span class="op">)</span><span class="op">+</span></span>
-<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>axis.text.x <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_blank</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>        text <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>size <span class="op">=</span> <span class="fl">10</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>text <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>size <span class="op">=</span> <span class="fl">10</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span></span>
 <span><span class="va">tmean_plot</span></span></code></pre></div>
@@ -609,6 +607,9 @@ scale, for example:</p>
 <code>gaussian</code> for approximately continuous, unbounded
 responses.</li>
 </ul>
+<p>For details on available modeling engines, supported response
+distributions, engine-specific requirements, and Bayesian and
+frequentist workflows, see the <em>Advanced Topics</em> section.</p>
 </div>
 <div class="section level2">
 <h2 id="fitting-the-first-dlnm">Fitting the first DLNM<a class="anchor" aria-label="anchor" href="#fitting-the-first-dlnm"></a>
@@ -682,6 +683,12 @@ Effects</em> section</p>
 </h2>
 <p>A fitted model can also estimate the expected disease outcome
 associated with a complete hypothetical exposure history.</p>
+<p>In this example, a constant environmental scenario is evaluated over
+an 86-day exposure window. Daily mean temperature (<code>tmean</code>)
+is fixed at 25°C, daily rainfall (<code>rain</code>) at 5 mm, and daily
+leaf wetness duration (<code>wetness</code>) at 15 hours. The model
+combines the lagged contributions of all daily exposures to estimate the
+expected disease outcome for this exposure history.</p>
 <div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">prediction</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/predict_outcomes.html">predict_outcomes</a></span><span class="op">(</span></span>
 <span>  fit <span class="op">=</span> <span class="va">fit</span>,</span>
@@ -699,9 +706,9 @@ associated with a complete hypothetical exposure history.</p>
 <span>      <span class="fl">86</span></span>
 <span>    <span class="op">)</span></span>
 <span>  <span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">prediction</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">prediction</span></span>
 <span><span class="co">#&gt;   prediction</span></span>
 <span><span class="co">#&gt; 1  0.9777891</span></span></code></pre></div>
 <p>Each exposure profile contains exactly 86 chronologically ordered

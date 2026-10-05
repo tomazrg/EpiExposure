@@ -135,7 +135,7 @@ wetness_plot = epi_data |>
   ggplot(aes(time,wetness, group = epi_id))+
   geom_smooth(se = F, color = "#55A868",linewidth = 0.3)+
   theme_bw()+
-  labs(x = "Days after planting the rice",
+  labs(x = "Days after planting the crop",
        y = "Leaf wetness (%)")+
   scale_x_continuous(limits = c(0,85), expand = c(0,0),
                      breaks = pretty(epi_data$time, n = 8))+
@@ -153,12 +153,11 @@ rain_plot = epi_data  |>
   ggplot(aes(time,rain, group = epi_id))+
   geom_smooth(se = F, color = "#4C72B0",linewidth = 0.3)+
   theme_bw()+
-  labs(x = "",
+  labs(x = "Days after planting the crop",
        y = "Daily precipitation (mm)")+
   scale_x_continuous(limits = c(0,85), expand = c(0,0),
                      breaks = pretty(epi_data$time, n = 8))+
-  theme(axis.text.x = element_blank(),
-        text = element_text(size = 10))
+  theme(text = element_text(size = 10))
 
 
 rain_plot
@@ -172,12 +171,11 @@ tmean_plot = epi_data |>
   ggplot(aes(time,tmean, group = epi_id))+
   geom_smooth(se = F, color = "#C44E52",linewidth = 0.3)+
   theme_bw()+
-  labs(x = "",
+  labs(x = "Days after planting the crop",
        y = "Mean temperature (°C)")+
   scale_x_continuous(limits = c(0,85), expand = c(0,0),
                      breaks = pretty(epi_data$time, n = 8))+
-  theme(axis.text.x = element_blank(),
-        text = element_text(size = 10))
+  theme(text = element_text(size = 10))
 
 
 tmean_plot
@@ -288,6 +286,10 @@ scale, for example:
 - `gamma` for positive continuous responses;
 - `gaussian` for approximately continuous, unbounded responses.
 
+For details on available modeling engines, supported response
+distributions, engine-specific requirements, and Bayesian and
+frequentist workflows, see the *Advanced Topics* section.
+
 ## Fitting the first DLNM
 
 The prepared design can now be fitted with one of the supported modeling
@@ -367,6 +369,13 @@ section
 A fitted model can also estimate the expected disease outcome associated
 with a complete hypothetical exposure history.
 
+In this example, a constant environmental scenario is evaluated over an
+86-day exposure window. Daily mean temperature (`tmean`) is fixed at
+25°C, daily rainfall (`rain`) at 5 mm, and daily leaf wetness duration
+(`wetness`) at 15 hours. The model combines the lagged contributions of
+all daily exposures to estimate the expected disease outcome for this
+exposure history.
+
 ``` r
 
 prediction <- predict_outcomes(
@@ -386,6 +395,9 @@ prediction <- predict_outcomes(
     )
   )
 )
+```
+
+``` r
 
 prediction
 #>   prediction
