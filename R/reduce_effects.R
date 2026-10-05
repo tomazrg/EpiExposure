@@ -440,13 +440,20 @@ reduce_effects <- function(
     ".epix_validate_regular_time"
   )
 
+  function_environment <- environment()
+
   unavailable_helpers <- required_internal_helpers[
     !vapply(
       required_internal_helpers,
-      exists,
-      logical(1),
-      mode = "function",
-      inherits = TRUE
+      function(helper) {
+        exists(
+          helper,
+          envir = function_environment,
+          mode = "function",
+          inherits = TRUE
+        )
+      },
+      logical(1)
     )
   ]
 

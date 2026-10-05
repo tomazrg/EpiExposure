@@ -121,7 +121,8 @@ A fitted model object with a strict metadata contract. The following
   (`epiexposure_spatial_effect`, `epiexposure_spatial_structure`,
   `epiexposure_spatial_group`, and `epiexposure_spatial_term`), common fitted
   `max_lag`, expected history length (`max_lag + 1`), the exact-history
-  contract, and the EpiExposure v1 prediction contract.
+  contract, the validated temporal step in
+  `epiexposure_time_step`, and the EpiExposure v1 prediction contract.
 }
 \description{
 Fits a distributed lag nonlinear model (DLNM) from an epidemic-level design

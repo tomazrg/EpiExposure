@@ -100,7 +100,8 @@
 #'   (`epiexposure_spatial_effect`, `epiexposure_spatial_structure`,
 #'   `epiexposure_spatial_group`, and `epiexposure_spatial_term`), common fitted
 #'   `max_lag`, expected history length (`max_lag + 1`), the exact-history
-#'   contract, and the EpiExposure v1 prediction contract.
+#'   contract, the validated temporal step in
+#'   `epiexposure_time_step`, and the EpiExposure v1 prediction contract.
 #'
 #' @details
 #' ## Engine harmonization
@@ -970,6 +971,48 @@ fit_epidlnm <- function(
   common_max_lag <- epiexposure_spec[[1L]]$max_lag
   expected_history_length <- common_max_lag + 1L
 
+  fitted_time_step <- attr(
+    data,
+    "epiexposure_time_step",
+    exact = TRUE
+  )
+
+  if (expected_history_length > 1L) {
+    if (
+      !is.numeric(fitted_time_step) ||
+      length(fitted_time_step) != 1L ||
+      is.na(fitted_time_step) ||
+      !is.finite(fitted_time_step) ||
+      fitted_time_step <= 0
+    ) {
+      stopf(
+        "`data` is missing valid `epiexposure_time_step` metadata. ",
+        "Rebuild the epidemic-level design with the current ",
+        "`build_design()` implementation before fitting."
+      )
+    }
+
+    fitted_time_step <- as.numeric(
+      fitted_time_step
+    )
+  } else {
+    if (
+      !is.null(fitted_time_step) &&
+      (
+        !is.numeric(fitted_time_step) ||
+        length(fitted_time_step) != 1L ||
+        !is.na(fitted_time_step)
+      )
+    ) {
+      stopf(
+        "For `max_lag = 0`, `epiexposure_time_step` must be `NA` because ",
+        "a one-observation history does not define a temporal interval."
+      )
+    }
+
+    fitted_time_step <- NA_real_
+  }
+
 
   # =========================================================
   # CROSS-BASIS COLUMN / VARIABLE CONTRACT
@@ -1790,7 +1833,8 @@ fit_epidlnm <- function(
     attr(model_obj, "epiexposure_basis_objects_source") <- basis_objects_source
     attr(model_obj, "epiexposure_max_lag") <- common_max_lag
     attr(model_obj, "epiexposure_history_length") <- expected_history_length
-    attr(model_obj, "epiexposure_history_contract") <- "all_fitted_exposures_same_exact_max_lag_plus_one"
+    attr(model_obj,"epiexposure_history_contract") <- "all_fitted_exposures_same_exact_max_lag_plus_one"
+    attr(model_obj,"epiexposure_time_step") <- fitted_time_step
     attr(model_obj, "epiexposure_prediction_level") <- "population"
     attr(model_obj, "epiexposure_prediction_estimand") <- "expected_response"
     attr(model_obj, "epiexposure_point_prediction_contract") <- "central_expected_response"
