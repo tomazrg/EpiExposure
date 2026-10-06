@@ -20,6 +20,24 @@ knitr::opts_chunk$set(
   message = FALSE,
   warning = FALSE
 )
+
+has_inla <- requireNamespace(
+  "INLA",
+  quietly = TRUE
+)
+
+has_bdlnm <- all(
+  vapply(
+    c(
+      "INLA",
+      "bdlnm",
+      "sn"
+    ),
+    requireNamespace,
+    quietly = TRUE,
+    FUN.VALUE = logical(1)
+  )
+)
 ```
 
 # Introduction
@@ -271,7 +289,7 @@ The cross-basis terms estimate nonlinear and delayed weather effects. A
 Matérn random effect accounts for residual geographic similarity among
 nearby fields after those measured weather effects have been considered.
 
-## Dependence spatial fields
+## Spatially dependent fields
 
 ```{r}
 spatial_data = readxl::read_xlsx("data/spamm_st_poisson.xlsx")
@@ -668,7 +686,7 @@ bdlnm_bases <- attr(
 The model can then be fitted through the harmonized `EpiExposure`
 interface:
 
-```{r, eval=requireNamespace("sn", quietly = TRUE)}
+```{r, eval=has_bdlnm}
 fit_bdlnm <- fit_epidlnm(
   data = dat_bdlnm,
   model_engine = "bdlnm",
@@ -680,11 +698,11 @@ fit_bdlnm <- fit_epidlnm(
   sample.arg = list(n = 1000, seed = 123))
 ```
 
-```{r}
+```{r, eval=has_bdlnm}
 summary(fit_bdlnm)
 ```
 
-```{r}
+```{r, eval=has_bdlnm}
 fit_bdlnm$model
 #fit_bdlnm$coefficients
 fit_bdlnm$coefficients.summary
@@ -752,7 +770,7 @@ is returned to the user.
   simulation-based uncertainty propagation.
   
   
-```{r}
+```{r,eval=has_inla}
 fit_inla <- fit_epidlnm(
   data = dat_poisson,
   model_engine = "inla",
@@ -769,7 +787,7 @@ fit_inla <- fit_epidlnm(
 
 Fixed-effect posterior summaries:
 
-```{r}
+```{r,eval=has_inla && has_bdlnm}
 fit_inla$summary.fixed
 
 fit_bdlnm$model$summary.fixed
@@ -777,7 +795,7 @@ fit_bdlnm$model$summary.fixed
 
 Random-effect posterior summaries:
 
-```{r}
+```{r,eval=has_inla && has_bdlnm}
 fit_inla$summary.random
 
 fit_bdlnm$model$summary.random
@@ -785,7 +803,7 @@ fit_bdlnm$model$summary.random
 
 Posterior distributions of hyperparameters:
 
-```{r}
+```{r,eval=has_inla && has_bdlnm}
 fit_inla$marginals.hyperpar
 
 fit_bdlnm$model$marginals.hyperpar
@@ -793,7 +811,7 @@ fit_bdlnm$model$marginals.hyperpar
 
 Marginal likelihood:
 
-```{r}
+```{r,eval=has_inla && has_bdlnm}
 fit_inla$mlik
 
 fit_bdlnm$model$mlik
@@ -802,7 +820,7 @@ fit_bdlnm$model$mlik
 For both engines, random-effect hyperparameters can be inspected through
 the INLA summaries. For example:
 
-```{r}
+```{r,eval=has_inla && has_bdlnm}
 fit_inla$summary.hyperpar
 
 fit_bdlnm$model$summary.hyperpar
@@ -810,23 +828,23 @@ fit_bdlnm$model$summary.hyperpar
 
 ## Outputs specific to B-DLNM
 
-```{r}
+```{r,eval=has_bdlnm}
 names(fit_bdlnm)
 ```
 
-```{r}
+```{r,eval=has_inla}
 names(fit_inla)
 ```
 
 Original DLNM basis objects:
 
-```{r}
+```{r,eval=has_bdlnm}
 fit_bdlnm$basis
 ```
 
 Posterior coefficient draws:
 
-```{r}
+```{r,eval=has_bdlnm}
 
 dim(fit_bdlnm$coefficients)
 
@@ -836,14 +854,14 @@ head(fit_bdlnm$coefficients)
 
 Posterior coefficient summaries:
 
-```{r}
+```{r,eval=has_bdlnm}
 
 fit_bdlnm$coefficients.summary
 ```
 
 ### Model objects
 
-```{r}
+```{r,eval=has_inla && has_bdlnm}
 class(fit_inla)
 
 class(fit_bdlnm)
