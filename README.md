@@ -71,7 +71,7 @@ Evaluate observed or hypothetical exposure histories, compare scenarios, and pre
 
 ## Installation
 
-EpiExposure is currently available from GitHub. Install the package with:
+`EpiExposure` is currently available from GitHub. Install the package with:
 
 ```r
 install.packages("pak")
