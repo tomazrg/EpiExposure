@@ -81,7 +81,7 @@ and predict expected disease outcomes.
 
 ## Installation
 
-EpiExposure is currently available from GitHub. Install the package
+`EpiExposure` is currently available from GitHub. Install the package
 with:
 
 ``` r
