@@ -288,9 +288,7 @@ ensemble_bestfit <- function(
     verbose = TRUE
 ) {
 
-  # ==========================================================================
   # ARGUMENT MATCHING AND SMALL VALIDATORS
-  # ==========================================================================
 
   ensemble_scope <- match.arg(ensemble_scope)
   weight_transform <- match.arg(weight_transform)
@@ -547,9 +545,7 @@ ensemble_bestfit <- function(
     }
   }
 
-  # ==========================================================================
   # STRICT BESTFIT METADATA CONTRACT
-  # ==========================================================================
 
   required_attributes <- c(
     "family",
@@ -865,9 +861,7 @@ ensemble_bestfit <- function(
     )
   }
 
-  # ==========================================================================
   # METRIC AND THRESHOLD CONTRACT
-  # ==========================================================================
 
   available_metrics <- .available_metrics(family_name)
 
@@ -1008,9 +1002,7 @@ ensemble_bestfit <- function(
     threshold <- as.numeric(stored_threshold)
   }
 
-  # ==========================================================================
   # METHOD-SPECIFIC CONTRACTS
-  # ==========================================================================
 
   if (ensemble_scope %in% c("lag", "both") &&
       "stacked" %in% methods) {
@@ -1101,9 +1093,7 @@ ensemble_bestfit <- function(
     }
   }
 
-  # ==========================================================================
   # MODEL SELECTION
-  # ==========================================================================
 
   rank_models <- function(model_table) {
     if (!nrow(model_table)) {
@@ -1255,9 +1245,7 @@ ensemble_bestfit <- function(
     )
   }
 
-  # ==========================================================================
   # MODEL WEIGHT TRANSFORMS
-  # ==========================================================================
 
   compute_model_weights <- function(
     model_table,
@@ -1409,9 +1397,7 @@ ensemble_bestfit <- function(
     weights
   }
 
-  # ==========================================================================
   # OOF PREDICTION ALIGNMENT
-  # ==========================================================================
 
   make_key <- function(d, columns) {
     if (!nrow(d)) {
@@ -1901,9 +1887,7 @@ ensemble_bestfit <- function(
     )
   }
 
-  # ==========================================================================
   # STACKING
-  # ==========================================================================
 
   project_simplex <- function(v) {
     v <- as.numeric(v)
@@ -2474,9 +2458,7 @@ ensemble_bestfit <- function(
     )
   }
 
-  # ==========================================================================
   # PERFORMANCE METRIC COLLECTION
-  # ==========================================================================
 
   metric_warning_rows <- list()
   metric_warning_index <- 1L
@@ -2539,9 +2521,7 @@ ensemble_bestfit <- function(
     metrics
   }
 
-  # ==========================================================================
   # MODEL-LEVEL ENSEMBLES
-  # ==========================================================================
 
   ensemble_summary <- NULL
   ensemble_predictions <- NULL
@@ -2849,9 +2829,7 @@ ensemble_bestfit <- function(
     }
   }
 
-  # ==========================================================================
   # AUTOMATIC LAG DECOMPOSITION
-  # ==========================================================================
 
   ensemble_by_lag <- NULL
   lag_weights_by_method <- list()
@@ -3245,9 +3223,7 @@ ensemble_bestfit <- function(
     }
   }
 
-  # ==========================================================================
   # LAG ENSEMBLES
-  # ==========================================================================
 
   make_group_key <- function(
     d,
@@ -3628,9 +3604,7 @@ ensemble_bestfit <- function(
     rownames(ensemble_by_lag) <- NULL
   }
 
-  # ==========================================================================
   # MODEL-WEIGHT TABLE
-  # ==========================================================================
 
   model_weight_rows <- vector(
     "list",
@@ -3722,9 +3696,7 @@ ensemble_bestfit <- function(
     ) <- stack_intercepts[["stacked"]]
   }
 
-  # ==========================================================================
   # METRIC WARNINGS
-  # ==========================================================================
 
   metric_warnings <- if (
     length(metric_warning_rows)
@@ -3751,9 +3723,7 @@ ensemble_bestfit <- function(
     )
   }
 
-  # ==========================================================================
   # RETURN
-  # ==========================================================================
 
   out <- list(
     ensemble_summary = ensemble_summary,

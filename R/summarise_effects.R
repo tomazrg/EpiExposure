@@ -261,9 +261,7 @@ summarise_effects <- function(
     extrapolation = c("error", "warn", "allow")
 ) {
 
-  # ==========================================================================
   # ARGUMENTS AND STRICT FIT CONTRACT
-  # ==========================================================================
 
   scale <- match.arg(scale)
   effect_measure <- match.arg(effect_measure)
@@ -454,9 +452,7 @@ summarise_effects <- function(
     )
   }
 
-  # ==========================================================================
   # VARIABLE SELECTION
-  # ==========================================================================
 
   if (is.null(vars)) {
     variables <- metadata$vars
@@ -480,9 +476,7 @@ summarise_effects <- function(
     variables <- vars
   }
 
-  # ==========================================================================
   # PERIOD VALIDATION
-  # ==========================================================================
 
   if (identical(scale, "period") && !incremental && is.null(lag_periods)) {
     stop(
@@ -536,9 +530,7 @@ summarise_effects <- function(
     }
   }
 
-  # ==========================================================================
   # RNG: LOCAL AND REPRODUCIBLE
-  # ==========================================================================
 
   if (!is.null(seed)) {
     had_random_seed <- exists(
@@ -573,9 +565,7 @@ summarise_effects <- function(
     set.seed(seed)
   }
 
-  # ==========================================================================
   # SMALL LOCAL HELPERS
-  # ==========================================================================
 
   safe_sd <- function(x) {
     x <- x[is.finite(x)]
@@ -728,9 +718,7 @@ summarise_effects <- function(
     values
   }
 
-  # ==========================================================================
   # VALIDATE `at`
-  # ==========================================================================
 
   if (is.list(at)) {
     if (!length(at) || is.null(names(at)) || anyNA(names(at)) ||
@@ -752,9 +740,7 @@ summarise_effects <- function(
     }
   }
 
-  # ==========================================================================
   # JOINT REFERENCE PROFILE
-  # ==========================================================================
 
   if (!is.list(ref) || !length(ref)) {
     stop("`ref` must be a non-empty list.", call. = FALSE)
@@ -972,9 +958,7 @@ summarise_effects <- function(
     )
   }
 
-  # ==========================================================================
   # CROSSPRED-BASED EFFECT DESIGN
-  # ==========================================================================
 
   crosspred_eta_matrix <- function(
     basis,
@@ -1197,9 +1181,7 @@ summarise_effects <- function(
     A
   }
 
-  # ==========================================================================
   # DIAGNOSTICS
-  # ==========================================================================
 
   compute_one_diagnostic <- function(df) {
     lag_values <- sort(unique(df$lag))
@@ -1378,9 +1360,7 @@ summarise_effects <- function(
     out
   }
 
-  # ==========================================================================
   # ONE VARIABLE
-  # ==========================================================================
 
   summarise_one_variable <- function(variable) {
     at_values <- get_at_values(variable)
@@ -1478,9 +1458,7 @@ summarise_effects <- function(
       ))
     }
 
-    # ------------------------------------------------------------------------
     # Full joint parameter uncertainty
-    # ------------------------------------------------------------------------
 
     missing_draws <- setdiff(cb_names, colnames(parameter_draws))
     if (length(missing_draws)) {
@@ -1670,9 +1648,7 @@ summarise_effects <- function(
     )
   }
 
-  # ==========================================================================
   # RUN REQUESTED VARIABLES
-  # ==========================================================================
 
   variable_results <- lapply(variables, summarise_one_variable)
 

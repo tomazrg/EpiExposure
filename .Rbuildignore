@@ -1,11 +1,14 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^\.RData$
+^\.RDataTmp$
+^\.Rhistory$
 ^LICENSE\.md$
 ^_pkgdown\.yml$
 ^docs$
 ^pkgdown$
 ^doc$
 ^Meta$
-^\\.RData$$
-^\\.RDataTmp$$
 ^external_models$
+^data-raw$
+^cran-comments\.md$

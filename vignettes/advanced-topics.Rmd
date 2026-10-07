@@ -110,7 +110,9 @@ library(EpiExposure)
 
 
 ```{r}
-poisson_data = readxl::read_xlsx("data/poisson_data.xlsx")
+data("poisson_data")
+
+head(poisson_data)
 ```
 
 ```{r}
@@ -203,12 +205,14 @@ negative-binomial models use `mgcv` extended families and are fitted
 through the supported REML route by default.
 
 ```{r}
-data_nb2 = readxl::read_xlsx("data/nb2_data.xlsx")
+data("nb2_data")
+
+head(nb2_data)
 ```
 
 ```{r}
 dat_nb2 <- build_design(
-  data = data_nb2,
+  data = nb2_data,
   cb_templates = cb,
   groups = c(
     "epi_id",
@@ -285,20 +289,22 @@ wetness duration, and rainfall are recorded during the 86 days preceding
 the final assessment. The outcome is the final number of lesions per
 plant.
 
-The cross-basis terms estimate nonlinear and delayed weather effects. A
+The cross-basis terms estimate non-linear and delayed weather effects. A
 Matérn random effect accounts for residual geographic similarity among
 nearby fields after those measured weather effects have been considered.
 
 ## Spatially dependent fields
 
 ```{r}
-spatial_data = readxl::read_xlsx("data/spamm_st_poisson.xlsx")
+data("st_poisson")
+
+head(st_poisson)
 ```
 
 ```{r}
 
 cb_spatial <- define_exposures(
-  data = poisson_data,
+  data = st_poisson,
   vars = c(
     "tmean",
     "rain",
@@ -310,7 +316,7 @@ cb_spatial <- define_exposures(
 )
 
 dat_spatial <- build_design(
-  data = spatial_data,
+  data = st_poisson,
   cb_templates = cb_spatial,
   groups = c(
     "epi_id",
@@ -365,7 +371,9 @@ realization in each growing season, `year` can define independent Matérn
 fields:
 
 ```{r}
-spatial_year = readxl::read_xlsx("data/sim_data_spatial_year.xlsx")
+data("spatial_year")
+
+head(spatial_year)
 ```
 
 ```{r}
@@ -447,7 +455,7 @@ epidemic:
 `L001_Replicate_4`
 
 The cross-basis terms use the exposure history from each epidemic to
-estimate the shared nonlinear and delayed environmental associations.
+estimate the shared non-linear and delayed environmental associations.
 However, the residual spatial pattern of disease is not required to
 remain in the same locations across repetitions.
 
@@ -466,7 +474,9 @@ smoothness, and spatial scale of residual dependence, while retaining
 separate realized spatial fields.
 
 ```{r}
-spatial_replicate = readxl::read_xlsx("data/sim_data_spatial_replicate.xlsx")
+data("spatial_replicate")
+
+head(spatial_replicate)
 ```
 
 ```{r}
@@ -544,7 +554,9 @@ The `gls` engine is restricted to Gaussian outcomes with the identity
 link and does not support the `EpiExposure` random-intercept interface.
 
 ```{r}
-gaussian_data = readxl::read_xlsx("data/gaussian_data.xlsx")
+data("gaussian_data")
+
+head(gaussian_data)
 ```
 
 ```{r}
@@ -616,19 +628,19 @@ fit_brms <- fit_epidlnm(
 
 ```
 
-```{r, include = FALSE}
+```{r, include = FALSE, eval=FALSE}
 fit_brms = readRDS("data/fit_brms.rds")
 ```
 
-```{r}
-summary(fit_brms)
+```{r, eval=FALSE}
+summary(fit_brms, eval=FALSE)
 ```
 
 
 # Bayesian DLNM with `bdlnm`
 
 The `bdlnm` engine provides a Bayesian implementation specifically
-designed for distributed lag linear and nonlinear models. Internally,
+designed for distributed lag linear and non-linear models. Internally,
 the native `bdlnm` package fits the model using Integrated Nested
 Laplace Approximation through `INLA::inla()` and then draws samples from
 the approximate posterior distribution using

@@ -468,8 +468,6 @@ compute_ecilag <- function(
   }
   X_reference <- build_design(reference_profiles, "joint reference")
 
-  # This is the key correction: every isolated-lag contrast uses the same basis
-  # pipeline as the complete trajectory. No crosspred-based parallel route.
   isolated_design <- function(variable, position, value, variable_columns) {
     profiles <- reference_profiles
     profiles[[variable]][position] <- value

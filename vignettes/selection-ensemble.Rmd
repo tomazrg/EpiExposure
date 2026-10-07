@@ -24,7 +24,7 @@ knitr::opts_chunk$set(
 
 # Introduction
 
-Distributed Lag Nonlinear Models (DLNMs) require several modeling
+Distributed Lag Non-linear Models (DLNMs) require several modeling
 decisions, including:
 
 - exposure variables;
@@ -118,7 +118,7 @@ best_models <- find_bestfit(
 
 ```{r, include=FALSE}
 #best_models = readRDS("best_models.rds")
-best_models = readxl::read_xlsx("best_models.xlsx")
+best_models = readxl::read_xlsx("data/ensemble/best_models.xlsx")
 
 ```
 
@@ -143,7 +143,7 @@ plot_performance(
   )
 ```
 
-![](find_bestfit2.png) Inspect results
+![](output/find_bestfit2.png) Inspect results
 
 ```{r echo=FALSE}
 knitr::kable(
@@ -309,7 +309,7 @@ ens_unweighted$ensemble_summary
 ```
 
 ```{r, include=FALSE}
-ens_unweighted <- readxl::read_xlsx("ens_unweighted.xlsx")
+ens_unweighted <- readxl::read_xlsx("data/ensemble/ens_unweighted.xlsx")
 ```
 
 ```{r, echo=FALSE}
@@ -347,7 +347,7 @@ ens_weighted$ensemble_summary
 ```
 
 ```{r, include=FALSE}
-ens_weighted <- readxl::read_xlsx("ens_weighted.xlsx")
+ens_weighted <- readxl::read_xlsx("data/ensemble/ens_weighted.xlsx")
 ```
 
 ```{r, echo=FALSE}
@@ -385,7 +385,7 @@ ens_stacked$ensemble_summary
 ```
 
 ```{r, include=FALSE}
-ens_stacked <- readxl::read_xlsx("ens_stacked.xlsx")
+ens_stacked <- readxl::read_xlsx("data/ensemble/ens_stacked.xlsx")
 ```
 
 ```{r, echo=FALSE}
@@ -414,7 +414,7 @@ ensemble_metrics <- dplyr::bind_rows(
 ```
 
 ```{r, include=FALSE}
-ensemble_metrics <- readxl::read_xlsx("ensemble_metrics.xlsx")
+ensemble_metrics <- readxl::read_xlsx("data/ensemble/ensemble_metrics.xlsx")
 ```
 
 ```{r}
@@ -433,7 +433,7 @@ ensemble_all = rbind(ens_unweighted$ensemble_predictions,ens_weighted$ensemble_p
 ```
 
 ```{r, include=FALSE}
-ensemble_all <- readxl::read_xlsx("ensemble_all.xlsx")
+ensemble_all <- readxl::read_xlsx("data/ensemble/ensemble_all.xlsx")
 ```
 
 ```{r}
@@ -794,7 +794,7 @@ lag_ensemble$selected_models
 ```
 
 ```{r, echo=FALSE}
-selected_models = readxl::read_xlsx("selected_models.xlsx")
+selected_models = readxl::read_xlsx("data/ensemble/selected_models.xlsx")
 ```
 
 
@@ -813,7 +813,7 @@ lag_ensemble$model_weights
 ```
 
 ```{r, echo=FALSE}
-model_weights = readxl::read_xlsx("model_weights.xlsx")
+model_weights = readxl::read_xlsx("data/ensemble/model_weights.xlsx")
 ```
 
 ```{r inspect-lag-model-weights, echo=FALSE}
@@ -842,7 +842,7 @@ lag_ensemble$ensemble_by_lag
 Inspect the first rows:
 
 ```{r, echo=FALSE}
-ensemble_by_lag = readxl::read_xlsx("ensemble_by_lag.xlsx")
+ensemble_by_lag = readxl::read_xlsx("data/ensemble/ensemble_by_lag.xlsx")
 ```
 
 ```{r inspect-lag-ensemble, echo=FALSE}

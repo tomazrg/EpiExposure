@@ -155,9 +155,7 @@ prepare_response <- function(
     y_var = NULL
 ) {
 
-  # ==========================================================================
   # BASIC VALIDATION
-  # ==========================================================================
 
   if (!is.data.frame(data) || !nrow(data)) {
     stop(
@@ -240,9 +238,9 @@ prepare_response <- function(
 
   beta_scale <- match.arg(beta_scale)
 
-  # ==========================================================================
+
   # STRICT EPIEXPOSURE v1 FAMILY RESOLUTION
-  # ==========================================================================
+
 
   extract_family_label <- function(family_input) {
     if (is.character(family_input) &&
@@ -395,9 +393,7 @@ prepare_response <- function(
     )
   }
 
-  # ==========================================================================
   # RESPONSE EXTRACTION
-  # ==========================================================================
 
   original_y <- data[[response_name]]
 
@@ -441,9 +437,7 @@ prepare_response <- function(
   response_transform <- "none"
   nb_parameterization <- NULL
 
-  # ==========================================================================
   # BETA
-  # ==========================================================================
 
   if (identical(family_name, "beta")) {
     if (any(y < 0)) {
@@ -517,9 +511,7 @@ prepare_response <- function(
     }
   }
 
-  # ==========================================================================
   # BINOMIAL
-  # ==========================================================================
 
   if (identical(family_name, "binomial")) {
     if (!all(y %in% c(0, 1))) {
@@ -540,9 +532,7 @@ prepare_response <- function(
     model_scale <- "binary_0_1"
   }
 
-  # ==========================================================================
   # POISSON AND NEGATIVE BINOMIAL (NB2)
-  # ==========================================================================
 
   if (family_name %in% c(
     "poisson",
@@ -588,9 +578,7 @@ prepare_response <- function(
     }
   }
 
-  # ==========================================================================
   # GAUSSIAN
-  # ==========================================================================
 
   if (identical(family_name, "gaussian")) {
     y <- as.numeric(y)
@@ -598,9 +586,7 @@ prepare_response <- function(
     model_scale <- "continuous"
   }
 
-  # ==========================================================================
   # GAMMA
-  # ==========================================================================
 
   if (identical(family_name, "gamma")) {
     if (any(y <= 0)) {
@@ -621,9 +607,7 @@ prepare_response <- function(
     model_scale <- "positive_continuous"
   }
 
-  # ==========================================================================
   # FINAL VALIDATION AND OUTPUT
-  # ==========================================================================
 
   if (length(y) != nrow(data) ||
       anyNA(y) ||

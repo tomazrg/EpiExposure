@@ -164,9 +164,7 @@ define_exposures <- function(
     fun_lag = "ns"
 ) {
 
-  # ==========================================================================
   # SMALL VALIDATORS
-  # ==========================================================================
 
   valid_scalar_character <- function(x) {
     is.character(x) &&
@@ -193,9 +191,7 @@ define_exposures <- function(
       abs(a - b) <= tolerance * max(1, abs(a), abs(b))
   }
 
-  # ==========================================================================
   # BASIC INPUT VALIDATION
-  # ==========================================================================
 
   if (!is.data.frame(data) || !nrow(data)) {
     stop(
@@ -292,9 +288,7 @@ define_exposures <- function(
     }
   }
 
-  # ==========================================================================
   # LAG AND BASIS ARGUMENTS
-  # ==========================================================================
 
   if (!is.numeric(max_lag) ||
       !length(max_lag) ||
@@ -430,9 +424,7 @@ define_exposures <- function(
     )
   }
 
-  # ==========================================================================
   # TEMPORAL REGULARITY
-  # ==========================================================================
 
   data_ordered <- data[
     order(data$epi_id, data$time),
@@ -567,9 +559,7 @@ define_exposures <- function(
     )
   )
 
-  # ==========================================================================
   # BASIS-ARGUMENT CONSTRUCTORS
-  # ==========================================================================
 
   make_argvar <- function(fun, df) {
     if (identical(fun, "ns")) {
@@ -672,9 +662,7 @@ define_exposures <- function(
     df_lag
   )
 
-  # ==========================================================================
   # CREATE TRAINING CROSS-BASIS TEMPLATES
-  # ==========================================================================
 
   cb_templates <- stats::setNames(
     vector("list", length(vars)),
@@ -907,9 +895,7 @@ define_exposures <- function(
     )
   }
 
-  # ==========================================================================
   # LIST-LEVEL CONTRACT
-  # ==========================================================================
 
   attr(
     cb_templates,

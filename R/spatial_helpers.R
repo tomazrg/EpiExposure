@@ -1,6 +1,5 @@
-# ============================================================================
 # EpiExposure - internal spaMM spatial specification helpers (not exported)
-# ============================================================================
+
 # Spatial effects are distinct from the conventional random intercept. These
 # helpers construct only the spatial term and never modify epidemic histories.
 

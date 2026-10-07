@@ -312,9 +312,7 @@ simulate_losses <- function(
 
   n_was_supplied <- !missing(n)
 
-  # ==========================================================================
   # HELPERS
-  # ==========================================================================
 
   valid_name <- function(x) {
     is.character(x) &&
@@ -386,9 +384,7 @@ simulate_losses <- function(
       )
   }
 
-  # ==========================================================================
   # 1. GENERAL VALIDATION
-  # ==========================================================================
 
   if (!is.data.frame(data) ||
       !nrow(data)) {
@@ -471,9 +467,7 @@ simulate_losses <- function(
     seed <- as.integer(seed)
   }
 
-  # ==========================================================================
   # 2. RESPONSE BOUNDS
-  # ==========================================================================
 
   has_bounds <- !is.null(lower) ||
     !is.null(upper)
@@ -561,9 +555,7 @@ simulate_losses <- function(
     }
   }
 
-  # ==========================================================================
   # 3. LOSS-MODEL PARAMETERS AND ECONOMIC GRID
-  # ==========================================================================
 
   slope <- validate_numeric_vector(
     slope,
@@ -603,9 +595,8 @@ simulate_losses <- function(
   #   are recycled. When `n` is omitted, it is inferred from the non-scalar
   #   draw vector length.
 
-  # ==========================================================================
   # 4. RESPONSE SCALE VALIDATION
-  # ==========================================================================
+
 
   y_used <-
     as.numeric(
@@ -667,9 +658,7 @@ simulate_losses <- function(
     }
   }
 
-  # ==========================================================================
   # 5. CHECK OUTPUT-COLUMN CONFLICTS
-  # ==========================================================================
 
   base_output_columns <- c(
     ".loss_row_id",
@@ -744,9 +733,7 @@ simulate_losses <- function(
     )
   }
 
-  # ==========================================================================
   # 6. RESOLVE PARAMETER MODE AND NUMBER OF SIMULATIONS
-  # ==========================================================================
 
   if (identical(parameter_mode, "values")) {
 
@@ -853,9 +840,7 @@ simulate_losses <- function(
        (length(slope) == 2L || length(intercept) == 2L)) ||
     random_sd > 0
 
-  # ==========================================================================
   # 7. RNG CONTRACT AND PARAMETER REALIZATIONS
-  # ==========================================================================
 
   if (!is.null(seed)) {
     seed_existed <- exists(
@@ -1022,9 +1007,7 @@ simulate_losses <- function(
     )
   }
 
-  # ==========================================================================
   # 8. CONSTRUCT LOSS-SIMULATION GRID
-  # ==========================================================================
 
   simulation_grid <- expand.grid(
     attainable_yield =
@@ -1057,9 +1040,7 @@ simulate_losses <- function(
       simulation_grid$.sim
     ]
 
-  # ==========================================================================
   # 9. EXPAND ORIGINAL DATA
-  # ==========================================================================
 
   n_grid <- nrow(
     simulation_grid
@@ -1138,9 +1119,7 @@ simulate_losses <- function(
       ]
   }
 
-  # ==========================================================================
   # 10. LOSS-METRIC CALCULATOR
-  # ==========================================================================
 
   calculate_metrics <- function(
     response,
@@ -1299,9 +1278,7 @@ simulate_losses <- function(
     )
   }
 
-  # ==========================================================================
   # 11. CENTRAL RESPONSE METRICS
-  # ==========================================================================
 
   central_metrics <- calculate_metrics(
     out$y_used,
@@ -1317,9 +1294,7 @@ simulate_losses <- function(
       ]]
   }
 
-  # ==========================================================================
   # 12. PROPAGATE RESPONSE BOUNDS
-  # ==========================================================================
 
   lower_metrics <- NULL
   upper_metrics <- NULL
@@ -1393,9 +1368,7 @@ simulate_losses <- function(
       metrics_at_upper
   }
 
-  # ==========================================================================
   # 13. CONSISTENCY CHECKS
-  # ==========================================================================
 
   tolerance <- 100 *
     .Machine$double.eps
@@ -1468,9 +1441,7 @@ simulate_losses <- function(
     )
   }
 
-  # ==========================================================================
   # 14. EXPLICIT CONSTRAINT WARNING
-  # ==========================================================================
 
   central_constrained_count <-
     sum(
@@ -1528,9 +1499,7 @@ simulate_losses <- function(
     )
   }
 
-  # ==========================================================================
   # 15. OUTPUT ORDER AND ATTRIBUTES
-  # ==========================================================================
 
   rownames(out) <- NULL
 

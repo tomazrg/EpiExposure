@@ -41,9 +41,7 @@
 # ============================================================================
 
 
-# ----------------------------------------------------------------------------
 # Small generic helpers
-# ----------------------------------------------------------------------------
 
 .epix_stop <- function(...) {
   stop(..., call. = FALSE)
@@ -159,9 +157,7 @@
 }
 
 
-# ----------------------------------------------------------------------------
 # Strict fitted-model metadata contract
-# ----------------------------------------------------------------------------
 
 #' Read and validate EpiExposure model metadata
 #'
@@ -591,9 +587,7 @@
 }
 
 
-# ----------------------------------------------------------------------------
 # Basis reconstruction for new observed data or explicit exposure profiles
-# ----------------------------------------------------------------------------
 
 .epix_basis_definition <- function(metadata, variable) {
   spec <- metadata$spec[[variable]]
@@ -893,9 +887,8 @@
     .epix_stop("Supply exactly one of `newdata` or `profiles`.")
   }
 
-  # --------------------------------------------------------------------------
   # Explicit profile
-  # --------------------------------------------------------------------------
+
   if (has_profiles) {
     if (!is.list(profiles) || is.null(names(profiles)) ||
         anyNA(names(profiles)) || any(!nzchar(names(profiles))) ||
@@ -975,9 +968,9 @@
     return(design)
   }
 
-  # --------------------------------------------------------------------------
+
   # Long-format observed new data
-  # --------------------------------------------------------------------------
+
   if (!is.data.frame(newdata) || !nrow(newdata)) {
     .epix_stop("`newdata` must be a non-empty data.frame.")
   }
@@ -1084,9 +1077,8 @@
 }
 
 
-# ----------------------------------------------------------------------------
 # Canonical parameter-name mapping
-# ----------------------------------------------------------------------------
+
 
 .epix_expected_parameter_names <- function(metadata) {
   c("(Intercept)", metadata$cb_cols)
@@ -1272,9 +1264,7 @@
 }
 
 
-# ----------------------------------------------------------------------------
 # Central fixed/population parameters
-# ----------------------------------------------------------------------------
 
 #' Extract harmonized central fixed-effect parameters
 #'
@@ -1359,10 +1349,7 @@
   .epix_standardize_parameter_vector(fit, metadata, raw_beta)
 }
 
-
-# ----------------------------------------------------------------------------
 # Frequentist fixed-effect covariance and MVN draws
-# ----------------------------------------------------------------------------
 
 .epix_extract_fixed_vcov <- function(fit, metadata) {
   engine <- metadata$engine
@@ -1487,10 +1474,7 @@
   draws
 }
 
-
-# ----------------------------------------------------------------------------
 # Bayesian fixed/population parameter draws
-# ----------------------------------------------------------------------------
 
 .epix_subsample_rows <- function(draws, n_samples) {
   n_samples <- .epix_validate_n_samples(n_samples)
@@ -1867,10 +1851,7 @@
   )
 }
 
-
-# ----------------------------------------------------------------------------
 # Standard population-level fixed design
-# ----------------------------------------------------------------------------
 
 .epix_standard_fixed_design <- function(newdata, metadata) {
   if (!is.data.frame(newdata) || !nrow(newdata)) {
@@ -2118,10 +2099,7 @@
   out
 }
 
-
-# ----------------------------------------------------------------------------
 # Draw-by-draw population-level prediction
-# ----------------------------------------------------------------------------
 
 #' Predict population-level expected responses draw by draw
 #'
@@ -2298,10 +2276,7 @@
   out
 }
 
-
-# ----------------------------------------------------------------------------
 # Shared empirical summary of draw-based expected predictions
-# ----------------------------------------------------------------------------
 
 #' Summarize draw-by-draw EpiExposure predictions
 #'
@@ -2354,10 +2329,7 @@
   out
 }
 
-
-# ----------------------------------------------------------------------------
 # Optional convenience accessor for prediction keys
-# ----------------------------------------------------------------------------
 
 .epiexposure_prediction_keys <- function(prediction_design) {
   keys <- attr(

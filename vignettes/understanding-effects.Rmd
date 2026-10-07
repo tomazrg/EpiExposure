@@ -21,7 +21,7 @@ knitr::opts_chunk$set(
 
 # Introduction
 
-The primary goal of `EpiExposure` is not only to fit distributed lag nonlinear
+The primary goal of `EpiExposure` is not only to fit distributed lag non-linear
 models, but also to translate estimated exposure-lag-response surfaces into
 epidemiologically meaningful quantities.
 

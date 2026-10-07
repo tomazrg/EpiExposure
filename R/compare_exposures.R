@@ -252,9 +252,7 @@ compare_exposures <- function(
     eps = 1e-12
 ) {
 
-  # ==========================================================================
   # ARGUMENT MATCHING AND SMALL VALIDATORS
-  # ==========================================================================
 
   mode <- match.arg(mode)
   agg_fun <- match.arg(agg_fun)
@@ -289,9 +287,7 @@ compare_exposures <- function(
     )
   }
 
-  # ==========================================================================
   # BACKWARD-COMPATIBILITY INPUT
-  # ==========================================================================
 
   if (is.null(exposures)) {
     if (is.null(exposure1) ||
@@ -325,9 +321,7 @@ compare_exposures <- function(
     }
   }
 
-  # ==========================================================================
   # VALIDATE EXPOSURE PROFILES
-  # ==========================================================================
 
   if (!is.list(exposures) ||
       !length(exposures)) {
@@ -401,9 +395,7 @@ compare_exposures <- function(
       as.numeric(x)
   }
 
-  # ==========================================================================
   # CHRONOLOGICAL TIME CONTRACT
-  # ==========================================================================
 
   if (is.null(time)) {
     time <- seq.int(
@@ -488,9 +480,7 @@ compare_exposures <- function(
   chronological_position <-
     seq_len(n_time)
 
-  # ==========================================================================
   # OPTIONAL GROUP ALIGNMENT AND AGGREGATION
-  # ==========================================================================
 
   original_n_profiles <-
     length(exposures)
@@ -679,9 +669,7 @@ compare_exposures <- function(
       simplify = FALSE
     )
 
-  # ==========================================================================
   # OUTPUT METADATA HELPER
-  # ==========================================================================
 
   attach_metadata <- function(out) {
     attr(
@@ -766,9 +754,7 @@ compare_exposures <- function(
     out
   }
 
-  # ==========================================================================
   # TIME-WISE MODE
-  # ==========================================================================
 
   if (identical(
     mode,
@@ -851,9 +837,7 @@ compare_exposures <- function(
     )
   }
 
-  # ==========================================================================
   # GLOBAL-METRIC HELPERS
-  # ==========================================================================
 
   peak_summary <- function(x) {
     peak_value <- max(x)
@@ -1006,9 +990,7 @@ compare_exposures <- function(
     )
   }
 
-  # ==========================================================================
   # GLOBAL MODE
-  # ==========================================================================
 
   global_rows <- lapply(
     pairwise_combinations,
@@ -1027,9 +1009,7 @@ compare_exposures <- function(
       squared_difference <-
         difference^2
 
-      # ----------------------------------------------------------------------
       # DISTANCE / DISCREPANCY
-      # ----------------------------------------------------------------------
 
       L1 <- sum(
         absolute_difference
@@ -1055,9 +1035,7 @@ compare_exposures <- function(
         )
       )
 
-      # ----------------------------------------------------------------------
       # PROFILE MAGNITUDE / VARIABILITY
-      # ----------------------------------------------------------------------
 
       sum1 <- sum(x1)
       sum2 <- sum(x2)
@@ -1084,9 +1062,7 @@ compare_exposures <- function(
         )
       }
 
-      # ----------------------------------------------------------------------
       # CORRELATION
-      # ----------------------------------------------------------------------
 
       # A correlation coefficient is undefined when either profile is constant.
       # Using uniqueness rather than SD makes the check equally appropriate for
@@ -1138,9 +1114,7 @@ compare_exposures <- function(
         )
       }
 
-      # ----------------------------------------------------------------------
       # PEAK TIMING
-      # ----------------------------------------------------------------------
 
       peak1 <- peak_summary(x1)
       peak2 <- peak_summary(x2)
@@ -1153,9 +1127,7 @@ compare_exposures <- function(
         peak1$midpoint_time -
         peak2$midpoint_time
 
-      # ----------------------------------------------------------------------
       # TEMPORAL CENTER OF MASS
-      # ----------------------------------------------------------------------
 
       com1 <- center_of_mass(x1)
       com2 <- center_of_mass(x2)
@@ -1170,18 +1142,14 @@ compare_exposures <- function(
         NA_real_
       }
 
-      # ----------------------------------------------------------------------
       # HIGH-EXPOSURE OVERLAP
-      # ----------------------------------------------------------------------
 
       overlap <- high_overlap(
         x1,
         x2
       )
 
-      # ----------------------------------------------------------------------
       # GROUP SIZES
-      # ----------------------------------------------------------------------
 
       n_profiles1 <- if (grouped) {
         unname(
@@ -1199,9 +1167,7 @@ compare_exposures <- function(
         1L
       }
 
-      # ----------------------------------------------------------------------
       # OUTPUT ROW
-      # ----------------------------------------------------------------------
 
       data.frame(
         exposure1 = name1,

@@ -29,8 +29,8 @@ library(dplyr)
 
 The package helps users:
 
-- define nonlinear exposure-lag structures;
-- fit distributed lag nonlinear models;
+- define non-linear exposure-lag structures;
+- fit distributed lag non-linear models;
 - quantify lag-specific, period-specific, and cumulative effects;
 - evaluate complete exposure histories;
 - predict expected disease outcomes;
@@ -40,18 +40,23 @@ The package helps users:
 Unlike conventional window-based approaches, `EpiExposure` treats the complete environmental history preceding disease assessment as the epidemiological exposure unit.
 
 ::: tutorial-note
-**What you will learn.** This tutorial shows how to organize longitudinal epidemiological data, define exposure-lag structures, fit a first DLNM, and predict an expected disease outcome from a complete exposure history.
+**What you will learn.** This tutorial shows how to organize
+longitudinal epidemiological data, define and diagnose an exposure–lag
+structure, fit a first DLNM, and predict an expected disease outcome
+from a complete exposure history.
 :::
 
 # The EpiExposure workflow
 
-A basic analysis follows five stages:
+A basic analysis follows six stages:
 
-1.  organize complete exposure histories;
-2.  define the exposure-response and lag-response basis functions;
-3.  collapse each history into one epidemic-level design row;
-4.  prepare the response and fit the model;
-5.  use the fitted model for interpretation, prediction, or simulation.
+1. organize and inspect complete exposure histories;
+2. define the exposure-response and lag-response basis functions;
+3. evaluate the proposed structure for identifiability and numerical
+   stability;
+4. collapse each history into one epidemic-level design row;
+5. prepare the response and fit the model;
+6. use the fitted model for interpretation, prediction, or simulation.
 
 This section introduces the basic workflow but stops before detailed effect interpretation. Lag-specific, period-specific, and cumulative effects are covered in the *Understanding Effects* section
 
@@ -92,10 +97,7 @@ library(ggplot2)
 ```
 
 ```{r load-data}
-data(
-  "epi_data",
-  package = "EpiExposure"
-)
+data("epi_data")
 ```
 
 # Inspecting the example dataset
@@ -179,7 +181,7 @@ The objective is not to identify exposure effects visually. These plots only des
 
 # Defining exposure-lag structures
 
-The first modeling step is to define the nonlinear exposure-response and lag-response basis functions.
+The first modeling step is to define the non-linear exposure-response and lag-response basis functions.
 
 ```{r define-exposures}
 cb <- define_exposures(
@@ -208,6 +210,91 @@ The resulting object stores the fitted basis definitions required for model cons
 **Exposure variables only.** Coordinates, treatment groups, blocks, years, and other identifiers should not be included in `vars`. They can be preserved separately by `build_design()` when needed for random or spatial effects.
 :::
 
+# Checking identifiability and numerical stability
+
+Before fitting the model, the proposed exposure–lag structure should be
+evaluated for identifiability and numerical stability. Increasing the
+number of exposures or the flexibility of the exposure and lag bases
+increases the number of cross-basis predictors and may produce
+redundant, rank-deficient, or poorly conditioned designs.
+
+`check_identifiability()` reconstructs the same epidemic-level
+cross-basis design used by the EpiExposure fitting workflow. The
+function evaluates the combined numerical rank, scaled condition number,
+near-zero-variance columns, between-exposure cross-basis correlations,
+supplementary variance inflation factors, and the number of epidemics
+relative to design complexity.
+
+```{r check-identifiability}
+identifiability <- check_identifiability(
+  data = epi_data,
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  max_lag = 85,
+  df_var = 3,
+  df_lag = 2
+)
+
+
+```
+
+The printed output classifies the proposed design as `"ok"`, `"warning"`,
+or `"problem"`. The `identifiable` field indicates whether the combined
+epidemic-level design has full numerical rank, whereas
+`numerically_stable` additionally considers severe conditioning,
+near-zero-variance columns, and whether the available epidemics can
+support the number of design columns.
+
+```{r inspect-identifiability1}
+knitr::kable(
+  utils::head(
+    identifiability$overall,
+    10L
+  ),
+  digits = 4,
+  align = "c"
+)
+```
+
+```{r inspect-identifiability2}
+knitr::kable(
+  utils::head(
+    identifiability$by_variable,
+    10L
+  ),
+  digits = 4,
+  align = "c"
+)
+```
+
+```{r inspect-identifiability3}
+knitr::kable(
+  utils::head(
+    identifiability$recommendations,
+    10L
+  ),
+  digits = 4,
+  align = "c"
+)
+```
+
+A `"warning"` does not automatically invalidate the proposed structure.
+It indicates that the reported diagnostics should be examined before
+model fitting. A `"problem"` indicates rank deficiency or severe
+numerical instability and generally supports simplifying the candidate
+structure, for example by reducing `df_var` or `df_lag`, reconsidering
+redundant exposures, or increasing the number of independent epidemics.
+
+The diagnostic thresholds are interpretive heuristics rather than
+universal inferential rules. In particular, high correlations or VIFs
+among individual spline columns may arise from the basis construction
+itself. The combined numerical rank and scaled condition number should
+therefore receive greater emphasis than any isolated column-level
+diagnostic.
+
 # Building the epidemic-level design
 
 `build_design()` transforms each complete longitudinal history into one epidemic-level row containing the cross-basis predictors.
@@ -226,7 +313,7 @@ cb_rain_1, cb_rain_2, ...
 cb_wetness_1, cb_wetness_2, ...
 ```
 
-The coefficients of these columns should not be interpreted individually. Together, they reconstruct the nonlinear exposure-lag-response association.
+The coefficients of these columns should not be interpreted individually. Together, they reconstruct the non-linear exposure-lag-response association.
 
 Inspect the resulting design:
 
@@ -336,13 +423,14 @@ The resulting prediction represents the expected population-level disease respon
 
 You have now completed the basic `EpiExposure` workflow:
 
-1.  loaded longitudinal epidemic data;
-2.  inspected complete exposure histories;
-3.  defined the exposure-lag basis;
-4.  constructed the epidemic-level design;
-5.  prepared the response;
-6.  fitted a DLNM;
-7.  predicted an expected disease outcome.
+1. loaded longitudinal epidemic data;
+2. inspected complete exposure histories;
+3. defined the exposure–lag basis;
+4. evaluated its identifiability and numerical stability;
+5. constructed the epidemic-level design;
+6. prepared the response;
+7. fitted a DLNM;
+8. predicted an expected disease outcome.
 
 Continue with the *Understanding Effects* section to learn how to:
 
@@ -352,4 +440,8 @@ Continue with the *Understanding Effects* section to learn how to:
 - select meaningful reference exposures;
 - visualize uncertainty across the exposure-lag surface.
 
-More advanced topics, including alternative modeling engines, random effects, spatial Matérn structures, Bayesian estimation, and identifiability diagnostics, are covered in the *Advanced Topics* section
+More advanced topics, including alternative modeling engines, random
+effects, spatial Matérn structures, and Bayesian estimation, are covered
+in the *Advanced Topics* section. Additional comparisons among candidate
+exposure–lag structures are discussed in the *Sensitivity and Decision*
+section.

@@ -149,9 +149,7 @@ build_design <- function(
       abs(a - b) <= tolerance * max(1, abs(a), abs(b))
   }
 
-  # ==========================================================================
   # BASIC INPUT VALIDATION
-  # ==========================================================================
 
   if (!is.data.frame(data) || !nrow(data)) {
     stop("`data` must be a non-empty data.frame.", call. = FALSE)
@@ -268,9 +266,7 @@ build_design <- function(
     )
   }
 
-  # ==========================================================================
   # VALIDATE TRAINING TEMPLATE DEFINITIONS
-  # ==========================================================================
 
   stored_spec <- attr(cb_templates, "spec", exact = TRUE)
 
@@ -479,9 +475,7 @@ build_design <- function(
   required_history_length <- common_max_lag + 1L
   history_contract <- "all_fitted_exposures_same_exact_max_lag_plus_one"
 
-  # ==========================================================================
   # OPTIONAL max_lag VALIDATION
-  # ==========================================================================
 
   if (!is.null(max_lag)) {
     if (!is_integerish(max_lag)) {
@@ -528,9 +522,7 @@ build_design <- function(
     }
   }
 
-  # ==========================================================================
   # TEMPORAL REGULARITY AND COVERAGE
-  # ==========================================================================
 
   data_ordered <- data[
     order(data$epi_id, data$time),
@@ -647,9 +639,7 @@ build_design <- function(
     }
   }
 
-  # ==========================================================================
   # BUILD ONE DESIGN ROW PER EPIDEMIC
-  # ==========================================================================
 
   out <- data.frame(
     group_values,
@@ -780,9 +770,7 @@ build_design <- function(
     )
   }
 
-  # ==========================================================================
   # BUILD EPIDEMIC-LEVEL CROSS-BASIS OBJECTS FOR bdlnm
-  # ==========================================================================
 
   bdlnm_basis_objects <- stats::setNames(
     vector(
@@ -991,9 +979,7 @@ build_design <- function(
     "spec"
   ) <- effective_spec
 
-  # ==========================================================================
   # OPTIONAL RESPONSE
-  # ==========================================================================
 
   if (isTRUE(include_response) && "y" %in% names(data_ordered)) {
     if (!is.numeric(data_ordered$y) ||
@@ -1026,9 +1012,7 @@ build_design <- function(
     out$y <- y_out
   }
 
-  # ==========================================================================
   # OUTPUT METADATA
-  # ==========================================================================
 
   attr(out, "cb_templates") <- cb_templates
   attr(out, "epiexposure_basis_objects") <- cb_templates

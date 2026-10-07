@@ -210,9 +210,7 @@ simulate_exposures <- function(
     cumulative = FALSE
 ) {
 
-  # ==========================================================================
   # HELPERS
-  # ==========================================================================
 
   `%||%` <- function(a, b) {
     if (!is.null(a)) a else b
@@ -297,9 +295,7 @@ simulate_exposures <- function(
     }
   }
 
-  # ==========================================================================
   # BASIC VALIDATION
-  # ==========================================================================
 
   if (!is_whole_scalar(max_lag) || max_lag < 0) {
     stop(
@@ -328,9 +324,7 @@ simulate_exposures <- function(
 
   mode_i <- match.arg(mode)
 
-  # ==========================================================================
   # RNG CONTRACT
-  # ==========================================================================
 
   seed_i <- NULL
 
@@ -383,9 +377,7 @@ simulate_exposures <- function(
     set.seed(seed_i)
   }
 
-  # ==========================================================================
   # CHRONOLOGICAL INDEX
-  # ==========================================================================
 
   profile_length <- max_lag_i + 1L
 
@@ -406,9 +398,7 @@ simulate_exposures <- function(
     chronological_time
   )
 
-  # ==========================================================================
   # PATTERN CONTRACT
-  # ==========================================================================
 
   pattern_i <- NA_character_
 
@@ -594,9 +584,7 @@ simulate_exposures <- function(
     }
   }
 
-  # ==========================================================================
   # BACKGROUND VALIDATION
-  # ==========================================================================
 
   if (!is.list(background) ||
       !length(background)) {
@@ -758,9 +746,7 @@ simulate_exposures <- function(
     background_parameters$value <- fixed_background
   }
 
-  # ==========================================================================
   # BOUNDS
-  # ==========================================================================
 
   if (!is.null(bounds)) {
     if (!is.numeric(bounds) ||
@@ -819,9 +805,7 @@ simulate_exposures <- function(
     )
   }
 
-  # ==========================================================================
   # BACKGROUND GENERATOR
-  # ==========================================================================
 
   generate_background <- function() {
     if (identical(dist, "normal")) {
@@ -888,9 +872,7 @@ simulate_exposures <- function(
     )
   }
 
-  # ==========================================================================
   # ONE SIMULATION
-  # ==========================================================================
 
   simulate_one <- function(simulation_id) {
     x <- generate_background()
@@ -977,9 +959,7 @@ simulate_exposures <- function(
     )
   }
 
-  # ==========================================================================
   # RUN SIMULATIONS
-  # ==========================================================================
 
   simulations <- lapply(
     seq_len(n),
@@ -1025,9 +1005,7 @@ simulate_exposures <- function(
 
   colnames(simulation_matrix) <- profile_names
 
-  # ==========================================================================
   # LONG TABULAR REPRESENTATION
-  # ==========================================================================
 
   simulation_data <- data.frame(
     simulation = rep(
@@ -1052,9 +1030,7 @@ simulate_exposures <- function(
     stringsAsFactors = FALSE
   )
 
-  # ==========================================================================
   # COMMON METADATA
-  # ==========================================================================
 
   meta <- list(
     max_lag = max_lag_i,
@@ -1095,9 +1071,7 @@ simulate_exposures <- function(
       simulation_meta[[1L]]$selected_internal_lags
   }
 
-  # ==========================================================================
   # FINAL OBJECT
-  # ==========================================================================
 
   out <- list(
     profiles = profiles,

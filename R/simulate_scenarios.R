@@ -174,9 +174,7 @@ simulate_scenarios <- function(
     extrapolation = c("warn", "error", "allow")
 ) {
 
-  # ==========================================================================
   # ARGUMENTS AND STRICT MODEL CONTRACT
-  # ==========================================================================
 
   output <- match.arg(output)
   extrapolation <- match.arg(extrapolation)
@@ -237,9 +235,7 @@ simulate_scenarios <- function(
 
   `%||%` <- function(a, b) if (!is.null(a)) a else b
 
-  # ==========================================================================
   # NORMALIZE STRUCTURED SCENARIO INPUT
-  # ==========================================================================
 
   scenario_info <- NULL
   embedded_periods <- NULL
@@ -261,9 +257,7 @@ simulate_scenarios <- function(
 
   scenario_names <- names(scenarios)
 
-  # ==========================================================================
   # PERIOD DEFINITIONS
-  # ==========================================================================
 
   validate_periods <- function(x, label) {
     required <- c("period", "lag_start", "lag_end")
@@ -366,9 +360,8 @@ simulate_scenarios <- function(
     periods_use$period
   )
 
-  # ==========================================================================
   # OPTIONAL SCENARIO METADATA
-  # ==========================================================================
+
 
   reserved_info_names <- c(
     "profile",
@@ -439,9 +432,7 @@ simulate_scenarios <- function(
     }
   }
 
-  # ==========================================================================
   # OPTIONAL BACKGROUND SOURCES
-  # ==========================================================================
 
   vars <- metadata$vars
 
@@ -558,9 +549,7 @@ simulate_scenarios <- function(
     )
   }
 
-  # ==========================================================================
   # SCENARIO STRUCTURE VALIDATION
-  # ==========================================================================
 
   validate_scenario <- function(scenario, scenario_name) {
 
@@ -694,9 +683,7 @@ simulate_scenarios <- function(
   )
   names(validated_scenarios) <- scenario_names
 
-  # ==========================================================================
   # SCENARIO INFO MAPPING
-  # ==========================================================================
 
   scenario_info_for_point <- function(
     scenario_name,
@@ -737,9 +724,7 @@ simulate_scenarios <- function(
     selected
   }
 
-  # ==========================================================================
   # BUILD COMPLETE CHRONOLOGICAL PROFILES
-  # ==========================================================================
 
   all_profiles <- lapply(vars, function(x) list())
   names(all_profiles) <- vars
@@ -922,9 +907,7 @@ simulate_scenarios <- function(
     )
   }
 
-  # ==========================================================================
   # ONE HARMONIZED PREDICTION CALL FOR ALL SCENARIOS
-  # ==========================================================================
 
   prediction <- predict_outcomes(
     fit = fit,
@@ -989,9 +972,7 @@ simulate_scenarios <- function(
   )
   rownames(result) <- NULL
 
-  # ==========================================================================
   # OUTPUT CONTRACT METADATA
-  # ==========================================================================
 
   background_values_used <- lapply(
     vars,

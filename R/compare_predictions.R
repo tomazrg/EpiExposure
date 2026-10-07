@@ -290,9 +290,7 @@ compare_predictions <- function(
     eps = 1e-12
 ) {
 
-  # ==========================================================================
   # ARGUMENT MATCHING AND SMALL VALIDATORS
-  # ==========================================================================
 
   type <- match.arg(type)
   output <- match.arg(output)
@@ -366,9 +364,7 @@ compare_predictions <- function(
     )
   }
 
-  # ==========================================================================
   # STRICT FIT CONTRACT
-  # ==========================================================================
 
   if (is.null(fit)) {
     stop(
@@ -460,9 +456,7 @@ compare_predictions <- function(
     )
   }
 
-  # ==========================================================================
   # GENERAL ARGUMENT VALIDATION
-  # ==========================================================================
 
   if (!valid_flag(uncertainty)) {
     stop(
@@ -521,9 +515,7 @@ compare_predictions <- function(
     )
   }
 
-  # ==========================================================================
   # LEGACY TWO-SCENARIO INPUT
-  # ==========================================================================
 
   if (is.null(profiles)) {
     if (is.null(profiles1) ||
@@ -551,9 +543,7 @@ compare_predictions <- function(
     )
   }
 
-  # ==========================================================================
   # TOP-LEVEL SCENARIO VALIDATION
-  # ==========================================================================
 
   if (!is.list(profiles) ||
       length(profiles) < 2L) {
@@ -575,9 +565,7 @@ compare_predictions <- function(
     )
   }
 
-  # ==========================================================================
   # NORMALIZE EACH SCENARIO TO MATCHED PROFILE SETS
-  # ==========================================================================
 
   looks_like_legacy_simulation <- function(x) {
     if (!is.list(x) ||
@@ -1462,9 +1450,7 @@ compare_predictions <- function(
     }
   }
 
-  # ==========================================================================
   # BUILD ONE JOINT PREDICTION BATCH FOR ALL SCENARIOS
-  # ==========================================================================
 
   batch_profiles <- stats::setNames(
     vector(
@@ -1528,9 +1514,7 @@ compare_predictions <- function(
   n_batch_predictions <-
     nrow(batch_keys)
 
-  # ==========================================================================
   # ONE AND ONLY ONE PREDICT_OUTCOMES() CALL
-  # ==========================================================================
 
   backend_output <- if (
     uncertainty
@@ -1674,9 +1658,7 @@ compare_predictions <- function(
     )
   }
 
-  # ==========================================================================
   # MAP JOINT BATCH ROWS BACK TO SCENARIO + WITHIN-SCENARIO PROFILE
-  # ==========================================================================
 
   key_match <- match(
     backend$profile,
@@ -1732,9 +1714,7 @@ compare_predictions <- function(
       backend$prediction
     )
 
-  # ==========================================================================
   # STRICT SUPPORT VALIDATION
-  # ==========================================================================
 
   if (!uncertainty) {
     expected_rows <-
@@ -1855,9 +1835,7 @@ compare_predictions <- function(
     }
   }
 
-  # ==========================================================================
   # PAIRWISE COMPARISON HELPER
-  # ==========================================================================
 
   add_comparison_metrics <- function(
     comparison_data
@@ -1955,9 +1933,7 @@ compare_predictions <- function(
     comparison_data
   }
 
-  # ==========================================================================
   # PAIR ALL SCENARIOS USING IDENTICAL PROFILE / SAMPLE SUPPORT
-  # ==========================================================================
 
   combinations <- utils::combn(
     scenario_names,
@@ -2184,9 +2160,7 @@ compare_predictions <- function(
   multiple_profile_sets <-
     common_profile_count > 1L
 
-  # ==========================================================================
   # OUTPUT ATTRIBUTE HELPER
-  # ==========================================================================
 
   attach_comparison_attributes <- function(
     out,
@@ -2331,9 +2305,7 @@ compare_predictions <- function(
     out
   }
 
-  # ==========================================================================
   # DETERMINISTIC RETURN
-  # ==========================================================================
 
   if (!uncertainty) {
     deterministic_out <-
@@ -2355,9 +2327,7 @@ compare_predictions <- function(
     )
   }
 
-  # ==========================================================================
   # SAMPLE-LEVEL RETURN
-  # ==========================================================================
 
   if (identical(
     output,
@@ -2382,9 +2352,7 @@ compare_predictions <- function(
     )
   }
 
-  # ==========================================================================
   # UNCERTAINTY SUMMARY AFTER DRAW-BY-DRAW COMPARISON
-  # ==========================================================================
 
   grouping_columns <- c(
     "scenario1",
@@ -2545,9 +2513,6 @@ compare_predictions <- function(
         )
       )
 
-    # Do not summarize only the subset of draws with a usable denominator.
-    # That would condition the relative comparison on the prediction itself and
-    # could distort the posterior/parameter-draw contrast.
     if (base$relative_change_defined) {
       ratio_values <- summarise_numeric(
         current$ratio,

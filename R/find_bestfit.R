@@ -70,20 +70,32 @@
 #'   `family = stats::Gamma(link = "inverse")`; character family names use the
 #'   EpiExposure default link.
 #' @param random_effect Optional character scalar naming one grouping column used
-#'   as a random intercept by `fit_epidlnm()`. It must be constant within each
-#'   validation group. Random effects may contribute to model fitting, but
-#'   validation predictions are always population-level and therefore set fitted
-#'   random effects to zero. `glm` and `gls` do not accept `random_effect`;
-#'   `gamm` requires it under the current EpiExposure v1 fitting contract.
+#'   as a conventional random intercept by `fit_epidlnm()`. It must be constant
+#'   within each validation group. Random slopes, nested or crossed
+#'   random-effect specifications, and arbitrary engine-specific random-effect
+#'   expressions are not supported.
+#'
+#'   For `brms`, the random intercept is fitted as `(1 | group)`. For the
+#'   INLA-backed `inla` and `bdlnm` engines, it is fitted as
+#'   `INLA::f(group, model = "iid")`. EpiExposure v1 does not expose structured
+#'   INLA latent effects such as `"rw1"`, `"rw2"`, `"ar1"`, `"besag"`, `"bym"`,
+#'   `"bym2"`, or SPDE effects.
+#'
+#'   Random effects may contribute to model fitting, but validation predictions
+#'   are always population-level and therefore set fitted random effects to
+#'   zero. `glm` and `gls` do not accept `random_effect`; `gamm` requires it
+#'   under the current EpiExposure v1 fitting contract.
 #' @param random_effect_prior Optional named list defining the hyperprior for the
-#'   precision of the random intercept when `model_engine = "inla"` or
+#'   precision of the IID random intercept when `model_engine = "inla"` or
 #'   `"bdlnm"`. The list is passed unchanged to the `hyper` argument of the
 #'   internally generated `INLA::f(..., model = "iid")` term. For example,
 #'   `list(prec = list(prior = "pc.prec", param = c(1, 0.01)))`.
+#'
 #'   `NULL` retains the engine default. A non-`NULL` value requires
 #'   `random_effect` and is currently supported only for INLA-backed engines.
-#'   The same prior is used in every validation training fit and in retained
-#'   full-data refits.
+#'   The argument customizes the hyperprior of the IID structure; it does not
+#'   select another latent model. The same prior is used in every validation
+#'   training fit and in retained full-data refits.
 #' @param spatial_effect `NULL` (default), or two distinct numeric coordinate
 #'   column names for a Matérn term fitted by `model_engine = "spamm"` only.
 #'   Coordinates are constant within each epidemic but may be identical across
@@ -269,10 +281,32 @@
 #' realigned. All candidate exposures are finite columns of the same validated
 #' long-format rows and therefore share identical temporal support.
 #'
+#' ## Random-effect scope
+#'
+#' Candidate models may include one conventional random intercept through
+#' `random_effect`. The same random-intercept specification is used in every
+#' validation training fit and, when `keep_fits = TRUE`, in the full-data
+#' refits retained after validation.
+#'
+#' For Bayesian engines, EpiExposure v1 supports `(1 | group)` through `brms`
+#' and `f(group, model = "iid")` through `inla` and `bdlnm`. The candidate grid
+#' does not search over alternative latent-effect structures, and
+#' `find_bestfit()` does not support INLA models such as `"rw1"`, `"rw2"`,
+#' `"ar1"`, `"besag"`, `"bym"`, `"bym2"`, or SPDE effects.
+#'
+#' This restriction keeps the validation target and population-level
+#' prediction contract harmonized across candidates and engines. All fitted
+#' random-effect contributions are set to zero when out-of-sample validation
+#' predictions are generated.
+#'
 #' ## Optional spatial covariance
 #'
-#' Only spaMM accepts `spatial_effect = c("x_coord", "y_coord")`. This adds a
-#' Matérn term during fitting; `spatial_group` may define independent fields.
+#' Only `spaMM` accepts `spatial_effect = c("x_coord", "y_coord")` through the
+#' EpiExposure v1 interface. This adds a Matérn term during fitting;
+#' `spatial_group` may define independent fields. This spaMM-specific interface
+#' is distinct from INLA/SPDE or areal latent-effect models, which are not
+#' currently exposed by `find_bestfit()`.
+#'
 #' Conventional random effects remain distinct. All fitted random and spatial
 #' effects are set to zero for population-level validation predictions.
 #'
@@ -704,9 +738,7 @@ find_bestfit <- function(
     force(code)
   }
 
-  # --------------------------------------------------------------------------
   # Basic columns and user inputs
-  # --------------------------------------------------------------------------
 
   if (!is.data.frame(data) || !nrow(data)) {
     stop("`data` must be a non-empty data.frame.", call. = FALSE)
@@ -928,9 +960,7 @@ find_bestfit <- function(
     )
   }
 
-  # --------------------------------------------------------------------------
   # Random-effect prior contract
-  # --------------------------------------------------------------------------
 
   if (!is.null(random_effect_prior)) {
 
@@ -1055,9 +1085,7 @@ find_bestfit <- function(
     }
   }
 
-  # --------------------------------------------------------------------------
   # Canonical family and early response/engine validation
-  # --------------------------------------------------------------------------
 
   family_info <- resolve_family_info(family)
   family_name <- family_info$name
@@ -1163,9 +1191,7 @@ find_bestfit <- function(
 
   outcome_type <- .resolve_outcome_type(family_name)
 
-  # --------------------------------------------------------------------------
   # Canonical working data
-  # --------------------------------------------------------------------------
 
   data_long <- data
   data_long$epi_id <- data_long[[group]]
@@ -1226,9 +1252,7 @@ find_bestfit <- function(
     )
   }
 
-  # --------------------------------------------------------------------------
   # Temporal completeness and common lag unit
-  # --------------------------------------------------------------------------
 
   .epix_validate_regular_time(
     data = data_long,
@@ -1294,9 +1318,7 @@ find_bestfit <- function(
     spatial_group = spatial_group
   )
 
-  # --------------------------------------------------------------------------
   # Ranking metric contract
-  # --------------------------------------------------------------------------
 
   available_metrics <- .available_metrics(family_name)
 
@@ -1354,9 +1376,7 @@ find_bestfit <- function(
     }
   }
 
-  # --------------------------------------------------------------------------
   # Strict training-template transport
-  # --------------------------------------------------------------------------
 
   .validate_training_templates <- function(templates, variables) {
 
@@ -2227,9 +2247,7 @@ find_bestfit <- function(
     fitted
   }
 
-  # --------------------------------------------------------------------------
   # Candidate variable sets
-  # --------------------------------------------------------------------------
 
   if (is.null(var_sets)) {
     sizes <- seq.int(min_vars, max_vars)
@@ -2289,9 +2307,7 @@ find_bestfit <- function(
     stop("No candidate variable sets were generated.", call. = FALSE)
   }
 
-  # --------------------------------------------------------------------------
   # Grouped validation partition construction
-  # --------------------------------------------------------------------------
 
   group_ids <- as.character(response_check$epi_id)
   group_response <- as.numeric(response_check$y)
@@ -2912,9 +2928,7 @@ find_bestfit <- function(
     }
   }
 
-  # --------------------------------------------------------------------------
   # Warning classification
-  # --------------------------------------------------------------------------
 
   warning_type_levels <- c(
     "knot",
@@ -2964,9 +2978,7 @@ find_bestfit <- function(
     "other"
   }
 
-  # --------------------------------------------------------------------------
   # Candidate grid
-  # --------------------------------------------------------------------------
 
   # Preserve the original candidate order:
   # df_var (outer) -> df_lag -> variable set (inner).
@@ -3013,9 +3025,7 @@ find_bestfit <- function(
     }
   }
 
-  # --------------------------------------------------------------------------
   # Candidate evaluator
-  # --------------------------------------------------------------------------
 
   evaluate_candidate <- function(candidate_index) {
 

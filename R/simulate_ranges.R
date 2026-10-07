@@ -124,9 +124,7 @@ simulate_ranges <- function(
 
   scenario_type <- match.arg(scenario_type)
 
-  # ==========================================================================
   # PERIODS
-  # ==========================================================================
 
   if (!is.data.frame(periods) || !nrow(periods)) {
     stop("`periods` must be a non-empty data.frame.", call. = FALSE)
@@ -211,9 +209,7 @@ simulate_ranges <- function(
   expected_within_defined_range <- seq.int(lag_min, lag_max_defined)
   gap_lags <- setdiff(expected_within_defined_range, covered_lags)
 
-  # ==========================================================================
   # VARYING EXPOSURES
-  # ==========================================================================
 
   if (!is.list(vary) || !length(vary)) {
     stop(
@@ -259,9 +255,7 @@ simulate_ranges <- function(
     vary[[nm]] <- values
   }
 
-  # ==========================================================================
   # FIXED EXPOSURES
-  # ==========================================================================
 
   if (!is.list(fixed)) {
     stop("`fixed` must be a named list.", call. = FALSE)
@@ -304,9 +298,7 @@ simulate_ranges <- function(
     )
   }
 
-  # ==========================================================================
   # EXPOSURE COMBINATIONS
-  # ==========================================================================
 
   if (identical(scenario_type, "grid")) {
     grid <- expand.grid(
@@ -349,9 +341,7 @@ simulate_ranges <- function(
     )
   }
 
-  # ==========================================================================
   # SCENARIO VARIABLE AND NAMES
-  # ==========================================================================
 
   if (is.null(scenario_var)) {
     scenario_var <- var_names[1L]
@@ -399,9 +389,7 @@ simulate_ranges <- function(
     }
   }
 
-  # ==========================================================================
   # SCENARIO DEFINITIONS
-  # ==========================================================================
 
   period_labels <- periods$period
   scenarios_out <- vector("list", n_scenarios)
@@ -433,9 +421,7 @@ simulate_ranges <- function(
 
   names(scenarios_out) <- scenario_names
 
-  # ==========================================================================
   # SCENARIO METADATA
-  # ==========================================================================
 
   info_df <- grid
 
@@ -461,9 +447,7 @@ simulate_ranges <- function(
 
   rownames(info_df) <- NULL
 
-  # ==========================================================================
   # RETURN
-  # ==========================================================================
 
   out <- list(
     scenarios = scenarios_out,

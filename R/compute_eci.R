@@ -421,9 +421,7 @@ compute_eci <- function(
     )
 ) {
 
-  # ==========================================================================
   # SMALL HELPERS
-  # ==========================================================================
 
   valid_name <- function(x) {
     is.character(x) &&
@@ -627,9 +625,7 @@ compute_eci <- function(
     out
   }
 
-  # ==========================================================================
   # ARGUMENT MATCHING AND BASIC VALIDATION
-  # ==========================================================================
 
   scale <- match.arg(scale)
   output <- match.arg(output)
@@ -708,9 +704,7 @@ compute_eci <- function(
     )
   }
 
-  # ==========================================================================
   # RAW-ONLY MODE WITHOUT A FIT
-  # ==========================================================================
 
   if (is.null(fit)) {
     if (uncertainty) {
@@ -759,9 +753,7 @@ compute_eci <- function(
     return(out)
   }
 
-  # ==========================================================================
   # STRICT EPIEXPOSURE FIT CONTRACT
-  # ==========================================================================
 
   required_helpers <- c(
     ".get_epiexposure_metadata",
@@ -773,11 +765,6 @@ compute_eci <- function(
     ".epix_validate_regular_time"
   )
 
-  # `exists()` without an explicit environment is unsafe inside `vapply()`
-  # because its default search frame becomes the iterator's evaluation frame,
-  # not necessarily the EpiExposure namespace. Search explicitly from the
-  # current function evaluation environment, whose enclosing environment is the
-  # package namespace when EpiExposure is loaded normally.
   helper_env <- environment()
 
   missing_helpers <- required_helpers[
@@ -869,9 +856,7 @@ compute_eci <- function(
     )
   }
 
-  # ==========================================================================
   # RESOLVE FOCAL VARIABLES
-  # ==========================================================================
 
   if (is.null(vars)) {
     if (length(
@@ -947,9 +932,7 @@ compute_eci <- function(
     integer(1)
   )
 
-  # ==========================================================================
   # VALIDATE / NORMALIZE INPUT PROFILES OR DATA
-  # ==========================================================================
 
   direct_profiles <- NULL
   levels_to_use <- NULL
@@ -1379,9 +1362,7 @@ compute_eci <- function(
     }
   }
 
-  # ==========================================================================
   # RESOLVE JOINT REFERENCE VALUES
-  # ==========================================================================
 
   ref_is_method <-
     is.list(ref) &&
@@ -1657,9 +1638,7 @@ compute_eci <- function(
   names(ref_values) <-
     metadata$vars
 
-  # ==========================================================================
   # CONSTRUCT THE JOINT REFERENCE DESIGN
-  # ==========================================================================
 
   reference_profiles <-
     stats::setNames(
@@ -1712,9 +1691,7 @@ compute_eci <- function(
     )
   }
 
-  # ==========================================================================
   # BUILD FOCAL TARGET DESIGNS
-  # ==========================================================================
 
   target_records <- list()
   target_designs <- list()
@@ -2056,9 +2033,7 @@ compute_eci <- function(
     }
   }
 
-  # ==========================================================================
   # DETERMINISTIC CENTRAL-PARAMETER ECI
-  # ==========================================================================
 
   transform_weighted <- function(
     eta,
@@ -2203,9 +2178,7 @@ compute_eci <- function(
     return(out)
   }
 
-  # ==========================================================================
   # PARAMETER-DRAW ECI
-  # ==========================================================================
 
   had_random_seed <- exists(
     ".Random.seed",
@@ -2397,9 +2370,7 @@ compute_eci <- function(
     )
   }
 
-  # ==========================================================================
   # SAMPLE-LEVEL OUTPUT
-  # ==========================================================================
 
   if (identical(
     output,
@@ -2509,9 +2480,7 @@ compute_eci <- function(
     return(out)
   }
 
-  # ==========================================================================
   # UNCERTAINTY SUMMARY OUTPUT
-  # ==========================================================================
 
   summary_rows <- vector(
     "list",

@@ -218,9 +218,7 @@ check_identifiability <- function(
     )
   }
 
-  # ==========================================================================
   # LOCAL VALIDATORS
-  # ==========================================================================
 
   stopf <- function(...) {
     stop(..., call. = FALSE)
@@ -283,9 +281,7 @@ check_identifiability <- function(
     as.integer(max(x))
   }
 
-  # ==========================================================================
   # BASIC INPUT VALIDATION
-  # ==========================================================================
 
   if (!is.data.frame(data) || !nrow(data)) {
     stopf("`data` must be a non-empty data.frame.")
@@ -453,12 +449,8 @@ check_identifiability <- function(
     stopf("Package 'dlnm' is required by `check_identifiability()`.")
   }
 
-  # ==========================================================================
   # CANONICAL EPIEXPOSURE DESIGN CONSTRUCTION
-  # ==========================================================================
 
-  # The public helpers are intentionally reused here. This ensures that the
-  # diagnostic cannot drift away from the design later fitted by EpiExposure.
   templates <- tryCatch(
     define_exposures(
       data = data,
@@ -591,9 +583,7 @@ check_identifiability <- function(
   }
   storage.mode(X_rank) <- "double"
 
-  # ==========================================================================
   # NUMERICAL-DIAGNOSTIC HELPERS
-  # ==========================================================================
 
   column_sd <- function(X) {
     if (!ncol(X)) return(numeric(0))
@@ -740,9 +730,7 @@ check_identifiability <- function(
     out
   }
 
-  # ==========================================================================
   # COMBINED RANK AND CONDITION DIAGNOSTICS
-  # ==========================================================================
 
   qr_full <- qr(X_rank, tol = tol, LAPACK = FALSE)
   rank_full <- qr_full$rank
@@ -781,9 +769,7 @@ check_identifiability <- function(
   n_per_parameter <- n_complete / p_full
   design_residual_df_proxy <- n_complete - rank_full
 
-  # ==========================================================================
   # SUPPLEMENTARY VIFS
-  # ==========================================================================
 
   cb_variable <- rep(NA_character_, length(cb_cols))
   names(cb_variable) <- cb_cols
@@ -844,9 +830,7 @@ check_identifiability <- function(
     NA_real_
   }
 
-  # ==========================================================================
   # VARIABLE-SPECIFIC CROSS-BASIS DIAGNOSTICS
-  # ==========================================================================
 
   by_variable <- do.call(
     rbind,
@@ -879,9 +863,7 @@ check_identifiability <- function(
   )
   rownames(by_variable) <- NULL
 
-  # ==========================================================================
   # DESCRIPTIVE RAW-EXPOSURE CORRELATIONS
-  # ==========================================================================
 
   pairwise_exposure_correlation <- data.frame(
     variable_1 = character(0),
@@ -934,9 +916,7 @@ check_identifiability <- function(
     rownames(pairwise_exposure_correlation) <- NULL
   }
 
-  # ==========================================================================
   # BETWEEN-EXPOSURE CROSS-BASIS CORRELATIONS
-  # ==========================================================================
 
   pairwise_crossbasis_correlation <- data.frame(
     variable_1 = character(0),
@@ -1012,9 +992,7 @@ check_identifiability <- function(
     rownames(pairwise_crossbasis_correlation) <- NULL
   }
 
-  # ==========================================================================
   # STATUS FLAGS
-  # ==========================================================================
 
   severe_condition <- !is.finite(condition_number) ||
     condition_number >= condition_severe
@@ -1049,9 +1027,6 @@ check_identifiability <- function(
     !length(nzv_columns) &&
     !no_residual_design_df
 
-  # Raw same-time correlations and individual-column VIFs are deliberately
-  # supplementary. They generate interpretation below but do not independently
-  # change the global status.
   warning_status <- warning_condition ||
     high_crossbasis_pair ||
     low_n_per_parameter
@@ -1076,9 +1051,7 @@ check_identifiability <- function(
     no_positive_design_residual_df = no_residual_design_df
   )
 
-  # ==========================================================================
   # RECOMMENDATIONS
-  # ==========================================================================
 
   recommendations <- character(0)
 
@@ -1264,9 +1237,7 @@ check_identifiability <- function(
     )
   }
 
-  # ==========================================================================
   # OUTPUT
-  # ==========================================================================
 
   overall <- data.frame(
     n_epidemics_total = n_total,

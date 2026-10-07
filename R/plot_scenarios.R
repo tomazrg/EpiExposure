@@ -388,9 +388,7 @@ plot_scenarios <- function(
     )
   }
 
-  # -------------------------------------------------------------------------
   # Small internal validators/helpers
-  # -------------------------------------------------------------------------
 
   scalar_name <- function(z) {
     is.character(z) &&
@@ -522,9 +520,7 @@ plot_scenarios <- function(
     NULL
   }
 
-  # -------------------------------------------------------------------------
   # Basic data and argument validation
-  # -------------------------------------------------------------------------
 
   if (!is.data.frame(data) || !nrow(data)) {
     stop(
@@ -758,9 +754,7 @@ plot_scenarios <- function(
     )
   }
 
-  # -------------------------------------------------------------------------
   # Resolve the simulate_scenarios() output structure
-  # -------------------------------------------------------------------------
 
   if (output == "auto") {
     output <- if (sample %in% names(data)) {
@@ -821,9 +815,7 @@ plot_scenarios <- function(
     )
   }
 
-  # -------------------------------------------------------------------------
   # Resolve uncertainty columns ONLY for summary output
-  # -------------------------------------------------------------------------
 
   lower_name <- NULL
   upper_name <- NULL
@@ -893,9 +885,7 @@ plot_scenarios <- function(
     }
   }
 
-  # -------------------------------------------------------------------------
   # Prepare plotting variables
-  # -------------------------------------------------------------------------
 
   plot_data <- data
 
@@ -975,21 +965,17 @@ plot_scenarios <- function(
       scale_factor
   }
 
-  # -------------------------------------------------------------------------
   # Build the selected scenario/output plot
-  # -------------------------------------------------------------------------
 
   plot_object <-
     ggplot2::ggplot(plot_data)
 
-  # =========================================================================
   # GRID
-  # =========================================================================
 
   if (scenario_type == "grid") {
-    # -----------------------------------------------------------------------
+
     # GRID + SUMMARY: dashed lower/upper uncertainty curves when available
-    # -----------------------------------------------------------------------
+
     if (output == "summary" &&
         show_ribbon &&
         has_interval) {
@@ -1076,9 +1062,8 @@ plot_scenarios <- function(
       }
     }
 
-    # -----------------------------------------------------------------------
     # GRID + SAMPLES or GRID + SUMMARY: central trajectories
-    # -----------------------------------------------------------------------
+
     trajectory_args <- dots
 
     trajectory_args[
@@ -1157,17 +1142,15 @@ plot_scenarios <- function(
     }
   }
 
-  # =========================================================================
   # PAIRED
-  # =========================================================================
 
   if (scenario_type == "paired") {
-    # -----------------------------------------------------------------------
+
     # PAIRED + SAMPLES
-    #
+
     # No lower/upper limits exist here. The multiple sample predictions
     # themselves represent the uncertainty distribution.
-    # -----------------------------------------------------------------------
+
     if (output == "samples") {
       if (paired_samples_geom == "boxplot") {
         box_layer <- dots
@@ -1238,12 +1221,12 @@ plot_scenarios <- function(
       }
     }
 
-    # -----------------------------------------------------------------------
+
     # PAIRED + SUMMARY
-    #
+
     # With prediction_lower/prediction_upper -> geom_pointrange()
     # Without intervals -> geom_point()
-    # -----------------------------------------------------------------------
+
     if (output == "summary") {
       if (has_interval) {
         pointrange_layer <- dots
@@ -1312,9 +1295,9 @@ plot_scenarios <- function(
     }
   }
 
-  # -------------------------------------------------------------------------
+
   # Shared labels and theme
-  # -------------------------------------------------------------------------
+
 
   plot_object <-
     plot_object +
@@ -1341,9 +1324,7 @@ plot_scenarios <- function(
         legend_position
     )
 
-  # -------------------------------------------------------------------------
   # Facets
-  # -------------------------------------------------------------------------
 
   if (length(facet)) {
     facet_formula <-
@@ -1358,9 +1339,7 @@ plot_scenarios <- function(
       )
   }
 
-  # -------------------------------------------------------------------------
   # X axis
-  # -------------------------------------------------------------------------
 
   if (is.null(x_expand)) {
     if (scenario_type == "paired" &&
@@ -1482,9 +1461,7 @@ plot_scenarios <- function(
       )
   }
 
-  # -------------------------------------------------------------------------
   # Y axis
-  # -------------------------------------------------------------------------
 
   if (!is.null(y_limits) &&
       (!is.numeric(y_limits) ||
@@ -1505,9 +1482,7 @@ plot_scenarios <- function(
       expand = y_expand
     )
 
-  # -------------------------------------------------------------------------
   # User overrides and additions
-  # -------------------------------------------------------------------------
 
   if (!is.null(theme)) {
     plot_object <-

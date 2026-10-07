@@ -293,9 +293,7 @@ epi_sensitivity <- function(
     eps = 1e-6
 ) {
 
-  # ==========================================================================
   # SMALL VALIDATORS
-  # ==========================================================================
 
   valid_name <- function(z) {
     is.character(z) &&
@@ -351,9 +349,7 @@ epi_sensitivity <- function(
     relative_eps * magnitude
   }
 
-  # ==========================================================================
   # ARGUMENT MATCHING AND GENERAL VALIDATION
-  # ==========================================================================
 
   method <- match.arg(method)
   smooth_basis <- match.arg(smooth_basis)
@@ -527,9 +523,7 @@ epi_sensitivity <- function(
     )
   }
 
-  # ==========================================================================
   # OPTIONAL EPIEXPOSURE TEMPORAL-METADATA VALIDATION
-  # ==========================================================================
 
   max_lag_metadata <- attr(
     data,
@@ -615,9 +609,7 @@ epi_sensitivity <- function(
     }
   }
 
-  # ==========================================================================
   # GROUP INDEX
-  # ==========================================================================
 
   if (is.null(scenario_var)) {
     group_rows <- list(
@@ -669,9 +661,7 @@ epi_sensitivity <- function(
     )
   }
 
-  # ==========================================================================
   # PER-GROUP CURVE VALIDATION
-  # ==========================================================================
 
   validate_curve <- function(d) {
     group_label <- group_description(
@@ -811,9 +801,7 @@ epi_sensitivity <- function(
     d
   }
 
-  # ==========================================================================
   # GAM-BASED DERIVATIVE
-  # ==========================================================================
 
   compute_derivative_gam <- function(d) {
     group_label <- group_description(
@@ -1089,9 +1077,7 @@ epi_sensitivity <- function(
     d
   }
 
-  # ==========================================================================
   # DIRECT FINITE-DIFFERENCE DERIVATIVE
-  # ==========================================================================
 
   compute_derivative_finite <- function(d) {
     group_label <- group_description(
@@ -1229,9 +1215,7 @@ epi_sensitivity <- function(
     d
   }
 
-  # ==========================================================================
   # ELASTICITY
-  # ==========================================================================
 
   add_elasticity <- function(d) {
     if (!elasticity) {
@@ -1279,9 +1263,7 @@ epi_sensitivity <- function(
     d
   }
 
-  # ==========================================================================
   # CRITICAL-POINT DETECTION
-  # ==========================================================================
 
   add_critical_points <- function(d) {
     if (!critical) {
@@ -1444,9 +1426,7 @@ epi_sensitivity <- function(
     d
   }
 
-  # ==========================================================================
   # PROCESS EACH CURVE
-  # ==========================================================================
 
   result_list <- vector(
     "list",
@@ -1511,9 +1491,7 @@ epi_sensitivity <- function(
 
   rownames(out) <- NULL
 
-  # ==========================================================================
   # FINAL ORDER
-  # ==========================================================================
 
   if (is.null(scenario_var)) {
     out <- out[
@@ -1547,9 +1525,7 @@ epi_sensitivity <- function(
 
   rownames(out) <- NULL
 
-  # ==========================================================================
   # OUTPUT METADATA
-  # ==========================================================================
 
   attr(
     out,

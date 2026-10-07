@@ -378,9 +378,9 @@ plot_effects <- function(
 
   dat <- data[as.character(data$var) %in% vars, , drop = FALSE]
 
-  # ========================================================================
+
   # LAG-SPECIFIC EFFECTS
-  # ========================================================================
+
   if (scale == "lag") {
     required <- c("lag", "value")
     missing_cols <- setdiff(required, names(dat))
@@ -451,7 +451,7 @@ plot_effects <- function(
     vars_ncol <- as.integer(vars_ncol)
 
     default_ylab <- c(
-      tmean = "Mean temperature (°C)",
+      tmean = "Mean temperature (\u00B0C)",
       rain = "Daily precipitation (mm)",
       wetness = "Leaf wetness (%)"
     )
@@ -661,9 +661,9 @@ plot_effects <- function(
     )
   }
 
-  # ========================================================================
+
   # PERIOD-SPECIFIC EFFECTS
-  # ========================================================================
+
   period_spec <- .resolve_period_response(data, period_response)
 
   required <- c("period", "value", period_spec$column)

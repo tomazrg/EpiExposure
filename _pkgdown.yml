@@ -53,6 +53,14 @@ reference:
   - title: "Data & Exposure Setup"
     contents:
       - epi_data
+      - binomial_data
+      - gamma_data
+      - gaussian_data
+      - nb2_data
+      - poisson_data
+      - spatial_replicate
+      - spatial_year
+      - st_poisson
       - define_exposures
       - check_identifiability
       - build_design

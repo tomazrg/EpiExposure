@@ -3,28 +3,40 @@
 \docType{data}
 \name{epi_data}
 \alias{epi_data}
-\title{Simulated epidemiological dataset}
+\title{Simulated Beta epidemiological dataset}
 \format{
 A data frame with rows representing temporal observations within
   epidemic exposure histories and the following variables:
 \describe{
-  \item{epi_id}{Unique identifier for each epidemic.}
+  \item{epi_id}{Unique numeric identifier for each epidemic.}
   \item{time}{Chronological time index within each epidemic history.}
-  \item{tmean}{Mean temperature.}
-  \item{rain}{Rainfall.}
-  \item{wetness}{Leaf wetness or wetness-related exposure.}
-  \item{y}{Simulated disease response.}
+  \item{tmean}{Daily mean temperature in degrees Celsius.}
+  \item{rain}{Daily rainfall in millimeters.}
+  \item{wetness}{Daily leaf wetness duration in hours.}
+  \item{y}{Continuous disease response expressed as a proportion strictly
+  between 0 and 1 and repeated across the rows of each epidemic history.}
 }
 }
 \source{
-Simulated data.
+Simulated for the EpiExposure package.
 }
 \usage{
 epi_data
 }
 \description{
-A simulated dataset containing multiple epidemics and environmental
-exposure variables for demonstrating the modeling functions available
+A simulated longitudinal dataset containing complete environmental exposure
+histories and a continuous plant disease outcome expressed as a proportion.
+The dataset is intended for demonstrating Beta regression and the main
+modeling, interpretation, simulation, and prediction workflows available
 in EpiExposure.
+}
+\details{
+The response is repeated across the temporal rows belonging to the same
+epidemic because each complete exposure history is associated with one final
+epidemic-level disease outcome.
+}
+\examples{
+data("epi_data", package = "EpiExposure")
+head(epi_data)
 }
 \keyword{datasets}

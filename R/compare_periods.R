@@ -210,9 +210,7 @@ compare_periods <- function(
     eps = 1e-10
 ) {
 
-  # ==========================================================================
   # SMALL VALIDATORS
-  # ==========================================================================
 
   output <- match.arg(output)
 
@@ -289,9 +287,7 @@ compare_periods <- function(
     )
   }
 
-  # ==========================================================================
   # ACCEPT THE DIAGNOSTIC WRAPPER EXPLICITLY
-  # ==========================================================================
 
   if (!is.data.frame(period_df) &&
       is.list(period_df) &&
@@ -324,9 +320,7 @@ compare_periods <- function(
     sqrt(.Machine$double.eps)
   )
 
-  # ==========================================================================
   # STRICT SUMMARISE_EFFECTS METADATA CONTRACT
-  # ==========================================================================
 
   scale_attr <- attr(
     period_df,
@@ -471,9 +465,7 @@ compare_periods <- function(
     )
   }
 
-  # ==========================================================================
   # REQUIRED COLUMNS
-  # ==========================================================================
 
   required_columns <- c(
     "var",
@@ -614,9 +606,7 @@ compare_periods <- function(
     )
   }
 
-  # ==========================================================================
   # VALIDATE effect AGAINST eta AND STORED EFFECT MEASURE
-  # ==========================================================================
 
   expected_effect <- switch(
     effect_measure,
@@ -648,9 +638,7 @@ compare_periods <- function(
     )
   }
 
-  # ==========================================================================
   # OPTIONAL PERIOD-DEFINITION CONTRACT
-  # ==========================================================================
 
   period_metadata <- NULL
 
@@ -823,9 +811,7 @@ compare_periods <- function(
     )
   }
 
-  # ==========================================================================
   # RESOLVE REFERENCE PERIOD
-  # ==========================================================================
 
   if (is.numeric(period_ref)) {
     if (!valid_integer_scalar(period_ref) ||
@@ -881,9 +867,7 @@ compare_periods <- function(
     )
   }
 
-  # ==========================================================================
   # STRICT UNIQUENESS AND SAMPLE COMPLETENESS
-  # ==========================================================================
 
   identity_columns <- c(
     "var",
@@ -976,9 +960,7 @@ compare_periods <- function(
     }
   }
 
-  # ==========================================================================
   # MATCH EACH ROW TO THE REFERENCE PERIOD
-  # ==========================================================================
 
   match_columns <- c(
     "var",
@@ -1090,9 +1072,7 @@ compare_periods <- function(
     )
   }
 
-  # ==========================================================================
   # BASELINE CONSISTENCY
-  # ==========================================================================
 
   baseline_equal <- nearly_equal(
     joined$baseline,
@@ -1136,9 +1116,7 @@ compare_periods <- function(
     )
   }
 
-  # ==========================================================================
   # DRAW-BY-DRAW / DETERMINISTIC COMPARISONS
-  # ==========================================================================
 
   joined$reference_period <-
     reference_period
@@ -1191,9 +1169,7 @@ compare_periods <- function(
 
   joined$.epix_row_id <- NULL
 
-  # ==========================================================================
   # ADD OPTIONAL PERIOD WIDTHS
-  # ==========================================================================
 
   if (!is.null(period_metadata)) {
     period_match <- match(
@@ -1215,9 +1191,7 @@ compare_periods <- function(
       ]
   }
 
-  # ==========================================================================
   # ORDER DETERMINISTIC / SAMPLE OUTPUT
-  # ==========================================================================
 
   period_rank <- match(
     joined$period,
@@ -1247,9 +1221,7 @@ compare_periods <- function(
   ]
   rownames(joined) <- NULL
 
-  # ==========================================================================
   # SAMPLE-LEVEL RETURN
-  # ==========================================================================
 
   if (has_samples &&
       identical(output, "samples")) {
@@ -1332,9 +1304,7 @@ compare_periods <- function(
     return(joined)
   }
 
-  # ==========================================================================
   # DETERMINISTIC SUMMARY RETURN
-  # ==========================================================================
 
   if (!has_samples) {
     attr(
@@ -1415,9 +1385,7 @@ compare_periods <- function(
     return(joined)
   }
 
-  # ==========================================================================
   # SUMMARISE DRAW-BY-DRAW COMPARISONS
-  # ==========================================================================
 
   if (is.null(interval_probs)) {
     interval_probs <- attr(

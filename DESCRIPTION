@@ -1,6 +1,6 @@
 Package: EpiExposure
 Type: Package
-Title: Distributed Lag Nonlinear Modeling for Plant Disease Epidemiology
+Title: Exposure-Lag-Response Modeling for Plant Disease Epidemiology
 Version: 0.1.0
 Authors@R: c(person(
   given = "Ricardo Gomes",
@@ -18,12 +18,16 @@ Authors@R: c(person(
          role = "aut",
          email = "FDallaLana@agcenter.lsu.edu",
          comment = c("ORCID" = "0000-0002-3112-6197")))
-Description: Tools for analyzing and interpreting distributed lag nonlinear models (DLNMs) in epidemiological applications.
-    Provides functions to summarize lag-specific and period-specific effects, perform sensitivity analyses,
-    simulate exposure scenarios and predict exposure-lag-response relationships, quantify yield and economic losses,
-    and compare models using ensemble-based approaches. Supports advanced epidemiological workflows through both
-    frequentist and Bayesian modeling frameworks. Built on the DLNM framework implemented in the {dlnm} package
-    (Gasparrini, 2011; doi:10.18637/jss.v043.i08).
+Description: Tools for modeling and interpreting environmental
+    exposure-lag-response relationships in plant disease epidemiology using
+    distributed lag non-linear models (DLNMs). Provides functions for defining
+    complete exposure histories, evaluating model identifiability, summarizing
+    lag-specific and period-specific effects, performing sensitivity analyses,
+    simulating environmental exposure scenarios, predicting plant disease
+    outcomes, quantifying yield and economic losses, and evaluating individual
+    and ensemble models. Supports harmonized frequentist and Bayesian modeling
+    workflows. Builds on the framework implemented in the 'dlnm' package and
+    described by Gasparrini (2011) <doi:10.18637/jss.v043.i08>.
 Depends: R (>= 4.1)
 Imports: 
     dlnm,
@@ -54,11 +58,15 @@ Suggests:
     future,
     sn,
     future.apply
+Additional_repositories:
+    https://inla.r-inla-download.org/R/stable
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
+LazyDataCompression: xz
 VignetteBuilder: knitr
-URL: https://github.com/tomazrg/EpiExposure, https://tomazrg.github.io/EpiExposure/
+URL: https://github.com/tomazrg/EpiExposure, 
+    https://tomazrg.github.io/EpiExposure/
 BugReports: https://github.com/tomazrg/EpiExposure/issues
 Config/testthat/edition: 3
 RoxygenNote: 7.3.3

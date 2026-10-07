@@ -23,15 +23,22 @@
 #'   quadratic-variance NB2 parameterization. NB1 and ordinal models are not
 #'   supported in this version and produce explicit errors.
 #' @param random_effect Optional character scalar naming one grouping column.
-#'   In EpiExposure v1 this argument represents a random intercept only; random
-#'   slopes, nested/crossed random-effect specifications, and arbitrary
-#'   engine-specific random-effect expressions are intentionally not accepted.
-#'   The random intercept is translated to the native syntax of each supported
-#'   mixed-model engine. INLA-backed fits internally re-index arbitrary grouping
-#'   labels to consecutive integers while retaining the original column name in
+#'   In EpiExposure v1, this argument represents a conventional random
+#'   intercept only. Random slopes, nested or crossed random-effect
+#'   specifications, and arbitrary engine-specific random-effect expressions
+#'   are not supported.
+#'
+#'   For the Bayesian `brms` engine, the random intercept is fitted as
+#'   `(1 | group)`. For the INLA-backed `inla` and `bdlnm` engines, it is fitted
+#'   as `INLA::f(group, model = "iid")`. EpiExposure v1 does not expose other
+#'   INLA latent structures through this argument, including `"rw1"`, `"rw2"`,
+#'   `"ar1"`, `"besag"`, `"bym"`, `"bym2"`, or SPDE-based effects.
+#'
+#'   INLA-backed fits internally re-index arbitrary grouping labels to
+#'   consecutive integers while retaining the original column name in
 #'   EpiExposure metadata. `glm` and `gls` do not support this argument. `gamm`
 #'   requires it in the current EpiExposure interface because its generated
-#'   fixed formula contains no other smooth/random term.
+#'   fixed formula contains no other smooth or random term.
 #'
 #' @param random_effect_prior Optional named list defining the hyperprior for
 #'   the precision of the random intercept when `model_engine = "inla"` or
@@ -43,6 +50,12 @@
 #'   `NULL` retains the engine's default prior. A non-`NULL` value requires
 #'   `random_effect` and is currently supported only for the INLA-backed
 #'   engines.
+#'
+#'   This argument customizes the hyperprior of the supported IID random
+#'   intercept; it does not select or configure other INLA latent models.
+#'   Structures such as `"rw1"`, `"rw2"`, `"ar1"`, `"besag"`, `"bym"`,
+#'   `"bym2"`, and SPDE effects are not supported by the EpiExposure v1
+#'   random-effect interface.
 #'
 #' @param spatial_effect NULL (default) or two distinct names of numeric,
 #'   finite coordinate columns in the epidemic-level design. Only
@@ -121,6 +134,25 @@
 #' * `INLA` and `bdlnm`: `f(group, model = "iid")`, optionally extended to
 #'   `f(group, model = "iid", hyper = random_effect_prior)` when a custom
 #'   random-effect hyperprior is supplied.
+#'
+#' ## Random-effect scope in EpiExposure v1
+#'
+#' The EpiExposure v1 random-effect interface is intentionally restricted to
+#' one conventional random intercept. For `brms`, this corresponds to
+#' `(1 | group)`; for `inla` and `bdlnm`, it corresponds to
+#' `f(group, model = "iid")`.
+#'
+#' The interface does not currently construct structured Bayesian latent
+#' effects such as first- or second-order random walks (`"rw1"` or `"rw2"`),
+#' autoregressive effects (`"ar1"`), areal spatial effects (`"besag"`, `"bym"`,
+#' or `"bym2"`), or continuous spatial effects based on SPDE models. These
+#' structures may be available in the underlying INLA framework but are outside
+#' the harmonized fitting, prediction, validation, and uncertainty contract of
+#' EpiExposure v1.
+#'
+#' The `spatial_effect` interface described below is separate from these
+#' Bayesian latent structures and currently supports Matérn spatial covariance
+#' through `spaMM` only.
 #'
 #' `glm` and `gls` are fixed-effect engines in this interface and reject a
 #' non-`NULL` `random_effect`. The `mgcv::gamm()` implementation uses the
@@ -274,11 +306,7 @@ fit_epidlnm <- function(
     ...
 ) {
 
-
-  # =========================================================
   # SMALL INTERNAL HELPERS
-  # =========================================================
-
 
   `%||%` <- function(a, b) if (!is.null(a)) a else b
 
@@ -609,11 +637,7 @@ fit_epidlnm <- function(
     )
   }
 
-
-  # =========================================================
   # BASIC VALIDATION
-  # =========================================================
-
 
   # Preserve the caller's original data expression for compact model calls.
   # This prevents `do.call()` from leaving the fully evaluated data.frame
@@ -707,11 +731,7 @@ fit_epidlnm <- function(
     "family_input"
   }
 
-
-  # =========================================================
   # RESPONSE VALIDATION BY CANONICAL FAMILY
-  # =========================================================
-
 
   y <- data$y_model
 
@@ -742,11 +762,7 @@ fit_epidlnm <- function(
     stopf("`family = 'gamma'` requires strictly positive `y_model` values.")
   }
 
-
-  # =========================================================
   # CHECK CONSISTENCY WITH prepare_response()
-  # =========================================================
-
 
   prepared_family_name <- attr(data, "response_family_name")
   if (!is.null(prepared_family_name)) {
@@ -762,11 +778,7 @@ fit_epidlnm <- function(
     }
   }
 
-
-  # =========================================================
   # RANDOM-INTERCEPT CONTRACT
-  # =========================================================
-
 
   if (!is.null(random_effect)) {
     if (!is_scalar_string(random_effect)) {
@@ -835,13 +847,7 @@ fit_epidlnm <- function(
     fit_random_effect <- internal_name
   }
 
-
-
-
-  # =========================================================
   # RANDOM-EFFECT PRIOR CONTRACT
-  # =========================================================
-
 
   if (!is.null(random_effect_prior)) {
 
@@ -878,11 +884,7 @@ fit_epidlnm <- function(
     }
   }
 
-
-  # =========================================================
   # NORMALIZE AND VALIDATE EXPOSURE SPECIFICATION
-  # =========================================================
-
 
   normalize_spec <- function(spec) {
     if (is.null(spec)) {
@@ -1013,11 +1015,7 @@ fit_epidlnm <- function(
     fitted_time_step <- NA_real_
   }
 
-
-  # =========================================================
   # CROSS-BASIS COLUMN / VARIABLE CONTRACT
-  # =========================================================
-
 
   parse_cb_variable <- function(columns) {
     out <- sub("^cb_", "", columns)
@@ -1384,11 +1382,7 @@ fit_epidlnm <- function(
     }
   }
 
-
-  # =========================================================
   # ENGINE-SPECIFIC FAMILY CONSTRUCTION
-  # =========================================================
-
 
   resolve_engine_family <- function(engine, family_name, link_name) {
 
@@ -1566,11 +1560,7 @@ fit_epidlnm <- function(
     }
   }
 
-
-  # =========================================================
   # ENGINE-SPECIFIC DOTS / LINK CONTROL
-  # =========================================================
-
 
   if (model_engine == "gam") {
     if (!is.null(dots$method) && !is_scalar_string(dots$method)) {
@@ -1655,11 +1645,7 @@ fit_epidlnm <- function(
     dots$control.compute <- control_compute
   }
 
-
-  # =========================================================
   # INLA RANDOM-EFFECT PRIOR ENVIRONMENT
-  # =========================================================
-
 
   inla_formula_env <- new.env(
     parent = parent.frame()
@@ -1676,11 +1662,7 @@ fit_epidlnm <- function(
     )
   }
 
-
-  # =========================================================
   # FORMULA CONSTRUCTION
-  # =========================================================
-
 
   cb_rhs <- paste(vapply(cb_cols, quote_name, character(1)), collapse = " + ")
   fixed_formula_text <- if (nzchar(cb_rhs)) {
@@ -1772,11 +1754,7 @@ fit_epidlnm <- function(
     )
   }
 
-
-  # =========================================================
   # STANDARDIZED METADATA
-  # =========================================================
-
 
   family_parameterization <- switch(
     family_name,
@@ -1823,7 +1801,6 @@ fit_epidlnm <- function(
     attr(model_obj, "epiexposure_spatial_group") <- spatial_group
     attr(model_obj, "epiexposure_spatial_term") <- spatial_term
     attr(model_obj, "epiexposure_has_spatial_effect") <- !is.null(spatial_effect)
-    # Unprefixed aliases are useful for direct inspection of native fitted fits.
     attr(model_obj, "spatial_effect") <- spatial_effect
     attr(model_obj, "spatial_structure") <- spatial_structure
     attr(model_obj, "spatial_group") <- spatial_group
@@ -1851,11 +1828,7 @@ fit_epidlnm <- function(
     model_obj
   }
 
-
-  # =========================================================
   # FIT: glm
-  # =========================================================
-
 
   if (model_engine == "glm") {
     check_dot_conflicts(
@@ -1929,11 +1902,7 @@ fit_epidlnm <- function(
     )
   }
 
-
-  # =========================================================
   # FIT: glmmTMB
-  # =========================================================
-
 
   if (model_engine == "glmmTMB") {
     check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
@@ -1974,11 +1943,7 @@ fit_epidlnm <- function(
     return(attach_epiexposure_meta(model_obj))
   }
 
-
-  # =========================================================
   # FIT: GAM
-  # =========================================================
-
 
   if (model_engine == "gam") {
     check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
@@ -1994,11 +1959,7 @@ fit_epidlnm <- function(
     )))
   }
 
-
-  # =========================================================
   # FIT: GAMM
-  # =========================================================
-
 
   if (model_engine == "gamm") {
     check_dot_conflicts(
@@ -2068,11 +2029,7 @@ fit_epidlnm <- function(
     )
   }
 
-
-  # =========================================================
   # FIT: GLS
-  # =========================================================
-
 
   if (model_engine == "gls") {
 
@@ -2153,11 +2110,7 @@ fit_epidlnm <- function(
     )
   }
 
-
-  # =========================================================
   # FIT: spaMM
-  # =========================================================
-
 
   if (model_engine == "spamm") {
     # `spatial_*` are interface arguments and must not enter `fitme()` dots.
@@ -2174,11 +2127,7 @@ fit_epidlnm <- function(
     )))
   }
 
-
-  # =========================================================
   # FIT: brms
-  # =========================================================
-
 
   if (model_engine == "brms") {
     check_dot_conflicts(dots, c("formula", "data", "family"), model_engine)
@@ -2194,11 +2143,7 @@ fit_epidlnm <- function(
     )))
   }
 
-
-  # =========================================================
   # FIT: INLA
-  # =========================================================
-
 
   if (model_engine == "inla") {
     if (!requireNamespace("INLA", quietly = TRUE)) {
@@ -2217,11 +2162,7 @@ fit_epidlnm <- function(
     )))
   }
 
-
-  # =========================================================
   # FIT: Bayesian DLNM (bdlnm)
-  # =========================================================
-
 
   if (model_engine == "bdlnm") {
 

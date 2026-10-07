@@ -184,9 +184,7 @@ predict_outcomes <- function(
     extrapolation = c("warn", "error", "allow")
 ) {
 
-  # ==========================================================================
   # ARGUMENT VALIDATION AND STRICT MODEL CONTRACT
-  # ==========================================================================
 
   type <- match.arg(type)
   output <- match.arg(output)
@@ -260,9 +258,7 @@ predict_outcomes <- function(
     )
   }
 
-  # ==========================================================================
   # LOCAL RNG HANDLING
-  # ==========================================================================
 
   # A user-supplied seed makes parameter sampling reproducible without leaving
   # a changed .Random.seed in the caller's global environment.
@@ -287,9 +283,7 @@ predict_outcomes <- function(
     set.seed(seed)
   }
 
-  # ==========================================================================
   # OUTPUT HELPERS
-  # ==========================================================================
 
   attach_contract_attributes <- function(
     result,
@@ -431,9 +425,8 @@ predict_outcomes <- function(
     )
   }
 
-  # ==========================================================================
   # PROFILE INPUT NORMALIZATION
-  # ==========================================================================
+
 
   as_profile_list <- function(x, variable) {
 
@@ -644,9 +637,7 @@ predict_outcomes <- function(
     )
   }
 
-  # ==========================================================================
   # BUILD CANONICAL PREDICTION DESIGN
-  # ==========================================================================
 
   if (has_profiles) {
 
@@ -720,9 +711,7 @@ predict_outcomes <- function(
     source <- "newdata"
   }
 
-  # ==========================================================================
   # DETERMINISTIC CENTRAL EXPECTED-RESPONSE PREDICTION
-  # ==========================================================================
 
   if (!uncertainty) {
     point_prediction <- .predict_point_population(
@@ -743,9 +732,7 @@ predict_outcomes <- function(
     )
   }
 
-  # ==========================================================================
   # DRAW-BY-DRAW PARAMETER UNCERTAINTY
-  # ==========================================================================
 
   prediction_draws <- .predict_draws_population(
     fit = fit,
