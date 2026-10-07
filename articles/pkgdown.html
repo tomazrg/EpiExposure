@@ -101,8 +101,8 @@ constructing, fitting, interpreting, and simulating distributed
 exposure-lag models in plant disease epidemiology.</p>
 <p>The package helps users:</p>
 <ul>
-<li>define nonlinear exposure-lag structures;</li>
-<li>fit distributed lag nonlinear models;</li>
+<li>define non-linear exposure-lag structures;</li>
+<li>fit distributed lag non-linear models;</li>
 <li>quantify lag-specific, period-specific, and cumulative effects;</li>
 <li>evaluate complete exposure histories;</li>
 <li>predict expected disease outcomes;</li>
@@ -114,18 +114,20 @@ treats the complete environmental history preceding disease assessment
 as the epidemiological exposure unit.</p>
 <div class="tutorial-note">
 <p><strong>What you will learn.</strong> This tutorial shows how to
-organize longitudinal epidemiological data, define exposure-lag
-structures, fit a first DLNM, and predict an expected disease outcome
-from a complete exposure history.</p>
+organize longitudinal epidemiological data, define and diagnose an
+exposure–lag structure, fit a first DLNM, and predict an expected
+disease outcome from a complete exposure history.</p>
 </div>
 </div>
 <div class="section level2">
 <h2 id="the-epiexposure-workflow">The EpiExposure workflow<a class="anchor" aria-label="anchor" href="#the-epiexposure-workflow"></a>
 </h2>
-<p>A basic analysis follows five stages:</p>
+<p>A basic analysis follows six stages:</p>
 <ol style="list-style-type: decimal">
-<li>organize complete exposure histories;</li>
+<li>organize and inspect complete exposure histories;</li>
 <li>define the exposure-response and lag-response basis functions;</li>
+<li>evaluate the proposed structure for identifiability and numerical
+stability;</li>
 <li>collapse each history into one epidemic-level design row;</li>
 <li>prepare the response and fit the model;</li>
 <li>use the fitted model for interpretation, prediction, or
@@ -172,10 +174,7 @@ requires:</p>
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/tomazrg/EpiExposure" class="external-link">EpiExposure</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span></span>
-<span>  <span class="st">"epi_data"</span>,</span>
-<span>  package <span class="op">=</span> <span class="st">"EpiExposure"</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="st">"epi_data"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="inspecting-the-example-dataset">Inspecting the example dataset<a class="anchor" aria-label="anchor" href="#inspecting-the-example-dataset"></a>
@@ -342,7 +341,7 @@ DLNM model.</p>
 <div class="section level2">
 <h2 id="defining-exposure-lag-structures">Defining exposure-lag structures<a class="anchor" aria-label="anchor" href="#defining-exposure-lag-structures"></a>
 </h2>
-<p>The first modeling step is to define the nonlinear exposure-response
+<p>The first modeling step is to define the non-linear exposure-response
 and lag-response basis functions.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cb</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/define_exposures.html">define_exposures</a></span><span class="op">(</span></span>
@@ -379,12 +378,151 @@ effects.</p>
 </div>
 </div>
 <div class="section level2">
+<h2 id="checking-identifiability-and-numerical-stability">Checking identifiability and numerical stability<a class="anchor" aria-label="anchor" href="#checking-identifiability-and-numerical-stability"></a>
+</h2>
+<p>Before fitting the model, the proposed exposure–lag structure should
+be evaluated for identifiability and numerical stability. Increasing the
+number of exposures or the flexibility of the exposure and lag bases
+increases the number of cross-basis predictors and may produce
+redundant, rank-deficient, or poorly conditioned designs.</p>
+<p><code><a href="../reference/check_identifiability.html">check_identifiability()</a></code> reconstructs the same
+epidemic-level cross-basis design used by the EpiExposure fitting
+workflow. The function evaluates the combined numerical rank, scaled
+condition number, near-zero-variance columns, between-exposure
+cross-basis correlations, supplementary variance inflation factors, and
+the number of epidemics relative to design complexity.</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">identifiability</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/check_identifiability.html">check_identifiability</a></span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">epi_data</span>,</span>
+<span>  vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>    <span class="st">"tmean"</span>,</span>
+<span>    <span class="st">"rain"</span>,</span>
+<span>    <span class="st">"wetness"</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  max_lag <span class="op">=</span> <span class="fl">85</span>,</span>
+<span>  df_var <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>  df_lag <span class="op">=</span> <span class="fl">2</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">identifiability</span></span>
+<span><span class="co">#&gt; EpiExposure DLNM identifiability diagnostics</span></span>
+<span><span class="co">#&gt; Status: OK</span></span>
+<span><span class="co">#&gt; Identifiable (full numerical rank): TRUE</span></span>
+<span><span class="co">#&gt; Numerically stable: TRUE</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Overall design</span></span>
+<span><span class="co">#&gt;  n_epidemics_total n_epidemics_complete n_epidemics_excluded n_exposures</span></span>
+<span><span class="co">#&gt;                520                  520                    0           3</span></span>
+<span><span class="co">#&gt;  max_lag history_length crossbasis_columns design_columns rank full_rank</span></span>
+<span><span class="co">#&gt;       85             86                 18             19   19      TRUE</span></span>
+<span><span class="co">#&gt;  rank_ratio design_residual_df_proxy condition_number_scaled</span></span>
+<span><span class="co">#&gt;           1                      501                18.84993</span></span>
+<span><span class="co">#&gt;  min_singular_value_scaled max_singular_value_scaled</span></span>
+<span><span class="co">#&gt;                   2.326931                  43.86247</span></span>
+<span><span class="co">#&gt;  max_abs_crossbasis_correlation median_abs_crossbasis_correlation  max_vif</span></span>
+<span><span class="co">#&gt;                        0.917688                        0.04442176 42.79382</span></span>
+<span><span class="co">#&gt;  median_vif near_zero_variance_columns epidemics_per_design_column time_step</span></span>
+<span><span class="co">#&gt;    5.234571                          0                    27.36842         1</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; By exposure variable</span></span>
+<span><span class="co">#&gt;  variable n_unique_exposure exposure_missing_n exposure_missing_percent</span></span>
+<span><span class="co">#&gt;     tmean             44611                  0                        0</span></span>
+<span><span class="co">#&gt;      rain             15907                  0                        0</span></span>
+<span><span class="co">#&gt;   wetness             44319                  0                        0</span></span>
+<span><span class="co">#&gt;  history_length max_lag basis_columns rank full_rank rank_ratio</span></span>
+<span><span class="co">#&gt;              86      85             6    6      TRUE          1</span></span>
+<span><span class="co">#&gt;              86      85             6    6      TRUE          1</span></span>
+<span><span class="co">#&gt;              86      85             6    6      TRUE          1</span></span>
+<span><span class="co">#&gt;  condition_number_scaled max_abs_within_basis_correlation</span></span>
+<span><span class="co">#&gt;                18.476462                        0.8935867</span></span>
+<span><span class="co">#&gt;                 7.226500                        0.9176880</span></span>
+<span><span class="co">#&gt;                 4.746851                        0.8108186</span></span>
+<span><span class="co">#&gt;  near_zero_variance_columns</span></span>
+<span><span class="co">#&gt;                           0</span></span>
+<span><span class="co">#&gt;                           0</span></span>
+<span><span class="co">#&gt;                           0</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Between-exposure cross-basis correlation</span></span>
+<span><span class="co">#&gt;  variable_1 variable_2 max_abs_correlation mean_abs_correlation   column_1</span></span>
+<span><span class="co">#&gt;       tmean       rain          0.12294998           0.04640375 cb_tmean_4</span></span>
+<span><span class="co">#&gt;       tmean    wetness          0.08148758           0.03280792 cb_tmean_4</span></span>
+<span><span class="co">#&gt;        rain    wetness          0.08568740           0.03019396  cb_rain_2</span></span>
+<span><span class="co">#&gt;      column_2</span></span>
+<span><span class="co">#&gt;     cb_rain_6</span></span>
+<span><span class="co">#&gt;  cb_wetness_5</span></span>
+<span><span class="co">#&gt;  cb_wetness_6</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Raw exposure correlation (descriptive)</span></span>
+<span><span class="co">#&gt;  variable_1 variable_2 n_complete pearson_correlation spearman_correlation</span></span>
+<span><span class="co">#&gt;       tmean       rain      44720         0.007387420          0.013235520</span></span>
+<span><span class="co">#&gt;       tmean    wetness      44720        -0.006029139         -0.006197960</span></span>
+<span><span class="co">#&gt;        rain    wetness      44720        -0.006062063         -0.008173092</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Recommendations</span></span>
+<span><span class="co">#&gt; - 6 cross-basis column(s) have VIF &gt;= 10. Treat this as supplementary because spline-basis columns are correlated by construction. High VIF alone does not change `status`; prioritize the combined rank and scaled condition number.</span></span></code></pre></div>
+<p>The printed output classifies the proposed design as
+<code>"ok"</code>, <code>"warning"</code>, or <code>"problem"</code>.
+The <code>identifiable</code> field indicates whether the combined
+epidemic-level design has full numerical rank, whereas
+<code>numerically_stable</code> additionally considers severe
+conditioning, near-zero-variance columns, and whether the available
+epidemics can support the number of design columns.</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">identifiability</span><span class="op">$</span><span class="va">overall</span></span>
+<span><span class="co">#&gt;   n_epidemics_total n_epidemics_complete n_epidemics_excluded n_exposures</span></span>
+<span><span class="co">#&gt; 1               520                  520                    0           3</span></span>
+<span><span class="co">#&gt;   max_lag history_length crossbasis_columns design_columns rank full_rank</span></span>
+<span><span class="co">#&gt; 1      85             86                 18             19   19      TRUE</span></span>
+<span><span class="co">#&gt;   rank_ratio design_residual_df_proxy condition_number_scaled</span></span>
+<span><span class="co">#&gt; 1          1                      501                18.84993</span></span>
+<span><span class="co">#&gt;   min_singular_value_scaled max_singular_value_scaled</span></span>
+<span><span class="co">#&gt; 1                  2.326931                  43.86247</span></span>
+<span><span class="co">#&gt;   max_abs_crossbasis_correlation median_abs_crossbasis_correlation  max_vif</span></span>
+<span><span class="co">#&gt; 1                       0.917688                        0.04442176 42.79382</span></span>
+<span><span class="co">#&gt;   median_vif near_zero_variance_columns epidemics_per_design_column time_step</span></span>
+<span><span class="co">#&gt; 1   5.234571                          0                    27.36842         1</span></span>
+<span></span>
+<span><span class="va">identifiability</span><span class="op">$</span><span class="va">by_variable</span></span>
+<span><span class="co">#&gt;   variable n_unique_exposure exposure_missing_n exposure_missing_percent</span></span>
+<span><span class="co">#&gt; 1    tmean             44611                  0                        0</span></span>
+<span><span class="co">#&gt; 2     rain             15907                  0                        0</span></span>
+<span><span class="co">#&gt; 3  wetness             44319                  0                        0</span></span>
+<span><span class="co">#&gt;   history_length max_lag basis_columns rank full_rank rank_ratio</span></span>
+<span><span class="co">#&gt; 1             86      85             6    6      TRUE          1</span></span>
+<span><span class="co">#&gt; 2             86      85             6    6      TRUE          1</span></span>
+<span><span class="co">#&gt; 3             86      85             6    6      TRUE          1</span></span>
+<span><span class="co">#&gt;   condition_number_scaled max_abs_within_basis_correlation</span></span>
+<span><span class="co">#&gt; 1               18.476462                        0.8935867</span></span>
+<span><span class="co">#&gt; 2                7.226500                        0.9176880</span></span>
+<span><span class="co">#&gt; 3                4.746851                        0.8108186</span></span>
+<span><span class="co">#&gt;   near_zero_variance_columns</span></span>
+<span><span class="co">#&gt; 1                          0</span></span>
+<span><span class="co">#&gt; 2                          0</span></span>
+<span><span class="co">#&gt; 3                          0</span></span>
+<span></span>
+<span><span class="va">identifiability</span><span class="op">$</span><span class="va">recommendations</span></span>
+<span><span class="co">#&gt; [1] "6 cross-basis column(s) have VIF &gt;= 10. Treat this as supplementary because spline-basis columns are correlated by construction. High VIF alone does not change `status`; prioritize the combined rank and scaled condition number."</span></span></code></pre></div>
+<p>A <code>"warning"</code> does not automatically invalidate the
+proposed structure. It indicates that the reported diagnostics should be
+examined before model fitting. A <code>"problem"</code> indicates rank
+deficiency or severe numerical instability and generally supports
+simplifying the candidate structure, for example by reducing
+<code>df_var</code> or <code>df_lag</code>, reconsidering redundant
+exposures, or increasing the number of independent epidemics.</p>
+<p>The diagnostic thresholds are interpretive heuristics rather than
+universal inferential rules. In particular, high correlations or VIFs
+among individual spline columns may arise from the basis construction
+itself. The combined numerical rank and scaled condition number should
+therefore receive greater emphasis than any isolated column-level
+diagnostic.</p>
+</div>
+<div class="section level2">
 <h2 id="building-the-epidemic-level-design">Building the epidemic-level design<a class="anchor" aria-label="anchor" href="#building-the-epidemic-level-design"></a>
 </h2>
 <p><code><a href="../reference/build_design.html">build_design()</a></code> transforms each complete longitudinal
 history into one epidemic-level row containing the cross-basis
 predictors.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dat</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_design.html">build_design</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">epi_data</span>,</span>
 <span>  cb_templates <span class="op">=</span> <span class="va">cb</span><span class="op">)</span></span></code></pre></div>
@@ -394,7 +532,7 @@ cross-basis columns such as:</p>
 cb_rain_1, cb_rain_2, ...
 cb_wetness_1, cb_wetness_2, ...</code></pre>
 <p>The coefficients of these columns should not be interpreted
-individually. Together, they reconstruct the nonlinear
+individually. Together, they reconstruct the non-linear
 exposure-lag-response association.</p>
 <p>Inspect the resulting design:</p>
 <table style="width:100%;" class="table">
@@ -584,7 +722,7 @@ exposure-lag-response association.</p>
 </h2>
 <p>The response must be prepared for the distribution used in the
 model.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dat</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/prepare_response.html">prepare_response</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
 <span>  response <span class="op">=</span> <span class="st">"y"</span>,</span>
@@ -616,7 +754,7 @@ frequentist workflows, see the <em>Advanced Topics</em> section.</p>
 </h2>
 <p>The prepared design can now be fitted with one of the supported
 modeling engines.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_epidlnm.html">fit_epidlnm</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
 <span>  model_engine <span class="op">=</span> <span class="st">"glmmTMB"</span>,</span>
@@ -630,7 +768,7 @@ modeling engines.</p>
 <p>This model estimates a population-level association between the
 complete histories of temperature, rainfall, and leaf wetness and the
 final disease response.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
 <span><span class="co">#&gt;  Family: beta  ( logit )</span></span>
 <span><span class="co">#&gt; Formula:          </span></span>
@@ -689,7 +827,7 @@ is fixed at 25°C, daily rainfall (<code>rain</code>) at 5 mm, and daily
 leaf wetness duration (<code>wetness</code>) at 15 hours. The model
 combines the lagged contributions of all daily exposures to estimate the
 expected disease outcome for this exposure history.</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">prediction</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/predict_outcomes.html">predict_outcomes</a></span><span class="op">(</span></span>
 <span>  fit <span class="op">=</span> <span class="va">fit</span>,</span>
 <span>  profiles <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
@@ -707,7 +845,7 @@ expected disease outcome for this exposure history.</p>
 <span>    <span class="op">)</span></span>
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">prediction</span></span>
 <span><span class="co">#&gt;   prediction</span></span>
 <span><span class="co">#&gt; 1  0.9777891</span></span></code></pre></div>
@@ -726,7 +864,8 @@ workflow:</p>
 <ol style="list-style-type: decimal">
 <li>loaded longitudinal epidemic data;</li>
 <li>inspected complete exposure histories;</li>
-<li>defined the exposure-lag basis;</li>
+<li>defined the exposure–lag basis;</li>
+<li>evaluated its identifiability and numerical stability;</li>
 <li>constructed the epidemic-level design;</li>
 <li>prepared the response;</li>
 <li>fitted a DLNM;</li>
@@ -742,9 +881,10 @@ to:</p>
 <li>visualize uncertainty across the exposure-lag surface.</li>
 </ul>
 <p>More advanced topics, including alternative modeling engines, random
-effects, spatial Matérn structures, Bayesian estimation, and
-identifiability diagnostics, are covered in the <em>Advanced Topics</em>
-section</p>
+effects, spatial Matérn structures, and Bayesian estimation, are covered
+in the <em>Advanced Topics</em> section. Additional comparisons among
+candidate exposure–lag structures are discussed in the <em>Sensitivity
+and Decision</em> section.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

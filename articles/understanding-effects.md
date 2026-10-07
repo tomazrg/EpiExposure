@@ -3,7 +3,7 @@
 ## Introduction
 
 The primary goal of `EpiExposure` is not only to fit distributed lag
-nonlinear models, but also to translate estimated exposure-lag-response
+non-linear models, but also to translate estimated exposure-lag-response
 surfaces into epidemiologically meaningful quantities.
 
 This section introduces five complementary approaches:

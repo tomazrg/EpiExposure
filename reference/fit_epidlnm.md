@@ -54,16 +54,23 @@ fit_epidlnm(
 - random_effect:
 
   Optional character scalar naming one grouping column. In EpiExposure
-  v1 this argument represents a random intercept only; random slopes,
-  nested/crossed random-effect specifications, and arbitrary
-  engine-specific random-effect expressions are intentionally not
-  accepted. The random intercept is translated to the native syntax of
-  each supported mixed-model engine. INLA-backed fits internally
-  re-index arbitrary grouping labels to consecutive integers while
-  retaining the original column name in EpiExposure metadata. \`glm\`
-  and \`gls\` do not support this argument. \`gamm\` requires it in the
-  current EpiExposure interface because its generated fixed formula
-  contains no other smooth/random term.
+  v1, this argument represents a conventional random intercept only.
+  Random slopes, nested or crossed random-effect specifications, and
+  arbitrary engine-specific random-effect expressions are not supported.
+
+  For the Bayesian \`brms\` engine, the random intercept is fitted as
+  \`(1 \| group)\`. For the INLA-backed \`inla\` and \`bdlnm\` engines,
+  it is fitted as \`INLA::f(group, model = "iid")\`. EpiExposure v1 does
+  not expose other INLA latent structures through this argument,
+  including \`"rw1"\`, \`"rw2"\`, \`"ar1"\`, \`"besag"\`, \`"bym"\`,
+  \`"bym2"\`, or SPDE-based effects.
+
+  INLA-backed fits internally re-index arbitrary grouping labels to
+  consecutive integers while retaining the original column name in
+  EpiExposure metadata. \`glm\` and \`gls\` do not support this
+  argument. \`gamm\` requires it in the current EpiExposure interface
+  because its generated fixed formula contains no other smooth or random
+  term.
 
 - random_effect_prior:
 
@@ -76,6 +83,12 @@ fit_epidlnm(
   0.01)))\`. \`NULL\` retains the engine's default prior. A non-\`NULL\`
   value requires \`random_effect\` and is currently supported only for
   the INLA-backed engines.
+
+  This argument customizes the hyperprior of the supported IID random
+  intercept; it does not select or configure other INLA latent models.
+  Structures such as \`"rw1"\`, \`"rw2"\`, \`"ar1"\`, \`"besag"\`,
+  \`"bym"\`, \`"bym2"\`, and SPDE effects are not supported by the
+  EpiExposure v1 random-effect interface.
 
 - epiexposure_spec:
 
@@ -175,6 +188,25 @@ The random-intercept translation used at fitting is:
 \`INLA\` and \`bdlnm\`: \`f(group, model = "iid")\`, optionally extended
 to \`f(group, model = "iid", hyper = random_effect_prior)\` when a
 custom random-effect hyperprior is supplied.
+
+\## Random-effect scope in EpiExposure v1
+
+The EpiExposure v1 random-effect interface is intentionally restricted
+to one conventional random intercept. For \`brms\`, this corresponds to
+\`(1 \| group)\`; for \`inla\` and \`bdlnm\`, it corresponds to
+\`f(group, model = "iid")\`.
+
+The interface does not currently construct structured Bayesian latent
+effects such as first- or second-order random walks (\`"rw1"\` or
+\`"rw2"\`), autoregressive effects (\`"ar1"\`), areal spatial effects
+(\`"besag"\`, \`"bym"\`, or \`"bym2"\`), or continuous spatial effects
+based on SPDE models. These structures may be available in the
+underlying INLA framework but are outside the harmonized fitting,
+prediction, validation, and uncertainty contract of EpiExposure v1.
+
+The \`spatial_effect\` interface described below is separate from these
+Bayesian latent structures and currently supports Matérn spatial
+covariance through \`spaMM\` only.
 
 \`glm\` and \`gls\` are fixed-effect engines in this interface and
 reject a non-\`NULL\` \`random_effect\`. The \`mgcv::gamm()\`

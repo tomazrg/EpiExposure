@@ -13,6 +13,7 @@
 <url><loc>https://tomazrg.github.io/EpiExposure/LICENSE-text.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/LICENSE.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/news/index.html</loc></url>
+<url><loc>https://tomazrg.github.io/EpiExposure/reference/binomial_data.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/build_design.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/check_identifiability.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/compare_exposures.html</loc></url>
@@ -27,12 +28,16 @@
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/epi_sensitivity.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/find_bestfit.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/fit_epidlnm.html</loc></url>
+<url><loc>https://tomazrg.github.io/EpiExposure/reference/gamma_data.html</loc></url>
+<url><loc>https://tomazrg.github.io/EpiExposure/reference/gaussian_data.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/index.html</loc></url>
+<url><loc>https://tomazrg.github.io/EpiExposure/reference/nb2_data.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/plot_eci.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/plot_effects.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/plot_losses.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/plot_performance.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/plot_scenarios.html</loc></url>
+<url><loc>https://tomazrg.github.io/EpiExposure/reference/poisson_data.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/prepare_response.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/print.epiexposure_identifiability.html</loc></url>
@@ -42,6 +47,9 @@
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/simulate_losses.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/simulate_ranges.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/simulate_scenarios.html</loc></url>
+<url><loc>https://tomazrg.github.io/EpiExposure/reference/spatial_replicate.html</loc></url>
+<url><loc>https://tomazrg.github.io/EpiExposure/reference/spatial_year.html</loc></url>
+<url><loc>https://tomazrg.github.io/EpiExposure/reference/st_poisson.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/summarise_effects.html</loc></url>
 <url><loc>https://tomazrg.github.io/EpiExposure/reference/summary.epiexposure_gamm.html</loc></url>
 </urlset>

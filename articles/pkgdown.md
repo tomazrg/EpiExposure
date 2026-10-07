@@ -8,8 +8,8 @@ plant disease epidemiology.
 
 The package helps users:
 
-- define nonlinear exposure-lag structures;
-- fit distributed lag nonlinear models;
+- define non-linear exposure-lag structures;
+- fit distributed lag non-linear models;
 - quantify lag-specific, period-specific, and cumulative effects;
 - evaluate complete exposure histories;
 - predict expected disease outcomes;
@@ -21,19 +21,21 @@ complete environmental history preceding disease assessment as the
 epidemiological exposure unit.
 
 **What you will learn.** This tutorial shows how to organize
-longitudinal epidemiological data, define exposure-lag structures, fit a
-first DLNM, and predict an expected disease outcome from a complete
-exposure history.
+longitudinal epidemiological data, define and diagnose an exposure–lag
+structure, fit a first DLNM, and predict an expected disease outcome
+from a complete exposure history.
 
 ## The EpiExposure workflow
 
-A basic analysis follows five stages:
+A basic analysis follows six stages:
 
-1.  organize complete exposure histories;
+1.  organize and inspect complete exposure histories;
 2.  define the exposure-response and lag-response basis functions;
-3.  collapse each history into one epidemic-level design row;
-4.  prepare the response and fit the model;
-5.  use the fitted model for interpretation, prediction, or simulation.
+3.  evaluate the proposed structure for identifiability and numerical
+    stability;
+4.  collapse each history into one epidemic-level design row;
+5.  prepare the response and fit the model;
+6.  use the fitted model for interpretation, prediction, or simulation.
 
 This section introduces the basic workflow but stops before detailed
 effect interpretation. Lag-specific, period-specific, and cumulative
@@ -83,10 +85,7 @@ library(ggplot2)
 
 ``` r
 
-data(
-  "epi_data",
-  package = "EpiExposure"
-)
+data("epi_data")
 ```
 
 ## Inspecting the example dataset
@@ -187,8 +186,8 @@ observed histories. Effect estimation requires the DLNM model.
 
 ## Defining exposure-lag structures
 
-The first modeling step is to define the nonlinear exposure-response and
-lag-response basis functions.
+The first modeling step is to define the non-linear exposure-response
+and lag-response basis functions.
 
 ``` r
 
@@ -221,6 +220,153 @@ be preserved separately by
 [`build_design()`](https://tomazrg.github.io/EpiExposure/reference/build_design.md)
 when needed for random or spatial effects.
 
+## Checking identifiability and numerical stability
+
+Before fitting the model, the proposed exposure–lag structure should be
+evaluated for identifiability and numerical stability. Increasing the
+number of exposures or the flexibility of the exposure and lag bases
+increases the number of cross-basis predictors and may produce
+redundant, rank-deficient, or poorly conditioned designs.
+
+[`check_identifiability()`](https://tomazrg.github.io/EpiExposure/reference/check_identifiability.md)
+reconstructs the same epidemic-level cross-basis design used by the
+EpiExposure fitting workflow. The function evaluates the combined
+numerical rank, scaled condition number, near-zero-variance columns,
+between-exposure cross-basis correlations, supplementary variance
+inflation factors, and the number of epidemics relative to design
+complexity.
+
+``` r
+
+identifiability <- check_identifiability(
+  data = epi_data,
+  vars = c(
+    "tmean",
+    "rain",
+    "wetness"
+  ),
+  max_lag = 85,
+  df_var = 3,
+  df_lag = 2
+)
+
+identifiability
+#> EpiExposure DLNM identifiability diagnostics
+#> Status: OK
+#> Identifiable (full numerical rank): TRUE
+#> Numerically stable: TRUE
+#> 
+#> Overall design
+#>  n_epidemics_total n_epidemics_complete n_epidemics_excluded n_exposures
+#>                520                  520                    0           3
+#>  max_lag history_length crossbasis_columns design_columns rank full_rank
+#>       85             86                 18             19   19      TRUE
+#>  rank_ratio design_residual_df_proxy condition_number_scaled
+#>           1                      501                18.84993
+#>  min_singular_value_scaled max_singular_value_scaled
+#>                   2.326931                  43.86247
+#>  max_abs_crossbasis_correlation median_abs_crossbasis_correlation  max_vif
+#>                        0.917688                        0.04442176 42.79382
+#>  median_vif near_zero_variance_columns epidemics_per_design_column time_step
+#>    5.234571                          0                    27.36842         1
+#> 
+#> By exposure variable
+#>  variable n_unique_exposure exposure_missing_n exposure_missing_percent
+#>     tmean             44611                  0                        0
+#>      rain             15907                  0                        0
+#>   wetness             44319                  0                        0
+#>  history_length max_lag basis_columns rank full_rank rank_ratio
+#>              86      85             6    6      TRUE          1
+#>              86      85             6    6      TRUE          1
+#>              86      85             6    6      TRUE          1
+#>  condition_number_scaled max_abs_within_basis_correlation
+#>                18.476462                        0.8935867
+#>                 7.226500                        0.9176880
+#>                 4.746851                        0.8108186
+#>  near_zero_variance_columns
+#>                           0
+#>                           0
+#>                           0
+#> 
+#> Between-exposure cross-basis correlation
+#>  variable_1 variable_2 max_abs_correlation mean_abs_correlation   column_1
+#>       tmean       rain          0.12294998           0.04640375 cb_tmean_4
+#>       tmean    wetness          0.08148758           0.03280792 cb_tmean_4
+#>        rain    wetness          0.08568740           0.03019396  cb_rain_2
+#>      column_2
+#>     cb_rain_6
+#>  cb_wetness_5
+#>  cb_wetness_6
+#> 
+#> Raw exposure correlation (descriptive)
+#>  variable_1 variable_2 n_complete pearson_correlation spearman_correlation
+#>       tmean       rain      44720         0.007387420          0.013235520
+#>       tmean    wetness      44720        -0.006029139         -0.006197960
+#>        rain    wetness      44720        -0.006062063         -0.008173092
+#> 
+#> Recommendations
+#> - 6 cross-basis column(s) have VIF >= 10. Treat this as supplementary because spline-basis columns are correlated by construction. High VIF alone does not change `status`; prioritize the combined rank and scaled condition number.
+```
+
+The printed output classifies the proposed design as `"ok"`,
+`"warning"`, or `"problem"`. The `identifiable` field indicates whether
+the combined epidemic-level design has full numerical rank, whereas
+`numerically_stable` additionally considers severe conditioning,
+near-zero-variance columns, and whether the available epidemics can
+support the number of design columns.
+
+``` r
+
+identifiability$overall
+#>   n_epidemics_total n_epidemics_complete n_epidemics_excluded n_exposures
+#> 1               520                  520                    0           3
+#>   max_lag history_length crossbasis_columns design_columns rank full_rank
+#> 1      85             86                 18             19   19      TRUE
+#>   rank_ratio design_residual_df_proxy condition_number_scaled
+#> 1          1                      501                18.84993
+#>   min_singular_value_scaled max_singular_value_scaled
+#> 1                  2.326931                  43.86247
+#>   max_abs_crossbasis_correlation median_abs_crossbasis_correlation  max_vif
+#> 1                       0.917688                        0.04442176 42.79382
+#>   median_vif near_zero_variance_columns epidemics_per_design_column time_step
+#> 1   5.234571                          0                    27.36842         1
+
+identifiability$by_variable
+#>   variable n_unique_exposure exposure_missing_n exposure_missing_percent
+#> 1    tmean             44611                  0                        0
+#> 2     rain             15907                  0                        0
+#> 3  wetness             44319                  0                        0
+#>   history_length max_lag basis_columns rank full_rank rank_ratio
+#> 1             86      85             6    6      TRUE          1
+#> 2             86      85             6    6      TRUE          1
+#> 3             86      85             6    6      TRUE          1
+#>   condition_number_scaled max_abs_within_basis_correlation
+#> 1               18.476462                        0.8935867
+#> 2                7.226500                        0.9176880
+#> 3                4.746851                        0.8108186
+#>   near_zero_variance_columns
+#> 1                          0
+#> 2                          0
+#> 3                          0
+
+identifiability$recommendations
+#> [1] "6 cross-basis column(s) have VIF >= 10. Treat this as supplementary because spline-basis columns are correlated by construction. High VIF alone does not change `status`; prioritize the combined rank and scaled condition number."
+```
+
+A `"warning"` does not automatically invalidate the proposed structure.
+It indicates that the reported diagnostics should be examined before
+model fitting. A `"problem"` indicates rank deficiency or severe
+numerical instability and generally supports simplifying the candidate
+structure, for example by reducing `df_var` or `df_lag`, reconsidering
+redundant exposures, or increasing the number of independent epidemics.
+
+The diagnostic thresholds are interpretive heuristics rather than
+universal inferential rules. In particular, high correlations or VIFs
+among individual spline columns may arise from the basis construction
+itself. The combined numerical rank and scaled condition number should
+therefore receive greater emphasis than any isolated column-level
+diagnostic.
+
 ## Building the epidemic-level design
 
 [`build_design()`](https://tomazrg.github.io/EpiExposure/reference/build_design.md)
@@ -244,7 +390,7 @@ cb_wetness_1, cb_wetness_2, ...
 ```
 
 The coefficients of these columns should not be interpreted
-individually. Together, they reconstruct the nonlinear
+individually. Together, they reconstruct the non-linear
 exposure-lag-response association.
 
 Inspect the resulting design:
@@ -421,11 +567,12 @@ You have now completed the basic `EpiExposure` workflow:
 
 1.  loaded longitudinal epidemic data;
 2.  inspected complete exposure histories;
-3.  defined the exposure-lag basis;
-4.  constructed the epidemic-level design;
-5.  prepared the response;
-6.  fitted a DLNM;
-7.  predicted an expected disease outcome.
+3.  defined the exposure–lag basis;
+4.  evaluated its identifiability and numerical stability;
+5.  constructed the epidemic-level design;
+6.  prepared the response;
+7.  fitted a DLNM;
+8.  predicted an expected disease outcome.
 
 Continue with the *Understanding Effects* section to learn how to:
 
@@ -436,6 +583,7 @@ Continue with the *Understanding Effects* section to learn how to:
 - visualize uncertainty across the exposure-lag surface.
 
 More advanced topics, including alternative modeling engines, random
-effects, spatial Matérn structures, Bayesian estimation, and
-identifiability diagnostics, are covered in the *Advanced Topics*
-section
+effects, spatial Matérn structures, and Bayesian estimation, are covered
+in the *Advanced Topics* section. Additional comparisons among candidate
+exposure–lag structures are discussed in the *Sensitivity and Decision*
+section.

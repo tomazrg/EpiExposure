@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Distributed Lag Nonlinear Models (DLNMs) require several modeling
+Distributed Lag Non-linear Models (DLNMs) require several modeling
 decisions, including:
 
 - exposure variables;
@@ -134,7 +134,7 @@ plot_performance(
   )
 ```
 
-![](find_bestfit2.png) Inspect results
+![](output/find_bestfit2.png) Inspect results
 
 | rank | model_id | df_var | df_lag | vars | n_vars | CCC | Cb | rho | RMSE | MAE | n_folds | n_success_folds | n_failed_folds | n_predictions | n_success | n_failed | n_warning_folds | warning_rate | n_warning_events | n_knot_warning_folds | n_convergence_warning_folds | n_hessian_warning_folds | n_other_warning_folds | n_knot_warning_events | n_convergence_warning_events | n_hessian_warning_events | n_other_warning_events |
 |:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|

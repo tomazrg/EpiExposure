@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Exposure-response relationships are often nonlinear. A small change in
+Exposure-response relationships are often non-linear. A small change in
 an environmental exposure may correspond to little change in the
 expected disease response in one region of the fitted curve but a much
 larger change in another.
