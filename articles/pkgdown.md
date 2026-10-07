@@ -249,64 +249,21 @@ identifiability <- check_identifiability(
   df_var = 3,
   df_lag = 2
 )
-
-identifiability
-#> EpiExposure DLNM identifiability diagnostics
-#> Status: OK
-#> Identifiable (full numerical rank): TRUE
-#> Numerically stable: TRUE
-#> 
-#> Overall design
-#>  n_epidemics_total n_epidemics_complete n_epidemics_excluded n_exposures
-#>                520                  520                    0           3
-#>  max_lag history_length crossbasis_columns design_columns rank full_rank
-#>       85             86                 18             19   19      TRUE
-#>  rank_ratio design_residual_df_proxy condition_number_scaled
-#>           1                      501                18.84993
-#>  min_singular_value_scaled max_singular_value_scaled
-#>                   2.326931                  43.86247
-#>  max_abs_crossbasis_correlation median_abs_crossbasis_correlation  max_vif
-#>                        0.917688                        0.04442176 42.79382
-#>  median_vif near_zero_variance_columns epidemics_per_design_column time_step
-#>    5.234571                          0                    27.36842         1
-#> 
-#> By exposure variable
-#>  variable n_unique_exposure exposure_missing_n exposure_missing_percent
-#>     tmean             44611                  0                        0
-#>      rain             15907                  0                        0
-#>   wetness             44319                  0                        0
-#>  history_length max_lag basis_columns rank full_rank rank_ratio
-#>              86      85             6    6      TRUE          1
-#>              86      85             6    6      TRUE          1
-#>              86      85             6    6      TRUE          1
-#>  condition_number_scaled max_abs_within_basis_correlation
-#>                18.476462                        0.8935867
-#>                 7.226500                        0.9176880
-#>                 4.746851                        0.8108186
-#>  near_zero_variance_columns
-#>                           0
-#>                           0
-#>                           0
-#> 
-#> Between-exposure cross-basis correlation
-#>  variable_1 variable_2 max_abs_correlation mean_abs_correlation   column_1
-#>       tmean       rain          0.12294998           0.04640375 cb_tmean_4
-#>       tmean    wetness          0.08148758           0.03280792 cb_tmean_4
-#>        rain    wetness          0.08568740           0.03019396  cb_rain_2
-#>      column_2
-#>     cb_rain_6
-#>  cb_wetness_5
-#>  cb_wetness_6
-#> 
-#> Raw exposure correlation (descriptive)
-#>  variable_1 variable_2 n_complete pearson_correlation spearman_correlation
-#>       tmean       rain      44720         0.007387420          0.013235520
-#>       tmean    wetness      44720        -0.006029139         -0.006197960
-#>        rain    wetness      44720        -0.006062063         -0.008173092
-#> 
-#> Recommendations
-#> - 6 cross-basis column(s) have VIF >= 10. Treat this as supplementary because spline-basis columns are correlated by construction. High VIF alone does not change `status`; prioritize the combined rank and scaled condition number.
 ```
+
+``` r
+
+knitr::kable(
+  utils::head(
+    identifiability,
+    10L
+  ),
+  digits = 4,
+  align = "c"
+)
+```
+
+[TABLE]
 
 The printed output classifies the proposed design as `"ok"`,
 `"warning"`, or `"problem"`. The `identifiable` field indicates whether
@@ -317,41 +274,53 @@ support the number of design columns.
 
 ``` r
 
-identifiability$overall
-#>   n_epidemics_total n_epidemics_complete n_epidemics_excluded n_exposures
-#> 1               520                  520                    0           3
-#>   max_lag history_length crossbasis_columns design_columns rank full_rank
-#> 1      85             86                 18             19   19      TRUE
-#>   rank_ratio design_residual_df_proxy condition_number_scaled
-#> 1          1                      501                18.84993
-#>   min_singular_value_scaled max_singular_value_scaled
-#> 1                  2.326931                  43.86247
-#>   max_abs_crossbasis_correlation median_abs_crossbasis_correlation  max_vif
-#> 1                       0.917688                        0.04442176 42.79382
-#>   median_vif near_zero_variance_columns epidemics_per_design_column time_step
-#> 1   5.234571                          0                    27.36842         1
-
-identifiability$by_variable
-#>   variable n_unique_exposure exposure_missing_n exposure_missing_percent
-#> 1    tmean             44611                  0                        0
-#> 2     rain             15907                  0                        0
-#> 3  wetness             44319                  0                        0
-#>   history_length max_lag basis_columns rank full_rank rank_ratio
-#> 1             86      85             6    6      TRUE          1
-#> 2             86      85             6    6      TRUE          1
-#> 3             86      85             6    6      TRUE          1
-#>   condition_number_scaled max_abs_within_basis_correlation
-#> 1               18.476462                        0.8935867
-#> 2                7.226500                        0.9176880
-#> 3                4.746851                        0.8108186
-#>   near_zero_variance_columns
-#> 1                          0
-#> 2                          0
-#> 3                          0
-
-identifiability$recommendations
-#> [1] "6 cross-basis column(s) have VIF >= 10. Treat this as supplementary because spline-basis columns are correlated by construction. High VIF alone does not change `status`; prioritize the combined rank and scaled condition number."
+knitr::kable(
+  utils::head(
+    identifiability$overall,
+    10L
+  ),
+  digits = 4,
+  align = "c"
+)
 ```
+
+| n_epidemics_total | n_epidemics_complete | n_epidemics_excluded | n_exposures | max_lag | history_length | crossbasis_columns | design_columns | rank | full_rank | rank_ratio | design_residual_df_proxy | condition_number_scaled | min_singular_value_scaled | max_singular_value_scaled | max_abs_crossbasis_correlation | median_abs_crossbasis_correlation | max_vif | median_vif | near_zero_variance_columns | epidemics_per_design_column | time_step |
+|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| 520 | 520 | 0 | 3 | 85 | 86 | 18 | 19 | 19 | TRUE | 1 | 501 | 18.8499 | 2.3269 | 43.8625 | 0.9177 | 0.0444 | 42.7938 | 5.2346 | 0 | 27.3684 | 1 |
+
+``` r
+
+knitr::kable(
+  utils::head(
+    identifiability$by_variable,
+    10L
+  ),
+  digits = 4,
+  align = "c"
+)
+```
+
+| variable | n_unique_exposure | exposure_missing_n | exposure_missing_percent | history_length | max_lag | basis_columns | rank | full_rank | rank_ratio | condition_number_scaled | max_abs_within_basis_correlation | near_zero_variance_columns |
+|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| tmean | 44611 | 0 | 0 | 86 | 85 | 6 | 6 | TRUE | 1 | 18.4765 | 0.8936 | 0 |
+| rain | 15907 | 0 | 0 | 86 | 85 | 6 | 6 | TRUE | 1 | 7.2265 | 0.9177 | 0 |
+| wetness | 44319 | 0 | 0 | 86 | 85 | 6 | 6 | TRUE | 1 | 4.7469 | 0.8108 | 0 |
+
+``` r
+
+knitr::kable(
+  utils::head(
+    identifiability$recommendations,
+    10L
+  ),
+  digits = 4,
+  align = "c"
+)
+```
+
+| x |
+|:--:|
+| 6 cross-basis column(s) have VIF \>= 10. Treat this as supplementary because spline-basis columns are correlated by construction. High VIF alone does not change `status`; prioritize the combined rank and scaled condition number. |
 
 A `"warning"` does not automatically invalidate the proposed structure.
 It indicates that the reported diagnostics should be examined before
