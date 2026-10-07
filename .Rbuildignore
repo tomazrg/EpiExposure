@@ -5,6 +5,7 @@
 ^\.Rhistory$
 ^LICENSE\.md$
 ^_pkgdown\.yml$
+^\.github$
 ^docs$
 ^pkgdown$
 ^doc$

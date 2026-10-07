@@ -38,6 +38,25 @@ has_bdlnm <- all(
     FUN.VALUE = logical(1)
   )
 )
+
+
+```
+
+```{r optional-engine-availability, echo=FALSE, results="asis"}
+if (!has_inla) {
+  cat(
+    "> **Note:** Examples using the direct `INLA` engine are not evaluated ",
+    "because the optional package `INLA` is not installed.\n\n"
+  )
+}
+
+if (!has_bdlnm) {
+  cat(
+    "> **Note:** Examples using the Bayesian DLNM engine are not evaluated ",
+    "because one or more optional packages required by this engine ",
+    "(`INLA`, `bdlnm`, or `sn`) are not installed.\n\n"
+  )
+}
 ```
 
 # Introduction
@@ -659,7 +678,7 @@ draws are retained for draw-by-draw propagation through
 functions.
 
 
-```{r}
+```{r, eval=has_bdlnm}
 cb_bdlnm <- define_exposures(
   data = poisson_data,
   vars = c(
