@@ -403,463 +403,6 @@ the number of epidemics relative to design complexity.</p>
 <span>  df_var <span class="op">=</span> <span class="fl">3</span>,</span>
 <span>  df_lag <span class="op">=</span> <span class="fl">2</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span></span>
-<span>  <span class="fu">utils</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span></span>
-<span>    <span class="va">identifiability</span>,</span>
-<span>    <span class="fl">10L</span></span>
-<span>  <span class="op">)</span>,</span>
-<span>  digits <span class="op">=</span> <span class="fl">4</span>,</span>
-<span>  align <span class="op">=</span> <span class="st">"c"</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<table class="table kable_wrapper"><tbody><tr>
-<td>
-<table class="table">
-<thead><tr class="header">
-<th align="center">x</th>
-</tr></thead>
-<tbody><tr class="odd">
-<td align="center">TRUE</td>
-</tr></tbody>
-</table>
-</td>
-<td>
-<table class="table">
-<thead><tr class="header">
-<th align="center">x</th>
-</tr></thead>
-<tbody><tr class="odd">
-<td align="center">TRUE</td>
-</tr></tbody>
-</table>
-</td>
-<td>
-<table class="table">
-<thead><tr class="header">
-<th align="center">x</th>
-</tr></thead>
-<tbody><tr class="odd">
-<td align="center">ok</td>
-</tr></tbody>
-</table>
-</td>
-<td>
-<table style="width:100%;" class="table">
-<colgroup>
-<col width="4%">
-<col width="5%">
-<col width="5%">
-<col width="3%">
-<col width="2%">
-<col width="3%">
-<col width="4%">
-<col width="3%">
-<col width="1%">
-<col width="2%">
-<col width="2%">
-<col width="6%">
-<col width="5%">
-<col width="6%">
-<col width="6%">
-<col width="7%">
-<col width="8%">
-<col width="2%">
-<col width="2%">
-<col width="6%">
-<col width="6%">
-<col width="2%">
-</colgroup>
-<thead><tr class="header">
-<th align="center">n_epidemics_total</th>
-<th align="center">n_epidemics_complete</th>
-<th align="center">n_epidemics_excluded</th>
-<th align="center">n_exposures</th>
-<th align="center">max_lag</th>
-<th align="center">history_length</th>
-<th align="center">crossbasis_columns</th>
-<th align="center">design_columns</th>
-<th align="center">rank</th>
-<th align="center">full_rank</th>
-<th align="center">rank_ratio</th>
-<th align="center">design_residual_df_proxy</th>
-<th align="center">condition_number_scaled</th>
-<th align="center">min_singular_value_scaled</th>
-<th align="center">max_singular_value_scaled</th>
-<th align="center">max_abs_crossbasis_correlation</th>
-<th align="center">median_abs_crossbasis_correlation</th>
-<th align="center">max_vif</th>
-<th align="center">median_vif</th>
-<th align="center">near_zero_variance_columns</th>
-<th align="center">epidemics_per_design_column</th>
-<th align="center">time_step</th>
-</tr></thead>
-<tbody><tr class="odd">
-<td align="center">520</td>
-<td align="center">520</td>
-<td align="center">0</td>
-<td align="center">3</td>
-<td align="center">85</td>
-<td align="center">86</td>
-<td align="center">18</td>
-<td align="center">19</td>
-<td align="center">19</td>
-<td align="center">TRUE</td>
-<td align="center">1</td>
-<td align="center">501</td>
-<td align="center">18.8499</td>
-<td align="center">2.3269</td>
-<td align="center">43.8625</td>
-<td align="center">0.9177</td>
-<td align="center">0.0444</td>
-<td align="center">42.7938</td>
-<td align="center">5.2346</td>
-<td align="center">0</td>
-<td align="center">27.3684</td>
-<td align="center">1</td>
-</tr></tbody>
-</table>
-</td>
-<td>
-<table class="table">
-<colgroup>
-<col width="4%">
-<col width="8%">
-<col width="8%">
-<col width="11%">
-<col width="6%">
-<col width="3%">
-<col width="6%">
-<col width="2%">
-<col width="4%">
-<col width="5%">
-<col width="10%">
-<col width="14%">
-<col width="12%">
-</colgroup>
-<thead><tr class="header">
-<th align="center">variable</th>
-<th align="center">n_unique_exposure</th>
-<th align="center">exposure_missing_n</th>
-<th align="center">exposure_missing_percent</th>
-<th align="center">history_length</th>
-<th align="center">max_lag</th>
-<th align="center">basis_columns</th>
-<th align="center">rank</th>
-<th align="center">full_rank</th>
-<th align="center">rank_ratio</th>
-<th align="center">condition_number_scaled</th>
-<th align="center">max_abs_within_basis_correlation</th>
-<th align="center">near_zero_variance_columns</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="center">tmean</td>
-<td align="center">44611</td>
-<td align="center">0</td>
-<td align="center">0</td>
-<td align="center">86</td>
-<td align="center">85</td>
-<td align="center">6</td>
-<td align="center">6</td>
-<td align="center">TRUE</td>
-<td align="center">1</td>
-<td align="center">18.4765</td>
-<td align="center">0.8936</td>
-<td align="center">0</td>
-</tr>
-<tr class="even">
-<td align="center">rain</td>
-<td align="center">15907</td>
-<td align="center">0</td>
-<td align="center">0</td>
-<td align="center">86</td>
-<td align="center">85</td>
-<td align="center">6</td>
-<td align="center">6</td>
-<td align="center">TRUE</td>
-<td align="center">1</td>
-<td align="center">7.2265</td>
-<td align="center">0.9177</td>
-<td align="center">0</td>
-</tr>
-<tr class="odd">
-<td align="center">wetness</td>
-<td align="center">44319</td>
-<td align="center">0</td>
-<td align="center">0</td>
-<td align="center">86</td>
-<td align="center">85</td>
-<td align="center">6</td>
-<td align="center">6</td>
-<td align="center">TRUE</td>
-<td align="center">1</td>
-<td align="center">4.7469</td>
-<td align="center">0.8108</td>
-<td align="center">0</td>
-</tr>
-</tbody>
-</table>
-</td>
-<td>
-<table class="table">
-<colgroup>
-<col width="15%">
-<col width="15%">
-<col width="15%">
-<col width="26%">
-<col width="27%">
-</colgroup>
-<thead><tr class="header">
-<th align="center">variable_1</th>
-<th align="center">variable_2</th>
-<th align="center">n_complete</th>
-<th align="center">pearson_correlation</th>
-<th align="center">spearman_correlation</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="center">tmean</td>
-<td align="center">rain</td>
-<td align="center">44720</td>
-<td align="center">0.0074</td>
-<td align="center">0.0132</td>
-</tr>
-<tr class="even">
-<td align="center">tmean</td>
-<td align="center">wetness</td>
-<td align="center">44720</td>
-<td align="center">-0.0060</td>
-<td align="center">-0.0062</td>
-</tr>
-<tr class="odd">
-<td align="center">rain</td>
-<td align="center">wetness</td>
-<td align="center">44720</td>
-<td align="center">-0.0061</td>
-<td align="center">-0.0082</td>
-</tr>
-</tbody>
-</table>
-</td>
-<td>
-<table class="table">
-<colgroup>
-<col width="12%">
-<col width="12%">
-<col width="22%">
-<col width="23%">
-<col width="12%">
-<col width="15%">
-</colgroup>
-<thead><tr class="header">
-<th align="center">variable_1</th>
-<th align="center">variable_2</th>
-<th align="center">max_abs_correlation</th>
-<th align="center">mean_abs_correlation</th>
-<th align="center">column_1</th>
-<th align="center">column_2</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="center">tmean</td>
-<td align="center">rain</td>
-<td align="center">0.1229</td>
-<td align="center">0.0464</td>
-<td align="center">cb_tmean_4</td>
-<td align="center">cb_rain_6</td>
-</tr>
-<tr class="even">
-<td align="center">tmean</td>
-<td align="center">wetness</td>
-<td align="center">0.0815</td>
-<td align="center">0.0328</td>
-<td align="center">cb_tmean_4</td>
-<td align="center">cb_wetness_5</td>
-</tr>
-<tr class="odd">
-<td align="center">rain</td>
-<td align="center">wetness</td>
-<td align="center">0.0857</td>
-<td align="center">0.0302</td>
-<td align="center">cb_rain_2</td>
-<td align="center">cb_wetness_6</td>
-</tr>
-</tbody>
-</table>
-</td>
-<td>
-<table class="table">
-<thead><tr class="header">
-<th align="center">column</th>
-<th align="center">variable</th>
-<th align="center">vif</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="center">cb_tmean_1</td>
-<td align="center">tmean</td>
-<td align="center">12.9499</td>
-</tr>
-<tr class="even">
-<td align="center">cb_tmean_2</td>
-<td align="center">tmean</td>
-<td align="center">5.4131</td>
-</tr>
-<tr class="odd">
-<td align="center">cb_tmean_3</td>
-<td align="center">tmean</td>
-<td align="center">6.4959</td>
-</tr>
-<tr class="even">
-<td align="center">cb_tmean_4</td>
-<td align="center">tmean</td>
-<td align="center">36.4209</td>
-</tr>
-<tr class="odd">
-<td align="center">cb_tmean_5</td>
-<td align="center">tmean</td>
-<td align="center">36.6440</td>
-</tr>
-<tr class="even">
-<td align="center">cb_tmean_6</td>
-<td align="center">tmean</td>
-<td align="center">42.7938</td>
-</tr>
-<tr class="odd">
-<td align="center">cb_rain_1</td>
-<td align="center">rain</td>
-<td align="center">1.9451</td>
-</tr>
-<tr class="even">
-<td align="center">cb_rain_2</td>
-<td align="center">rain</td>
-<td align="center">1.6266</td>
-</tr>
-<tr class="odd">
-<td align="center">cb_rain_3</td>
-<td align="center">rain</td>
-<td align="center">12.3415</td>
-</tr>
-<tr class="even">
-<td align="center">cb_rain_4</td>
-<td align="center">rain</td>
-<td align="center">5.0695</td>
-</tr>
-<tr class="odd">
-<td align="center">cb_rain_5</td>
-<td align="center">rain</td>
-<td align="center">10.9064</td>
-</tr>
-<tr class="even">
-<td align="center">cb_rain_6</td>
-<td align="center">rain</td>
-<td align="center">5.3997</td>
-</tr>
-<tr class="odd">
-<td align="center">cb_wetness_1</td>
-<td align="center">wetness</td>
-<td align="center">2.2633</td>
-</tr>
-<tr class="even">
-<td align="center">cb_wetness_2</td>
-<td align="center">wetness</td>
-<td align="center">1.4518</td>
-</tr>
-<tr class="odd">
-<td align="center">cb_wetness_3</td>
-<td align="center">wetness</td>
-<td align="center">2.5285</td>
-</tr>
-<tr class="even">
-<td align="center">cb_wetness_4</td>
-<td align="center">wetness</td>
-<td align="center">3.1756</td>
-</tr>
-<tr class="odd">
-<td align="center">cb_wetness_5</td>
-<td align="center">wetness</td>
-<td align="center">4.1334</td>
-</tr>
-<tr class="even">
-<td align="center">cb_wetness_6</td>
-<td align="center">wetness</td>
-<td align="center">3.6494</td>
-</tr>
-</tbody>
-</table>
-</td>
-<td>
-<table class="table">
-<thead><tr class="header">
-<th align="center">x</th>
-</tr></thead>
-<tbody>
-<tr class="odd">
-<td align="center">43.8625</td>
-</tr>
-<tr class="even">
-<td align="center">40.1538</td>
-</tr>
-<tr class="odd">
-<td align="center">34.3620</td>
-</tr>
-<tr class="even">
-<td align="center">31.6910</td>
-</tr>
-<tr class="odd">
-<td align="center">28.4223</td>
-</tr>
-<tr class="even">
-<td align="center">27.5545</td>
-</tr>
-<tr class="odd">
-<td align="center">23.1593</td>
-</tr>
-<tr class="even">
-<td align="center">21.6899</td>
-</tr>
-<tr class="odd">
-<td align="center">17.5177</td>
-</tr>
-<tr class="even">
-<td align="center">16.3678</td>
-</tr>
-<tr class="odd">
-<td align="center">11.9667</td>
-</tr>
-<tr class="even">
-<td align="center">10.1940</td>
-</tr>
-<tr class="odd">
-<td align="center">8.4542</td>
-</tr>
-<tr class="even">
-<td align="center">7.7650</td>
-</tr>
-<tr class="odd">
-<td align="center">7.0119</td>
-</tr>
-<tr class="even">
-<td align="center">4.7787</td>
-</tr>
-<tr class="odd">
-<td align="center">3.9650</td>
-</tr>
-<tr class="even">
-<td align="center">2.3269</td>
-</tr>
-</tbody>
-</table>
-</td>
-<td>
-<table class="table">
-<thead><tr class="header">
-<th align="center">x</th>
-</tr></thead>
-<tbody></tbody>
-</table>
-</td>
-</tr></tbody></table>
 <p>The printed output classifies the proposed design as
 <code>"ok"</code>, <code>"warning"</code>, or <code>"problem"</code>.
 The <code>identifiable</code> field indicates whether the combined
@@ -867,7 +410,7 @@ epidemic-level design has full numerical rank, whereas
 <code>numerically_stable</code> additionally considers severe
 conditioning, near-zero-variance columns, and whether the available
 epidemics can support the number of design columns.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span></span>
 <span>  <span class="fu">utils</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span></span>
 <span>    <span class="va">identifiability</span><span class="op">$</span><span class="va">overall</span>,</span>
@@ -950,7 +493,7 @@ epidemics can support the number of design columns.</p>
 <td align="center">1</td>
 </tr></tbody>
 </table>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span></span>
 <span>  <span class="fu">utils</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span></span>
 <span>    <span class="va">identifiability</span><span class="op">$</span><span class="va">by_variable</span>,</span>
@@ -1038,7 +581,7 @@ epidemics can support the number of design columns.</p>
 </tr>
 </tbody>
 </table>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span></span>
 <span>  <span class="fu">utils</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span></span>
 <span>    <span class="va">identifiability</span><span class="op">$</span><span class="va">recommendations</span>,</span>
@@ -1079,7 +622,7 @@ diagnostic.</p>
 <p><code><a href="../reference/build_design.html">build_design()</a></code> transforms each complete longitudinal
 history into one epidemic-level row containing the cross-basis
 predictors.</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dat</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_design.html">build_design</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">epi_data</span>,</span>
 <span>  cb_templates <span class="op">=</span> <span class="va">cb</span><span class="op">)</span></span></code></pre></div>
@@ -1279,7 +822,7 @@ exposure-lag-response association.</p>
 </h2>
 <p>The response must be prepared for the distribution used in the
 model.</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dat</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/prepare_response.html">prepare_response</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
 <span>  response <span class="op">=</span> <span class="st">"y"</span>,</span>
@@ -1311,7 +854,7 @@ frequentist workflows, see the <em>Advanced Topics</em> section.</p>
 </h2>
 <p>The prepared design can now be fitted with one of the supported
 modeling engines.</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_epidlnm.html">fit_epidlnm</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
 <span>  model_engine <span class="op">=</span> <span class="st">"glmmTMB"</span>,</span>
@@ -1325,7 +868,7 @@ modeling engines.</p>
 <p>This model estimates a population-level association between the
 complete histories of temperature, rainfall, and leaf wetness and the
 final disease response.</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
 <span><span class="co">#&gt;  Family: beta  ( logit )</span></span>
 <span><span class="co">#&gt; Formula:          </span></span>
@@ -1384,7 +927,7 @@ is fixed at 25°C, daily rainfall (<code>rain</code>) at 5 mm, and daily
 leaf wetness duration (<code>wetness</code>) at 15 hours. The model
 combines the lagged contributions of all daily exposures to estimate the
 expected disease outcome for this exposure history.</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">prediction</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/predict_outcomes.html">predict_outcomes</a></span><span class="op">(</span></span>
 <span>  fit <span class="op">=</span> <span class="va">fit</span>,</span>
 <span>  profiles <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
@@ -1402,7 +945,7 @@ expected disease outcome for this exposure history.</p>
 <span>    <span class="op">)</span></span>
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">prediction</span></span>
 <span><span class="co">#&gt;   prediction</span></span>
 <span><span class="co">#&gt; 1  0.9777891</span></span></code></pre></div>

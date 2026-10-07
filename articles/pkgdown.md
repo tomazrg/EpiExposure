@@ -251,20 +251,6 @@ identifiability <- check_identifiability(
 )
 ```
 
-``` r
-
-knitr::kable(
-  utils::head(
-    identifiability,
-    10L
-  ),
-  digits = 4,
-  align = "c"
-)
-```
-
-[TABLE]
-
 The printed output classifies the proposed design as `"ok"`,
 `"warning"`, or `"problem"`. The `identifiable` field indicates whether
 the combined epidemic-level design has full numerical rank, whereas
