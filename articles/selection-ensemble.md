@@ -133,7 +133,10 @@ plot_performance(
   )
 ```
 
-![](output/find_bestfit2-small.png)
+![Observed versus predicted performance for selected candidate
+models](output/find_bestfit2-small.png)
+
+Observed versus predicted performance for selected candidate models
 
 Inspect results
 
