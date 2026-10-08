@@ -1,8 +1,8 @@
-# Simulated spatial Poisson epidemiological dataset
+# Simulated spatial poisson epidemiological dataset
 
 A simulated longitudinal dataset containing complete environmental
 exposure histories and spatial coordinates for demonstrating distributed
-exposure-lag models with Matérn spatial dependence and a Poisson disease
+exposure-lag models with Matérn spatial dependence and a poisson disease
 outcome.
 
 ## Usage

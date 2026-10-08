@@ -479,7 +479,7 @@ prediction_samples <- predict_outcomes(
     wetness = wetness_profile$profile
   ),
   uncertainty = TRUE,
-  n_samples = 1000,
+  n_samples = 100,
   output = "samples",
   seed = 123
 )
@@ -489,28 +489,28 @@ prediction_samples <- predict_outcomes(
 
 head(prediction_samples)
 #>   sample prediction
-#> 1      1 0.14236171
-#> 2      2 0.09544369
-#> 3      3 0.17648177
-#> 4      4 0.10295757
-#> 5      5 0.16410627
-#> 6      6 0.12420052
+#> 1      1  0.1034903
+#> 2      2  0.1042327
+#> 3      3  0.0892574
+#> 4      4  0.1337358
+#> 5      5  0.0837315
+#> 6      6  0.1593514
 ```
 
 Inspect the first realizations:
 
 | sample | prediction |
 |:------:|:----------:|
-|   1    |   0.1424   |
-|   2    |   0.0954   |
-|   3    |   0.1765   |
-|   4    |   0.1030   |
-|   5    |   0.1641   |
-|   6    |   0.1242   |
-|   7    |   0.1088   |
-|   8    |   0.0885   |
-|   9    |   0.1529   |
-|   10   |   0.1414   |
+|   1    |   0.1035   |
+|   2    |   0.1042   |
+|   3    |   0.0893   |
+|   4    |   0.1337   |
+|   5    |   0.0837   |
+|   6    |   0.1594   |
+|   7    |   0.1302   |
+|   8    |   0.2368   |
+|   9    |   0.1578   |
+|   10   |   0.1566   |
 
 Visualize the prediction distribution:
 
@@ -554,7 +554,7 @@ prediction_summary <- predict_outcomes(
     wetness = wetness_profile$profile
   ),
   uncertainty = TRUE,
-  n_samples = 1000,
+  n_samples = 100,
   output = "summary",
   seed = 123
 )
@@ -564,7 +564,7 @@ prediction_summary <- predict_outcomes(
 
 prediction_summary
 #>   prediction prediction_sd prediction_lower prediction_upper
-#> 1  0.1193798    0.03606169       0.06598203        0.2043394
+#> 1  0.1293006    0.03879026       0.07271773        0.2212469
 ```
 
 ## Scenario simulation

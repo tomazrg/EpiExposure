@@ -218,7 +218,7 @@ temp_predictions <- simulate_scenarios(
   data = epi_data,
   uncertainty = TRUE,
   output = "summary",
-  n_samples = 1000,
+  n_samples = 100,
   seed = 123
 )
 ```
@@ -244,16 +244,16 @@ Inspect the response curve:
 
 | value | prediction | lower  | upper  |
 |:-----:|:----------:|:------:|:------:|
-| 18.0  |   60.813   | 36.128 | 81.224 |
-| 18.5  |   57.821   | 35.329 | 77.611 |
-| 19.0  |   55.452   | 34.887 | 73.631 |
-| 19.5  |   53.431   | 34.972 | 70.713 |
-| 20.0  |   52.146   | 35.257 | 68.366 |
-| 20.5  |   51.783   | 35.730 | 66.990 |
-| 21.0  |   52.339   | 37.542 | 66.505 |
-| 21.5  |   53.734   | 39.559 | 67.379 |
-| 22.0  |   56.157   | 42.924 | 68.922 |
-| 22.5  |   59.573   | 46.643 | 71.655 |
+| 18.0  |   60.494   | 39.115 | 81.108 |
+| 18.5  |   57.796   | 38.299 | 76.875 |
+| 19.0  |   54.725   | 37.171 | 72.546 |
+| 19.5  |   52.903   | 36.369 | 68.435 |
+| 20.0  |   52.225   | 36.226 | 66.500 |
+| 20.5  |   51.628   | 36.636 | 66.483 |
+| 21.0  |   52.329   | 37.890 | 67.138 |
+| 21.5  |   53.978   | 39.868 | 68.476 |
+| 22.0  |   56.220   | 42.945 | 70.361 |
+| 22.5  |   58.697   | 47.244 | 72.219 |
 
 First 10 predicted responses along the temperature gradient. {.table}
 
@@ -336,16 +336,16 @@ Inspect the resulting columns:
 
 | value | prediction | lower | upper | sensitivity | sensitivity_curve_value | elasticity | critical | critical_type | critical_x |
 |:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-| 18.0 | 60.8135 | 36.1283 | 81.2241 | 9.3898 | 37.3722 | 4.5225 | FALSE | NA | NA |
-| 18.5 | 57.8212 | 35.3292 | 77.6107 | 9.3545 | 42.0612 | 4.1144 | FALSE | NA | NA |
-| 19.0 | 55.4523 | 34.8875 | 73.6309 | 9.2486 | 46.7149 | 3.7616 | FALSE | NA | NA |
-| 19.5 | 53.4312 | 34.9722 | 70.7135 | 9.0720 | 51.2980 | 3.4486 | FALSE | NA | NA |
-| 20.0 | 52.1457 | 35.2574 | 68.3660 | 8.8248 | 55.7752 | 3.1644 | FALSE | NA | NA |
-| 20.5 | 51.7833 | 35.7296 | 66.9899 | 8.5070 | 60.1111 | 2.9012 | FALSE | NA | NA |
-| 21.0 | 52.3391 | 37.5424 | 66.5048 | 8.1186 | 64.2704 | 2.6527 | FALSE | NA | NA |
-| 21.5 | 53.7342 | 39.5593 | 67.3794 | 7.6596 | 68.2179 | 2.4140 | FALSE | NA | NA |
-| 22.0 | 56.1569 | 42.9242 | 68.9219 | 7.1299 | 71.9182 | 2.1811 | FALSE | NA | NA |
-| 22.5 | 59.5731 | 46.6426 | 71.6553 | 6.5296 | 75.3360 | 1.9501 | FALSE | NA | NA |
+| 18.0 | 60.4939 | 39.1146 | 81.1078 | 9.2108 | 37.3974 | 4.4333 | FALSE | NA | NA |
+| 18.5 | 57.7958 | 38.2991 | 76.8746 | 9.1765 | 41.9971 | 4.0423 | FALSE | NA | NA |
+| 19.0 | 54.7253 | 37.1710 | 72.5464 | 9.0736 | 46.5625 | 3.7025 | FALSE | NA | NA |
+| 19.5 | 52.9027 | 36.3691 | 68.4354 | 8.9022 | 51.0593 | 3.3998 | FALSE | NA | NA |
+| 20.0 | 52.2246 | 36.2260 | 66.4998 | 8.6621 | 55.4532 | 3.1241 | FALSE | NA | NA |
+| 20.5 | 51.6278 | 36.6358 | 66.4830 | 8.3535 | 59.7100 | 2.8680 | FALSE | NA | NA |
+| 21.0 | 52.3285 | 37.8897 | 67.1383 | 7.9763 | 63.7953 | 2.6256 | FALSE | NA | NA |
+| 21.5 | 53.9778 | 39.8684 | 68.4755 | 7.5305 | 67.6749 | 2.3924 | FALSE | NA | NA |
+| 22.0 | 56.2202 | 42.9446 | 70.3610 | 7.0161 | 71.3144 | 2.1644 | FALSE | NA | NA |
+| 22.5 | 58.6974 | 47.2438 | 72.2187 | 6.4332 | 74.6796 | 1.9382 | FALSE | NA | NA |
 
 First 10 temperature sensitivity results. {.table}
 
@@ -499,10 +499,10 @@ critical_temperature <- temp_sensitivity |>
   )
 
 critical_temperature
-#>   value prediction    lower    upper sensitivity sensitivity_curve_value
-#> 1    26   90.84697 85.90512 94.25262   0.3501106                88.38482
+#>   value prediction    lower  upper sensitivity sensitivity_curve_value
+#> 1    26   90.32056 86.96177 93.959   0.4321628                87.67416
 #>   elasticity critical critical_type critical_x
-#> 1  0.1029914     TRUE local_maximum   26.15992
+#> 1   0.128159     TRUE local_maximum   26.20327
 ```
 
 ### Visualizing critical points
@@ -588,7 +588,7 @@ rain_predictions <- simulate_scenarios(
   data = epi_data,
   uncertainty = TRUE,
   output = "samples",
-  n_samples = 1000,
+  n_samples = 100,
   seed = 123
 )
 ```
@@ -641,7 +641,7 @@ wetness_predictions <- simulate_scenarios(
   data = epi_data,
   uncertainty = TRUE,
   output = "samples",
-  n_samples = 1000,
+  n_samples = 100,
   seed = 456
 )
 ```
@@ -779,16 +779,16 @@ Inspect the summaries:
 
 | variable | exposure_value | sensitivity_median | sensitivity_lower | sensitivity_upper |
 |:--:|:--:|:--:|:--:|:--:|
-| Leaf wetness | 0.0 | -0.0268 | -0.0468 | 0.0006 |
-| Leaf wetness | 0.5 | -0.0262 | -0.0478 | 0.0013 |
-| Leaf wetness | 1.0 | -0.0253 | -0.0484 | 0.0024 |
-| Leaf wetness | 1.5 | -0.0235 | -0.0470 | 0.0041 |
-| Leaf wetness | 2.0 | -0.0207 | -0.0447 | 0.0063 |
-| Leaf wetness | 2.5 | -0.0168 | -0.0412 | 0.0093 |
-| Leaf wetness | 3.0 | -0.0120 | -0.0361 | 0.0128 |
-| Leaf wetness | 3.5 | -0.0061 | -0.0294 | 0.0170 |
-| Leaf wetness | 4.0 | 0.0006 | -0.0218 | 0.0221 |
-| Leaf wetness | 4.5 | 0.0081 | -0.0125 | 0.0284 |
+| Leaf wetness | 0.0 | -0.0241 | -0.0455 | -0.0053 |
+| Leaf wetness | 0.5 | -0.0236 | -0.0453 | -0.0047 |
+| Leaf wetness | 1.0 | -0.0225 | -0.0449 | -0.0037 |
+| Leaf wetness | 1.5 | -0.0205 | -0.0432 | -0.0019 |
+| Leaf wetness | 2.0 | -0.0175 | -0.0406 | 0.0006 |
+| Leaf wetness | 2.5 | -0.0136 | -0.0366 | 0.0038 |
+| Leaf wetness | 3.0 | -0.0086 | -0.0312 | 0.0078 |
+| Leaf wetness | 3.5 | -0.0028 | -0.0244 | 0.0125 |
+| Leaf wetness | 4.0 | 0.0036 | -0.0165 | 0.0180 |
+| Leaf wetness | 4.5 | 0.0107 | -0.0074 | 0.0241 |
 
 First 10 summarized sensitivity estimates. {.table}
 

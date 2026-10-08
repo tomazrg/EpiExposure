@@ -1,8 +1,8 @@
-# Simulated Gaussian epidemiological dataset
+# Simulated gaussian epidemiological dataset
 
 A simulated longitudinal dataset containing complete environmental
 exposure histories and a continuous plant disease outcome. The dataset
-is intended for demonstrating Gaussian models in EpiExposure.
+is intended for demonstrating gaussian models in EpiExposure.
 
 ## Usage
 

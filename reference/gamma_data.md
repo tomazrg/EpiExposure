@@ -1,8 +1,8 @@
-# Simulated Gamma epidemiological dataset
+# Simulated gamma epidemiological dataset
 
 A simulated longitudinal dataset containing complete environmental
 exposure histories and a positive continuous plant disease outcome. The
-dataset is intended for demonstrating Gamma models in EpiExposure.
+dataset is intended for demonstrating gamma models in EpiExposure.
 
 ## Usage
 

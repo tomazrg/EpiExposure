@@ -1,8 +1,8 @@
-# Simulated Beta epidemiological dataset
+# Simulated beta epidemiological dataset
 
 A simulated longitudinal dataset containing complete environmental
 exposure histories and a continuous plant disease outcome expressed as a
-proportion. The dataset is intended for demonstrating Beta regression
+proportion. The dataset is intended for demonstrating beta regression
 and the main modeling, interpretation, simulation, and prediction
 workflows available in EpiExposure.
 

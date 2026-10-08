@@ -103,24 +103,24 @@ library(EpiExposure)
 ## Data & Exposure Setup
 
 - [`epi_data`](https://tomazrg.github.io/EpiExposure/reference/epi_data.md)
-  : Simulated Beta epidemiological dataset
+  : Simulated beta epidemiological dataset
 - [`binomial_data`](https://tomazrg.github.io/EpiExposure/reference/binomial_data.md)
   : Simulated binomial epidemiological dataset
 - [`gamma_data`](https://tomazrg.github.io/EpiExposure/reference/gamma_data.md)
-  : Simulated Gamma epidemiological dataset
+  : Simulated gamma epidemiological dataset
 - [`gaussian_data`](https://tomazrg.github.io/EpiExposure/reference/gaussian_data.md)
-  : Simulated Gaussian epidemiological dataset
+  : Simulated gaussian epidemiological dataset
 - [`nb2_data`](https://tomazrg.github.io/EpiExposure/reference/nb2_data.md)
   : Simulated negative-binomial epidemiological dataset
 - [`poisson_data`](https://tomazrg.github.io/EpiExposure/reference/poisson_data.md)
-  : Simulated Poisson epidemiological dataset
+  : Simulated poisson epidemiological dataset
 - [`spatial_replicate`](https://tomazrg.github.io/EpiExposure/reference/spatial_replicate.md)
   : Simulated epidemiological data with independent spatial replicates
 - [`spatial_year`](https://tomazrg.github.io/EpiExposure/reference/spatial_year.md)
   : Simulated epidemiological data with independent spatial fields by
   year
 - [`st_poisson`](https://tomazrg.github.io/EpiExposure/reference/st_poisson.md)
-  : Simulated spatial Poisson epidemiological dataset
+  : Simulated spatial poisson epidemiological dataset
 - [`define_exposures()`](https://tomazrg.github.io/EpiExposure/reference/define_exposures.md)
   : Define DLNM exposure templates
 - [`check_identifiability()`](https://tomazrg.github.io/EpiExposure/reference/check_identifiability.md)

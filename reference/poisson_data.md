@@ -1,8 +1,8 @@
-# Simulated Poisson epidemiological dataset
+# Simulated poisson epidemiological dataset
 
 A simulated longitudinal dataset containing complete environmental
 exposure histories and a count plant disease outcome. The dataset is
-intended for demonstrating Poisson models in EpiExposure.
+intended for demonstrating poisson models in EpiExposure.
 
 ## Usage
 
