@@ -3,7 +3,7 @@
 \docType{data}
 \name{st_poisson}
 \alias{st_poisson}
-\title{Simulated spatial Poisson epidemiological dataset}
+\title{Simulated spatial poisson epidemiological dataset}
 \format{
 A data frame with rows representing temporal observations within
   epidemic exposure histories and the following variables:
@@ -29,7 +29,7 @@ st_poisson
 \description{
 A simulated longitudinal dataset containing complete environmental exposure
 histories and spatial coordinates for demonstrating distributed
-exposure-lag models with Matérn spatial dependence and a Poisson disease
+exposure-lag models with Matérn spatial dependence and a poisson disease
 outcome.
 }
 \details{

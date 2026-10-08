@@ -1,8 +1,8 @@
-#' Simulated Beta epidemiological dataset
+#' Simulated beta epidemiological dataset
 #'
 #' A simulated longitudinal dataset containing complete environmental exposure
 #' histories and a continuous plant disease outcome expressed as a proportion.
-#' The dataset is intended for demonstrating Beta regression and the main
+#' The dataset is intended for demonstrating beta regression and the main
 #' modeling, interpretation, simulation, and prediction workflows available
 #' in EpiExposure.
 #'
@@ -61,11 +61,11 @@
 "binomial_data"
 
 
-#' Simulated Gamma epidemiological dataset
+#' Simulated gamma epidemiological dataset
 #'
 #' A simulated longitudinal dataset containing complete environmental exposure
 #' histories and a positive continuous plant disease outcome. The dataset is
-#' intended for demonstrating Gamma models in EpiExposure.
+#' intended for demonstrating gamma models in EpiExposure.
 #'
 #' The response is repeated across the temporal rows belonging to the same
 #' epidemic because each complete exposure history is associated with one final
@@ -92,11 +92,11 @@
 "gamma_data"
 
 
-#' Simulated Gaussian epidemiological dataset
+#' Simulated gaussian epidemiological dataset
 #'
 #' A simulated longitudinal dataset containing complete environmental exposure
 #' histories and a continuous plant disease outcome. The dataset is intended
-#' for demonstrating Gaussian models in EpiExposure.
+#' for demonstrating gaussian models in EpiExposure.
 #'
 #' The response is repeated across the temporal rows belonging to the same
 #' epidemic because each complete exposure history is associated with one final
@@ -155,11 +155,11 @@
 "nb2_data"
 
 
-#' Simulated Poisson epidemiological dataset
+#' Simulated poisson epidemiological dataset
 #'
 #' A simulated longitudinal dataset containing complete environmental exposure
 #' histories and a count plant disease outcome. The dataset is intended for
-#' demonstrating Poisson models in EpiExposure.
+#' demonstrating poisson models in EpiExposure.
 #'
 #' The response is repeated across the temporal rows belonging to the same
 #' epidemic because each complete exposure history is associated with one final
@@ -264,11 +264,11 @@
 "spatial_year"
 
 
-#' Simulated spatial Poisson epidemiological dataset
+#' Simulated spatial poisson epidemiological dataset
 #'
 #' A simulated longitudinal dataset containing complete environmental exposure
 #' histories and spatial coordinates for demonstrating distributed
-#' exposure-lag models with Matérn spatial dependence and a Poisson disease
+#' exposure-lag models with Matérn spatial dependence and a poisson disease
 #' outcome.
 #'
 #' The response, block, and spatial coordinates are repeated across the

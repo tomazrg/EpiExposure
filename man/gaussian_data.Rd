@@ -3,7 +3,7 @@
 \docType{data}
 \name{gaussian_data}
 \alias{gaussian_data}
-\title{Simulated Gaussian epidemiological dataset}
+\title{Simulated gaussian epidemiological dataset}
 \format{
 A data frame with rows representing temporal observations within
   epidemic exposure histories and the following variables:
@@ -27,7 +27,7 @@ gaussian_data
 \description{
 A simulated longitudinal dataset containing complete environmental exposure
 histories and a continuous plant disease outcome. The dataset is intended
-for demonstrating Gaussian models in EpiExposure.
+for demonstrating gaussian models in EpiExposure.
 }
 \details{
 The response is repeated across the temporal rows belonging to the same

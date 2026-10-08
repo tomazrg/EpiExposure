@@ -3,7 +3,7 @@
 \docType{data}
 \name{epi_data}
 \alias{epi_data}
-\title{Simulated Beta epidemiological dataset}
+\title{Simulated beta epidemiological dataset}
 \format{
 A data frame with rows representing temporal observations within
   epidemic exposure histories and the following variables:
@@ -26,7 +26,7 @@ epi_data
 \description{
 A simulated longitudinal dataset containing complete environmental exposure
 histories and a continuous plant disease outcome expressed as a proportion.
-The dataset is intended for demonstrating Beta regression and the main
+The dataset is intended for demonstrating beta regression and the main
 modeling, interpretation, simulation, and prediction workflows available
 in EpiExposure.
 }

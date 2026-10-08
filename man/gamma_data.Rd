@@ -3,7 +3,7 @@
 \docType{data}
 \name{gamma_data}
 \alias{gamma_data}
-\title{Simulated Gamma epidemiological dataset}
+\title{Simulated gamma epidemiological dataset}
 \format{
 A data frame with rows representing temporal observations within
   epidemic exposure histories and the following variables:
@@ -27,7 +27,7 @@ gamma_data
 \description{
 A simulated longitudinal dataset containing complete environmental exposure
 histories and a positive continuous plant disease outcome. The dataset is
-intended for demonstrating Gamma models in EpiExposure.
+intended for demonstrating gamma models in EpiExposure.
 }
 \details{
 The response is repeated across the temporal rows belonging to the same

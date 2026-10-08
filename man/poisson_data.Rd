@@ -3,7 +3,7 @@
 \docType{data}
 \name{poisson_data}
 \alias{poisson_data}
-\title{Simulated Poisson epidemiological dataset}
+\title{Simulated poisson epidemiological dataset}
 \format{
 A data frame with rows representing temporal observations within
   epidemic exposure histories and the following variables:
@@ -27,7 +27,7 @@ poisson_data
 \description{
 A simulated longitudinal dataset containing complete environmental exposure
 histories and a count plant disease outcome. The dataset is intended for
-demonstrating Poisson models in EpiExposure.
+demonstrating poisson models in EpiExposure.
 }
 \details{
 The response is repeated across the temporal rows belonging to the same

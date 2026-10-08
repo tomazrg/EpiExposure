@@ -203,7 +203,7 @@ scenarios_losses <- simulate_scenarios(
   data = epi_data,
   uncertainty = TRUE,
   output = "summary",
-  n_samples = 1000,
+  n_samples = 10,
   seed = 123
 )
 ```
@@ -275,7 +275,7 @@ losses <- simulate_losses(
   intercept = 9691.0,
   attainable_yield = seq(
     4000,
-    12000,
+    10000,
     by = 50
   ),
   price = 300
@@ -339,7 +339,7 @@ losses_plot <- plot_losses(
   ),
   y_breaks = seq(
     4000,
-    12000,
+    10000,
     by = 2000
   ),
   x_label = "Daily precipitation (mm)",
@@ -396,7 +396,7 @@ losses_sensitivity <- simulate_losses(
   ),
   attainable_yield = seq(
     4000,
-    12000,
+    10000,
     by = 50
   ),
   price = 300
@@ -422,7 +422,7 @@ plot_losses(
   ),
   type = "regression",
   reg_y = "ap_yield",
-  att_yield = 12000,
+  att_yield = 10000,
   x_breaks = seq(
     0,
     15,

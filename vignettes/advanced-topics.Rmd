@@ -20,43 +20,6 @@ knitr::opts_chunk$set(
   message = FALSE,
   warning = FALSE
 )
-
-has_inla <- requireNamespace(
-  "INLA",
-  quietly = TRUE
-)
-
-has_bdlnm <- all(
-  vapply(
-    c(
-      "INLA",
-      "bdlnm",
-      "sn"
-    ),
-    requireNamespace,
-    quietly = TRUE,
-    FUN.VALUE = logical(1)
-  )
-)
-
-
-```
-
-```{r optional-engine-availability, echo=FALSE, results="asis"}
-if (!has_inla) {
-  cat(
-    "> **Note:** Examples using the direct `INLA` engine are not evaluated ",
-    "because the optional package `INLA` is not installed.\n\n"
-  )
-}
-
-if (!has_bdlnm) {
-  cat(
-    "> **Note:** Examples using the Bayesian DLNM engine are not evaluated ",
-    "because one or more optional packages required by this engine ",
-    "(`INLA`, `bdlnm`, or `sn`) are not installed.\n\n"
-  )
-}
 ```
 
 # Introduction
@@ -320,7 +283,7 @@ data("st_poisson")
 head(st_poisson)
 ```
 
-```{r}
+```{r, eval=FALSE}
 
 cb_spatial <- define_exposures(
   data = st_poisson,
@@ -351,7 +314,7 @@ dat_spatial <- prepare_response(
 )
 ```
 
-```{r}
+```{r, eval=FALSE}
 fit_spatial <- fit_epidlnm(
   data = dat_spatial,
   model_engine = "spamm",
@@ -371,7 +334,7 @@ fit_spatial <- fit_epidlnm(
 
 ```
 
-```{r}
+```{r, eval=FALSE}
 summary(fit_spatial)
 ```
 
@@ -395,7 +358,7 @@ data("spatial_year")
 head(spatial_year)
 ```
 
-```{r}
+```{r, eval=FALSE}
 dat_spatial_year <- build_design(
   data = spatial_year,
   cb_templates = cb,
@@ -416,7 +379,7 @@ dat_spatial_year <- prepare_response(
 )
 ```
 
-```{r}
+```{r, eval=FALSE}
 fit_spatial_year <- fit_epidlnm(
   data = dat_spatial_year,
   model_engine = "spamm",
@@ -436,7 +399,7 @@ fit_spatial_year <- fit_epidlnm(
 
 ```
 
-```{r}
+```{r, eval=FALSE}
 summary(fit_spatial_year)
 ```
 
@@ -498,7 +461,7 @@ data("spatial_replicate")
 head(spatial_replicate)
 ```
 
-```{r}
+```{r, eval=FALSE}
 
 cb_replicate <- define_exposures(
   data = spatial_replicate,
@@ -533,7 +496,7 @@ dat_spatial_replicate <- prepare_response(
 )
 ```
 
-```{r}
+```{r, eval=FALSE}
 fit_spatial_replicate <- fit_epidlnm(
   data = dat_spatial_replicate,
   model_engine = "spamm",
@@ -552,7 +515,7 @@ fit_spatial_replicate <- fit_epidlnm(
 )
 ```
 
-```{r}
+```{r, eval=FALSE}
 summary(fit_spatial_replicate)
 ```
 
@@ -578,7 +541,7 @@ data("gaussian_data")
 head(gaussian_data)
 ```
 
-```{r}
+```{r, eval=FALSE}
 cb_gaussian <- define_exposures(
   data = gaussian_data,
   vars = c(
@@ -606,7 +569,7 @@ dat_gaussian <- prepare_response(
 
 ```
 
-```{r}
+```{r, eval=FALSE}
 fit_gls <- fit_epidlnm(
   data = dat_gaussian,
   model_engine = "gls",
@@ -620,9 +583,15 @@ fit_gls <- fit_epidlnm(
 
 ```
 
-```{r}
+```{r, eval=FALSE}
 summary(fit_gls)
 ```
+
+ **Note:** The INLA and B-DLNM commands in the following sections are
+ shown but not evaluated during vignette construction because these
+ models may require substantial computational time. Users can execute
+ the code interactively after installing the optional packages `INLA`,
+ `bdlnm`, and `sn`.
 
 # MCMC estimation with `brms`
 
@@ -678,7 +647,7 @@ draws are retained for draw-by-draw propagation through
 functions.
 
 
-```{r, eval=has_bdlnm}
+```{r, eval=FALSE}
 cb_bdlnm <- define_exposures(
   data = poisson_data,
   vars = c(
@@ -717,7 +686,7 @@ bdlnm_bases <- attr(
 The model can then be fitted through the harmonized `EpiExposure`
 interface:
 
-```{r, eval=has_bdlnm}
+```{r, eval=FALSE}
 fit_bdlnm <- fit_epidlnm(
   data = dat_bdlnm,
   model_engine = "bdlnm",
@@ -729,11 +698,11 @@ fit_bdlnm <- fit_epidlnm(
   sample.arg = list(n = 1000, seed = 123))
 ```
 
-```{r, eval=has_bdlnm}
+```{r, eval=FALSE}
 summary(fit_bdlnm)
 ```
 
-```{r, eval=has_bdlnm}
+```{r, eval=FALSE}
 fit_bdlnm$model
 #fit_bdlnm$coefficients
 fit_bdlnm$coefficients.summary
@@ -801,7 +770,7 @@ is returned to the user.
   simulation-based uncertainty propagation.
   
   
-```{r,eval=has_inla}
+```{r, eval=FALSE}
 fit_inla <- fit_epidlnm(
   data = dat_poisson,
   model_engine = "inla",
@@ -818,7 +787,7 @@ fit_inla <- fit_epidlnm(
 
 Fixed-effect posterior summaries:
 
-```{r,eval=has_inla && has_bdlnm}
+```{r, eval=FALSE}
 fit_inla$summary.fixed
 
 fit_bdlnm$model$summary.fixed
@@ -826,7 +795,7 @@ fit_bdlnm$model$summary.fixed
 
 Random-effect posterior summaries:
 
-```{r,eval=has_inla && has_bdlnm}
+```{r, eval=FALSE}
 fit_inla$summary.random
 
 fit_bdlnm$model$summary.random
@@ -834,7 +803,7 @@ fit_bdlnm$model$summary.random
 
 Posterior distributions of hyperparameters:
 
-```{r,eval=has_inla && has_bdlnm}
+```{r, eval=FALSE}
 fit_inla$marginals.hyperpar
 
 fit_bdlnm$model$marginals.hyperpar
@@ -842,7 +811,7 @@ fit_bdlnm$model$marginals.hyperpar
 
 Marginal likelihood:
 
-```{r,eval=has_inla && has_bdlnm}
+```{r, eval=FALSE}
 fit_inla$mlik
 
 fit_bdlnm$model$mlik
@@ -851,7 +820,7 @@ fit_bdlnm$model$mlik
 For both engines, random-effect hyperparameters can be inspected through
 the INLA summaries. For example:
 
-```{r,eval=has_inla && has_bdlnm}
+```{r, eval=FALSE}
 fit_inla$summary.hyperpar
 
 fit_bdlnm$model$summary.hyperpar
@@ -859,23 +828,23 @@ fit_bdlnm$model$summary.hyperpar
 
 ## Outputs specific to B-DLNM
 
-```{r,eval=has_bdlnm}
+```{r, eval=FALSE}
 names(fit_bdlnm)
 ```
 
-```{r,eval=has_inla}
+```{r, eval=FALSE}
 names(fit_inla)
 ```
 
 Original DLNM basis objects:
 
-```{r,eval=has_bdlnm}
+```{r, eval=FALSE}
 fit_bdlnm$basis
 ```
 
 Posterior coefficient draws:
 
-```{r,eval=has_bdlnm}
+```{r, eval=FALSE}
 
 dim(fit_bdlnm$coefficients)
 
@@ -885,14 +854,14 @@ head(fit_bdlnm$coefficients)
 
 Posterior coefficient summaries:
 
-```{r,eval=has_bdlnm}
+```{r, eval=FALSE}
 
 fit_bdlnm$coefficients.summary
 ```
 
 ### Model objects
 
-```{r,eval=has_inla && has_bdlnm}
+```{r, eval=FALSE}
 class(fit_inla)
 
 class(fit_bdlnm)

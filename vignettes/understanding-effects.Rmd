@@ -182,7 +182,7 @@ epi_l <- summarise_effects(
   scale = "lag",
   effect_measure = "percent",
   uncertainty = TRUE,
-  n_samples = 1000,
+  n_samples = 10,
   output = "summary",
   at = list(
     tmean = seq(
@@ -507,7 +507,7 @@ reduced_tmean <- reduce_effects(
   scale = "percent",
   uncertainty = TRUE,
   output = "summary",
-  n_samples = 100,
+  n_samples = 10,
   seed = 123,
   ref = list(
     method = "median",
@@ -624,7 +624,7 @@ reduced_rain_lag10 <- reduce_effects(
   scale = "percent",
   uncertainty = TRUE,
   output = "summary",
-  n_samples = 100,
+  n_samples = 10,
   seed = 123,
   ref = list(
     method = "median",
@@ -711,7 +711,7 @@ reduced_wetness_10 <- reduce_effects(
   scale = "percent",
   uncertainty = TRUE,
   output = "summary",
-  n_samples = 100,
+  n_samples = 10,
   seed = 123,
   ref = list(
     method = "median",
@@ -802,7 +802,7 @@ reduced_tmean_samples <- reduce_effects(
   scale = "percent",
   uncertainty = TRUE,
   output = "samples",
-  n_samples = 100,
+  n_samples = 40,
   seed = 123,
   ref = list(
     method = "median",
@@ -885,7 +885,7 @@ eci <- compute_eci(
   ),
   uncertainty = TRUE,
   output = "summary",
-  n_samples = 1000
+  n_samples = 10
 )
 ```
 
@@ -1036,7 +1036,7 @@ eci_lag <- compute_ecilag(
   ),
   uncertainty = TRUE,
   output = "summary",
-  n_samples = 1000
+  n_samples = 10
 )
 ```
 
