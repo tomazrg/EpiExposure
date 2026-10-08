@@ -13,3 +13,5 @@
 ^external_models$
 ^data-raw$
 ^cran-comments\.md$
+^figure$
+^vignette_times\.csv$

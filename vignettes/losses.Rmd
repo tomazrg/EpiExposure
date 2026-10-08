@@ -178,7 +178,7 @@ range_losses <- simulate_ranges(
     rain = seq(
       0,
       15,
-      by = 0.01
+      by = 1
     ),
     wetness = c(
       2,
@@ -203,7 +203,7 @@ scenarios_losses <- simulate_scenarios(
   data = epi_data,
   uncertainty = TRUE,
   output = "summary",
-  n_samples = 10,
+  n_samples = 5,
   seed = 123
 )
 ```

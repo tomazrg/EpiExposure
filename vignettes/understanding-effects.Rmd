@@ -327,7 +327,7 @@ epi_p_summary <- summarise_effects(
   lag_periods = periods,
   effect_measure = "percent",
   uncertainty = TRUE,
-  n_samples = 100,
+  n_samples = 20,
   output = "summary"
 )
 ```
@@ -399,7 +399,7 @@ epi_p_samples <- summarise_effects(
   lag_periods = periods,
   effect_measure = "percent",
   uncertainty = TRUE,
-  n_samples = 100,
+  n_samples = 20,
   output = "samples"
 )
 ```
@@ -516,7 +516,7 @@ reduced_tmean <- reduce_effects(
   at = seq(
     15,
     35,
-    length.out = 100
+    length.out = 20
   )
 )
 ```
@@ -633,7 +633,7 @@ reduced_rain_lag10 <- reduce_effects(
   at = seq(
     0,
     15,
-    length.out = 100
+    length.out = 20
   )
 )
 ```
