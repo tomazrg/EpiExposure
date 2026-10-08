@@ -41,8 +41,8 @@ library(patchwork)
 
 data("epi_data")
 
-epi_data
-#> # A tibble: 44,720 × 6
+head(epi_data, 10L )
+#> # A tibble: 10 × 6
 #>    epi_id  time tmean  rain wetness     y
 #>     <dbl> <dbl> <dbl> <dbl>   <dbl> <dbl>
 #>  1      1     0  22.0  0       8.83 0.330
@@ -55,7 +55,6 @@ epi_data
 #>  8      1     7  23.1 12.3     8.58 0.330
 #>  9      1     8  25.3  4.14   10.6  0.330
 #> 10      1     9  26.0  1.91   14.1  0.330
-#> # ℹ 44,710 more rows
 ```
 
 ## Why model selection matters
@@ -134,7 +133,9 @@ plot_performance(
   )
 ```
 
-![](output/find_bestfit2.png) Inspect results
+![](output/find_bestfit2-small.png)
+
+Inspect results
 
 | rank | model_id | df_var | df_lag | vars | n_vars | CCC | Cb | rho | RMSE | MAE | n_folds | n_success_folds | n_failed_folds | n_predictions | n_success | n_failed | n_warning_folds | warning_rate | n_warning_events | n_knot_warning_folds | n_convergence_warning_folds | n_hessian_warning_folds | n_other_warning_folds | n_knot_warning_events | n_convergence_warning_events | n_hessian_warning_events | n_other_warning_events |
 |:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
@@ -433,22 +434,22 @@ ensemble_all = rbind(ens_unweighted$ensemble_predictions,ens_weighted$ensemble_p
 
 ``` r
 
-ensemble_all
-#> # A tibble: 1,560 × 8
-#>    group  fold method     observed predicted_ensemble model_63 model_23 model_44
-#>    <chr> <dbl> <chr>         <dbl>              <dbl>    <dbl>    <dbl>    <dbl>
-#>  1 1         1 unweighted   0.330               0.471   0.365     0.521    0.528
-#>  2 2         2 unweighted   0.0706              0.361   0.0776    0.495    0.510
-#>  3 3         3 unweighted   0.190               0.231   0.194     0.251    0.248
-#>  4 4         4 unweighted   0.0356              0.274   0.0477    0.381    0.393
-#>  5 5         5 unweighted   0.117               0.281   0.121     0.363    0.360
-#>  6 6         6 unweighted   0.126               0.301   0.140     0.381    0.381
-#>  7 7         7 unweighted   0.276               0.274   0.237     0.292    0.293
-#>  8 8         8 unweighted   0.378               0.384   0.436     0.360    0.356
-#>  9 9         9 unweighted   0.0250              0.189   0.0228    0.271    0.272
-#> 10 10       10 unweighted   0.891               0.546   0.903     0.373    0.362
-#> # ℹ 1,550 more rows
+knitr::kable(utils::head(ensemble_all, 10L),
+              digits = 4, align = "c" )
 ```
+
+| group | fold |   method   | observed | predicted_ensemble | model_63 | model_23 | model_44 |
+|:-----:|:----:|:----------:|:--------:|:------------------:|:--------:|:--------:|:--------:|
+|   1   |  1   | unweighted |  0.3299  |       0.4712       |  0.3653  |  0.5205  |  0.5277  |
+|   2   |  2   | unweighted |  0.0706  |       0.3607       |  0.0776  |  0.4947  |  0.5098  |
+|   3   |  3   | unweighted |  0.1900  |       0.2310       |  0.1939  |  0.2508  |  0.2483  |
+|   4   |  4   | unweighted |  0.0356  |       0.2738       |  0.0477  |  0.3806  |  0.3931  |
+|   5   |  5   | unweighted |  0.1173  |       0.2811       |  0.1206  |  0.3630  |  0.3597  |
+|   6   |  6   | unweighted |  0.1262  |       0.3007       |  0.1403  |  0.3811  |  0.3808  |
+|   7   |  7   | unweighted |  0.2764  |       0.2737       |  0.2366  |  0.2919  |  0.2926  |
+|   8   |  8   | unweighted |  0.3777  |       0.3836       |  0.4355  |  0.3595  |  0.3559  |
+|   9   |  9   | unweighted |  0.0250  |       0.1886       |  0.0228  |  0.2711  |  0.2718  |
+|  10   |  10  | unweighted |  0.8908  |       0.5461       |  0.9030  |  0.3732  |  0.3620  |
 
 ``` r
 

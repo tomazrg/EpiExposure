@@ -132,8 +132,8 @@ predictions through ensemble forecasting.</p>
 <code class="sourceCode R"><span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="st">"epi_data"</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">epi_data</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 44,720 × 6</span></span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">epi_data</span>, <span class="fl">10L</span> <span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 10 × 6</span></span></span>
 <span><span class="co">#&gt;    epi_id  time tmean  rain wetness     y</span></span>
 <span><span class="co">#&gt;     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
 <span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span>      1     0  22.0  0       8.83 0.330</span></span>
@@ -145,8 +145,7 @@ predictions through ensemble forecasting.</p>
 <span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span>      1     6  23.9  4.69   10.8  0.330</span></span>
 <span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span>      1     7  23.1 12.3     8.58 0.330</span></span>
 <span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span>      1     8  25.3  4.14   10.6  0.330</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span>      1     9  26.0  1.91   14.1  0.330</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># ℹ 44,710 more rows</span></span></span></code></pre></div>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span>      1     9  26.0  1.91   14.1  0.330</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="why-model-selection-matters">Why model selection matters<a class="anchor" aria-label="anchor" href="#why-model-selection-matters"></a>
@@ -212,7 +211,8 @@ than their system can support.</p>
 <span>      face <span class="op">=</span> <span class="st">"bold"</span></span>
 <span>    <span class="op">)</span></span>
 <span>  <span class="op">)</span></span></code></pre></div>
-<p><img src="output/find_bestfit2.png"> Inspect results</p>
+<p><img src="output/find_bestfit2-small.png"></p>
+<p>Inspect results</p>
 <table class="table">
 <colgroup>
 <col width="1%">
@@ -1037,21 +1037,132 @@ object:</p>
 <span></span>
 <span><span class="va">ensemble_all</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span><span class="va">ens_unweighted</span><span class="op">$</span><span class="va">ensemble_predictions</span>,<span class="va">ens_weighted</span><span class="op">$</span><span class="va">ensemble_predictions</span>, <span class="va">ens_stacked</span><span class="op">$</span><span class="va">ensemble_predictions</span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">ensemble_all</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 1,560 × 8</span></span></span>
-<span><span class="co">#&gt;    group  fold method     observed predicted_ensemble model_63 model_23 model_44</span></span>
-<span><span class="co">#&gt;    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span> <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span> <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span> 1         1 unweighted   0.330               0.471   0.365     0.521    0.528</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 2</span> 2         2 unweighted   0.070<span style="text-decoration: underline;">6</span>              0.361   0.077<span style="text-decoration: underline;">6</span>    0.495    0.510</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 3</span> 3         3 unweighted   0.190               0.231   0.194     0.251    0.248</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 4</span> 4         4 unweighted   0.035<span style="text-decoration: underline;">6</span>              0.274   0.047<span style="text-decoration: underline;">7</span>    0.381    0.393</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 5</span> 5         5 unweighted   0.117               0.281   0.121     0.363    0.360</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 6</span> 6         6 unweighted   0.126               0.301   0.140     0.381    0.381</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span> 7         7 unweighted   0.276               0.274   0.237     0.292    0.293</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span> 8         8 unweighted   0.378               0.384   0.436     0.360    0.356</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span> 9         9 unweighted   0.025<span style="text-decoration: underline;">0</span>              0.189   0.022<span style="text-decoration: underline;">8</span>    0.271    0.272</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span> 10       10 unweighted   0.891               0.546   0.903     0.373    0.362</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># ℹ 1,550 more rows</span></span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span><span class="fu">utils</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">ensemble_all</span>, <span class="fl">10L</span><span class="op">)</span>,</span>
+<span>              digits <span class="op">=</span> <span class="fl">4</span>, align <span class="op">=</span> <span class="st">"c"</span> <span class="op">)</span></span></code></pre></div>
+<table class="table">
+<colgroup>
+<col width="8%">
+<col width="7%">
+<col width="14%">
+<col width="11%">
+<col width="23%">
+<col width="11%">
+<col width="11%">
+<col width="11%">
+</colgroup>
+<thead><tr class="header">
+<th align="center">group</th>
+<th align="center">fold</th>
+<th align="center">method</th>
+<th align="center">observed</th>
+<th align="center">predicted_ensemble</th>
+<th align="center">model_63</th>
+<th align="center">model_23</th>
+<th align="center">model_44</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="center">1</td>
+<td align="center">1</td>
+<td align="center">unweighted</td>
+<td align="center">0.3299</td>
+<td align="center">0.4712</td>
+<td align="center">0.3653</td>
+<td align="center">0.5205</td>
+<td align="center">0.5277</td>
+</tr>
+<tr class="even">
+<td align="center">2</td>
+<td align="center">2</td>
+<td align="center">unweighted</td>
+<td align="center">0.0706</td>
+<td align="center">0.3607</td>
+<td align="center">0.0776</td>
+<td align="center">0.4947</td>
+<td align="center">0.5098</td>
+</tr>
+<tr class="odd">
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">unweighted</td>
+<td align="center">0.1900</td>
+<td align="center">0.2310</td>
+<td align="center">0.1939</td>
+<td align="center">0.2508</td>
+<td align="center">0.2483</td>
+</tr>
+<tr class="even">
+<td align="center">4</td>
+<td align="center">4</td>
+<td align="center">unweighted</td>
+<td align="center">0.0356</td>
+<td align="center">0.2738</td>
+<td align="center">0.0477</td>
+<td align="center">0.3806</td>
+<td align="center">0.3931</td>
+</tr>
+<tr class="odd">
+<td align="center">5</td>
+<td align="center">5</td>
+<td align="center">unweighted</td>
+<td align="center">0.1173</td>
+<td align="center">0.2811</td>
+<td align="center">0.1206</td>
+<td align="center">0.3630</td>
+<td align="center">0.3597</td>
+</tr>
+<tr class="even">
+<td align="center">6</td>
+<td align="center">6</td>
+<td align="center">unweighted</td>
+<td align="center">0.1262</td>
+<td align="center">0.3007</td>
+<td align="center">0.1403</td>
+<td align="center">0.3811</td>
+<td align="center">0.3808</td>
+</tr>
+<tr class="odd">
+<td align="center">7</td>
+<td align="center">7</td>
+<td align="center">unweighted</td>
+<td align="center">0.2764</td>
+<td align="center">0.2737</td>
+<td align="center">0.2366</td>
+<td align="center">0.2919</td>
+<td align="center">0.2926</td>
+</tr>
+<tr class="even">
+<td align="center">8</td>
+<td align="center">8</td>
+<td align="center">unweighted</td>
+<td align="center">0.3777</td>
+<td align="center">0.3836</td>
+<td align="center">0.4355</td>
+<td align="center">0.3595</td>
+<td align="center">0.3559</td>
+</tr>
+<tr class="odd">
+<td align="center">9</td>
+<td align="center">9</td>
+<td align="center">unweighted</td>
+<td align="center">0.0250</td>
+<td align="center">0.1886</td>
+<td align="center">0.0228</td>
+<td align="center">0.2711</td>
+<td align="center">0.2718</td>
+</tr>
+<tr class="even">
+<td align="center">10</td>
+<td align="center">10</td>
+<td align="center">unweighted</td>
+<td align="center">0.8908</td>
+<td align="center">0.5461</td>
+<td align="center">0.9030</td>
+<td align="center">0.3732</td>
+<td align="center">0.3620</td>
+</tr>
+</tbody>
+</table>
 <div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="va">ensemble_metrics</span><span class="op">$</span><span class="va">method</span> <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"unweighted"</span>,<span class="st">"weighted"</span>,<span class="st">"stacked"</span><span class="op">)</span></span>
