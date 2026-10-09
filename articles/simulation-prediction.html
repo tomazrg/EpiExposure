@@ -17,8 +17,8 @@
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><link href="../extra.css" rel="stylesheet">
 <meta property="og:title" content="Simulation and Prediction">
-<meta name="description" content="Simulating exposure histories and predicting disease outcomes">
-<meta property="og:description" content="Simulating exposure histories and predicting disease outcomes">
+<meta name="description" content="Simulating exposure profiles and predicting disease outcomes">
+<meta property="og:description" content="Simulating exposure profiles and predicting disease outcomes">
 <meta property="og:image" content="https://tomazrg.github.io/EpiExposure/logo.png">
 </head>
 <body>
@@ -96,17 +96,17 @@ Tomáz</h4>
 <div class="section level2">
 <h2 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
 </h2>
-<p>Understanding historical exposure-lag associations is important for
+<p>Understanding exposure-lag associations is important for
 epidemiological interpretation, but researchers are often interested in
 a different question:</p>
 <blockquote>
 <p>What is the expected disease outcome under an alternative
-environmental history?</p>
+environmental profile?</p>
 </blockquote>
 <p><code>EpiExposure</code> provides simulation and prediction tools
 that allow researchers to:</p>
 <ul>
-<li>generate complete synthetic exposure histories;</li>
+<li>generate complete synthetic exposure profiles;</li>
 <li>introduce structured exposure events;</li>
 <li>construct hypothetical epidemiological scenarios;</li>
 <li>predict expected disease outcomes;</li>
@@ -115,11 +115,11 @@ that allow researchers to:</p>
 </ul>
 <p>Unlike lag-specific effect summaries, prediction evaluates all
 exposure values and lags jointly. Therefore, every prediction represents
-a complete environmental history rather than an isolated exposure
+a complete environmental profile rather than an isolated exposure
 value.</p>
 <div class="tutorial-note">
 <p><strong>What you will learn.</strong> This tutorial shows how to
-simulate complete exposure histories, predict expected disease outcomes,
+simulate complete exposure profiles, predict expected disease outcomes,
 propagate parameter uncertainty, construct scenario grids, and compare
 alternative environmental conditions.</p>
 </div>
@@ -176,11 +176,11 @@ in the previous tutorials.</p>
 <span>    <span class="st">"spec"</span></span>
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<p>The fitted model relates complete histories of temperature, rainfall,
+<p>The fitted model relates complete profiles of temperature, rainfall,
 and leaf wetness to the expected disease response.</p>
 </div>
 <div class="section level2">
-<h2 id="complete-exposure-histories">Complete exposure histories<a class="anchor" aria-label="anchor" href="#complete-exposure-histories"></a>
+<h2 id="complete-exposure-profiles">Complete exposure profiles<a class="anchor" aria-label="anchor" href="#complete-exposure-profiles"></a>
 </h2>
 <p>Each exposure profile supplied to <code><a href="../reference/predict_outcomes.html">predict_outcomes()</a></code>
 must contain exactly <code>max_lag + 1</code> observations. With
@@ -217,7 +217,7 @@ years, and other grouping variables are not exposure profiles.</p>
 </div>
 </div>
 <div class="section level2">
-<h2 id="simulating-exposure-histories">Simulating exposure histories<a class="anchor" aria-label="anchor" href="#simulating-exposure-histories"></a>
+<h2 id="simulating-exposure-profiles">Simulating exposure profiles<a class="anchor" aria-label="anchor" href="#simulating-exposure-profiles"></a>
 </h2>
 <div class="section level3">
 <h3 id="why-simulate-exposures">Why simulate exposures?<a class="anchor" aria-label="anchor" href="#why-simulate-exposures"></a>
@@ -273,7 +273,7 @@ autoregressive background process:</p>
 <span><span class="co">#&gt;  time_80  time_81  time_82  time_83  time_84  time_85 </span></span>
 <span><span class="co">#&gt; 23.29681 24.13889 23.57873 24.84437 24.47550 25.10643</span></span></code></pre>
 <p>The profile is ordered from the oldest to the most recent exposure
-observation. For this 86-value history, the first value corresponds to
+observation. For this 86-value profile, the first value corresponds to
 lag 85 and the final value corresponds to lag 0. The profile remains in
 chronological order when it is later supplied to
 <code><a href="../reference/predict_outcomes.html">predict_outcomes()</a></code>.</p>
@@ -309,7 +309,7 @@ remains determined by the fitted DLNM.</p>
 </h2>
 <p>A structured event can be superimposed on a background profile.</p>
 <p>The following example constructs a rainfall pattern with values
-assigned to selected portions of the temporal history:</p>
+assigned to selected portions of the temporal profile:</p>
 <div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">rain_profile</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/simulate_exposures.html">simulate_exposures</a></span><span class="op">(</span></span>
 <span>  max_lag <span class="op">=</span> <span class="fl">85</span>,</span>
@@ -417,15 +417,15 @@ A leaf wetness profile can be generated independently:</p>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>text <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>size <span class="op">=</span> <span class="fl">10</span>, face <span class="op">=</span> <span class="st">"bold"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p><img src="simulation-prediction_files/figure-html/unnamed-chunk-3-1.png" class="r-plt" alt="" width="700" style="display: block; margin: auto;">
 The three profiles can now be combined into one complete hypothetical
-environmental history.</p>
+environmental profile.</p>
 <p>All three profiles follow the same chronological convention and
 contain 86 observations. At each chronological position, the
 temperature, rainfall, and leaf wetness values describe the
 environmental conditions assigned to that point in the hypothetical
-history.</p>
+profile.</p>
 <p>When these profiles are supplied to <code><a href="../reference/predict_outcomes.html">predict_outcomes()</a></code>,
 the function validates their length and order and projects each complete
-history through the cross-basis definition stored in the fitted model.
+profile through the cross-basis definition stored in the fitted model.
 The resulting design follows the retrospective DLNM lag convention, in
 which lag 0 represents the most recent exposure and increasing lags
 represent progressively older exposures.</p>
@@ -441,9 +441,9 @@ otherwise rearrange the simulated profiles.</p>
 <p><code><a href="../reference/predict_outcomes.html">predict_outcomes()</a></code> receives the complete profiles in
 chronological order and projects them through the cross-basis definition
 stored in the fitted model. The reconstructed cross-basis predictors
-represent the exposure histories on the retrospective DLNM lag scale,
+represent the exposure profiles on the retrospective DLNM lag scale,
 allowing the function to calculate the population-level expected
-response associated with the complete multivariable history.</p>
+response associated with the complete multivariable profile.</p>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">prediction</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/predict_outcomes.html">predict_outcomes</a></span><span class="op">(</span></span>
 <span>  fit <span class="op">=</span> <span class="va">fit</span>,</span>
@@ -460,20 +460,20 @@ response associated with the complete multivariable history.</p>
 <span><span class="co">#&gt; 1  0.1195241</span></span></code></pre></div>
 <p>The prediction combines:</p>
 <ul>
-<li>the complete chronological temperature history;</li>
-<li>the complete chronological rainfall history;</li>
-<li>the complete chronological leaf wetness history;</li>
+<li>the complete chronological temperature profile;</li>
+<li>the complete chronological rainfall profile;</li>
+<li>the complete chronological leaf wetness profile;</li>
 <li>the corresponding retrospective lag contributions reconstructed from
 the fitted cross-basis;</li>
 <li>the fitted joint cross-basis coefficients;</li>
 <li>the inverse link required by the response family.</li>
 </ul>
 <p>The output represents one joint prediction for the three complete
-exposure histories. It is not calculated independently for each day or
+exposure profiles. It is not calculated independently for each day or
 lag.</p>
 <p>The prediction is not a newly simulated disease observation. It
 represents the central expected response associated with the complete
-exposure history.</p>
+exposure profile.</p>
 <p>For the fitted Beta model, the result is an expected response on the
 proportion scale.</p>
 </div>
@@ -611,7 +611,7 @@ realizations are not needed:</p>
 <div class="section level3">
 <h3 id="why-construct-scenarios">Why construct scenarios?<a class="anchor" aria-label="anchor" href="#why-construct-scenarios"></a>
 </h3>
-<p>A single profile describes one complete hypothetical history.
+<p>A single profile describes one complete hypothetical profile.
 Scenario analysis extends this idea by evaluating multiple combinations
 of environmental conditions systematically.</p>
 <p>Possible questions include:</p>
@@ -625,7 +625,7 @@ expected responses?</li>
 prediction?</li>
 </ul>
 <p>These are model-based comparisons. They describe how the fitted model
-responds to supplied histories and do not automatically demonstrate
+responds to supplied profiles and do not automatically demonstrate
 causal interventions.</p>
 </div>
 </div>
@@ -1101,12 +1101,12 @@ in <code><a href="../reference/simulate_ranges.html">simulate_ranges()</a></code
 <h2 id="comparing-predictions">Comparing predictions<a class="anchor" aria-label="anchor" href="#comparing-predictions"></a>
 </h2>
 <div class="section level3">
-<h3 id="comparing-complete-simulated-histories">Comparing complete simulated histories<a class="anchor" aria-label="anchor" href="#comparing-complete-simulated-histories"></a>
+<h3 id="comparing-complete-simulated-profiles">Comparing complete simulated profiles<a class="anchor" aria-label="anchor" href="#comparing-complete-simulated-profiles"></a>
 </h3>
 <p>A single prediction describes the expected response associated with
-one complete environmental history. <code><a href="../reference/compare_predictions.html">compare_predictions()</a></code>
+one complete environmental profile. <code><a href="../reference/compare_predictions.html">compare_predictions()</a></code>
 extends this analysis by contrasting the expected responses associated
-with two or more complete histories.</p>
+with two or more complete profiles.</p>
 <p>The following example constructs four hypothetical environmental
 scenarios. Each scenario contains chronological temperature, rainfall,
 and leaf wetness profiles generated with autoregressive background
@@ -1129,7 +1129,7 @@ and prolonged leaf wetness.</li>
 </ul>
 <p>Because several exposures differ simultaneously, the resulting
 prediction contrasts represent joint differences between the complete
-environmental histories. They should not be attributed to one exposure
+environmental profiles. They should not be attributed to one exposure
 individually.</p>
 </div>
 <div class="section level3">
@@ -1333,7 +1333,7 @@ reversed before being supplied to
 <code><a href="../reference/compare_predictions.html">compare_predictions()</a></code>.</p>
 </div>
 <div class="section level3">
-<h3 id="visualizing-the-candidate-histories">Visualizing the candidate histories<a class="anchor" aria-label="anchor" href="#visualizing-the-candidate-histories"></a>
+<h3 id="visualizing-the-candidate-profiles">Visualizing the candidate profiles<a class="anchor" aria-label="anchor" href="#visualizing-the-candidate-profiles"></a>
 </h3>
 <p>Before comparing their predicted outcomes, the complete exposure
 profiles can be inspected to verify how the scenarios differ.</p>
@@ -1477,26 +1477,26 @@ is the most recent observation.</p>
 <span></span>
 <span><span class="va">simulation_plot</span></span></code></pre></div>
 <p><img src="simulation-prediction_files/figure-html/plot-comparison-profiles-1.png" class="r-plt" alt="" width="960" style="display: block; margin: auto;"></p>
-<p>The figure shows the exposure histories exactly as they are supplied
-to <code><a href="../reference/compare_predictions.html">compare_predictions()</a></code>. Internally, EpiExposure projects
-each chronological history through the fitted cross-basis, where lag 0
-represents the most recent exposure and increasing lags represent
-progressively older exposures.</p>
+<p>The figure shows the exposure profiles exactly as they are supplied
+to <code><a href="../reference/compare_predictions.html">compare_predictions()</a></code>. Internally,
+<code>EpiExposure</code> projects each chronological profile through the
+fitted cross-basis, where lag 0 represents the most recent exposure and
+increasing lags represent progressively older exposures.</p>
 </div>
 <div class="section level3">
-<h3 id="comparing-the-exposure-histories">Comparing the exposure histories<a class="anchor" aria-label="anchor" href="#comparing-the-exposure-histories"></a>
+<h3 id="comparing-the-exposure-profiles">Comparing the exposure profiles<a class="anchor" aria-label="anchor" href="#comparing-the-exposure-profiles"></a>
 </h3>
 <p>Before comparing the predicted disease outcomes, the exposure
-histories themselves can be compared directly.</p>
+profiles themselves can be compared directly.</p>
 <p><code><a href="../reference/compare_exposures.html">compare_exposures()</a></code> describes how two chronological
 exposure profiles differ across time. This comparison does not use the
 fitted disease model and does not produce a predicted response. It only
-quantifies differences between the supplied exposure histories.</p>
+quantifies differences between the supplied exposure profiles.</p>
 <p>The following example compares Scenarios A and D. These scenarios
 differ in temperature, rainfall, and leaf wetness, so each exposure is
 compared separately.</p>
 <div class="section level4">
-<h4 id="comparing-temperature-histories">Comparing temperature histories<a class="anchor" aria-label="anchor" href="#comparing-temperature-histories"></a>
+<h4 id="comparing-temperature-profiles">Comparing temperature profiles<a class="anchor" aria-label="anchor" href="#comparing-temperature-profiles"></a>
 </h4>
 <div class="sourceCode" id="cb42"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">comparison_tmean_AD</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/compare_exposures.html">compare_exposures</a></span><span class="op">(</span></span>
@@ -1510,7 +1510,7 @@ compared separately.</p>
 <span><span class="va">comparison_tmean_AD</span><span class="op">$</span><span class="va">scenario2</span> <span class="op">&lt;-</span> <span class="st">"D"</span></span></code></pre></div>
 </div>
 <div class="section level4">
-<h4 id="comparing-rainfall-histories">Comparing rainfall histories<a class="anchor" aria-label="anchor" href="#comparing-rainfall-histories"></a>
+<h4 id="comparing-rainfall-profiles">Comparing rainfall profiles<a class="anchor" aria-label="anchor" href="#comparing-rainfall-profiles"></a>
 </h4>
 <div class="sourceCode" id="cb43"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">comparison_rain_AD</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/compare_exposures.html">compare_exposures</a></span><span class="op">(</span></span>
@@ -1524,7 +1524,7 @@ compared separately.</p>
 <span><span class="va">comparison_rain_AD</span><span class="op">$</span><span class="va">scenario2</span> <span class="op">&lt;-</span> <span class="st">"D"</span></span></code></pre></div>
 </div>
 <div class="section level4">
-<h4 id="comparing-leaf-wetness-histories">Comparing leaf wetness histories<a class="anchor" aria-label="anchor" href="#comparing-leaf-wetness-histories"></a>
+<h4 id="comparing-leaf-wetness-profiles">Comparing leaf wetness profiles<a class="anchor" aria-label="anchor" href="#comparing-leaf-wetness-profiles"></a>
 </h4>
 <div class="sourceCode" id="cb44"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">comparison_wetness_AD</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/compare_exposures.html">compare_exposures</a></span><span class="op">(</span></span>
@@ -1873,13 +1873,13 @@ chronological position.</li>
 rainfall, and leaf wetness are measured in different units.
 Consequently, the numerical magnitudes of the differences should not be
 compared directly across exposures.</p>
-<p>These comparisons describe the environmental histories themselves.
+<p>These comparisons describe the environmental profiles themselves.
 They do not account for the fitted cross-basis coefficients and do not
 indicate how strongly each exposure difference contributes to the
 disease response.</p>
 <p>The next section uses <code><a href="../reference/compare_predictions.html">compare_predictions()</a></code> to determine
-how the fitted model translates the complete multivariable histories
-into differences in expected disease outcomes.</p>
+how the fitted model translates the complete multivariable profiles into
+differences in expected disease outcomes.</p>
 </div>
 </div>
 <div class="section level3">
@@ -2055,7 +2055,7 @@ central values and empirical uncertainty intervals.</p>
 </tbody>
 </table>
 <p>Each row compares the expected response under two complete
-environmental histories. For example, <code>diff</code> represents the
+environmental profiles. For example, <code>diff</code> represents the
 draw-by-draw difference between the expected response for
 <code>scenario2</code> and the expected response for
 <code>scenario1</code>, summarized across the joint parameter draws.</p>
@@ -2275,7 +2275,7 @@ reducing the draws to summary statistics.</p>
 </table>
 <p>Each row now represents one joint parameter draw for one scenario
 pair. These samples describe parameter uncertainty in the expected
-responses and their contrasts. They are not new exposure histories and
+responses and their contrasts. They are not new exposure profiles and
 are not newly simulated disease observations.</p>
 <p>The draw-level output can be used to calculate customized summaries,
 propagate uncertainty into subsequent analyses, or visualize the
@@ -2379,7 +2379,7 @@ differences across the joint parameter draws.</p>
 <p><strong>These are joint environmental contrasts.</strong>
 Temperature, rainfall, and leaf wetness differ simultaneously among
 Scenarios A–D. The resulting differences therefore describe contrasts
-between complete multivariable environmental histories and should not be
+between complete multivariable environmental profiles and should not be
 interpreted as the isolated effect of any one exposure.</p>
 </div>
 </div>
@@ -2387,7 +2387,7 @@ interpreted as the isolated effect of any one exposure.</p>
 <h3 id="comparing-one-exposure-at-a-time">Comparing one exposure at a time<a class="anchor" aria-label="anchor" href="#comparing-one-exposure-at-a-time"></a>
 </h3>
 <p>When the objective is to investigate a contrast involving one
-exposure, the remaining histories should be held constant. The following
+exposure, the remaining profiles should be held constant. The following
 example changes rainfall while maintaining the same temperature and leaf
 wetness profiles.</p>
 <div class="sourceCode" id="cb54"><pre class="downlit sourceCode r">
@@ -2454,7 +2454,7 @@ wetness profiles.</p>
 <span><span class="co">#&gt; 1    1.042867    1.311432       12.81284          6.699667             4.286725</span></span>
 <span><span class="co">#&gt;   percent_change_upper</span></span>
 <span><span class="co">#&gt; 1             31.14316</span></span></code></pre></div>
-<p>Temperature and leaf wetness are identical in the two histories.
+<p>Temperature and leaf wetness are identical in the two profiles.
 Therefore, the contrast is specifically associated with the change in
 the complete rainfall profile under the fitted multivariable model.</p>
 <p>This remains a model-based associational comparison. It should not
@@ -2482,7 +2482,7 @@ scenarios;</li>
 <code><a href="../reference/predict_outcomes.html">predict_outcomes()</a></code> predicts the expected response for
 complete profiles;</li>
 <li>
-<code><a href="../reference/compare_exposures.html">compare_exposures()</a></code> compares the exposure histories
+<code><a href="../reference/compare_exposures.html">compare_exposures()</a></code> compares the exposure profiles
 themselves;</li>
 <li>
 <code><a href="../reference/compare_predictions.html">compare_predictions()</a></code> compares their model-based
@@ -2490,7 +2490,7 @@ expected outcomes.</li>
 </ul>
 <p>Before interpreting a result, verify:</p>
 <ol style="list-style-type: decimal">
-<li>whether the exposure histories are chronological;</li>
+<li>whether the exposure profiles are chronological;</li>
 <li>whether every profile contains <code>max_lag + 1</code>
 observations;</li>
 <li>whether all exposures required by the fitted model were
@@ -2516,7 +2516,7 @@ variability.</p>
 </h2>
 <p>This section demonstrated how <code>EpiExposure</code> transforms a
 fitted DLNM into a framework for evaluating complete exposure
-histories.</p>
+profiles.</p>
 <p>The workflow allows users to:</p>
 <ul>
 <li>generate chronological exposure profiles;</li>
@@ -2524,12 +2524,12 @@ histories.</p>
 <li>predict expected disease outcomes;</li>
 <li>propagate parameter uncertainty;</li>
 <li>evaluate scenario grids;</li>
-<li>compare exposure histories;</li>
+<li>compare exposure profiles;</li>
 <li>compare predicted responses.</li>
 </ul>
 <p>These tools extend inference from the fitted exposure-lag surface to
 explicit, model-based comparisons of complete environmental
-histories.</p>
+profiles.</p>
 </div>
 <div class="section level2">
 <h2 id="next-steps">Next steps<a class="anchor" aria-label="anchor" href="#next-steps"></a>

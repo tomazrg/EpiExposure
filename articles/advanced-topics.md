@@ -540,9 +540,10 @@ wetness duration, and rainfall are recorded during the 86 days preceding
 the final assessment. The outcome is the final number of lesions per
 plant.
 
-The cross-basis terms estimate non-linear and delayed weather effects. A
-Matérn random effect accounts for residual geographic similarity among
-nearby fields after those measured weather effects have been considered.
+The cross-basis terms estimate non-linear and delayed environmental
+effects. A Matérn random effect accounts for residual geographic
+similarity among nearby fields after those measured environmental
+effects have been considered.
 
 ### Spatially dependent fields
 
@@ -715,7 +716,7 @@ study conducted at 130 fixed locations. The same host, pathogen,
 experimental layout, and observation period are used in four independent
 repetitions.
 
-Each repetition contains an 86-day exposure history followed by one
+Each repetition contains an 86-day exposure profile followed by one
 final disease assessment at each location. Temperature, rainfall, and
 leaf wetness can differ among repetitions, but the temporal positions
 remain comparable: the most recent observation corresponds to lag zero,
@@ -732,7 +733,7 @@ epidemic:
 
 `L001_Replicate_4`
 
-The cross-basis terms use the exposure history from each epidemic to
+The cross-basis terms use the exposure profile from each epidemic to
 estimate the shared non-linear and delayed environmental associations.
 However, the residual spatial pattern of disease is not required to
 remain in the same locations across repetitions.

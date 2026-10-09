@@ -1,7 +1,7 @@
 # Define DLNM exposure templates
 
 Defines the training cross-basis parameterization for one or more
-exposure variables from long-format epidemic histories.
+exposure variables from long-format epidemic profiles.
 
 ## Usage
 
@@ -27,13 +27,13 @@ define_exposures(
   Rows do not need to be pre-sorted. They are ordered internally by
   \`epi_id\` and \`time\`.
 
-  Each epidemic must form one complete exposure history containing
+  Each epidemic must form one complete exposure profile containing
   exactly \`max_lag + 1\` time points. When more than one time point is
   present, spacing must be constant within epidemics and identical
   across epidemics. Missing exposure values are not allowed in
   EpiExposure v1. Because all exposures are finite columns of the same
   validated rows, every fitted exposure uses the same temporal support
-  and history length.
+  and profile length.
 
 - vars:
 
@@ -84,7 +84,7 @@ exposure. The list carries:
 \- \`attr(x, "spec")\`: effective per-exposure basis specification; -
 \`attr(x, "epiexposure_vars")\`: exposure names; - \`attr(x,
 "epiexposure_max_lag")\`: the common fitted maximum lag; - \`attr(x,
-"epiexposure_history_length")\`: the exact required exposure history
+"epiexposure_history_length")\`: the exact required exposure profile
 length, \`max_lag + 1\`; - \`attr(x, "epiexposure_history_contract")\`:
 \`"all_fitted_exposures_same_exact_max_lag_plus_one"\`; - \`attr(x,
 "epiexposure_time_step")\`: the common temporal spacing, or \`NA\` when
@@ -112,12 +112,12 @@ The function estimates \*\*basis definitions\*\*, not disease effects.
 For each exposure it uses all training epidemics jointly to determine
 any data-dependent exposure-basis features (for example spline knots and
 boundary knots), while \`dlnm::crossbasis(..., group = ...)\` keeps the
-individual epidemic histories as independent time series so lags never
+individual epidemic profiles as independent time series so lags never
 cross from one epidemic into another.
 
 \## Independent epidemic series
 
-Earlier EpiExposure code concatenated epidemic histories and inserted
+Earlier EpiExposure code concatenated epidemic profiles and inserted
 \`max_lag\` missing values between them before calling \`crossbasis()\`.
 The current implementation uses the native \`group\` argument of
 \`dlnm::crossbasis()\` instead.
@@ -127,13 +127,13 @@ series. After internal sorting, every epidemic remains consecutive and
 complete, while exposure values from all training epidemics still
 contribute to the common exposure-basis definition. Thus, for a spline
 exposure basis, data-dependent knots are estimated from the pooled
-\*\*training exposure distribution\*\*, but lagged histories never cross
+\*\*training exposure distribution\*\*, but lagged profiles never cross
 epidemic boundaries.
 
 \## Temporal requirements
 
 A vector passed to \`dlnm::crossbasis()\` represents one complete
-exposure history. \`define_exposures()\` therefore rejects:
+exposure profile. \`define_exposures()\` therefore rejects:
 
 \- duplicated time values within an epidemic; - irregular spacing within
 an epidemic when more than one time point exists; - different time steps
@@ -144,12 +144,12 @@ If the common maximum lag is \`L\`, every epidemic must contain exactly
 
 \$\$ L + 1 \$\$
 
-observations. Histories are never truncated to a trailing window,
-padded, or silently realigned. Because all fitted exposures are columns
-of the same long-format rows, all variables necessarily have the same
-temporal length and support within each epidemic.
+observations. Profiles are never truncated to a trailing window, padded,
+or silently realigned. Because all fitted exposures are columns of the
+same long-format rows, all variables necessarily have the same temporal
+length and support within each epidemic.
 
-For \`max_lag = 0\`, the exact history length is one observation. In
+For \`max_lag = 0\`, the exact profile length is one observation. In
 that special case no time interval exists to estimate, so
 \`epiexposure_time_step\` is stored as \`NA\`.
 

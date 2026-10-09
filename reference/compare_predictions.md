@@ -42,7 +42,7 @@ compare_predictions(
     expanded internally to that exposure's fitted \`max_lag + 1\`
     positions;
 
-  - one explicit numeric chronological history;
+  - one explicit numeric chronological profile;
 
   - a matrix/data frame whose rows are multiple chronological profiles;
 
@@ -73,11 +73,11 @@ compare_predictions(
   Thus multiple profiles are compared by matched index; a Cartesian
   product of scenario profiles is never created.
 
-  Explicit non-scalar histories must contain exactly the fitted
+  Explicit non-scalar profile must contain exactly the fitted
   \`max_lag + 1\` positions for their exposure. A
   \`simulate_exposures()\` object must have been generated with the same
   \`max_lag\` stored for that fitted exposure. This strict check
-  prevents extra or missing historical positions from being silently
+  prevents extra or missing positions in the profile from being silently
   ignored.
 
 - profiles1:
@@ -194,7 +194,7 @@ batch\*\*. This is essential when \`uncertainty = TRUE\`: the same
 fixed/population parameter draw is applied to every scenario before
 differences, ratios, or other contrasts are calculated.
 
-Exposure histories follow the EpiExposure chronological convention: each
+Exposure profiles follow the EpiExposure chronological convention: each
 profile is supplied from the oldest/earliest exposure observation to the
 most recent observation, with the final value corresponding to lag 0.
 

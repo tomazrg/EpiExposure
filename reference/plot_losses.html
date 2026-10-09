@@ -168,7 +168,7 @@ the heatmap. Default is `"econ_loss"`.</p></dd>
 
 <dt id="arg-facet">facet<a class="anchor" aria-label="anchor" href="#arg-facet"></a></dt>
 <dd><p>Optional character vector naming scenario variables used as
-facets. For heatmaps, `facet_wrap()` is used as in the historical function.
+facets. For heatmaps, `facet_wrap()` is used as in the original function.
 For regression plots, the first facet variable is placed in rows and any
 remaining facet variables are placed in columns together with the
 automatically generated `yield_model` facet. Thus
@@ -327,7 +327,7 @@ combined heatmap.</p></dd>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>With `type = "heatmap"` (default), the function preserves the historical
+    <p>With `type = "heatmap"` (default), the function preserves the original
 raster-plot workflow. Yield loss and economic loss can be displayed alone or
 together, and scenario variables can be shown as facets.</p>
 <p>With `type = "regression"`, `plots` is not used and a single regression plot

@@ -110,12 +110,12 @@ quantities.</p>
 </ul>
 <p>These approaches help researchers investigate when associations are
 strongest, compare biologically meaningful lag periods, and summarize
-complete exposure histories.</p>
+complete exposure profiles.</p>
 <div class="tutorial-note">
 <p><strong>What you will learn.</strong> This tutorial shows how to
 reconstruct and interpret lag-specific and period-specific effects,
 reduce a fitted DLNM association to one dimension, calculate ECI for
-complete exposure histories, and identify the lags contributing most
+complete exposure profiles, and identify the lags contributing most
 strongly to ECI.</p>
 </div>
 <p>Effect estimates should be interpreted as modeled associations under
@@ -231,8 +231,8 @@ the final disease assessment:</p>
 <pre class="text"><code>lag 0  → exposure measured at the disease assessment time
 lag 1  → exposure measured one time unit before assessment
 ...
-lag 85 → earliest exposure observation in the fitted history</code></pre>
-<p>Lag-specific summaries help identify portions of the exposure history
+lag 85 → earliest exposure observation in the fitted profile</code></pre>
+<p>Lag-specific summaries help identify portions of the exposure profile
 in which the fitted model shows stronger or weaker associations.</p>
 <p>They do not imply that an individual <code>cb_*</code> coefficient
 corresponds to a specific biological process. The lag-specific effect is
@@ -1304,7 +1304,7 @@ mapping stored in the fitted EpiExposure model and does not fit a new
 epidemiological model. Knots, boundary knots, basis dimensions, and lag
 definitions are not re-estimated from the supplied data.</p>
 <p>The <code>data</code> argument is used to validate the temporal
-histories, determine method-based reference values, and verify exposure
+profiles, determine method-based reference values, and verify exposure
 support. It is not used to construct a new cross-basis.</p>
 <div class="tutorial-note">
 <p><strong>Reduction and prediction answer different questions.</strong>
@@ -1865,19 +1865,19 @@ supplied by <code><a href="../reference/summarise_effects.html">summarise_effect
 <div class="section level3">
 <h3 id="why-use-eci">Why use ECI?<a class="anchor" aria-label="anchor" href="#why-use-eci"></a>
 </h3>
-<p>Disease responses depend on complete exposure histories rather than
+<p>Disease responses depend on complete exposure profiles rather than
 isolated observations.</p>
-<p>Two epidemic histories may have similar average rainfall or
+<p>Two epidemic profiles may have similar average rainfall or
 temperature but different modeled epidemiological implications because
 favorable conditions occurred at different times.</p>
 <p>Exposure Cumulative Impact, or ECI, summarizes a complete exposure
-history while retaining information from the fitted
+profile while retaining information from the fitted
 exposure-lag-response relationship.</p>
 <p>ECI complements the lag-specific and period-specific summaries:</p>
 <ul>
 <li>lag-specific effects examine individual lags;</li>
 <li>period-specific effects combine predefined lag intervals;</li>
-<li>ECI summarizes the complete observed exposure history of each
+<li>ECI summarizes the complete observed exposure profile of each
 epidemic.</li>
 </ul>
 </div>
@@ -2174,7 +2174,7 @@ epidemic.</li>
 <p>ECI provides two complementary quantities:</p>
 <ul>
 <li>
-<code>ECI_raw</code> describes the accumulated exposure history
+<code>ECI_raw</code> describes the accumulated exposure profile
 without weighting by the fitted exposure-lag association;</li>
 <li>
 <code>ECI_weighted</code> incorporates the weighting implied by the
@@ -2182,17 +2182,17 @@ fitted exposure-lag-response relationship.</li>
 </ul>
 <p><code>ECI_raw</code> describes exposure accumulation. It does not
 represent a modeled disease effect.</p>
-<p><code>ECI_weighted</code> describes how the complete exposure history
+<p><code>ECI_weighted</code> describes how the complete exposure profile
 aligns with the association estimated by the DLNM. Larger or smaller
-values should be interpreted relative to other histories fitted under
-the same specification, exposure definition, reference conditions, and
+values should be interpreted relative to other profiles fitted under the
+same specification, exposure definition, reference conditions, and
 scale.</p>
 <p>ECI is a model-derived summary. It should not automatically be
 interpreted as a causal impact or as a directly observed biological
 quantity.</p>
 </div>
 <div class="section level3">
-<h3 id="comparing-raw-and-weighted-exposure-histories">Comparing raw and weighted exposure histories<a class="anchor" aria-label="anchor" href="#comparing-raw-and-weighted-exposure-histories"></a>
+<h3 id="comparing-raw-and-weighted-exposure-profiles">Comparing raw and weighted exposure profiles<a class="anchor" aria-label="anchor" href="#comparing-raw-and-weighted-exposure-profiles"></a>
 </h3>
 <p>tmean</p>
 <div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
@@ -2262,9 +2262,9 @@ quantity.</p>
 <p><img src="understanding-effects_files/figure-html/compare-eci-rain-1.png" class="r-plt" alt="" width="672" style="display: block; margin: auto;"></p>
 <p>A strong relationship between the two quantities indicates that
 accumulated exposure and model-based weighting produce similar rankings
-for the displayed histories.</p>
+for the displayed profiles.</p>
 <p>Deviations from that relationship may indicate that exposure timing
-changes the modeled importance of histories with similar raw
+changes the modeled importance of profiles with similar raw
 accumulation.</p>
 </div>
 </div>
@@ -2274,7 +2274,7 @@ accumulation.</p>
 <div class="section level3">
 <h3 id="why-decompose-eci">Why decompose ECI?<a class="anchor" aria-label="anchor" href="#why-decompose-eci"></a>
 </h3>
-<p>Overall ECI provides one summary for the complete history, but
+<p>Overall ECI provides one summary for the complete profile, but
 researchers may also want to identify the lags that contribute most
 strongly to that summary.</p>
 <p><code><a href="../reference/compute_ecilag.html">compute_ecilag()</a></code> decomposes ECI into lag-specific
@@ -2285,7 +2285,7 @@ effect curves:</p>
 <li>a lag-specific effect curve evaluates modeled contrasts across
 exposure values at a lag;</li>
 <li>ECI decomposition evaluates how the exposure values actually
-observed in a selected history contribute to that history’s ECI.</li>
+observed in a selected profile contribute to that profile’s ECI.</li>
 </ul>
 </div>
 <div class="section level3">
@@ -2312,7 +2312,7 @@ observed in a selected history contribute to that history’s ECI.</li>
 <p>selects the epidemic identified by level <code>1</code> of
 <code>epi_id</code>.</p>
 <p>For a real analysis, select the epidemic identifier that corresponds
-to the history of scientific interest.</p>
+to the profile of scientific interest.</p>
 </div>
 <div class="section level3">
 <h3 id="inspecting-lag-contributions">Inspecting lag contributions<a class="anchor" aria-label="anchor" href="#inspecting-lag-contributions"></a>
@@ -2596,8 +2596,8 @@ to the history of scientific interest.</p>
 <span>  lag_col <span class="op">=</span> <span class="st">"ECI_percent"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p><img src="understanding-effects_files/figure-html/plot-eci-1.png" class="r-plt" alt="" width="864" style="display: block; margin: auto;"></p>
-<p>The overall panels summarize complete histories, whereas the lag
-panels show how the selected history is distributed across retrospective
+<p>The overall panels summarize complete profiles, whereas the lag
+panels show how the selected profile is distributed across retrospective
 lags.</p>
 <p>Large positive or negative lag contributions should be interpreted in
 the context of:</p>
@@ -2625,10 +2625,10 @@ contrasts at individual lags.</li>
 contrasts across predefined lag intervals.</li>
 <li>
 <strong>ECI</strong> summarizes complete observed exposure
-histories.</li>
+profiles.</li>
 <li>
 <strong>ECI lag decomposition</strong> identifies how individual
-lags contribute to ECI for a selected history.</li>
+lags contribute to ECI for a selected profile.</li>
 </ul>
 <p>These summaries should not be expected to answer the same question or
 produce identical rankings.</p>
@@ -2685,7 +2685,7 @@ support.</li>
 change along model-based prediction curves.</p>
 <p>The subsequent <em>Simulation and Prediction</em> section provides a
 broader introduction to constructing complete hypothetical exposure
-histories, predicting expected disease outcomes, and comparing
+profiles, predicting expected disease outcomes, and comparing
 environmental scenarios.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

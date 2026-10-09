@@ -53,7 +53,7 @@ find_bestfit(
 - response:
 
   Character scalar naming the response column in \`data\`. The response
-  may be repeated over exposure-history rows but must be constant within
+  may be repeated over exposure-profile rows but must be constant within
   each complete validation group because one outcome is predicted per
   group.
 
@@ -176,7 +176,7 @@ find_bestfit(
   \`NULL\` (default), or two distinct numeric coordinate column names
   for a Matérn term fitted by \`model_engine = "spamm"\` only.
   Coordinates are constant within each epidemic but may be identical
-  across different epidemics; they never redefine the exposure-history
+  across different epidemics; they never redefine the exposure-profile
   unit.
 
 - spatial_structure:
@@ -357,7 +357,7 @@ proportional holdout validation split.
 
 The validation unit is always the complete column named by \`group\`.
 The function creates the internal canonical alias \`epi_id\` from that
-column, but never splits a group's exposure-history rows across training
+column, but never splits a group's exposure-profile rows across training
 and evaluation. With the default \`group = "epi_id"\`, complete
 epidemics are therefore kept intact in every strategy.
 
@@ -394,7 +394,7 @@ Every candidate uses the same fixed holdout partition.
 exposure-basis knots, boundary knots, effective dimensions, \`argvar\`,
 \`arglag\`, templates, and related cross-basis attributes are learned
 exclusively from training data. The stored training template is then
-transported unchanged to the holdout test histories by
+transported unchanged to the holdout test profiles by
 \`.build_design_from_templates()\`. Test values never redefine the
 basis.
 
@@ -413,7 +413,7 @@ never replace holdout predictions.
 For every validation iteration, \`define_exposures()\` receives only the
 corresponding training groups. The effective \`argvar\`, \`arglag\`, lag
 range, spline knots, boundary knots, and other returned basis attributes
-are reused to transform the evaluation histories. For highly skewed
+are reused to transform the evaluation profiles. For highly skewed
 predictors or many repeated values, \`splines::ns()\` may warn when an
 interior knot coincides with a boundary knot; the effective training
 basis returned after that adjustment is the template transported to
@@ -432,7 +432,7 @@ exposure-prefixed so internal INLA names remain globally unique.
 \## Temporal requirements
 
 Every complete group must contain exactly \`max_lag + 1\` ordered,
-equally spaced observations. Histories are never truncated, padded, or
+equally spaced observations. Profiles are never truncated, padded, or
 silently realigned. All candidate exposures are finite columns of the
 same validated long-format rows and therefore share identical temporal
 support.

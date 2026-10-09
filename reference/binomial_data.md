@@ -1,7 +1,7 @@
 # Simulated binomial epidemiological dataset
 
 A simulated longitudinal dataset containing complete environmental
-exposure histories and a binary plant disease outcome. The dataset is
+exposure profiles and a binary plant disease outcome. The dataset is
 intended for demonstrating binomial models in EpiExposure.
 
 ## Usage
@@ -13,7 +13,7 @@ binomial_data
 ## Format
 
 A data frame with rows representing temporal observations within
-epidemic exposure histories and the following variables:
+epidemic exposure profiles and the following variables:
 
 - epi_id:
 
@@ -25,7 +25,7 @@ epidemic exposure histories and the following variables:
 
 - time:
 
-  Chronological time index within each epidemic history.
+  Chronological time index within each epidemic profile.
 
 - tmean:
 
@@ -42,7 +42,7 @@ epidemic exposure histories and the following variables:
 - y:
 
   Binary disease outcome coded as 0 or 1 and repeated across the rows of
-  each epidemic history.
+  each epidemic profile.
 
 ## Source
 
@@ -51,7 +51,7 @@ Simulated for the EpiExposure package.
 ## Details
 
 The response is repeated across the temporal rows belonging to the same
-epidemic because each complete exposure history is associated with one
+epidemic because each complete exposure profile is associated with one
 final epidemic-level disease outcome.
 
 ## Examples

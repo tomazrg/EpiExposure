@@ -50,10 +50,10 @@ epi_sensitivity(
   The derivative is computed independently within every unique
   combination of these columns.
 
-  The historical default is \`"scenario"\`. Set \`scenario_var = NULL\`
-  to differentiate the entire supplied data set as one curve. If several
-  exposure variables, scenarios, or parameter draws are present, include
-  all columns needed to identify one unique curve, for example
+  The default profile identifier is \`"scenario"\`. Set \`scenario_var =
+  NULL\` to differentiate the entire supplied data set as one curve. If
+  several exposure variables, scenarios, or parameter draws are present,
+  include all columns needed to identify one unique curve, for example
   \`scenario_var = c("var", "scenario")\` or \`scenario_var =
   c("scenario", "sample")\`.
 
@@ -71,9 +71,9 @@ epi_sensitivity(
 
   Character. One of:
 
-  \- \`"analytical"\`: historical EpiExposure name for a GAM-based
-  smooth derivative. A univariate GAM is fitted with \`mgcv::gam(...,
-  method = "REML")\`, using the auxiliary smooth basis selected by
+  \- \`"analytical"\`: EpiExposure name for a profile-based GAM smooth
+  derivative. A univariate GAM is fitted with \`mgcv::gam(..., method =
+  "REML")\`, using the auxiliary smooth basis selected by
   \`smooth_basis\`, then its linear-predictor matrix is differentiated
   numerically using a small within-range perturbation; - \`"finite"\`:
   differentiates the supplied curve directly using local
@@ -170,10 +170,10 @@ auxiliary \`smooth_basis\` used by the GAM derivative.
 ## Details
 
 \`epi_sensitivity()\` is a \*\*post-processing\*\* function. It does not
-fit an EpiExposure DLNM, reconstruct exposure histories, or redefine the
+fit an EpiExposure DLNM, reconstruct exposure profiles, or redefine the
 fitted lag window. Consequently, rows supplied to this function are
 curve-evaluation points, not necessarily the \`max_lag + 1\`
-observations that constituted an original exposure history.
+observations that constituted an original exposure profile.
 
 \## GAM-based derivative
 
@@ -292,11 +292,11 @@ Flat regions without a sign reversal are not automatically labelled as
 extrema. Boundary extrema are also not inferred from a one-sided
 derivative alone.
 
-\## Relationship to the EpiExposure exact-history contract
+\## Relationship to the EpiExposure exact-profile contract
 
-\`epi_sensitivity()\` does not consume raw fitted exposure histories. It
+\`epi_sensitivity()\` does not consume raw fitted exposure profiles. It
 works on an already evaluated curve, whose number of rows may
-legitimately differ from the original history length. Consequently, it
+legitimately differ from the original profile length. Consequently, it
 does \*\*not\*\* require
 
 \$\$ nrow(data) = max\\lag + 1. \$\$
@@ -304,13 +304,13 @@ does \*\*not\*\* require
 If current EpiExposure temporal metadata are present on \`data\`,
 however, the function validates and propagates them. Specifically,
 
-\$\$ history\\length = max\\lag + 1 \$\$
+\$\$ profile\\length = max\\lag + 1 \$\$
 
-and the stored history contract must be
+and the stored profile contract must be
 \`"all_fitted_exposures_same_exact_max_lag_plus_one"\`.
 
 This validates the provenance of an EpiExposure-derived curve without
-incorrectly treating curve-evaluation rows as original exposure-history
+incorrectly treating curve-evaluation rows as original exposure-profile
 observations.
 
 \## Uncertainty

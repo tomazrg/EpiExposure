@@ -104,19 +104,19 @@ exposure-lag models in plant disease epidemiology.</p>
 <li>define non-linear exposure-lag structures;</li>
 <li>fit distributed lag non-linear models;</li>
 <li>quantify lag-specific, period-specific, and cumulative effects;</li>
-<li>evaluate complete exposure histories;</li>
+<li>evaluate complete exposure profiles;</li>
 <li>predict expected disease outcomes;</li>
 <li>simulate alternative exposure scenarios;</li>
 <li>estimate yield and economic losses.</li>
 </ul>
 <p>Unlike conventional window-based approaches, <code>EpiExposure</code>
-treats the complete environmental history preceding disease assessment
+treats the complete environmental profile preceding disease assessment
 as the epidemiological exposure unit.</p>
 <div class="tutorial-note">
 <p><strong>What you will learn.</strong> This tutorial shows how to
 organize longitudinal epidemiological data, define and diagnose an
 exposure–lag structure, fit a first DLNM, and predict an expected
-disease outcome from a complete exposure history.</p>
+disease outcome from a complete exposure profile.</p>
 </div>
 </div>
 <div class="section level2">
@@ -124,11 +124,11 @@ disease outcome from a complete exposure history.</p>
 </h2>
 <p>A basic analysis follows six stages:</p>
 <ol style="list-style-type: decimal">
-<li>organize and inspect complete exposure histories;</li>
+<li>organize and inspect complete exposure profiles;</li>
 <li>define the exposure-response and lag-response basis functions;</li>
 <li>evaluate the proposed structure for identifiability and numerical
 stability;</li>
-<li>collapse each history into one epidemic-level design row;</li>
+<li>collapse each profile into one epidemic-level design row;</li>
 <li>prepare the response and fit the model;</li>
 <li>use the fitted model for interpretation, prediction, or
 simulation.</li>
@@ -138,10 +138,10 @@ effect interpretation. Lag-specific, period-specific, and cumulative
 effects are covered in the <em>Understanding Effects</em> section</p>
 </div>
 <div class="section level2">
-<h2 id="organizing-exposure-histories">Organizing exposure histories<a class="anchor" aria-label="anchor" href="#organizing-exposure-histories"></a>
+<h2 id="organizing-exposure-profiles">Organizing exposure profiles<a class="anchor" aria-label="anchor" href="#organizing-exposure-profiles"></a>
 </h2>
 <p><code>EpiExposure</code> expects longitudinal data in which each row
-represents one observation within an epidemic history.</p>
+represents one observation within an epidemic profile.</p>
 <p>At minimum, the dataset must contain:</p>
 <ol style="list-style-type: decimal">
 <li>an epidemic identifier, such as <code>epi_id</code>;</li>
@@ -152,7 +152,7 @@ represents one observation within an epidemic history.</p>
 <p>In the example dataset:</p>
 <ul>
 <li>
-<code>epi_id</code> identifies independent epidemic histories;</li>
+<code>epi_id</code> identifies independent epidemic profiles;</li>
 <li>
 <code>time</code> orders observations chronologically;</li>
 <li>
@@ -166,7 +166,7 @@ disease assessment:</p>
 <pre class="text"><code>time 0  → earliest exposure observation → maximum lag
 time 85 → disease assessment            → lag 0</code></pre>
 <p>Every epidemic must contain the same complete and regularly spaced
-exposure history. With <code>max_lag = 85</code>, each epidemic
+exposure profile. With <code>max_lag = 85</code>, each epidemic
 requires:</p>
 <p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>85</mn><mo>+</mo><mn>1</mn><mo>=</mo><mn>86</mn></mrow><annotation encoding="application/x-tex">85 + 1 = 86</annotation></semantics></math></p>
 <p>observations for every fitted exposure.</p>
@@ -179,7 +179,7 @@ requires:</p>
 <div class="section level2">
 <h2 id="inspecting-the-example-dataset">Inspecting the example dataset<a class="anchor" aria-label="anchor" href="#inspecting-the-example-dataset"></a>
 </h2>
-<p>The example contains complete environmental histories for multiple
+<p>The example contains complete environmental profiles for multiple
 epidemics.</p>
 <table class="table">
 <thead><tr class="header">
@@ -288,7 +288,7 @@ number of observations:</p>
 per <code>epi_id</code>.</p>
 </div>
 <div class="section level2">
-<h2 id="visualizing-exposure-histories">Visualizing exposure histories<a class="anchor" aria-label="anchor" href="#visualizing-exposure-histories"></a>
+<h2 id="visualizing-exposure-profiles">Visualizing exposure profiles<a class="anchor" aria-label="anchor" href="#visualizing-exposure-profiles"></a>
 </h2>
 <p>Visual inspection can reveal temporal trends, unusual exposure
 profiles, limited variation, and missing observations.</p>
@@ -335,8 +335,8 @@ profiles, limited variation, and missing observations.</p>
 <span><span class="va">tmean_plot</span></span></code></pre></div>
 <p><img src="pkgdown_files/figure-html/unnamed-chunk-3-1.png" class="r-plt" alt="" width="700" style="display: block; margin: auto;">
 The objective is not to identify exposure effects visually. These plots
-only describe the observed histories. Effect estimation requires the
-DLNM model.</p>
+only describe the observed profiles. Effect estimation requires the DLNM
+model.</p>
 </div>
 <div class="section level2">
 <h2 id="defining-exposure-lag-structures">Defining exposure-lag structures<a class="anchor" aria-label="anchor" href="#defining-exposure-lag-structures"></a>
@@ -620,7 +620,7 @@ diagnostic.</p>
 <h2 id="building-the-epidemic-level-design">Building the epidemic-level design<a class="anchor" aria-label="anchor" href="#building-the-epidemic-level-design"></a>
 </h2>
 <p><code><a href="../reference/build_design.html">build_design()</a></code> transforms each complete longitudinal
-history into one epidemic-level row containing the cross-basis
+profile into one epidemic-level row containing the cross-basis
 predictors.</p>
 <div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dat</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_design.html">build_design</a></span><span class="op">(</span></span>
@@ -866,7 +866,7 @@ modeling engines.</p>
 <span>  <span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>This model estimates a population-level association between the
-complete histories of temperature, rainfall, and leaf wetness and the
+complete profiles of temperature, rainfall, and leaf wetness and the
 final disease response.</p>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
@@ -917,16 +917,16 @@ effects. That process is introduced in the <em>Understanding
 Effects</em> section</p>
 </div>
 <div class="section level2">
-<h2 id="predicting-one-complete-exposure-history">Predicting one complete exposure history<a class="anchor" aria-label="anchor" href="#predicting-one-complete-exposure-history"></a>
+<h2 id="predicting-one-complete-exposure-profile">Predicting one complete exposure profile<a class="anchor" aria-label="anchor" href="#predicting-one-complete-exposure-profile"></a>
 </h2>
 <p>A fitted model can also estimate the expected disease outcome
-associated with a complete hypothetical exposure history.</p>
+associated with a complete hypothetical exposure profile.</p>
 <p>In this example, a constant environmental scenario is evaluated over
 an 86-day exposure window. Daily mean temperature (<code>tmean</code>)
 is fixed at 25°C, daily rainfall (<code>rain</code>) at 5 mm, and daily
 leaf wetness duration (<code>wetness</code>) at 15 hours. The model
 combines the lagged contributions of all daily exposures to estimate the
-expected disease outcome for this exposure history.</p>
+expected disease outcome for this exposure profile.</p>
 <div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">prediction</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/predict_outcomes.html">predict_outcomes</a></span><span class="op">(</span></span>
 <span>  fit <span class="op">=</span> <span class="va">fit</span>,</span>
@@ -953,7 +953,7 @@ expected disease outcome for this exposure history.</p>
 observations, matching:</p>
 <pre class="text"><code><span><span class="va">max_lag</span> <span class="op">+</span> <span class="fl">1</span></span></code></pre>
 <p>The resulting prediction represents the expected population-level
-disease response for the complete exposure history. It is not a newly
+disease response for the complete exposure profile. It is not a newly
 simulated observation.</p>
 </div>
 <div class="section level2">
@@ -963,7 +963,7 @@ simulated observation.</p>
 workflow:</p>
 <ol style="list-style-type: decimal">
 <li>loaded longitudinal epidemic data;</li>
-<li>inspected complete exposure histories;</li>
+<li>inspected complete exposure profiles;</li>
 <li>defined the exposure–lag basis;</li>
 <li>evaluated its identifiability and numerical stability;</li>
 <li>constructed the epidemic-level design;</li>

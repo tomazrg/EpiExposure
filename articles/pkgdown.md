@@ -11,29 +11,29 @@ The package helps users:
 - define non-linear exposure-lag structures;
 - fit distributed lag non-linear models;
 - quantify lag-specific, period-specific, and cumulative effects;
-- evaluate complete exposure histories;
+- evaluate complete exposure profiles;
 - predict expected disease outcomes;
 - simulate alternative exposure scenarios;
 - estimate yield and economic losses.
 
 Unlike conventional window-based approaches, `EpiExposure` treats the
-complete environmental history preceding disease assessment as the
+complete environmental profile preceding disease assessment as the
 epidemiological exposure unit.
 
 **What you will learn.** This tutorial shows how to organize
 longitudinal epidemiological data, define and diagnose an exposure–lag
 structure, fit a first DLNM, and predict an expected disease outcome
-from a complete exposure history.
+from a complete exposure profile.
 
 ## The EpiExposure workflow
 
 A basic analysis follows six stages:
 
-1.  organize and inspect complete exposure histories;
+1.  organize and inspect complete exposure profiles;
 2.  define the exposure-response and lag-response basis functions;
 3.  evaluate the proposed structure for identifiability and numerical
     stability;
-4.  collapse each history into one epidemic-level design row;
+4.  collapse each profile into one epidemic-level design row;
 5.  prepare the response and fit the model;
 6.  use the fitted model for interpretation, prediction, or simulation.
 
@@ -41,10 +41,10 @@ This section introduces the basic workflow but stops before detailed
 effect interpretation. Lag-specific, period-specific, and cumulative
 effects are covered in the *Understanding Effects* section
 
-## Organizing exposure histories
+## Organizing exposure profiles
 
 `EpiExposure` expects longitudinal data in which each row represents one
-observation within an epidemic history.
+observation within an epidemic profile.
 
 At minimum, the dataset must contain:
 
@@ -55,7 +55,7 @@ At minimum, the dataset must contain:
 
 In the example dataset:
 
-- `epi_id` identifies independent epidemic histories;
+- `epi_id` identifies independent epidemic profiles;
 - `time` orders observations chronologically;
 - `tmean`, `rain`, and `wetness` are environmental exposures;
 - `y` is the final disease response.
@@ -69,7 +69,7 @@ time 85 → disease assessment            → lag 0
 ```
 
 Every epidemic must contain the same complete and regularly spaced
-exposure history. With `max_lag = 85`, each epidemic requires:
+exposure profile. With `max_lag = 85`, each epidemic requires:
 
 ``` math
 85 + 1 = 86
@@ -90,7 +90,7 @@ data("epi_data")
 
 ## Inspecting the example dataset
 
-The example contains complete environmental histories for multiple
+The example contains complete environmental profiles for multiple
 epidemics.
 
 | epi_id | time | tmean | rain  | wetness |  y   |
@@ -123,7 +123,7 @@ table(
 
 For `max_lag = 85`, the expected result is 86 observations per `epi_id`.
 
-## Visualizing exposure histories
+## Visualizing exposure profiles
 
 Visual inspection can reveal temporal trends, unusual exposure profiles,
 limited variation, and missing observations.
@@ -182,7 +182,7 @@ tmean_plot
 
 ![](pkgdown_files/figure-html/unnamed-chunk-3-1.png) The objective is
 not to identify exposure effects visually. These plots only describe the
-observed histories. Effect estimation requires the DLNM model.
+observed profiles. Effect estimation requires the DLNM model.
 
 ## Defining exposure-lag structures
 
@@ -325,7 +325,7 @@ diagnostic.
 ## Building the epidemic-level design
 
 [`build_design()`](https://tomazrg.github.io/EpiExposure/reference/build_design.md)
-transforms each complete longitudinal history into one epidemic-level
+transforms each complete longitudinal profile into one epidemic-level
 row containing the cross-basis predictors.
 
 ``` r
@@ -411,7 +411,7 @@ fit <- fit_epidlnm(
 ```
 
 This model estimates a population-level association between the complete
-histories of temperature, rainfall, and leaf wetness and the final
+profiles of temperature, rainfall, and leaf wetness and the final
 disease response.
 
 ``` r
@@ -465,17 +465,17 @@ quantities such as lag-specific, period-specific, and cumulative
 effects. That process is introduced in the *Understanding Effects*
 section
 
-## Predicting one complete exposure history
+## Predicting one complete exposure profile
 
 A fitted model can also estimate the expected disease outcome associated
-with a complete hypothetical exposure history.
+with a complete hypothetical exposure profile.
 
 In this example, a constant environmental scenario is evaluated over an
 86-day exposure window. Daily mean temperature (`tmean`) is fixed at
 25°C, daily rainfall (`rain`) at 5 mm, and daily leaf wetness duration
 (`wetness`) at 15 hours. The model combines the lagged contributions of
 all daily exposures to estimate the expected disease outcome for this
-exposure history.
+exposure profile.
 
 ``` r
 
@@ -513,7 +513,7 @@ max_lag + 1
 ```
 
 The resulting prediction represents the expected population-level
-disease response for the complete exposure history. It is not a newly
+disease response for the complete exposure profile. It is not a newly
 simulated observation.
 
 ## Where to go next
@@ -521,7 +521,7 @@ simulated observation.
 You have now completed the basic `EpiExposure` workflow:
 
 1.  loaded longitudinal epidemic data;
-2.  inspected complete exposure histories;
+2.  inspected complete exposure profiles;
 3.  defined the exposure–lag basis;
 4.  evaluated its identifiability and numerical stability;
 5.  constructed the epidemic-level design;

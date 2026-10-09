@@ -93,7 +93,7 @@ exposure scenarios using `predict_outcomes()` as the computational backend.</p>
   supply:</p>
 <p></p><ul><li><p>one finite numeric scalar, interpreted as a constant profile and
       expanded internally to that exposure's fitted `max_lag + 1` positions;</p></li>
-<li><p>one explicit numeric chronological history;</p></li>
+<li><p>one explicit numeric chronological profile;</p></li>
 <li><p>a matrix/data frame whose rows are multiple chronological profiles;</p></li>
 <li><p>a list of multiple numeric chronological profiles;</p></li>
 <li><p>an object returned directly by the audited `simulate_exposures()`.</p></li>
@@ -117,10 +117,10 @@ exposure scenarios using `predict_outcomes()` as the computational backend.</p>
   scenario contains multiple matched profile sets.</p>
 <p>Thus multiple profiles are compared by matched index; a Cartesian product
   of scenario profiles is never created.</p>
-<p>Explicit non-scalar histories must contain exactly the fitted
+<p>Explicit non-scalar profile must contain exactly the fitted
   `max_lag + 1` positions for their exposure. A `simulate_exposures()` object
   must have been generated with the same `max_lag` stored for that fitted
-  exposure. This strict check prevents extra or missing historical positions
+  exposure. This strict check prevents extra or missing positions in the profile
   from being silently ignored.</p></dd>
 
 
@@ -227,7 +227,7 @@ outside the fitted exposure range: `"warn"` (default), `"error"`, or
 This is essential when `uncertainty = TRUE`: the same fixed/population
 parameter draw is applied to every scenario before differences, ratios, or
 other contrasts are calculated.</p>
-<p>Exposure histories follow the EpiExposure chronological convention: each
+<p>Exposure profiles follow the EpiExposure chronological convention: each
 profile is supplied from the oldest/earliest exposure observation to the most
 recent observation, with the final value corresponding to lag 0.</p>
 

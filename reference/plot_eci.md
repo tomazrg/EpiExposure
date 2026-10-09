@@ -78,8 +78,8 @@ plot_eci(
 - sample_smooth:
 
   Logical scalar. If \`TRUE\`, draw-level curves are shown with
-  \`geom_smooth(se = FALSE)\`, reproducing the historical manual plot.
-  If \`FALSE\`, draw-level curves are connected with \`geom_line()\`.
+  \`geom_smooth(se = FALSE)\`, reproducing the original manual plot. If
+  \`FALSE\`, draw-level curves are connected with \`geom_line()\`.
   Summary outputs are always displayed with a smoothed central curve
   and, when available, dashed smoothed lower and upper interval curves.
 
@@ -114,7 +114,7 @@ plot_eci(
 - exposure_colors:
 
   Character vector of colors used for exposure- difference curves. Named
-  vectors are supported. The default reproduces the historical manual
+  vectors are supported. The default reproduces the original manual
   palette.
 
 - base_size:

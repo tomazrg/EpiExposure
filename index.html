@@ -90,7 +90,7 @@
 <img src="logo.png" class="logo" alt=""><h1 id="epiexposure">EpiExposure<a class="anchor" aria-label="anchor" href="#epiexposure"></a>
 </h1>
 </div>
-<p><code>EpiExposure</code> is an R package for modeling and interpreting epidemiological exposure–lag–response relationships, simulating exposure histories, and predicting plant disease outcomes from environmental drivers.</p>
+<p><code>EpiExposure</code> is an R package for modeling and interpreting epidemiological exposure–lag–response relationships, simulating exposure profiles, and predicting plant disease outcomes from environmental drivers.</p>
 <hr>
 <div class="section level2">
 <h2 id="core-workflow">Core workflow<a class="anchor" aria-label="anchor" href="#core-workflow"></a>
@@ -104,12 +104,12 @@
 <div class="section level3 col-md-4">
 <h3 id="interpret">Interpret<a class="anchor" aria-label="anchor" href="#interpret"></a>
 </h3>
-<p>Summarise exposure–lag relationships across lags, epidemiological periods, and complete exposure histories.</p>
+<p>Summarise exposure–lag relationships across lags, epidemiological periods, and complete exposure profiles.</p>
 </div>
 <div class="section level3 col-md-4">
 <h3 id="predict--simulate">Predict &amp; Simulate<a class="anchor" aria-label="anchor" href="#predict--simulate"></a>
 </h3>
-<p>Evaluate observed or hypothetical exposure histories, compare scenarios, and predict expected disease outcomes.</p>
+<p>Evaluate observed or hypothetical exposure profiles, compare scenarios, and predict expected disease outcomes.</p>
 </div>
 </div>
 <hr>
@@ -118,7 +118,7 @@
 <h2 id="why-epiexposure">Why EpiExposure?<a class="anchor" aria-label="anchor" href="#why-epiexposure"></a>
 </h2>
 <blockquote>
-<p>In plant disease epidemiology, environmental effects are often non-linear, cumulative, and time-dependent. Traditional approaches commonly summarize weather conditions within predefined temporal windows, which may obscure delayed or continuously varying associations. <code>EpiExposure</code> provides a unified DLNM-based workflow for preserving exposure histories, modeling lagged associations, and translating fitted models into epidemiologically interpretable summaries, simulations, and predictions.</p>
+<p>In plant disease epidemiology, environmental effects are often non-linear, cumulative, and time-dependent. Traditional approaches commonly summarize environmental conditions within predefined temporal windows, which may obscure delayed or continuously varying associations. <code>EpiExposure</code> provides a unified DLNM-based workflow for preserving exposure profiles, modeling lagged associations, and translating fitted models into epidemiologically interpretable summaries, simulations, and predictions.</p>
 </blockquote>
 <hr>
 </div>
@@ -130,10 +130,10 @@
 <li>Model non-linear exposure–lag–response relationships</li>
 <li>Quantify lag- and period-specific environmental associations</li>
 <li>Define biologically meaningful epidemiological periods</li>
-<li>Summarise complete exposure histories using the Exposure Cumulative Impact (ECI)</li>
+<li>Summarise complete exposure profiles using the Exposure Cumulative Impact (ECI)</li>
 <li>Decompose cumulative exposure impacts into exact lag-specific contributions</li>
 <li>Simulate and compare hypothetical exposure–lag scenarios</li>
-<li>Predict expected disease outcomes from complete exposure histories</li>
+<li>Predict expected disease outcomes from complete exposure profiles</li>
 <li>Compare and ensemble alternative DLNM specifications using cross-validation</li>
 </ul>
 <hr>
@@ -146,7 +146,7 @@
 <li>Build the DLNM design with <code><a href="reference/build_design.html">build_design()</a></code>.</li>
 <li>Fit the epidemiological model with <code><a href="reference/fit_epidlnm.html">fit_epidlnm()</a></code>.</li>
 <li>Interpret exposure–lag relationships using <code><a href="reference/summarise_effects.html">summarise_effects()</a></code>.</li>
-<li>Explore hypothetical exposure histories with <code><a href="reference/simulate_exposures.html">simulate_exposures()</a></code>.</li>
+<li>Explore hypothetical exposure profiles with <code><a href="reference/simulate_exposures.html">simulate_exposures()</a></code>.</li>
 <li>Predict expected outcomes using <code><a href="reference/predict_outcomes.html">predict_outcomes()</a></code>.</li>
 <li>Evaluate alternative model structures with <code><a href="reference/find_bestfit.html">find_bestfit()</a></code> and <code><a href="reference/ensemble_bestfit.html">ensemble_bestfit()</a></code>.</li>
 </ol>

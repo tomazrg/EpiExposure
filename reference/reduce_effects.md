@@ -39,7 +39,7 @@ reduce_effects(
 
   \`data\` is used only to:
 
-  \- validate the exact EpiExposure temporal-history contract; -
+  \- validate the exact EpiExposure temporal-profile contract; -
   calculate a method-based reference value when requested; - validate
   exposure support for \`value\`, \`at\`, and the reference.
 
@@ -48,9 +48,9 @@ reduce_effects(
 
   Every group must contain exactly
 
-  \$\$ history\\length = max\\lag + 1 \$\$
+  \$\$ profile\\length = max\\lag + 1 \$\$
 
-  rows, with finite complete exposure histories, unique chronological
+  rows, with finite complete exposure profiles, unique chronological
   times, regular spacing within groups, and the same spacing across
   groups.
 
@@ -95,7 +95,7 @@ reduce_effects(
   EpiExposure API:
 
   \- \`"link"\` returns the centered DLNM association contrast \`eta\`
-  unchanged; - \`"response"\` is a historical label for the directly
+  unchanged; - \`"response"\` is a legacy label for the directly
   transformed \*\*association measure\*\*, not an absolute expected
   response. For a log link it returns \`exp(eta)\`, a response ratio;
   for a logit link it returns \`exp(eta)\`, an odds ratio; for an
@@ -255,23 +255,23 @@ the metadata created by \`define_exposures()\`, \`build_design()\`, and
 prediction/reduction data from redefining data-dependent spline knots,
 boundary knots, ranges, or column order.
 
-\## Exact common-history contract
+\## Exact common-profile contract
 
 Current EpiExposure fits satisfy:
 
-\$\$ history\\length = max\\lag + 1 \$\$
+\$\$ profile\\length = max\\lag + 1 \$\$
 
 and every fitted exposure uses the same \`max_lag\`.
 
 \`reduce_effects()\` validates this metadata and requires every supplied
-group to contain exactly that many rows. Longer histories are not
-truncated and shorter histories are not padded. Every fitted exposure
+group to contain exactly that many rows. Longer profiles are not
+truncated and shorter profiles are not padded. Every fitted exposure
 must be present in \`data\` on the same rows, so the function cannot
-silently compare or derive references from histories with different
+silently compare or derive references from profiles with different
 temporal support.
 
 For \`max_lag = 0\`, \`history_length = 1\`; no temporal step can be
-inferred from a one-row history and the stored time step is expected to
+inferred from a one-row profile and the stored time step is expected to
 be \`NA\`.
 
 \## Centering and reference

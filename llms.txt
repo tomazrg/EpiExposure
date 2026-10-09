@@ -4,7 +4,7 @@
 
 `EpiExposure` is an R package for modeling and interpreting
 epidemiological exposure–lag–response relationships, simulating exposure
-histories, and predicting plant disease outcomes from environmental
+profiles, and predicting plant disease outcomes from environmental
 drivers.
 
 ------------------------------------------------------------------------
@@ -19,11 +19,11 @@ frameworks and response distributions.
 ### Interpret
 
 Summarise exposure–lag relationships across lags, epidemiological
-periods, and complete exposure histories.
+periods, and complete exposure profiles.
 
 ### Predict & Simulate
 
-Evaluate observed or hypothetical exposure histories, compare scenarios,
+Evaluate observed or hypothetical exposure profiles, compare scenarios,
 and predict expected disease outcomes.
 
 ------------------------------------------------------------------------
@@ -32,10 +32,10 @@ and predict expected disease outcomes.
 
 > In plant disease epidemiology, environmental effects are often
 > non-linear, cumulative, and time-dependent. Traditional approaches
-> commonly summarize weather conditions within predefined temporal
+> commonly summarize environmental conditions within predefined temporal
 > windows, which may obscure delayed or continuously varying
 > associations. `EpiExposure` provides a unified DLNM-based workflow for
-> preserving exposure histories, modeling lagged associations, and
+> preserving exposure profiles, modeling lagged associations, and
 > translating fitted models into epidemiologically interpretable
 > summaries, simulations, and predictions.
 
@@ -48,12 +48,12 @@ and predict expected disease outcomes.
 - Model non-linear exposure–lag–response relationships
 - Quantify lag- and period-specific environmental associations
 - Define biologically meaningful epidemiological periods
-- Summarise complete exposure histories using the Exposure Cumulative
+- Summarise complete exposure profiles using the Exposure Cumulative
   Impact (ECI)
 - Decompose cumulative exposure impacts into exact lag-specific
   contributions
 - Simulate and compare hypothetical exposure–lag scenarios
-- Predict expected disease outcomes from complete exposure histories
+- Predict expected disease outcomes from complete exposure profiles
 - Compare and ensemble alternative DLNM specifications using
   cross-validation
 
@@ -69,7 +69,7 @@ and predict expected disease outcomes.
     [`fit_epidlnm()`](https://tomazrg.github.io/EpiExposure/reference/fit_epidlnm.md).
 4.  Interpret exposure–lag relationships using
     [`summarise_effects()`](https://tomazrg.github.io/EpiExposure/reference/summarise_effects.md).
-5.  Explore hypothetical exposure histories with
+5.  Explore hypothetical exposure profiles with
     [`simulate_exposures()`](https://tomazrg.github.io/EpiExposure/reference/simulate_exposures.md).
 6.  Predict expected outcomes using
     [`predict_outcomes()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.md).
@@ -154,7 +154,7 @@ library(EpiExposure)
 - [`simulate_ranges()`](https://tomazrg.github.io/EpiExposure/reference/simulate_ranges.md)
   : Generate exposure-value scenarios across DLNM lag periods
 - [`simulate_scenarios()`](https://tomazrg.github.io/EpiExposure/reference/simulate_scenarios.md)
-  : Simulate epidemiological exposure-history scenarios
+  : Simulate epidemiological exposure-profile scenarios
 - [`simulate_losses()`](https://tomazrg.github.io/EpiExposure/reference/simulate_losses.md)
   : Simulate yield and economic losses
 
@@ -215,7 +215,7 @@ library(EpiExposure)
 - [Simulation and
   Prediction](https://tomazrg.github.io/EpiExposure/articles/simulation-prediction.md):
 
-  Simulating exposure histories and predicting disease outcomes
+  Simulating exposure profiles and predicting disease outcomes
 
 - [Yield and Economic
   Losses](https://tomazrg.github.io/EpiExposure/articles/losses.md):

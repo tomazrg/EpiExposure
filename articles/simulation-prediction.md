@@ -2,17 +2,17 @@
 
 ## Introduction
 
-Understanding historical exposure-lag associations is important for
-epidemiological interpretation, but researchers are often interested in
-a different question:
+Understanding exposure-lag associations is important for epidemiological
+interpretation, but researchers are often interested in a different
+question:
 
 > What is the expected disease outcome under an alternative
-> environmental history?
+> environmental profile?
 
 `EpiExposure` provides simulation and prediction tools that allow
 researchers to:
 
-- generate complete synthetic exposure histories;
+- generate complete synthetic exposure profiles;
 - introduce structured exposure events;
 - construct hypothetical epidemiological scenarios;
 - predict expected disease outcomes;
@@ -21,10 +21,10 @@ researchers to:
 
 Unlike lag-specific effect summaries, prediction evaluates all exposure
 values and lags jointly. Therefore, every prediction represents a
-complete environmental history rather than an isolated exposure value.
+complete environmental profile rather than an isolated exposure value.
 
 **What you will learn.** This tutorial shows how to simulate complete
-exposure histories, predict expected disease outcomes, propagate
+exposure profiles, predict expected disease outcomes, propagate
 parameter uncertainty, construct scenario grids, and compare alternative
 environmental conditions.
 
@@ -103,10 +103,10 @@ fit <- fit_epidlnm(
 )
 ```
 
-The fitted model relates complete histories of temperature, rainfall,
-and leaf wetness to the expected disease response.
+The fitted model relates complete profiles of temperature, rainfall, and
+leaf wetness to the expected disease response.
 
-## Complete exposure histories
+## Complete exposure profiles
 
 Each exposure profile supplied to
 [`predict_outcomes()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.md)
@@ -146,7 +146,7 @@ wetness profiles must have the same length and temporal interpretation
 used to fit the model. Coordinates, blocks, years, and other grouping
 variables are not exposure profiles.
 
-## Simulating exposure histories
+## Simulating exposure profiles
 
 ### Why simulate exposures?
 
@@ -209,7 +209,7 @@ The result contains the simulated chronological profile:
     #> 23.29681 24.13889 23.57873 24.84437 24.47550 25.10643
 
 The profile is ordered from the oldest to the most recent exposure
-observation. For this 86-value history, the first value corresponds to
+observation. For this 86-value profile, the first value corresponds to
 lag 85 and the final value corresponds to lag 0. The profile remains in
 chronological order when it is later supplied to
 [`predict_outcomes()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.md).
@@ -255,7 +255,7 @@ determined by the fitted DLNM.
 A structured event can be superimposed on a background profile.
 
 The following example constructs a rainfall pattern with values assigned
-to selected portions of the temporal history:
+to selected portions of the temporal profile:
 
 ``` r
 
@@ -380,17 +380,17 @@ df_wetness <- data.frame(
 
 ![](simulation-prediction_files/figure-html/unnamed-chunk-3-1.png) The
 three profiles can now be combined into one complete hypothetical
-environmental history.
+environmental profile.
 
 All three profiles follow the same chronological convention and contain
 86 observations. At each chronological position, the temperature,
 rainfall, and leaf wetness values describe the environmental conditions
-assigned to that point in the hypothetical history.
+assigned to that point in the hypothetical profile.
 
 When these profiles are supplied to
 [`predict_outcomes()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.md),
 the function validates their length and order and projects each complete
-history through the cross-basis definition stored in the fitted model.
+profile through the cross-basis definition stored in the fitted model.
 The resulting design follows the retrospective DLNM lag convention, in
 which lag 0 represents the most recent exposure and increasing lags
 represent progressively older exposures.
@@ -405,10 +405,10 @@ otherwise rearrange the simulated profiles.
 [`predict_outcomes()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.md)
 receives the complete profiles in chronological order and projects them
 through the cross-basis definition stored in the fitted model. The
-reconstructed cross-basis predictors represent the exposure histories on
+reconstructed cross-basis predictors represent the exposure profiles on
 the retrospective DLNM lag scale, allowing the function to calculate the
 population-level expected response associated with the complete
-multivariable history.
+multivariable profile.
 
 ``` r
 
@@ -432,21 +432,21 @@ prediction
 
 The prediction combines:
 
-- the complete chronological temperature history;
-- the complete chronological rainfall history;
-- the complete chronological leaf wetness history;
+- the complete chronological temperature profile;
+- the complete chronological rainfall profile;
+- the complete chronological leaf wetness profile;
 - the corresponding retrospective lag contributions reconstructed from
   the fitted cross-basis;
 - the fitted joint cross-basis coefficients;
 - the inverse link required by the response family.
 
 The output represents one joint prediction for the three complete
-exposure histories. It is not calculated independently for each day or
+exposure profiles. It is not calculated independently for each day or
 lag.
 
 The prediction is not a newly simulated disease observation. It
 represents the central expected response associated with the complete
-exposure history.
+exposure profile.
 
 For the fitted Beta model, the result is an expected response on the
 proportion scale.
@@ -571,7 +571,7 @@ prediction_summary
 
 ### Why construct scenarios?
 
-A single profile describes one complete hypothetical history. Scenario
+A single profile describes one complete hypothetical profile. Scenario
 analysis extends this idea by evaluating multiple combinations of
 environmental conditions systematically.
 
@@ -585,7 +585,7 @@ Possible questions include:
 - How does the timing of an exposure pattern alter the prediction?
 
 These are model-based comparisons. They describe how the fitted model
-responds to supplied histories and do not automatically demonstrate
+responds to supplied profiles and do not automatically demonstrate
 causal interventions.
 
 ## Defining epidemiological periods
@@ -877,13 +877,13 @@ A smoother surface requires a denser sequence of temperature values in
 
 ## Comparing predictions
 
-### Comparing complete simulated histories
+### Comparing complete simulated profiles
 
 A single prediction describes the expected response associated with one
-complete environmental history.
+complete environmental profile.
 [`compare_predictions()`](https://tomazrg.github.io/EpiExposure/reference/compare_predictions.md)
 extends this analysis by contrasting the expected responses associated
-with two or more complete histories.
+with two or more complete profiles.
 
 The following example constructs four hypothetical environmental
 scenarios. Each scenario contains chronological temperature, rainfall,
@@ -904,7 +904,7 @@ variability, and persistence:
 
 Because several exposures differ simultaneously, the resulting
 prediction contrasts represent joint differences between the complete
-environmental histories. They should not be attributed to one exposure
+environmental profiles. They should not be attributed to one exposure
 individually.
 
 ### Defining Scenario A
@@ -1112,7 +1112,7 @@ from the oldest to the most recent exposure. The profiles should not be
 reversed before being supplied to
 [`compare_predictions()`](https://tomazrg.github.io/EpiExposure/reference/compare_predictions.md).
 
-### Visualizing the candidate histories
+### Visualizing the candidate profiles
 
 Before comparing their predicted outcomes, the complete exposure
 profiles can be inspected to verify how the scenarios differ.
@@ -1266,28 +1266,28 @@ simulation_plot
 
 ![](simulation-prediction_files/figure-html/plot-comparison-profiles-1.png)
 
-The figure shows the exposure histories exactly as they are supplied to
+The figure shows the exposure profiles exactly as they are supplied to
 [`compare_predictions()`](https://tomazrg.github.io/EpiExposure/reference/compare_predictions.md).
-Internally, EpiExposure projects each chronological history through the
-fitted cross-basis, where lag 0 represents the most recent exposure and
-increasing lags represent progressively older exposures.
+Internally, `EpiExposure` projects each chronological profile through
+the fitted cross-basis, where lag 0 represents the most recent exposure
+and increasing lags represent progressively older exposures.
 
-### Comparing the exposure histories
+### Comparing the exposure profiles
 
-Before comparing the predicted disease outcomes, the exposure histories
+Before comparing the predicted disease outcomes, the exposure profiles
 themselves can be compared directly.
 
 [`compare_exposures()`](https://tomazrg.github.io/EpiExposure/reference/compare_exposures.md)
 describes how two chronological exposure profiles differ across time.
 This comparison does not use the fitted disease model and does not
 produce a predicted response. It only quantifies differences between the
-supplied exposure histories.
+supplied exposure profiles.
 
 The following example compares Scenarios A and D. These scenarios differ
 in temperature, rainfall, and leaf wetness, so each exposure is compared
 separately.
 
-#### Comparing temperature histories
+#### Comparing temperature profiles
 
 ``` r
 
@@ -1302,7 +1302,7 @@ comparison_tmean_AD$scenario1 <- "A"
 comparison_tmean_AD$scenario2 <- "D"
 ```
 
-#### Comparing rainfall histories
+#### Comparing rainfall profiles
 
 ``` r
 
@@ -1317,7 +1317,7 @@ comparison_rain_AD$scenario1 <- "A"
 comparison_rain_AD$scenario2 <- "D"
 ```
 
-#### Comparing leaf wetness histories
+#### Comparing leaf wetness profiles
 
 ``` r
 
@@ -1469,7 +1469,7 @@ and leaf wetness are measured in different units. Consequently, the
 numerical magnitudes of the differences should not be compared directly
 across exposures.
 
-These comparisons describe the environmental histories themselves. They
+These comparisons describe the environmental profiles themselves. They
 do not account for the fitted cross-basis coefficients and do not
 indicate how strongly each exposure difference contributes to the
 disease response.
@@ -1477,7 +1477,7 @@ disease response.
 The next section uses
 [`compare_predictions()`](https://tomazrg.github.io/EpiExposure/reference/compare_predictions.md)
 to determine how the fitted model translates the complete multivariable
-histories into differences in expected disease outcomes.
+profiles into differences in expected disease outcomes.
 
 ### Comparing the expected outcomes
 
@@ -1546,7 +1546,7 @@ Inspect selected comparison results:
 | C vs. D | 0.0354 | 0.0061 | 0.1601 | 0.9997 | 0.9944 | 1.0000 | 0.9639 | 0.8399 | 0.9898 | 96.3927 | 83.9893 | 98.9832 |
 
 Each row compares the expected response under two complete environmental
-histories. For example, `diff` represents the draw-by-draw difference
+profiles. For example, `diff` represents the draw-by-draw difference
 between the expected response for `scenario2` and the expected response
 for `scenario1`, summarized across the joint parameter draws.
 
@@ -1614,7 +1614,7 @@ Inspect the first draw-specific comparisons:
 
 Each row now represents one joint parameter draw for one scenario pair.
 These samples describe parameter uncertainty in the expected responses
-and their contrasts. They are not new exposure histories and are not
+and their contrasts. They are not new exposure profiles and are not
 newly simulated disease observations.
 
 The draw-level output can be used to calculate customized summaries,
@@ -1725,13 +1725,13 @@ and negative differences across the joint parameter draws.
 **These are joint environmental contrasts.** Temperature, rainfall, and
 leaf wetness differ simultaneously among Scenarios A–D. The resulting
 differences therefore describe contrasts between complete multivariable
-environmental histories and should not be interpreted as the isolated
+environmental profiles and should not be interpreted as the isolated
 effect of any one exposure.
 
 ### Comparing one exposure at a time
 
 When the objective is to investigate a contrast involving one exposure,
-the remaining histories should be held constant. The following example
+the remaining profiles should be held constant. The following example
 changes rainfall while maintaining the same temperature and leaf wetness
 profiles.
 
@@ -1808,7 +1808,7 @@ rainfall_comparison
 #> 1             31.14316
 ```
 
-Temperature and leaf wetness are identical in the two histories.
+Temperature and leaf wetness are identical in the two profiles.
 Therefore, the contrast is specifically associated with the change in
 the complete rainfall profile under the fitted multivariable model.
 
@@ -1830,13 +1830,13 @@ Simulation and prediction tools provide related but distinct outputs:
 - [`predict_outcomes()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.md)
   predicts the expected response for complete profiles;
 - [`compare_exposures()`](https://tomazrg.github.io/EpiExposure/reference/compare_exposures.md)
-  compares the exposure histories themselves;
+  compares the exposure profiles themselves;
 - [`compare_predictions()`](https://tomazrg.github.io/EpiExposure/reference/compare_predictions.md)
   compares their model-based expected outcomes.
 
 Before interpreting a result, verify:
 
-1.  whether the exposure histories are chronological;
+1.  whether the exposure profiles are chronological;
 2.  whether every profile contains `max_lag + 1` observations;
 3.  whether all exposures required by the fitted model were supplied;
 4.  whether scenario values are supported by the observed data;
@@ -1856,7 +1856,7 @@ not automatically add observation-level variability.
 ## Summary
 
 This section demonstrated how `EpiExposure` transforms a fitted DLNM
-into a framework for evaluating complete exposure histories.
+into a framework for evaluating complete exposure profiles.
 
 The workflow allows users to:
 
@@ -1865,11 +1865,11 @@ The workflow allows users to:
 - predict expected disease outcomes;
 - propagate parameter uncertainty;
 - evaluate scenario grids;
-- compare exposure histories;
+- compare exposure profiles;
 - compare predicted responses.
 
 These tools extend inference from the fitted exposure-lag surface to
-explicit, model-based comparisons of complete environmental histories.
+explicit, model-based comparisons of complete environmental profiles.
 
 ## Next steps
 

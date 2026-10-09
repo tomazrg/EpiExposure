@@ -742,8 +742,8 @@ constructs two lag ensembles:
   metric.
 
 To keep the example computationally efficient, the lag ensemble is
-demonstrated using one complete epidemic history. Users may instead
-supply all available epidemic histories, provided that each history
+demonstrated using one complete epidemic profile. Users may instead
+supply all available epidemic profiles, provided that each profile
 contains the complete `max_lag + 1` observations required by the fitted
 models. The computational cost will increase with the number of
 epidemics, exposures, selected models, and lags. The results shown here

@@ -1,7 +1,7 @@
 # Simulated spatial poisson epidemiological dataset
 
 A simulated longitudinal dataset containing complete environmental
-exposure histories and spatial coordinates for demonstrating distributed
+exposure profiles and spatial coordinates for demonstrating distributed
 exposure-lag models with Matérn spatial dependence and a poisson disease
 outcome.
 
@@ -14,7 +14,7 @@ st_poisson
 ## Format
 
 A data frame with rows representing temporal observations within
-epidemic exposure histories and the following variables:
+epidemic exposure profiles and the following variables:
 
 - epi_id:
 
@@ -26,7 +26,7 @@ epidemic exposure histories and the following variables:
 
 - time:
 
-  Chronological time index within each epidemic history.
+  Chronological time index within each epidemic profile.
 
 - x_coord:
 
@@ -51,7 +51,7 @@ epidemic exposure histories and the following variables:
 - y:
 
   Non-negative count disease outcome repeated across the rows of each
-  epidemic history.
+  epidemic profile.
 
 ## Source
 
@@ -61,7 +61,7 @@ Simulated for the EpiExposure package.
 
 The response, block, and spatial coordinates are repeated across the
 temporal rows belonging to the same epidemic because each complete
-exposure history is associated with one final epidemic-level disease
+exposure profile is associated with one final epidemic-level disease
 outcome.
 
 ## Examples

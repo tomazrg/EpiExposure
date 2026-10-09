@@ -1,8 +1,8 @@
 # Build an epidemic-level DLNM design matrix
 
-Converts complete long-format exposure histories into one epidemic-level
+Converts complete long-format exposure profiles into one epidemic-level
 design row per \`epi_id\`. For each exposure, the function reconstructs
-a new DLNM cross-basis from that epidemic's observed exposure history
+a new DLNM cross-basis from that epidemic's observed exposure profile
 using the \*\*effective basis parameterization stored in the supplied
 training template\*\*, then retains the final cross-basis row after
 chronological ordering.
@@ -26,10 +26,10 @@ build_design(
   Non-empty long-format data frame containing \`epi_id\`, \`time\`, and
   every exposure represented in \`cb_templates\`. Rows are ordered
   internally by \`epi_id\` and \`time\`. Under the EpiExposure
-  exact-history contract, every epidemic must contain exactly the common
+  exact-profile contract, every epidemic must contain exactly the common
   fitted \`max_lag + 1\` time points. Because all exposure variables are
   finite columns of those same rows, all fitted exposures necessarily
-  use the same temporal support and history length.
+  use the same temporal support and profile length.
 
   If a column \`y\` is present and \`include_response = TRUE\`, \`y\`
   must contain exactly one finite numeric outcome value per epidemic.
@@ -42,7 +42,7 @@ build_design(
 
   The cross-basis objects themselves are not reused numerically for new
   epidemics. Their stored effective parameterization is reused to
-  transform each new exposure history.
+  transform each new exposure profile.
 
 - max_lag:
 
@@ -55,7 +55,7 @@ build_design(
   \`max_lag\` may be one non-negative integer scalar or the legacy
   two-element form \`c(0, L)\`; after normalization its maximum must
   equal the common template lag. Exposure-specific/named lag windows are
-  not supported by the current EpiExposure exact-history contract.
+  not supported by the current EpiExposure exact-profile contract.
 
 - include_response:
 
@@ -69,7 +69,7 @@ build_design(
   Additional identifiers, such as \`"block"\`, \`"site"\`, or
   \`"year"\`, must exist in \`data\`, contain no missing values, and be
   constant within each \`epi_id\`. They do not redefine the
-  exposure-history unit, which remains exclusively \`epi_id\`.
+  exposure-profile unit, which remains exclusively \`epi_id\`.
 
 ## Value
 
@@ -84,11 +84,11 @@ The returned data frame stores the following attributes:
 synchronized to the template attributes; - \`"epiexposure_cb_cols"\`:
 canonical cross-basis column order; - \`"epiexposure_vars"\`: exposure
 names; - \`"epiexposure_max_lag"\`: common fitted maximum lag; -
-\`"epiexposure_history_length"\`: exact required history length,
+\`"epiexposure_history_length"\`: exact required profile length,
 \`max_lag + 1\`; - \`"epiexposure_history_contract"\`:
 \`"all_fitted_exposures_same_exact_max_lag_plus_one"\`; -
 \`"epiexposure_time_step"\`: common time-series spacing, or \`NA\` when
-\`max_lag = 0\` because a one-point history has no estimable spacing; -
+\`max_lag = 0\` because a one-point profile has no estimable spacing; -
 \`"epiexposure_design_contract"\`:
 \`"final_crossbasis_row_per_group"\`; - \`"epiexposure_group_cols"\`:
 identifier columns preserved in the design.
@@ -102,7 +102,7 @@ supplied \`cb_templates\` are authoritative for basis transport.
 \## Temporal requirements
 
 A vector supplied to \`dlnm::crossbasis()\` is interpreted as one
-complete, equally spaced exposure history. Accordingly,
+complete, equally spaced exposure profile. Accordingly,
 \`build_design()\` requires finite numeric time, unique times within
 epidemics, constant spacing within each epidemic when more than one time
 point is present, and the same spacing across epidemics.
@@ -112,15 +112,15 @@ exactly
 
 \$\$ L + 1 \$\$
 
-observations. Histories with fewer or more observations are rejected.
-\`build_design()\` never truncates an older history, selects a trailing
-window, pads a shorter history, or silently aligns exposures with
+observations. Profiles with fewer or more observations are rejected.
+\`build_design()\` never truncates an older profile, selects a trailing
+window, pads a shorter profile, or silently aligns exposures with
 different lag windows. Since every exposure is evaluated on the same
 rows of \`data\`, all fitted exposures have identical temporal length
 and support.
 
-For \`max_lag = 0\`, the exact history length is one observation. In
-that special case no within-history time interval exists, so
+For \`max_lag = 0\`, the exact profile length is one observation. In
+that special case no within-profile time interval exists, so
 \`epiexposure_time_step\` is stored as \`NA\`.
 
 \## Training-template transport
@@ -131,7 +131,7 @@ For each exposure \`x\`, reconstruction is conceptually:
 attr(training_template, "argvar"), arglag = attr(training_template,
 "arglag") ) “\`
 
-The numerical cross-basis values change with the new exposure history
+The numerical cross-basis values change with the new exposure profile
 while the training basis definition remains fixed. Reconstructed bases
 must retain the training template's number of columns and native column
 names/order before canonical EpiExposure names are assigned.

@@ -1,7 +1,7 @@
 # Simulated negative-binomial epidemiological dataset
 
 A simulated longitudinal dataset containing complete environmental
-exposure histories and an overdispersed count disease outcome. The
+exposure profiles and an overdispersed count disease outcome. The
 dataset is intended for demonstrating quadratic-variance
 negative-binomial models in EpiExposure.
 
@@ -14,7 +14,7 @@ nb2_data
 ## Format
 
 A data frame with rows representing temporal observations within
-epidemic exposure histories and the following variables:
+epidemic exposure profiles and the following variables:
 
 - epi_id:
 
@@ -26,7 +26,7 @@ epidemic exposure histories and the following variables:
 
 - time:
 
-  Chronological time index within each epidemic history.
+  Chronological time index within each epidemic profile.
 
 - tmean:
 
@@ -43,7 +43,7 @@ epidemic exposure histories and the following variables:
 - y:
 
   Non-negative count disease outcome repeated across the rows of each
-  epidemic history.
+  epidemic profile.
 
 ## Source
 
@@ -52,7 +52,7 @@ Simulated for the EpiExposure package.
 ## Details
 
 The response is repeated across the temporal rows belonging to the same
-epidemic because each complete exposure history is associated with one
+epidemic because each complete exposure profile is associated with one
 final epidemic-level disease outcome.
 
 ## Examples

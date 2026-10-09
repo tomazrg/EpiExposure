@@ -33,12 +33,12 @@ check_identifiability(
   Non-empty long-format exposure data frame containing \`epi_id\`,
   \`time\`, and every exposure named in \`vars\`.
 
-  EpiExposure v1 uses a strict exact-history contract. If \`max_lag =
-  L\`, every epidemic must contain exactly \`L + 1\` rows. Histories
-  with fewer or more rows are rejected; they are never truncated,
-  padded, or silently realigned. All requested exposure variables occupy
-  those same validated rows and therefore necessarily have the same
-  temporal support and history length.
+  EpiExposure v1 uses a strict exact-profile contract. If \`max_lag =
+  L\`, every epidemic must contain exactly \`L + 1\` rows. Profiles with
+  fewer or more rows are rejected; they are never truncated, padded, or
+  silently realigned. All requested exposure variables occupy those same
+  validated rows and therefore necessarily have the same temporal
+  support and profile length.
 
   \`epi_id\` must not contain missing values. \`time\` and all exposure
   variables must contain only finite numeric values. When \`max_lag \>
@@ -184,10 +184,10 @@ current EpiExposure fitting workflow.
 \## What is diagnosed
 
 EpiExposure fits one epidemic-level row after transforming each complete
-exposure history through its training cross-basis and retaining the
+exposure profile through its training cross-basis and retaining the
 final cross-basis row. \`check_identifiability()\` diagnoses that same
 numerical design. It does not diagnose every intermediate row returned
-by \`dlnm::crossbasis()\` within a history.
+by \`dlnm::crossbasis()\` within a profile.
 
 The function first calls \`define_exposures()\` to estimate the training
 basis definitions jointly from all supplied epidemics, then calls
@@ -195,19 +195,19 @@ basis definitions jointly from all supplied epidemics, then calls
 using those fixed training definitions. This is the authoritative
 EpiExposure v1 design path.
 
-\## Exact-history and common-window contract
+\## Exact-profile and common-window contract
 
 If the fitted maximum lag is \`L\`, each epidemic must contain exactly
 
 \$\$ L + 1 \$\$
 
 chronological exposure observations, corresponding to lag \`L\` through
-lag \`0\`. All fitted exposures use the same \`L\`. A longer history is
-not silently reduced to its last \`L + 1\` rows, and a shorter history
+lag \`0\`. All fitted exposures use the same \`L\`. A longer profile is
+not silently reduced to its last \`L + 1\` rows, and a shorter profile
 is not padded.
 
 For \`max_lag = 0\`, each epidemic contains exactly one observation and
-the lag basis must be linear. A one-point history has no estimable
+the lag basis must be linear. A one-point profile has no estimable
 temporal step, so \`time_step\` is stored as \`NA\`.
 
 \## Identifiability versus numerical stability

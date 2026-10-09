@@ -54,7 +54,7 @@
 - [`simulate_ranges()`](https://tomazrg.github.io/EpiExposure/reference/simulate_ranges.md)
   : Generate exposure-value scenarios across DLNM lag periods
 - [`simulate_scenarios()`](https://tomazrg.github.io/EpiExposure/reference/simulate_scenarios.md)
-  : Simulate epidemiological exposure-history scenarios
+  : Simulate epidemiological exposure-profile scenarios
 - [`simulate_losses()`](https://tomazrg.github.io/EpiExposure/reference/simulate_losses.md)
   : Simulate yield and economic losses
 

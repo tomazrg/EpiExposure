@@ -113,7 +113,7 @@ plot_losses(
 - facet:
 
   Optional character vector naming scenario variables used as facets.
-  For heatmaps, \`facet_wrap()\` is used as in the historical function.
+  For heatmaps, \`facet_wrap()\` is used as in the original function.
   For regression plots, the first facet variable is placed in rows and
   any remaining facet variables are placed in columns together with the
   automatically generated \`yield_model\` facet. Thus \`facet =
@@ -267,10 +267,9 @@ retained as \`"yield_plot"\` and \`"economic_plot"\` attributes.
 
 ## Details
 
-With \`type = "heatmap"\` (default), the function preserves the
-historical raster-plot workflow. Yield loss and economic loss can be
-displayed alone or together, and scenario variables can be shown as
-facets.
+With \`type = "heatmap"\` (default), the function preserves the original
+raster-plot workflow. Yield loss and economic loss can be displayed
+alone or together, and scenario variables can be shown as facets.
 
 With \`type = "regression"\`, \`plots\` is not used and a single
 regression plot is returned. The response plotted on the y-axis is

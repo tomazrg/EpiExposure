@@ -1,8 +1,7 @@
 # Simulate chronological exposure profiles
 
-Generates one or more complete exposure histories in chronological
-order, from the earliest/oldest observation to the most recent
-observation.
+Generates one or more complete exposure profiles in chronological order,
+from the earliest/oldest observation to the most recent observation.
 
 ## Usage
 
@@ -29,11 +28,11 @@ simulate_exposures(
 - max_lag:
 
   Non-negative integer maximum retrospective lag. Every generated
-  history has exactly \`max_lag + 1\` chronological positions.
+  profile has exactly \`max_lag + 1\` chronological positions.
 
 - n:
 
-  Positive integer number of exposure histories to simulate. Default is
+  Positive integer number of exposure profiles to simulate. Default is
   1.
 
 - mode:
@@ -152,7 +151,7 @@ An object of class \`"epiexposure_simulated_exposures"\` with:
 
   Long data frame containing \`simulation\`, \`position\`, \`time\`,
   \`lag\`, and \`profile\`. This is a tabular view of the same simulated
-  exposure histories, not model-parameter samples.
+  exposure profiles, not model-parameter samples.
 
 - \`meta\`:
 
@@ -173,9 +172,9 @@ lag 0:
 “\` time_0 = earliest/oldest observation = lag max_lag time_max_lag =
 most recent observation = lag 0 “\`
 
-\`simulate_exposures()\` simulates exposure histories only. It does not
+\`simulate_exposures()\` simulates exposure profiles only. It does not
 draw model coefficients and therefore has no \`"summary"\`/\`"samples"\`
-output switch. The number of simulated exposure histories is controlled
+output switch. The number of simulated exposure profiles is controlled
 exclusively by \`n\`.
 
 \## One simulation contract
@@ -189,7 +188,7 @@ x100 \<- simulate_exposures(..., n = 100) length(x100\$profiles) \# 100
 “\`
 
 There is no statistical summarization inside this function. If \`n =
-100\`, all 100 simulated histories are retained.
+100\`, all 100 simulated profiles are retained.
 
 This is deliberately different from \`predict_outcomes()\` and
 \`compare_predictions()\`, where \`"samples"\` refers to uncertainty

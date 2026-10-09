@@ -46,7 +46,7 @@ ensemble_bestfit(
   including \`family\`, \`outcome_type\`, \`rank_metric\`,
   \`threshold\`, the prediction contract, the cross-validation method,
   \`fold_assignments\`, the common fitted \`max_lag\`, the expected
-  history length (\`max_lag + 1\`), and the EpiExposure exact-history
+  profile length (\`max_lag + 1\`), and the EpiExposure exact-profile
   contract.
 
 - predictions:
@@ -85,8 +85,7 @@ ensemble_bestfit(
   internally by \`group\` and \`time\`, and time must satisfy the
   regular-series requirements used elsewhere in EpiExposure. Every group
   must contain exactly the common fitted \`max_lag + 1\` observations.
-  Longer histories are not truncated and shorter histories are not
-  padded.
+  Longer profiles are not truncated and shorter profiles are not padded.
 
 - group:
 
@@ -371,23 +370,23 @@ loop; therefore ensemble performance should be interpreted as OOF
 ensemble performance for model development rather than as an independent
 external-validation estimate.
 
-\## Exact common lag/history contract
+\## Exact common lag/profile contract
 
-\`ensemble_bestfit()\` inherits the exact-history contract established
+\`ensemble_bestfit()\` inherits the exact-profile contract established
 by the current \`find_bestfit()\`: all candidate/fitted exposures use
 one common non-negative integer \`max_lag\`, and every original exposure
-history contains exactly \`max_lag + 1\` equally spaced observations.
+profile contains exactly \`max_lag + 1\` equally spaced observations.
 
 For automatic lag decomposition, the retained fitted models must report
 the same \`max_lag\`, \`history_length\`, and \`history_contract\` as
 \`bestfit\`, and every group supplied in \`data\` must contain exactly
-that history length. Histories are never truncated, padded, or silently
+that profile length. Profiles are never truncated, padded, or silently
 realigned.
 
 If precomputed \`lag_data\` is supplied, the original long-format
-exposure histories are no longer available to this function. In that
+exposure profiles are no longer available to this function. In that
 route, \`ensemble_bestfit()\` validates the lag values against the
-inherited common \`max_lag\` but cannot reconstruct the original history
+inherited common \`max_lag\` but cannot reconstruct the original profile
 row counts.
 
 \## Lag ensembles

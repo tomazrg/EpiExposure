@@ -1,6 +1,6 @@
-# Simulate epidemiological exposure-history scenarios
+# Simulate epidemiological exposure-profile scenarios
 
-Builds complete chronological exposure histories from user-defined
+Builds complete chronological exposure profiles from user-defined
 lag-period scenarios and predicts their population-level expected
 outcomes with \`predict_outcomes()\`.
 
@@ -47,8 +47,8 @@ simulate_scenarios(
   must have the same length; scalar entries are recycled across those
   points.
 
-  If a genuinely lag-varying chronological exposure history is required,
-  supply that history directly to \`predict_outcomes(profiles = ...)\`
+  If a genuinely lag-varying chronological exposure profile is required,
+  supply that profile directly to \`predict_outcomes(profiles = ...)\`
   instead of encoding it as a period vector here.
 
 - data:
@@ -162,7 +162,7 @@ harmonized prediction layer.
 \## Scenario interpretation
 
 Each scenario is converted into one complete chronological exposure
-history for every fitted exposure. Period-specific assignments are
+profile for every fitted exposure. Period-specific assignments are
 written first. Only positions that remain unassigned are filled from
 \`ref_vals\` or, when needed, exposure medians derived from \`data\`.
 
@@ -178,7 +178,7 @@ chronologically:
 so the final profile element corresponds to lag 0.
 
 A scenario prediction therefore describes the expected outcome under the
-\*\*entire assembled exposure history\*\*, not the effect of a single
+\*\*entire assembled exposure profile\*\*, not the effect of a single
 lag in isolation.
 
 \## Population-level expected response

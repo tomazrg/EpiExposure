@@ -103,13 +103,13 @@ again inside this public function.</p>
 <p>For a model containing one exposure, a single profile may be supplied as a
   numeric vector. For one or more exposures, use a named list whose names
   match the fitted exposures exactly. Each exposure element may be:</p>
-<p></p><ul><li><p>one numeric vector, representing one chronological history;</p></li>
-<li><p>a list of numeric vectors, representing multiple histories;</p></li>
+<p></p><ul><li><p>one numeric vector, representing one chronological profile;</p></li>
+<li><p>a list of numeric vectors, representing multiple profiles;</p></li>
 <li><p>a numeric matrix or data frame, with one profile per row.</p></li>
-</ul><p>Histories must be ordered from the oldest observation to the most recent
-  observation. The most recent value corresponds to lag 0. Each history
-  must contain exactly `max_lag+1` observations. Longer histories are not
-  truncated and shorter histories are not padded.
+</ul><p>Profiles must be ordered from the oldest observation to the most recent
+  observation. The most recent value corresponds to lag 0. Each profile
+  must contain exactly `max_lag+1` observations. Longer profiles are not
+  truncated and shorter profiles are not padded.
   When several fitted exposures are supplied, profiles are
   matched by position rather than combined as a Cartesian product. An
   exposure with one profile is recycled across exposures that contain
@@ -118,7 +118,7 @@ again inside this public function.</p>
 
 <dt id="arg-newdata">newdata<a class="anchor" aria-label="anchor" href="#arg-newdata"></a></dt>
 <dd><p>Optional long-format data frame containing new observed
-exposure histories. Supply either `newdata` or `profiles`, but not both.
+exposure profiles. Supply either `newdata` or `profiles`, but not both.
 The response variable is not required and, if present, is not used for
 prediction. All fitted exposure variables must be present. spaMM spatial
 coordinates and grouping factors are not required for fixed-component
@@ -127,8 +127,8 @@ prediction; the same applies to `profiles`.</p></dd>
 
 <dt id="arg-group">group<a class="anchor" aria-label="anchor" href="#arg-group"></a></dt>
 <dd><p>Character scalar naming the column that identifies independent
-exposure histories in `newdata`, or `NULL` to treat all rows as one
-history. This argument is used only to split the longitudinal prediction
+exposure profiles in `newdata`, or `NULL` to treat all rows as one
+profile. This argument is used only to split the longitudinal prediction
 data. It does not request group-specific random-effect or conditional
 spaMM spatial predictions. Coordinates and spatial-group variables are
 not required for population-level prediction.</p></dd>
@@ -193,14 +193,14 @@ is never re-estimated from prediction data.</p></dd>
     <p>A data frame.</p>
 <p>For multiple explicit profiles, a `profile` column identifies matched
   profile combinations. For `newdata` with `group` supplied, the grouping
-  column identifies each predicted history.</p>
+  column identifies each predicted profile.</p>
 <p>With `uncertainty = FALSE`, the result contains `prediction`.</p>
 <p>With `uncertainty = TRUE` and `output = "summary"`, the result contains
   `prediction`, `prediction_sd`, `prediction_lower`, and
   `prediction_upper`.</p>
 <p>With `uncertainty = TRUE` and `output = "samples"`, the result contains
   `sample` and `prediction`, with one row for each parameter draw and
-  prediction history.</p>
+  profile.</p>
     </div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
@@ -250,7 +250,7 @@ re-estimated from the new observations. Each prediction group is sorted by
 cross-basis row.</p>
 <p>This is the same train-to-test principle used for out-of-fold prediction in
 `find_bestfit()`: the fitted/training basis defines the transformation and
-the new or held-out exposure history is only projected through that stored
+the new or held-out exposure profile is only projected through that stored
 basis. spaMM models with Matérn terms do not require coordinates, spatial
 groups, or levels of conventional random effects in prediction `newdata` or
 `profiles`: these variables do not enter the fixed-component prediction.

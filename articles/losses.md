@@ -11,7 +11,7 @@ economic losses.
 
 `EpiExposure` connects three modeling stages:
 
-1.  environmental exposure histories;
+1.  environmental exposure profiles;
 2.  expected disease outcomes from the fitted DLNM;
 3.  user-defined disease-yield and economic relationships.
 
@@ -524,7 +524,7 @@ exposure-lag-response modeling with agronomic and economic outcomes.
 The workflow is:
 
 ``` text
-complete exposure histories
+complete exposure profiles
             ↓
 fitted DLNM
             ↓
@@ -540,7 +540,7 @@ economic loss
 ```
 
 The DLNM describes the modeled association between environmental
-histories and disease. The damage function translates predicted disease
+profiles and disease. The damage function translates predicted disease
 into expected yield, and commodity price translates yield loss into
 economic units.
 

@@ -93,15 +93,15 @@ exposure-lag association using `dlnm::crossreduce()`.</p>
 <dd><p>Non-empty long-format exposure data containing `group`, `time`,
   and **every exposure variable fitted in `fit`**.</p>
 <p>`data` is used only to:</p>
-<p>- validate the exact EpiExposure temporal-history contract;
+<p>- validate the exact EpiExposure temporal-profile contract;
   - calculate a method-based reference value when requested;
   - validate exposure support for `value`, `at`, and the reference.</p>
 <p>It is **not** used to reconstruct or re-estimate the fitted cross-basis.</p>
 <p>Every group must contain exactly</p>
 <p>$$
-    history\_length = max\_lag + 1
+    profile\_length = max\_lag + 1
   $$</p>
-<p>rows, with finite complete exposure histories, unique chronological times,
+<p>rows, with finite complete exposure profiles, unique chronological times,
   regular spacing within groups, and the same spacing across groups.</p></dd>
 
 
@@ -140,7 +140,7 @@ numeric exposure value at which the lag-response association is reduced.</p></dd
 <p>This argument is retained for backward compatibility with the original
   EpiExposure API:</p>
 <p>- `"link"` returns the centered DLNM association contrast `eta` unchanged;
-  - `"response"` is a historical label for the directly transformed
+  - `"response"` is a legacy label for the directly transformed
     **association measure**, not an absolute expected response. For a log
     link it returns `exp(eta)`, a response ratio; for a logit link it returns
     `exp(eta)`, an odds ratio; for an identity link it returns the additive
@@ -270,19 +270,19 @@ metadata created by `define_exposures()`, `build_design()`, and
 <p>`data` is never pooled to create another `crossbasis`. This prevents
 prediction/reduction data from redefining data-dependent spline knots,
 boundary knots, ranges, or column order.</p>
-<p>## Exact common-history contract</p>
+<p>## Exact common-profile contract</p>
 <p>Current EpiExposure fits satisfy:</p>
 <p>$$
-  history\_length = max\_lag + 1
+  profile\_length = max\_lag + 1
 $$</p>
 <p>and every fitted exposure uses the same `max_lag`.</p>
 <p>`reduce_effects()` validates this metadata and requires every supplied group
-to contain exactly that many rows. Longer histories are not truncated and
-shorter histories are not padded. Every fitted exposure must be present in
+to contain exactly that many rows. Longer profiles are not truncated and
+shorter profiles are not padded. Every fitted exposure must be present in
 `data` on the same rows, so the function cannot silently compare or derive
-references from histories with different temporal support.</p>
+references from profiles with different temporal support.</p>
 <p>For `max_lag = 0`, `history_length = 1`; no temporal step can be inferred
-from a one-row history and the stored time step is expected to be `NA`.</p>
+from a one-row profile and the stored time step is expected to be `NA`.</p>
 <p>## Centering and reference</p>
 <p>`dlnm::crossreduce()` has its own default centering rules when `cen` is not
 supplied. EpiExposure deliberately does not use those implicit defaults.

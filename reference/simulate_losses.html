@@ -128,7 +128,7 @@ supplied, `upper` must also be supplied.</p></dd>
 
 <dt id="arg-parameter-mode">parameter_mode<a class="anchor" aria-label="anchor" href="#arg-parameter-mode"></a></dt>
 <dd><p>Character controlling interpretation of `slope` and
-  `intercept`. One of `"uniform"` (default, preserving the historical
+  `intercept`. One of `"uniform"` (default, preserving the original
   interface), `"values"`, or `"draws"`.</p>
 <p>`"values"` evaluates exact supplied parameter values. For example,
   `slope = c(49.3, 80)` evaluates both slopes exactly rather than sampling
@@ -353,7 +353,7 @@ $$</p>
 <p>The division by 1000 is therefore part of the function's unit contract, not
 a tunable modeling parameter.</p>
 <p>## Parameter simulations</p>
-<p>`parameter_mode` removes the historical ambiguity of two-value parameter
+<p>`parameter_mode` removes the original ambiguity of two-value parameter
 vectors.</p>
 <p>With `"values"`, supplied parameter values are exact. All slope-intercept
 combinations are evaluated, so `slope = c(49.3, 80)` represents two exact

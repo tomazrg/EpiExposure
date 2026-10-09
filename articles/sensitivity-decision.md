@@ -146,7 +146,7 @@ environmental variable across a sequence of values while the remaining
 variables are held constant.
 
 The broader use of simulation tools for constructing complete exposure
-histories, structured events, and multivariable scenarios is covered in
+profiles, structured events, and multivariable scenarios is covered in
 the *Simulation and Prediction* section.
 
 First, define epidemiological lag periods:
@@ -991,7 +991,7 @@ assessment, and decision criteria appropriate to the pathosystem.
 ## Next steps
 
 The next section, *Simulation and Prediction*, expands from controlled
-one-variable gradients to complete hypothetical exposure histories and
+one-variable gradients to complete hypothetical exposure profiles and
 multivariable scenarios.
 
 It introduces:
@@ -1003,12 +1003,12 @@ It introduces:
 - [`simulate_scenarios()`](https://tomazrg.github.io/EpiExposure/reference/simulate_scenarios.md)
   for predicting across scenario grids;
 - [`predict_outcomes()`](https://tomazrg.github.io/EpiExposure/reference/predict_outcomes.md)
-  for complete exposure histories;
+  for complete exposure profiles;
 - [`compare_exposures()`](https://tomazrg.github.io/EpiExposure/reference/compare_exposures.md)
   for comparing environmental profiles;
 - [`compare_predictions()`](https://tomazrg.github.io/EpiExposure/reference/compare_predictions.md)
   for comparing their expected disease outcomes.
 
 These tools allow researchers to investigate exposure timing, construct
-alternative environmental histories, propagate parameter uncertainty,
-and compare model-based disease predictions.
+alternative environmental profiles, propagate parameter uncertainty, and
+compare model-based disease predictions.

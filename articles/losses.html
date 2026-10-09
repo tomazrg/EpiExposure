@@ -103,7 +103,7 @@ predicted disease response may translate into reduced crop yield and
 economic losses.</p>
 <p><code>EpiExposure</code> connects three modeling stages:</p>
 <ol style="list-style-type: decimal">
-<li>environmental exposure histories;</li>
+<li>environmental exposure profiles;</li>
 <li>expected disease outcomes from the fitted DLNM;</li>
 <li>user-defined disease-yield and economic relationships.</li>
 </ol>
@@ -1169,7 +1169,7 @@ estimates.</li>
 <p>This section demonstrated how <code>EpiExposure</code> connects
 exposure-lag-response modeling with agronomic and economic outcomes.</p>
 <p>The workflow is:</p>
-<pre class="text"><code>complete exposure histories
+<pre class="text"><code>complete exposure profiles
             ↓
 fitted DLNM
             ↓
@@ -1183,7 +1183,7 @@ yield loss
             ↓
 economic loss</code></pre>
 <p>The DLNM describes the modeled association between environmental
-histories and disease. The damage function translates predicted disease
+profiles and disease. The damage function translates predicted disease
 into expected yield, and commodity price translates yield loss into
 economic units.</p>
 <p>Each stage introduces assumptions that should be documented and

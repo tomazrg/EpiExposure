@@ -199,7 +199,7 @@ plot_effects(
 - period_exclude_samples:
 
   Samples removed from period draw-level plots. Default \`10\` preserves
-  the historical display; use \`NULL\` to retain all samples.
+  the original display; use \`NULL\` to retain all samples.
 
 - period_palette:
 

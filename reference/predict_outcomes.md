@@ -42,16 +42,16 @@ predict_outcomes(
   names match the fitted exposures exactly. Each exposure element may
   be:
 
-  - one numeric vector, representing one chronological history;
+  - one numeric vector, representing one chronological profile;
 
-  - a list of numeric vectors, representing multiple histories;
+  - a list of numeric vectors, representing multiple profiles;
 
   - a numeric matrix or data frame, with one profile per row.
 
-  Histories must be ordered from the oldest observation to the most
+  Profiles must be ordered from the oldest observation to the most
   recent observation. The most recent value corresponds to lag 0. Each
-  history must contain exactly \`max_lag+1\` observations. Longer
-  histories are not truncated and shorter histories are not padded. When
+  profile must contain exactly \`max_lag+1\` observations. Longer
+  profiles are not truncated and shorter profiles are not padded. When
   several fitted exposures are supplied, profiles are matched by
   position rather than combined as a Cartesian product. An exposure with
   one profile is recycled across exposures that contain multiple
@@ -60,8 +60,8 @@ predict_outcomes(
 - newdata:
 
   Optional long-format data frame containing new observed exposure
-  histories. Supply either \`newdata\` or \`profiles\`, but not both.
-  The response variable is not required and, if present, is not used for
+  profiles. Supply either \`newdata\` or \`profiles\`, but not both. The
+  response variable is not required and, if present, is not used for
   prediction. All fitted exposure variables must be present. spaMM
   spatial coordinates and grouping factors are not required for
   fixed-component prediction; the same applies to \`profiles\`.
@@ -69,8 +69,8 @@ predict_outcomes(
 - group:
 
   Character scalar naming the column that identifies independent
-  exposure histories in \`newdata\`, or \`NULL\` to treat all rows as
-  one history. This argument is used only to split the longitudinal
+  exposure profiles in \`newdata\`, or \`NULL\` to treat all rows as one
+  profile. This argument is used only to split the longitudinal
   prediction data. It does not request group-specific random-effect or
   conditional spaMM spatial predictions. Coordinates and spatial-group
   variables are not required for population-level prediction.
@@ -135,7 +135,7 @@ A data frame.
 
 For multiple explicit profiles, a \`profile\` column identifies matched
 profile combinations. For \`newdata\` with \`group\` supplied, the
-grouping column identifies each predicted history.
+grouping column identifies each predicted profile.
 
 With \`uncertainty = FALSE\`, the result contains \`prediction\`.
 
@@ -145,7 +145,7 @@ contains \`prediction\`, \`prediction_sd\`, \`prediction_lower\`, and
 
 With \`uncertainty = TRUE\` and \`output = "samples"\`, the result
 contains \`sample\` and \`prediction\`, with one row for each parameter
-draw and prediction history.
+draw and profile.
 
 ## Details
 
@@ -215,7 +215,7 @@ basis, and represented by the final cross-basis row.
 
 This is the same train-to-test principle used for out-of-fold prediction
 in \`find_bestfit()\`: the fitted/training basis defines the
-transformation and the new or held-out exposure history is only
+transformation and the new or held-out exposure profile is only
 projected through that stored basis. spaMM models with Matérn terms do
 not require coordinates, spatial groups, or levels of conventional
 random effects in prediction \`newdata\` or \`profiles\`: these

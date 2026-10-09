@@ -1,7 +1,7 @@
 # Compute lag-specific decomposition of Exposure Cumulative Impact (ECI)
 
 Decomposes the model-weighted Exposure Cumulative Impact (ECI) of one or
-more exposure histories into exact lag-specific contributions on the
+more exposure profiles into exact lag-specific contributions on the
 linear-predictor scale.
 
 ## Usage
@@ -30,7 +30,7 @@ compute_ecilag(
 
 - profile:
 
-  Optional exposure-history input. Supply exactly one of \`profile\` or
+  Optional exposure-profile input. Supply exactly one of \`profile\` or
   \`data\`.
 
   For a single focal exposure, \`profile\` may be one finite numeric
@@ -38,17 +38,17 @@ compute_ecilag(
   numeric vector per variable. A named list is recommended; if unnamed,
   its order must match \`vars\`.
 
-  Exposure histories must be chronological from the oldest observation
-  to the most recent observation. Under the EpiExposure exact-history
+  Exposure profiles must be chronological from the oldest observation to
+  the most recent observation. Under the EpiExposure exact-profile
   contract, every supplied profile must contain exactly \`max_lag + 1\`
   observations. The first value corresponds to lag \`max_lag\` and the
-  final value to lag 0. Histories are never truncated, padded, or
+  final value to lag 0. Profiles are never truncated, padded, or
   silently realigned.
 
 - data:
 
   Optional non-empty long-format data frame containing observed exposure
-  histories. Supply exactly one of \`profile\` or \`data\`.
+  profiles. Supply exactly one of \`profile\` or \`data\`.
 
   \`data\` must contain \`group\`, \`time\`, and every exposure
   requested in \`vars\`. Each evaluated group must contain exactly
@@ -61,7 +61,7 @@ compute_ecilag(
 
 - group:
 
-  Character scalar naming the independent-history grouping column in
+  Character scalar naming the independent-profile grouping column in
   \`data\`. Required when \`data\` is supplied.
 
 - time:
@@ -79,7 +79,7 @@ compute_ecilag(
   Fitted EpiExposure model returned by the current \`fit_epidlnm()\`
   implementation. The fitted model must satisfy the current
   population-level expected-response, central-parameter, uncertainty,
-  and exact-history metadata contracts.
+  and exact-profile metadata contracts.
 
 - vars:
 
@@ -181,7 +181,7 @@ For a single exposure profile, the principal components are:
 
 - \`ECI_raw\`:
 
-  Descriptive sum of the focal exposure history.
+  Descriptive sum of the focal exposure profile.
 
 - \`ECI_raw_centered\`:
 
@@ -202,7 +202,7 @@ For a single exposure profile, the principal components are:
 
 - \`n_exposure_values\`:
 
-  Number of observations in the history; always \`max_lag + 1\`.
+  Number of observations in the profile; always \`max_lag + 1\`.
 
 - \`by_lag\`:
 
@@ -218,18 +218,18 @@ With \`output = "samples"\`, \`by_lag_samples\` and
 \`ECI_weighted_samples\` contain the corresponding draw-level
 quantities.
 
-When \`data\` or multiple focal exposure histories are evaluated,
+When \`data\` or multiple focal exposure profiles are evaluated,
 cumulative results are returned in \`eci_summary\` and lag-specific
 results in \`by_lag\`, with the grouping column included when
 applicable.
 
 The result also stores attributes describing the exact ECI-lag
-decomposition, common fitted maximum lag, history length, reference
+decomposition, common fitted maximum lag, profile length, reference
 values, and uncertainty setting.
 
 ## Details
 
-Each evaluated exposure history is compared with an explicit joint
+Each evaluated exposure profile is compared with an explicit joint
 reference profile. The focal exposure is allowed to vary through time
 while every other fitted exposure remains fixed at its reference value.
 Lag-specific contributions are obtained by changing one chronological
@@ -287,8 +287,8 @@ contrast to exact lag positions; it does not estimate
 
 \## Chronological and lag indexing
 
-Input histories are chronological. For fitted maximum lag \\L\\, a
-history of length \\L+1\\ is interpreted as
+Input profiles are chronological. For fitted maximum lag \\L\\, a
+profile of length \\L+1\\ is interpreted as
 
 \$\$ (x_L, x\_{L-1}, \ldots, x_1, x_0), \$\$
 

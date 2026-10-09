@@ -26,7 +26,7 @@ compare_periods(
   produced with diagnostics is supplied, its \`\$effects\` component is
   used. The object must carry the current EpiExposure temporal metadata:
   one common fitted \`max_lag\`, exact \`history_length = max_lag + 1\`,
-  and the exact-history contract.
+  and the exact-profile contract.
 
   Current EpiExposure period output must contain \`var\`, \`value\`,
   \`period\`, \`scale\`, \`eta\`, \`effect\`, \`baseline\`,
@@ -150,8 +150,8 @@ and \`\_upper\` columns.
 
 Output attributes record the reference period, fitted link, effect
 measure, prediction contract, uncertainty contract, ratio
-interpretation, common fitted \`max_lag\`, exact history length, and the
-inherited EpiExposure exact-history contract.
+interpretation, common fitted \`max_lag\`, exact profile length, and the
+inherited EpiExposure exact-profile contract.
 
 ## Details
 
@@ -167,14 +167,14 @@ joint exposure reference profile.
 Period comparisons are always made at the same exposure variable and the
 same exposure evaluation value.
 
-\## Exact common lag/history contract
+\## Exact common lag/profile contract
 
 \`compare_periods()\` does not receive the original long-format exposure
 histories, so it cannot recount time rows itself. Instead, it requires
 the temporal metadata propagated by the current \`summarise_effects()\`
 output:
 
-\$\$ history\\length = max\\lag + 1. \$\$
+\$\$ profile\\length = max\\lag + 1. \$\$
 
 The stored contract must state that all fitted exposure variables used
 the same exact lag window. This prevents period comparisons from

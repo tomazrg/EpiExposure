@@ -21,7 +21,7 @@
 - [Simulation and
   Prediction](https://tomazrg.github.io/EpiExposure/articles/simulation-prediction.md):
 
-  Simulating exposure histories and predicting disease outcomes
+  Simulating exposure profiles and predicting disease outcomes
 
 - [Yield and Economic
   Losses](https://tomazrg.github.io/EpiExposure/articles/losses.md):
