@@ -21,7 +21,7 @@ Authors@R: c(person(
 Description: Tools for modeling and interpreting environmental
     exposure-lag-response relationships in plant disease epidemiology using
     distributed lag non-linear models (DLNMs). Provides functions for defining
-    complete exposure histories, evaluating model identifiability, summarizing
+    complete exposure profiles, evaluating model identifiability, summarizing
     lag-specific and period-specific effects, performing sensitivity analyses,
     simulating environmental exposure scenarios, predicting plant disease
     outcomes, quantifying yield and economic losses, and evaluating individual

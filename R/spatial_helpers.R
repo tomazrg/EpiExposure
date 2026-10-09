@@ -1,7 +1,7 @@
 # EpiExposure - internal spaMM spatial specification helpers (not exported)
 
 # Spatial effects are distinct from the conventional random intercept. These
-# helpers construct only the spatial term and never modify epidemic histories.
+# helpers construct only the spatial term and never modify epidemic profiles.
 
 .epix_spatial_quote_name <- function(name) {
   if (!is.character(name) || length(name) != 1L || is.na(name) ||

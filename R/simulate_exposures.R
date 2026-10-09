@@ -1,6 +1,6 @@
 #' Simulate chronological exposure profiles
 #'
-#' Generates one or more complete exposure histories in chronological order,
+#' Generates one or more complete exposure profiles in chronological order,
 #' from the earliest/oldest observation to the most recent observation.
 #'
 #' The first profile value corresponds internally to the maximum retrospective
@@ -11,14 +11,14 @@
 #' time_max_lag   = most recent observation     = lag 0
 #' ```
 #'
-#' `simulate_exposures()` simulates exposure histories only. It does not draw
+#' `simulate_exposures()` simulates exposure profiles only. It does not draw
 #' model coefficients and therefore has no `"summary"`/`"samples"` output
-#' switch. The number of simulated exposure histories is controlled exclusively
+#' switch. The number of simulated exposure profiles is controlled exclusively
 #' by `n`.
 #'
 #' @param max_lag Non-negative integer maximum retrospective lag. Every
-#'   generated history has exactly `max_lag + 1` chronological positions.
-#' @param n Positive integer number of exposure histories to simulate. Default
+#'   generated profile has exactly `max_lag + 1` chronological positions.
+#' @param n Positive integer number of exposure profiles to simulate. Default
 #'   is 1.
 #' @param mode Character. `"profile"` generates the background process only;
 #'   `"pattern"` generates the background and then applies one explicit
@@ -83,7 +83,7 @@
 #'       otherwise `NULL`.}
 #'     \item{`simulation_data`}{Long data frame containing `simulation`,
 #'       `position`, `time`, `lag`, and `profile`. This is a tabular view of the
-#'       same simulated exposure histories, not model-parameter samples.}
+#'       same simulated exposure profiles, not model-parameter samples.}
 #'     \item{`meta`}{Common simulation metadata, including `max_lag`,
 #'       chronological order, `n`, background specification, and RNG contract.}
 #'     \item{`simulation_meta`}{List with simulation-specific pattern metadata,
@@ -108,7 +108,7 @@
 #' ```
 #'
 #' There is no statistical summarization inside this function. If `n = 100`,
-#' all 100 simulated histories are retained.
+#' all 100 simulated profiles are retained.
 #'
 #' This is deliberately different from `predict_outcomes()` and
 #' `compare_predictions()`, where `"samples"` refers to uncertainty draws of

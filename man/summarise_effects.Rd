@@ -30,10 +30,10 @@ summarise_effects(
 \item{data}{Long-format exposure data containing `epi_id`, `time`, and every
 exposure variable used in the fitted model. `data` is used to define
 default exposure grids and reference values and to validate temporal
-coverage. Under the EpiExposure exact-history contract, every `epi_id`
+coverage. Under the EpiExposure exact-profile contract, every `epi_id`
 must contain exactly the common fitted `max_lag + 1` time points, and all
-fitted exposures therefore share the same temporal-history length. Longer
-histories are not truncated and shorter histories are not padded. `data`
+fitted exposures therefore share the same temporal-profile length. Longer
+profiles are not truncated and shorter profiles are not padded. `data`
 is **not** used to re-estimate spline knots, boundary knots, lag bases, or
 any other fitted cross-basis component.}
 
@@ -185,9 +185,9 @@ it to a joint reference exposure profile, allowing the same association to
 be reported as `baseline`, `predicted`, and `delta` on the response scale.
 }
 \details{
-Exposure histories are supplied chronologically: the oldest exposure is
+Exposure profiles are supplied chronologically: the oldest exposure is
 first and the most recent exposure is last. Internally, EpiExposure converts
-these histories to the retrospective lag scale used by DLNMs, where lag 0
+these profiles to the retrospective lag scale used by DLNMs, where lag 0
 represents the most recent exposure observation and increasing lag values
 represent progressively older exposure observations. All lag-specific and
 period-specific summaries reported by `summarise_effects()` are therefore
@@ -206,7 +206,7 @@ EpiExposure additionally defines a joint response-scale reference prediction
 
 \deqn{B = g^{-1}(X_{ref}\beta),}
 
-where every fitted exposure history is held at its selected reference value.
+where every fitted exposure profile is held at its selected reference value.
 A lag- or period-specific DLNM contrast \eqn{\Delta\eta_{x,l}} is then
 translated to the response scale as
 
@@ -253,19 +253,19 @@ a future individual observation.
 For uncertainty summaries, all response-scale transformations are performed
 draw by draw before medians, SDs, and empirical quantiles are calculated.
 
-## Exact common lag/history contract
+## Exact common lag/profile contract
 
 `summarise_effects()` requires the fitted model to use one common
 `max_lag` across all fitted exposure variables. If that common maximum lag
-is `L`, every epidemic history supplied in `data` must contain exactly
+is `L`, every epidemic profile supplied in `data` must contain exactly
 
 \deqn{
   L + 1
 }
 
-equally spaced observations. Histories with fewer or more observations are
+equally spaced observations. Profiles with fewer or more observations are
 rejected explicitly. Because all exposure variables are columns of the same
-validated long-format history and missing/non-finite exposure values are not
+validated long-format profile and missing/non-finite exposure values are not
 permitted, all fitted exposures necessarily use the same time support.
 
 ## Period effects
@@ -276,7 +276,7 @@ observation and increasing lag values correspond to progressively older
 exposure observations. For example, if `max_lag = 85`, a period defined as
 `0--14` represents the 15 most recent exposure observations, whereas a
 period defined as `71--85` represents the oldest portion of the fitted
-exposure history.
+exposure profile.
 
 DLNM contributions are additive on the linear-predictor scale. Period
 summaries therefore sum lag-specific `eta` contrasts first and only then

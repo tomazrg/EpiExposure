@@ -33,7 +33,7 @@ compute_eci(
 
   Profiles must be chronological from oldest to most recent. When `fit` is
   supplied, every focal exposure profile must contain **exactly**
-  `max_lag + 1` observations for that fitted exposure. Histories that are
+  `max_lag + 1` observations for that fitted exposure. Profiles that are
   shorter or longer are rejected; `compute_eci()` never selects a temporal
   window silently from a longer profile.
 
@@ -42,7 +42,7 @@ compute_eci(
   its descriptive cumulative sum.}
 
 \item{data}{Optional non-empty long-format data frame containing observed
-  chronological exposure histories. Supply exactly one of `profile` or
+  chronological exposure profiles. Supply exactly one of `profile` or
   `data`.
 
   `data` must contain the grouping column named by `group`, the time column
@@ -53,7 +53,7 @@ compute_eci(
   contain every exposure in the fitted model because those variables are
   needed to construct the joint reference profile.}
 
-\item{group}{Character scalar naming the independent-history grouping column
+\item{group}{Character scalar naming the independent-profile grouping column
 in `data`. Required when `data` is supplied.}
 
 \item{time}{Character scalar naming the chronological numeric time column in
@@ -206,7 +206,7 @@ fitted EpiExposure model is supplied, a model-weighted cumulative exposure
 impact (`ECI_weighted`) for one or more exposure variables.
 }
 \details{
-Exposure histories are interpreted chronologically, from the oldest
+Exposure profiles are interpreted chronologically, from the oldest
 observation to the most recent observation. The most recent value is
 associated internally with lag 0.
 
@@ -218,7 +218,7 @@ is not, by itself, an interpretable exposure effect.
 
 ## Raw ECI
 
-For the discrete exposure history used by the fitted lag window,
+For the discrete exposure profile used by the fitted lag window,
 
 \deqn{
   ECI_{raw} = \sum_{j=0}^{L} x_j.
@@ -239,11 +239,11 @@ The centered descriptive counterpart is
 Neither raw quantity incorporates the fitted exposure-response or lag-response
 shape.
 
-## Exact exposure-history length
+## Exact exposure-profile length
 
 When a fitted model is supplied, `compute_eci()` uses the EpiExposure exact
-temporal-history contract. For a fitted maximum lag `L`, every evaluated
-focal exposure history must contain exactly
+temporal-profile contract. For a fitted maximum lag `L`, every evaluated
+focal exposure profile must contain exactly
 
 \deqn{
   L + 1
@@ -251,7 +251,7 @@ focal exposure history must contain exactly
 
 chronological observations: the first value represents lag `L` and the last
 value represents lag 0. All fitted exposures share the same `max_lag`.
-Longer histories are not truncated with `tail()` and shorter histories are
+Longer profiles are not truncated with `tail()` and shorter profiles are
 not padded. This prevents ambiguity about which exposure window generated the
 cumulative impact and keeps ECI calculations comparable across profiles,
 groups, and downstream lag decompositions.
@@ -334,7 +334,7 @@ is
   B = g^{-1}(X_{ref}\beta).
 }
 
-Let \eqn{X_{target}} replace only the focal exposure history by the evaluated
+Let \eqn{X_{target}} replace only the focal exposure profile by the evaluated
 profile. Then
 
 \deqn{

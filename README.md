@@ -1,6 +1,6 @@
 # EpiExposure
 
-`EpiExposure` is an R package for modeling and interpreting epidemiological exposure–lag–response relationships, simulating exposure histories, and predicting plant disease outcomes from environmental drivers.
+`EpiExposure` is an R package for modeling and interpreting epidemiological exposure–lag–response relationships, simulating exposure profiles, and predicting plant disease outcomes from environmental drivers.
 
 ---
 
@@ -20,7 +20,7 @@ Construct and fit DLNM-based models using multiple statistical frameworks and re
 
 ### Interpret
 
-Summarise exposure–lag relationships across lags, epidemiological periods, and complete exposure histories.
+Summarise exposure–lag relationships across lags, epidemiological periods, and complete exposure profiles.
 
 </div>
 
@@ -28,7 +28,7 @@ Summarise exposure–lag relationships across lags, epidemiological periods, and
 
 ### Predict & Simulate
 
-Evaluate observed or hypothetical exposure histories, compare scenarios, and predict expected disease outcomes.
+Evaluate observed or hypothetical exposure profiles, compare scenarios, and predict expected disease outcomes.
 
 </div>
 
@@ -38,7 +38,7 @@ Evaluate observed or hypothetical exposure histories, compare scenarios, and pre
 
 ## Why EpiExposure?
 
-> In plant disease epidemiology, environmental effects are often non-linear, cumulative, and time-dependent. Traditional approaches commonly summarize weather conditions within predefined temporal windows, which may obscure delayed or continuously varying associations. `EpiExposure` provides a unified DLNM-based workflow for preserving exposure histories, modeling lagged associations, and translating fitted models into epidemiologically interpretable summaries, simulations, and predictions.
+> In plant disease epidemiology, environmental effects are often non-linear, cumulative, and time-dependent. Traditional approaches commonly summarize environmental conditions within predefined temporal windows, which may obscure delayed or continuously varying associations. `EpiExposure` provides a unified DLNM-based workflow for preserving exposure profiles, modeling lagged associations, and translating fitted models into epidemiologically interpretable summaries, simulations, and predictions.
 
 ---
 
@@ -49,10 +49,10 @@ Evaluate observed or hypothetical exposure histories, compare scenarios, and pre
 - Model non-linear exposure–lag–response relationships
 - Quantify lag- and period-specific environmental associations
 - Define biologically meaningful epidemiological periods
-- Summarise complete exposure histories using the Exposure Cumulative Impact (ECI)
+- Summarise complete exposure profiles using the Exposure Cumulative Impact (ECI)
 - Decompose cumulative exposure impacts into exact lag-specific contributions
 - Simulate and compare hypothetical exposure–lag scenarios
-- Predict expected disease outcomes from complete exposure histories
+- Predict expected disease outcomes from complete exposure profiles
 - Compare and ensemble alternative DLNM specifications using cross-validation
 
 ---
@@ -63,7 +63,7 @@ Evaluate observed or hypothetical exposure histories, compare scenarios, and pre
 2. Build the DLNM design with `build_design()`.
 3. Fit the epidemiological model with `fit_epidlnm()`.
 4. Interpret exposure–lag relationships using `summarise_effects()`.
-5. Explore hypothetical exposure histories with `simulate_exposures()`.
+5. Explore hypothetical exposure profiles with `simulate_exposures()`.
 6. Predict expected outcomes using `predict_outcomes()`.
 7. Evaluate alternative model structures with `find_bestfit()` and `ensemble_bestfit()`.
 

@@ -1,10 +1,10 @@
 #' Compute lag-specific decomposition of Exposure Cumulative Impact (ECI)
 #'
 #' Decomposes the model-weighted Exposure Cumulative Impact (ECI) of one or
-#' more exposure histories into exact lag-specific contributions on the
+#' more exposure profiles into exact lag-specific contributions on the
 #' linear-predictor scale.
 #'
-#' Each evaluated exposure history is compared with an explicit joint reference
+#' Each evaluated exposure profile is compared with an explicit joint reference
 #' profile. The focal exposure is allowed to vary through time while every other
 #' fitted exposure remains fixed at its reference value. Lag-specific
 #' contributions are obtained by changing one chronological exposure position
@@ -18,7 +18,7 @@
 #' DLNM contrast. It does not calculate numerical derivatives, marginal effects,
 #' or local sensitivity measures.
 #'
-#' @param profile Optional exposure-history input. Supply exactly one of
+#' @param profile Optional exposure-profile input. Supply exactly one of
 #'   `profile` or `data`.
 #'
 #'   For a single focal exposure, `profile` may be one finite numeric vector.
@@ -26,14 +26,14 @@
 #'   per variable. A named list is recommended; if unnamed, its order must match
 #'   `vars`.
 #'
-#'   Exposure histories must be chronological from the oldest observation to the
-#'   most recent observation. Under the EpiExposure exact-history contract, every
+#'   Exposure profiles must be chronological from the oldest observation to the
+#'   most recent observation. Under the EpiExposure exact-profile contract, every
 #'   supplied profile must contain exactly `max_lag + 1` observations. The first
-#'   value corresponds to lag `max_lag` and the final value to lag 0. Histories
+#'   value corresponds to lag `max_lag` and the final value to lag 0. Profiles
 #'   are never truncated, padded, or silently realigned.
 #'
 #' @param data Optional non-empty long-format data frame containing observed
-#'   exposure histories. Supply exactly one of `profile` or `data`.
+#'   exposure profiles. Supply exactly one of `profile` or `data`.
 #'
 #'   `data` must contain `group`, `time`, and every exposure requested in `vars`.
 #'   Each evaluated group must contain exactly `max_lag + 1` observations, with
@@ -44,7 +44,7 @@
 #'   every exposure included in the fitted model because the complete joint
 #'   reference profile is constructed from those variables.
 #'
-#' @param group Character scalar naming the independent-history grouping column
+#' @param group Character scalar naming the independent-profile grouping column
 #'   in `data`. Required when `data` is supplied.
 #'
 #' @param time Character scalar naming the chronological numeric time column in
@@ -56,7 +56,7 @@
 #' @param fit Fitted EpiExposure model returned by the current
 #'   `fit_epidlnm()` implementation. The fitted model must satisfy the current
 #'   population-level expected-response, central-parameter, uncertainty, and
-#'   exact-history metadata contracts.
+#'   exact-profile metadata contracts.
 #'
 #' @param vars Optional character vector naming fitted exposure variables to
 #'   decompose.
@@ -142,14 +142,14 @@
 #'   For a single exposure profile, the principal components are:
 #'
 #'   \describe{
-#'     \item{`ECI_raw`}{Descriptive sum of the focal exposure history.}
+#'     \item{`ECI_raw`}{Descriptive sum of the focal exposure profile.}
 #'     \item{`ECI_raw_centered`}{Descriptive sum of exposure deviations from the
 #'       focal reference value.}
 #'     \item{`ECI_weighted`}{Centered cumulative exposure contribution on the
 #'       linear-predictor scale.}
 #'     \item{`reference_value`}{Reference value for the focal exposure.}
 #'     \item{`max_lag`}{Common fitted maximum lag.}
-#'     \item{`n_exposure_values`}{Number of observations in the history; always
+#'     \item{`n_exposure_values`}{Number of observations in the profile; always
 #'       `max_lag + 1`.}
 #'     \item{`by_lag`}{Data frame containing the exact contribution assigned to
 #'       each lag.}
@@ -164,12 +164,12 @@
 #'   With `output = "samples"`, `by_lag_samples` and
 #'   `ECI_weighted_samples` contain the corresponding draw-level quantities.
 #'
-#'   When `data` or multiple focal exposure histories are evaluated, cumulative
+#'   When `data` or multiple focal exposure profiles are evaluated, cumulative
 #'   results are returned in `eci_summary` and lag-specific results in
 #'   `by_lag`, with the grouping column included when applicable.
 #'
 #'   The result also stores attributes describing the exact ECI-lag
-#'   decomposition, common fitted maximum lag, history length, reference values,
+#'   decomposition, common fitted maximum lag, profile length, reference values,
 #'   and uncertainty setting.
 #'
 #' @details
@@ -231,7 +231,7 @@
 #'
 #' ## Chronological and lag indexing
 #'
-#' Input histories are chronological. For fitted maximum lag \eqn{L}, a history
+#' Input profiles are chronological. For fitted maximum lag \eqn{L}, a profile
 #' of length \eqn{L+1} is interpreted as
 #'
 #' \deqn{

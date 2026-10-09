@@ -42,7 +42,7 @@
 #'   `"draws"` mode, non-scalar slope and intercept vectors must have the same
 #'   length and are paired by position; scalar parameters are recycled.
 #' @param parameter_mode Character controlling interpretation of `slope` and
-#'   `intercept`. One of `"uniform"` (default, preserving the historical
+#'   `intercept`. One of `"uniform"` (default, preserving the original
 #'   interface), `"values"`, or `"draws"`.
 #'
 #'   `"values"` evaluates exact supplied parameter values. For example,
@@ -247,7 +247,7 @@
 #'
 #' ## Parameter simulations
 #'
-#' `parameter_mode` removes the historical ambiguity of two-value parameter
+#' `parameter_mode` removes the original ambiguity of two-value parameter
 #' vectors.
 #'
 #' With `"values"`, supplied parameter values are exact. All slope-intercept

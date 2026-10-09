@@ -24,8 +24,8 @@
 #    explicitly from the stored crossbasis column names; it is never aligned
 #    merely by position.
 # 8. All fitted exposures must share one common non-negative integer `max_lag`.
-#    Every prediction history must contain exactly `max_lag + 1` observations
-#    for every fitted exposure. Histories are never truncated, padded, or
+#    Every prediction profile must contain exactly `max_lag + 1` observations
+#    for every fitted exposure. Profiles are never truncated, padded, or
 #    silently aligned across different lag windows.
 #
 # Expected use after this file is added to R/:
@@ -312,7 +312,7 @@
   if (length(unique(fitted_max_lags)) != 1L) {
     .epix_stop(
       "All fitted exposure variables must use the same `max_lag` under the ",
-      "EpiExposure exact-history contract. Stored values are: ",
+      "EpiExposure exact-profile contract. Stored values are: ",
       paste(
         paste0(names(fitted_max_lags), "=", fitted_max_lags),
         collapse = ", "
@@ -709,7 +709,7 @@
   if (!is.numeric(history) || !length(history) ||
       anyNA(history) || any(!is.finite(history))) {
     .epix_stop(
-      "Exposure history for variable '", variable,
+      "Exposure profile for variable '", variable,
       "' must contain only finite numeric values."
     )
   }
@@ -718,10 +718,10 @@
 
   if (length(history) != expected_length) {
     .epix_stop(
-      "Exposure history for variable '", variable,
+      "Exposure profile for variable '", variable,
       "' must contain exactly ", expected_length,
       " observation(s) for fitted max_lag = ", metadata$max_lag,
-      "; received ", length(history), ". Histories are not truncated, ",
+      "; received ", length(history), ". Profiles are not truncated, ",
       "padded, or silently realigned."
     )
   }
@@ -793,7 +793,7 @@
 
       if (step <= 0 || any(abs(d - step) > tol)) {
         .epix_stop(
-          "Prediction histories must be complete and equally spaced within ",
+          "Prediction profiles must be complete and equally spaced within ",
           "each group. Irregular spacing was detected for group '",
           as.character(g), "'."
         )
@@ -838,18 +838,18 @@
 #'
 #' Exactly one of `newdata` or `profiles` must be supplied.
 #'
-#' `newdata` is a long-format exposure history. One epidemic-level design row is
+#' `newdata` is a long-format exposure profile. One epidemic-level design row is
 #' returned per `group`, using the final time point after chronological sorting.
 #' The time series must be finite, unique, complete, equally spaced, and contain
 #' exactly the common fitted `max_lag + 1` observations per group. If
-#' `group = NULL`, the entire data frame is treated as one exposure history and
+#' `group = NULL`, the entire data frame is treated as one exposure profile and
 #' must have exactly that same length.
 #'
-#' `profiles` is a named list containing one chronological exposure-history
+#' `profiles` is a named list containing one chronological exposure-profile
 #' vector for every fitted exposure. Vectors run from the earliest observation
 #' to the most recent observation. Every fitted exposure must use exactly the
-#' same history length, and that length must equal the common fitted
-#' `max_lag + 1`. Longer histories are not truncated and shorter histories are
+#' same profile length, and that length must equal the common fitted
+#' `max_lag + 1`. Longer profiles are not truncated and shorter profiles are
 #' not padded.
 #'
 #' The fitted basis is never re-estimated from prediction data. Stored crossbasis
@@ -859,8 +859,8 @@
 #'
 #' @param fit Fitted EpiExposure model.
 #' @param newdata Optional long-format prediction data.
-#' @param profiles Optional named list of complete exposure histories.
-#' @param group Grouping column in `newdata`, or `NULL` for one history.
+#' @param profiles Optional named list of complete exposure profiles.
+#' @param group Grouping column in `newdata`, or `NULL` for one profile.
 #' @param time Chronological numeric time column in `newdata`.
 #' @param extrapolation Behavior when exposure values extend beyond the range
 #'   stored in a crossbasis object: `"warn"`, `"error"`, or `"allow"`.
@@ -941,7 +941,7 @@
           paste0(names(profile_lengths), "=", profile_lengths),
           collapse = ", "
         ),
-        ". Longer histories are not truncated and shorter histories are not ",
+        ". Longer profiles are not truncated and shorter profiles are not ",
         "padded."
       )
     }
@@ -1033,12 +1033,12 @@
     )
 
     .epix_stop(
-      "Every prediction history must contain exactly ",
+      "Every prediction profile must contain exactly ",
       required_history_length, " observations for fitted max_lag = ",
       metadata$max_lag, ". Non-matching group(s) include: ",
       paste(utils::head(examples, 5L), collapse = ", "),
       if (length(examples) > 5L) "; ..." else ".",
-      " Histories are not truncated, padded, or silently realigned."
+      " Profiles are not truncated, padded, or silently realigned."
     )
   }
 

@@ -27,7 +27,7 @@
 #' @param lag_ncol Positive integer number of facet columns for lag panels.
 #'   Default is `1`.
 #' @param sample_smooth Logical scalar. If `TRUE`, draw-level curves are shown
-#'   with `geom_smooth(se = FALSE)`, reproducing the historical manual plot.
+#'   with `geom_smooth(se = FALSE)`, reproducing the original manual plot.
 #'   If `FALSE`, draw-level curves are connected with `geom_line()`. Summary
 #'   outputs are always displayed with a smoothed central curve and, when
 #'   available, dashed smoothed lower and upper interval curves.
@@ -43,7 +43,7 @@
 #'   exposure_y_label Axis labels.
 #' @param exposure_colors Character vector of colors used for exposure-
 #'   difference curves. Named vectors are supported. The default reproduces the
-#'   historical manual palette.
+#'   original manual palette.
 #' @param base_size Positive finite base font size. Default is `10`.
 #' @param panel_labels Character vector of length two used when both
 #'   perspectives are combined. Default is `c("(a)", "(b)")`.

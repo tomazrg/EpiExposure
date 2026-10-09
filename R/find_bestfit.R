@@ -10,7 +10,7 @@
 #'
 #' The validation unit is always the complete column named by `group`. The
 #' function creates the internal canonical alias `epi_id` from that column, but
-#' never splits a group's exposure-history rows across training and evaluation.
+#' never splits a group's exposure-profile rows across training and evaluation.
 #' With the default `group = "epi_id"`, complete epidemics are therefore kept
 #' intact in every strategy.
 #'
@@ -24,7 +24,7 @@
 #' @param data Long-format data frame containing the response, grouping column,
 #'   chronological time column, and candidate exposure variables.
 #' @param response Character scalar naming the response column in `data`. The
-#'   response may be repeated over exposure-history rows but must be constant
+#'   response may be repeated over exposure-profile rows but must be constant
 #'   within each complete validation group because one outcome is predicted per
 #'   group.
 #' @param group Character scalar naming the independent grouped-validation unit.
@@ -99,7 +99,7 @@
 #' @param spatial_effect `NULL` (default), or two distinct numeric coordinate
 #'   column names for a Matérn term fitted by `model_engine = "spamm"` only.
 #'   Coordinates are constant within each epidemic but may be identical across
-#'   different epidemics; they never redefine the exposure-history unit.
+#'   different epidemics; they never redefine the exposure-profile unit.
 #' @param spatial_structure Only `"matern"` is supported (case-insensitive)
 #'   when spatial coordinates are supplied; otherwise this setting is inert.
 #' @param spatial_group `NULL` for one shared field or a factor, character, or
@@ -243,7 +243,7 @@
 #' called only on the holdout training groups, so exposure-basis knots, boundary
 #' knots, effective dimensions, `argvar`, `arglag`, templates, and related
 #' cross-basis attributes are learned exclusively from training data. The stored
-#' training template is then transported unchanged to the holdout test histories
+#' training template is then transported unchanged to the holdout test profiles
 #' by `.build_design_from_templates()`. Test values never redefine the basis.
 #'
 #' Holdout metrics are calculated exclusively from predictions for the fixed test
@@ -260,7 +260,7 @@
 #' For every validation iteration, `define_exposures()` receives only the
 #' corresponding training groups. The effective `argvar`, `arglag`, lag range,
 #' spline knots, boundary knots, and other returned basis attributes are reused
-#' to transform the evaluation histories. For highly skewed predictors or many
+#' to transform the evaluation profiles. For highly skewed predictors or many
 #' repeated values, `splines::ns()` may warn when an interior knot coincides with
 #' a boundary knot; the effective training basis returned after that adjustment
 #' is the template transported to evaluation data.
@@ -277,7 +277,7 @@
 #' ## Temporal requirements
 #'
 #' Every complete group must contain exactly `max_lag + 1` ordered, equally
-#' spaced observations. Histories are never truncated, padded, or silently
+#' spaced observations. Profiles are never truncated, padded, or silently
 #' realigned. All candidate exposures are finite columns of the same validated
 #' long-format rows and therefore share identical temporal support.
 #'
@@ -1280,7 +1280,7 @@ find_bestfit <- function(
       ". Non-matching group(s) include: ",
       paste(utils::head(examples, 5L), collapse = ", "),
       if (length(examples) > 5L) "; ..." else ".",
-      " Histories are not truncated, padded, or silently realigned.",
+      " Profiles are not truncated, padded, or silently realigned.",
       call. = FALSE
     )
   }
@@ -1311,7 +1311,7 @@ find_bestfit <- function(
   }
 
   # Check the entire original data once, before creating validation partitions/candidates.
-  # Keep epidemic histories separate even when coordinate pairs are repeated.
+  # Keep epidemic profiles separate even when coordinate pairs are repeated.
   .epix_validate_spatial_constancy(
     data = data_long,
     spatial_effect = spatial_effect,
@@ -1804,7 +1804,7 @@ find_bestfit <- function(
       detail <- template_info$details[[variable]]
       L <- detail$max_lag
 
-      # Matrix-form crossbasis input represents one complete exposure history
+      # Matrix-form crossbasis input represents one complete exposure profile
       # per epidemic. Columns are ordered by retrospective lag 0,...,L, whereas
       # the package's long input is chronological oldest,...,most recent.
       histories <- matrix(
@@ -1820,7 +1820,7 @@ find_bestfit <- function(
 
         if (length(x) != L + 1L || any(!is.finite(x))) {
           stop(
-            "bdlnm exposure history for variable '", variable,
+            "bdlnm exposure profile for variable '", variable,
             "' must contain exactly ", L + 1L,
             " finite observations for max_lag = ", L, ".",
             call. = FALSE
@@ -1876,7 +1876,7 @@ find_bestfit <- function(
         stop(
           "The epidemic-level bdlnm cross-basis is not numerically equivalent ",
           "to the candidate design for variable '", variable,
-          "'. Check exposure-history orientation and fitted basis metadata.",
+          "'. Check exposure-profile orientation and fitted basis metadata.",
           call. = FALSE
         )
       }
@@ -2226,7 +2226,7 @@ find_bestfit <- function(
         )) {
       stop(
         "Fitted EpiExposure temporal metadata do not match the candidate ",
-        "training-template exact-history contract.",
+        "training-template exact-profile contract.",
         call. = FALSE
       )
     }
@@ -3695,7 +3695,7 @@ find_bestfit <- function(
         candidate_diagnostics
       )
 
-      # Preserve historical behavior: every eligible candidate is refitted on
+      # Preserve existing behavior: every eligible candidate is refitted on
       # all data when keep_fits = TRUE. Ranking/top_n filtering occurs later.
       if (keep_fits) {
 

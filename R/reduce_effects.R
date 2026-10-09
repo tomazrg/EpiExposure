@@ -20,7 +20,7 @@
 #'
 #'   `data` is used only to:
 #'
-#'   - validate the exact EpiExposure temporal-history contract;
+#'   - validate the exact EpiExposure temporal-profile contract;
 #'   - calculate a method-based reference value when requested;
 #'   - validate exposure support for `value`, `at`, and the reference.
 #'
@@ -29,10 +29,10 @@
 #'   Every group must contain exactly
 #'
 #'   \deqn{
-#'     history\_length = max\_lag + 1
+#'     profile\_length = max\_lag + 1
 #'   }
 #'
-#'   rows, with finite complete exposure histories, unique chronological times,
+#'   rows, with finite complete exposure profiles, unique chronological times,
 #'   regular spacing within groups, and the same spacing across groups.
 #'
 #' @param vars Character scalar naming one exposure variable that was fitted in
@@ -63,7 +63,7 @@
 #'   EpiExposure API:
 #'
 #'   - `"link"` returns the centered DLNM association contrast `eta` unchanged;
-#'   - `"response"` is a historical label for the directly transformed
+#'   - `"response"` is a legacy label for the directly transformed
 #'     **association measure**, not an absolute expected response. For a log
 #'     link it returns `exp(eta)`, a response ratio; for a logit link it returns
 #'     `exp(eta)`, an odds ratio; for an identity link it returns the additive
@@ -187,24 +187,24 @@
 #' prediction/reduction data from redefining data-dependent spline knots,
 #' boundary knots, ranges, or column order.
 #'
-#' ## Exact common-history contract
+#' ## Exact common-profile contract
 #'
 #' Current EpiExposure fits satisfy:
 #'
 #' \deqn{
-#'   history\_length = max\_lag + 1
+#'   profile\_length = max\_lag + 1
 #' }
 #'
 #' and every fitted exposure uses the same `max_lag`.
 #'
 #' `reduce_effects()` validates this metadata and requires every supplied group
-#' to contain exactly that many rows. Longer histories are not truncated and
-#' shorter histories are not padded. Every fitted exposure must be present in
+#' to contain exactly that many rows. Longer profiles are not truncated and
+#' shorter profiles are not padded. Every fitted exposure must be present in
 #' `data` on the same rows, so the function cannot silently compare or derive
-#' references from histories with different temporal support.
+#' references from profiles with different temporal support.
 #'
 #' For `max_lag = 0`, `history_length = 1`; no temporal step can be inferred
-#' from a one-row history and the stored time step is expected to be `NA`.
+#' from a one-row profile and the stored time step is expected to be `NA`.
 #'
 #' ## Centering and reference
 #'
@@ -607,7 +607,7 @@ reduce_effects <- function(
     expected_history_contract
   )) {
     stop(
-      "`fit` does not satisfy the current EpiExposure exact common-history ",
+      "`fit` does not satisfy the current EpiExposure exact common-profile ",
       "contract.",
       call. = FALSE
     )
@@ -622,7 +622,7 @@ reduce_effects <- function(
         fit_max_lag) {
       stop(
         "All fitted exposure variables must use the same `max_lag` under the ",
-        "EpiExposure exact-history contract. Invalid metadata detected for '",
+        "EpiExposure exact-profile contract. Invalid metadata detected for '",
         variable,
         "'.",
         call. = FALSE
@@ -640,7 +640,7 @@ reduce_effects <- function(
         stop(
           "Stored history-length metadata for fitted exposure '",
           variable,
-          "' is inconsistent with the common fitted history length of ",
+          "' is inconsistent with the common fitted profile length of ",
           fit_history_length,
           ".",
           call. = FALSE
@@ -674,7 +674,7 @@ reduce_effects <- function(
     }
   }
 
-  # INPUT DATA: ALL FITTED EXPOSURES + EXACT HISTORY
+  # INPUT DATA: ALL FITTED EXPOSURES + EXACT PROFILE
 
   required_columns <- unique(
     c(
@@ -754,7 +754,7 @@ reduce_effects <- function(
 
   if (!length(group_levels)) {
     stop(
-      "`data` contains no exposure-history groups.",
+      "`data` contains no exposure-profile groups.",
       call. = FALSE
     )
   }
@@ -785,7 +785,7 @@ reduce_effects <- function(
     ]
 
     stop(
-      "Exposure history for group '",
+      "Exposure profile for group '",
       bad_group,
       "' must contain exactly ",
       fit_history_length,
@@ -793,7 +793,7 @@ reduce_effects <- function(
       fit_max_lag,
       "; received ",
       bad_length,
-      ". Histories are never truncated, padded, or realigned silently.",
+      ". Profiles are never truncated, padded, or realigned silently.",
       call. = FALSE
     )
   }
@@ -836,7 +836,7 @@ reduce_effects <- function(
         length(fit_time_step) == 1L &&
         is.finite(fit_time_step)) {
       stop(
-        "For `max_lag = 0`, the fitted history contains one observation and ",
+        "For `max_lag = 0`, the fitted profile contains one observation and ",
         "`epiexposure_time_step` must be `NA` because no temporal interval can ",
         "be inferred.",
         call. = FALSE

@@ -1,7 +1,7 @@
 #' Define DLNM exposure templates
 #'
 #' Defines the training cross-basis parameterization for one or more exposure
-#' variables from long-format epidemic histories.
+#' variables from long-format epidemic profiles.
 #'
 #' `define_exposures()` is the first step in the standard EpiExposure workflow:
 #'
@@ -15,7 +15,7 @@
 #' exposure it uses all training epidemics jointly to determine any
 #' data-dependent exposure-basis features (for example spline knots and boundary
 #' knots), while `dlnm::crossbasis(..., group = ...)` keeps the individual
-#' epidemic histories as independent time series so lags never cross from one
+#' epidemic profiles as independent time series so lags never cross from one
 #' epidemic into another.
 #'
 #' @param data Non-empty long-format data frame containing `epi_id`, `time`, and
@@ -24,12 +24,12 @@
 #'   Rows do not need to be pre-sorted. They are ordered internally by
 #'   `epi_id` and `time`.
 #'
-#'   Each epidemic must form one complete exposure history containing exactly
+#'   Each epidemic must form one complete exposure profile containing exactly
 #'   `max_lag + 1` time points. When more than one time point is present, spacing
 #'   must be constant within epidemics and identical across epidemics. Missing
 #'   exposure values are not allowed in EpiExposure v1. Because all exposures
 #'   are finite columns of the same validated rows, every fitted exposure uses
-#'   the same temporal support and history length.
+#'   the same temporal support and profile length.
 #' @param vars Unique character vector naming exposure variables in `data`.
 #' @param max_lag Non-negative integer maximum lag. The legacy form
 #'   `c(0, L)` is also accepted, but EpiExposure v1 requires the lag range to
@@ -60,7 +60,7 @@
 #'   - `attr(x, "epiexposure_vars")`: exposure names;
 #'   - `attr(x, "epiexposure_max_lag")`: the common fitted maximum lag;
 #'   - `attr(x, "epiexposure_history_length")`: the exact required exposure
-#'     history length, `max_lag + 1`;
+#'     profile length, `max_lag + 1`;
 #'   - `attr(x, "epiexposure_history_contract")`:
 #'     `"all_fitted_exposures_same_exact_max_lag_plus_one"`;
 #'   - `attr(x, "epiexposure_time_step")`: the common temporal spacing, or `NA`
@@ -79,7 +79,7 @@
 #' @details
 #' ## Independent epidemic series
 #'
-#' Earlier EpiExposure code concatenated epidemic histories and inserted
+#' Earlier EpiExposure code concatenated epidemic profiles and inserted
 #' `max_lag` missing values between them before calling `crossbasis()`. The
 #' current implementation uses the native `group` argument of
 #' `dlnm::crossbasis()` instead.
@@ -89,12 +89,12 @@
 #' complete, while exposure values from all training epidemics still contribute
 #' to the common exposure-basis definition. Thus, for a spline exposure basis,
 #' data-dependent knots are estimated from the pooled **training exposure
-#' distribution**, but lagged histories never cross epidemic boundaries.
+#' distribution**, but lagged profiles never cross epidemic boundaries.
 #'
 #' ## Temporal requirements
 #'
 #' A vector passed to `dlnm::crossbasis()` represents one complete exposure
-#' history. `define_exposures()` therefore rejects:
+#' profile. `define_exposures()` therefore rejects:
 #'
 #' - duplicated time values within an epidemic;
 #' - irregular spacing within an epidemic when more than one time point exists;
@@ -107,12 +107,12 @@
 #'   L + 1
 #' }
 #'
-#' observations. Histories are never truncated to a trailing window, padded,
+#' observations. Profiles are never truncated to a trailing window, padded,
 #' or silently realigned. Because all fitted exposures are columns of the same
 #' long-format rows, all variables necessarily have the same temporal length
 #' and support within each epidemic.
 #'
-#' For `max_lag = 0`, the exact history length is one observation. In that
+#' For `max_lag = 0`, the exact profile length is one observation. In that
 #' special case no time interval exists to estimate, so
 #' `epiexposure_time_step` is stored as `NA`.
 #'
@@ -490,7 +490,7 @@ define_exposures <- function(
         maximum_lag,
         "; received ",
         length(tt),
-        ". Histories are not truncated, padded, or silently realigned.",
+        ". Profiles are not truncated, padded, or silently realigned.",
         call. = FALSE
       )
     }
@@ -522,7 +522,7 @@ define_exposures <- function(
         stop(
           "Irregular time spacing was detected within epi_id = ",
           as.character(current_id),
-          ". DLNM vector histories must be complete and equally spaced.",
+          ". DLNM vector profiles must be complete and equally spaced.",
           call. = FALSE
         )
       }
@@ -679,7 +679,7 @@ define_exposures <- function(
 
     if (length(x) != nrow(data_ordered)) {
       stop(
-        "Internal exposure-history alignment failed for variable '",
+        "Internal exposure-profile alignment failed for variable '",
         variable,
         "'. All exposures must occupy the same validated time rows.",
         call. = FALSE
@@ -691,7 +691,7 @@ define_exposures <- function(
 
       if (length(x[idx]) != required_history_length) {
         stop(
-          "Exposure history for '",
+          "Exposure profile for '",
           variable,
           "' and epi_id = ",
           as.character(data_ordered$epi_id[idx[1L]]),

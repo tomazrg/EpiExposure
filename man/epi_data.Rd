@@ -6,15 +6,15 @@
 \title{Simulated beta epidemiological dataset}
 \format{
 A data frame with rows representing temporal observations within
-  epidemic exposure histories and the following variables:
+  epidemic exposure profiles and the following variables:
 \describe{
   \item{epi_id}{Unique numeric identifier for each epidemic.}
-  \item{time}{Chronological time index within each epidemic history.}
+  \item{time}{Chronological time index within each epidemic profile.}
   \item{tmean}{Daily mean temperature in degrees Celsius.}
   \item{rain}{Daily rainfall in millimeters.}
   \item{wetness}{Daily leaf wetness duration in hours.}
   \item{y}{Continuous disease response expressed as a proportion strictly
-  between 0 and 1 and repeated across the rows of each epidemic history.}
+  between 0 and 1 and repeated across the rows of each epidemic profile.}
 }
 }
 \source{
@@ -25,14 +25,14 @@ epi_data
 }
 \description{
 A simulated longitudinal dataset containing complete environmental exposure
-histories and a continuous plant disease outcome expressed as a proportion.
+profiles and a continuous plant disease outcome expressed as a proportion.
 The dataset is intended for demonstrating beta regression and the main
 modeling, interpretation, simulation, and prediction workflows available
 in EpiExposure.
 }
 \details{
 The response is repeated across the temporal rows belonging to the same
-epidemic because each complete exposure history is associated with one final
+epidemic because each complete exposure profile is associated with one final
 epidemic-level disease outcome.
 }
 \examples{

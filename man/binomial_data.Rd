@@ -6,16 +6,16 @@
 \title{Simulated binomial epidemiological dataset}
 \format{
 A data frame with rows representing temporal observations within
-  epidemic exposure histories and the following variables:
+  epidemic exposure profiles and the following variables:
 \describe{
   \item{epi_id}{Unique numeric identifier for each epidemic.}
   \item{block}{Experimental block identifier.}
-  \item{time}{Chronological time index within each epidemic history.}
+  \item{time}{Chronological time index within each epidemic profile.}
   \item{tmean}{Daily mean temperature in degrees Celsius.}
   \item{rain}{Daily rainfall in millimeters.}
   \item{wetness}{Daily leaf wetness duration in hours.}
   \item{y}{Binary disease outcome coded as 0 or 1 and repeated across
-  the rows of each epidemic history.}
+  the rows of each epidemic profile.}
 }
 }
 \source{
@@ -26,12 +26,12 @@ binomial_data
 }
 \description{
 A simulated longitudinal dataset containing complete environmental exposure
-histories and a binary plant disease outcome. The dataset is intended for
+profiles and a binary plant disease outcome. The dataset is intended for
 demonstrating binomial models in EpiExposure.
 }
 \details{
 The response is repeated across the temporal rows belonging to the same
-epidemic because each complete exposure history is associated with one final
+epidemic because each complete exposure profile is associated with one final
 epidemic-level disease outcome.
 }
 \examples{

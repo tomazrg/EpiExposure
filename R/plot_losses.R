@@ -3,7 +3,7 @@
 #' Creates either coordinated heatmaps of yield and economic losses or a
 #' regression-style visualization from an object returned by `simulate_losses()`.
 #'
-#' With `type = "heatmap"` (default), the function preserves the historical
+#' With `type = "heatmap"` (default), the function preserves the original
 #' raster-plot workflow. Yield loss and economic loss can be displayed alone or
 #' together, and scenario variables can be shown as facets.
 #'
@@ -37,7 +37,7 @@
 #'   `type = "regression"`. When supplied, rows are filtered to the selected
 #'   `att_yield` value before plotting.
 #' @param facet Optional character vector naming scenario variables used as
-#'   facets. For heatmaps, `facet_wrap()` is used as in the historical function.
+#'   facets. For heatmaps, `facet_wrap()` is used as in the original function.
 #'   For regression plots, the first facet variable is placed in rows and any
 #'   remaining facet variables are placed in columns together with the
 #'   automatically generated `yield_model` facet. Thus

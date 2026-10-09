@@ -69,7 +69,7 @@ Periods are defined on the EpiExposure retrospective lag scale:
 
 - lag 0 = the most recent exposure observation;
 - increasing lag = progressively older exposure observations;
-- `max_lag` = the oldest exposure observation included in the fitted history.
+- `max_lag` = the oldest exposure observation included in the fitted profile.
 
 
 ## Inclusive cut semantics
@@ -101,7 +101,7 @@ and no overlaps.
 
 ## Single cumulative period
 
-When `cuts = NULL` or `cuts = numeric(0)`, the full lag history is represented
+When `cuts = NULL` or `cuts = numeric(0)`, the full lag profile is represented
 by one period:
 
 ```

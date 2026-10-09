@@ -19,7 +19,7 @@ simulate_ranges(
 
   Periods are expressed on the retrospective lag scale. For example,
   `lag_start = 0` and `lag_end = 20` represent lags 0 through 20, the portion
-  of the exposure history closest to outcome assessment.
+  of the exposure profile closest to outcome assessment.
 
   Periods must not overlap. Gaps are allowed: any exposure-lag positions not
   covered later by a scenario remain available for background filling in
@@ -76,7 +76,7 @@ resulting combination unchanged to every supplied lag period.
 This function generates **scenario definitions only**. It does not fit a
 model, construct a cross-basis, or predict an outcome. Conversion from
 retrospective lag-period definitions to complete chronological exposure
-histories is performed later by `simulate_scenarios()`, which then calls
+profiles is performed later by `simulate_scenarios()`, which then calls
 `predict_outcomes()`.
 
 
@@ -104,7 +104,7 @@ P4 = list(tmean = 20, rain = 8, wetness = 2)
 `simulate_scenarios()` then expands each scalar across all lags belonging to
 its period. If P1--P4 jointly cover the entire fitted lag window and the
 variables in `vary` plus `fixed` include every exposure in the fitted model,
-the resulting exposure history is complete and no background/reference value
+the resulting exposure profile is complete and no background/reference value
 is needed for those positions.
 
 If periods leave gaps, do not extend to the fitted maximum lag, or omit one

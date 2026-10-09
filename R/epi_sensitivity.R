@@ -5,10 +5,10 @@
 #' smooth the curve with a GAM and differentiate the fitted smooth.
 #'
 #' `epi_sensitivity()` is a **post-processing** function. It does not fit an
-#' EpiExposure DLNM, reconstruct exposure histories, or redefine the fitted lag
+#' EpiExposure DLNM, reconstruct exposure profiles, or redefine the fitted lag
 #' window. Consequently, rows supplied to this function are curve-evaluation
 #' points, not necessarily the `max_lag + 1` observations that constituted an
-#' original exposure history.
+#' original exposure profile.
 #'
 #' @param data Non-empty data frame containing the curve to differentiate.
 #'   At minimum, it must contain the columns selected by `x` and `y`.
@@ -25,7 +25,7 @@
 #'   columns. The derivative is computed independently within every unique
 #'   combination of these columns.
 #'
-#'   The historical default is `"scenario"`. Set `scenario_var = NULL` to
+#'   The default profile identifier is `"scenario"`. Set `scenario_var = NULL` to
 #'   differentiate the entire supplied data set as one curve. If several
 #'   exposure variables, scenarios, or parameter draws are present, include all
 #'   columns needed to identify one unique curve, for example
@@ -40,7 +40,7 @@
 #'   three distinct `x` values and `k >= 3`.
 #' @param method Character. One of:
 #'
-#'   - `"analytical"`: historical EpiExposure name for a GAM-based smooth
+#'   - `"analytical"`: EpiExposure name for a profile-based GAM smooth
 #'     derivative. A univariate GAM is fitted with
 #'     `mgcv::gam(..., method = "REML")`, using the auxiliary smooth basis
 #'     selected by `smooth_basis`, then its linear-predictor matrix is
@@ -248,11 +248,11 @@
 #' extrema. Boundary extrema are also not inferred from a one-sided derivative
 #' alone.
 #'
-#' ## Relationship to the EpiExposure exact-history contract
+#' ## Relationship to the EpiExposure exact-profile contract
 #'
-#' `epi_sensitivity()` does not consume raw fitted exposure histories. It works
+#' `epi_sensitivity()` does not consume raw fitted exposure profiles. It works
 #' on an already evaluated curve, whose number of rows may legitimately differ
-#' from the original history length. Consequently, it does **not** require
+#' from the original profile length. Consequently, it does **not** require
 #'
 #' \deqn{
 #'   nrow(data) = max\_lag + 1.
@@ -262,14 +262,14 @@
 #' function validates and propagates them. Specifically,
 #'
 #' \deqn{
-#'   history\_length = max\_lag + 1
+#'   profile\_length = max\_lag + 1
 #' }
 #'
-#' and the stored history contract must be
+#' and the stored profile contract must be
 #' `"all_fitted_exposures_same_exact_max_lag_plus_one"`.
 #'
 #' This validates the provenance of an EpiExposure-derived curve without
-#' incorrectly treating curve-evaluation rows as original exposure-history
+#' incorrectly treating curve-evaluation rows as original exposure-profile
 #' observations.
 #'
 #' ## Uncertainty
@@ -602,7 +602,7 @@ epi_sensitivity <- function(
       "all_fitted_exposures_same_exact_max_lag_plus_one"
     )) {
       stop(
-        "`data` does not satisfy the current EpiExposure exact-history ",
+        "`data` does not satisfy the current EpiExposure exact-profile ",
         "contract.",
         call. = FALSE
       )

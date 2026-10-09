@@ -6,7 +6,7 @@
 \title{Simulated epidemiological data with independent spatial replicates}
 \format{
 A data frame with rows representing temporal observations within
-  epidemic exposure histories and the following variables:
+  epidemic exposure profiles and the following variables:
 \describe{
   \item{epi_id}{Unique identifier combining field location and
   epidemiological replicate.}
@@ -16,14 +16,14 @@ A data frame with rows representing temporal observations within
   \item{block}{Experimental block identifier within a replicate.}
   \item{block_id}{Identifier combining epidemiological replicate and
   experimental block.}
-  \item{time}{Chronological time index within each epidemic history.}
+  \item{time}{Chronological time index within each epidemic profile.}
   \item{x_coord}{First numeric spatial coordinate of the field location.}
   \item{y_coord}{Second numeric spatial coordinate of the field location.}
   \item{tmean}{Daily mean temperature in degrees Celsius.}
   \item{wetness}{Daily leaf wetness duration in hours.}
   \item{rain}{Daily rainfall in millimeters.}
   \item{y}{Non-negative count disease outcome repeated across the rows
-  of each epidemic history.}
+  of each epidemic profile.}
 }
 }
 \source{
@@ -34,14 +34,14 @@ spatial_replicate
 }
 \description{
 A simulated longitudinal dataset containing complete environmental exposure
-histories for fixed field locations observed across independent
+profiles for fixed field locations observed across independent
 epidemiological replicates. The dataset is intended for demonstrating
 distributed exposure-lag models with separate spatial fields across
 epidemic replicates.
 }
 \details{
 The response and location-level descriptors are repeated across the temporal
-rows belonging to the same epidemic because each complete exposure history
+rows belonging to the same epidemic because each complete exposure profile
 is associated with one final epidemic-level disease outcome.
 }
 \examples{

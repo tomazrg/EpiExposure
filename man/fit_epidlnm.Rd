@@ -79,13 +79,13 @@ supported in this version and produce explicit errors.}
   re-inferring `df`, knots, or basis functions. Each element must contain
   `max_lag`, `argvar`, and `arglag`.
 
-  Under the EpiExposure exact-history contract, each `max_lag` must be one
+  Under the EpiExposure exact-profile contract, each `max_lag` must be one
   non-negative integer and all fitted exposures must use the same
-  `max_lag`. Consequently, every original exposure history used to build the
+  `max_lag`. Consequently, every original exposure profile used to build the
   epidemic-level design must contain exactly `max_lag + 1` observations for
   every fitted exposure. `fit_epidlnm()` receives the already collapsed
   epidemic-level design and therefore validates the common fitted `max_lag`;
-  exact original history length is validated upstream by the exposure/design
+  exact original profile length is validated upstream by the exposure/design
   construction functions.}
 
 \item{basis_objects}{Optional named list of `dlnm::crossbasis()` objects.
@@ -111,7 +111,7 @@ shared correlation parameters. Requires `spatial_effect`; the source column
 may be factor, character, or integer and is converted in a local fit copy.
 `random_effect` remains a separate, conventional random intercept and both
 effects can be fitted together. Coordinates and spatial groups are not used
-as epidemic-history identifiers.}
+as epidemic-profile identifiers.}
 
 \item{...}{Named additional arguments passed to the selected engine. Core
 arguments managed by EpiExposure (`formula`/`model`, `data`, `family`, and
@@ -133,7 +133,7 @@ A fitted model object with a strict metadata contract. The following
   `epiexposure_random_effect_prior`, and the spatial specification
   (`epiexposure_spatial_effect`, `epiexposure_spatial_structure`,
   `epiexposure_spatial_group`, and `epiexposure_spatial_term`), common fitted
-  `max_lag`, expected history length (`max_lag + 1`), the exact-history
+  `max_lag`, expected profile length (`max_lag + 1`), the exact-profile
   contract, the validated temporal step in
   `epiexposure_time_step`, and the EpiExposure v1 prediction contract.
 }
@@ -249,10 +249,10 @@ canonical family before fitting: Beta responses must lie strictly inside
 binomial responses must be non-negative integer counts; Gamma responses must
 be strictly positive; Gaussian responses need only be finite numeric values.
 
-## Common lag and exact-history contract
+## Common lag and exact-profile contract
 
 EpiExposure models use one common retrospective lag window for every fitted
-exposure. If the common maximum lag is `L`, all original exposure histories
+exposure. If the common maximum lag is `L`, all original exposure profiles
 must contain exactly
 
 \deqn{
@@ -263,10 +263,10 @@ equally spaced observations per epidemiological unit and per exposure.
 Exposures with different fitted `max_lag` values are rejected here.
 
 Because `fit_epidlnm()` is called after `build_design()` has collapsed each
-complete history to one epidemic-level model row, the original long-format
+complete profile to one epidemic-level model row, the original long-format
 row count is no longer available at this stage. Exact `L + 1` temporal
 coverage must therefore be enforced by `define_exposures()` and
-`build_design()`. This function records the common lag/history contract in
+`build_design()`. This function records the common lag/profile contract in
 the fitted model metadata so downstream functions can enforce it.
 
 ## Metadata and downstream prediction contract

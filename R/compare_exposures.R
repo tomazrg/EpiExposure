@@ -1,6 +1,6 @@
 #' Compare chronological exposure profiles
 #'
-#' Compares two or more exposure histories, simulated scenarios, or
+#' Compares two or more exposure profiles, simulated scenarios, or
 #' epidemic-specific exposure profiles while preserving the EpiExposure
 #' chronological profile convention.
 #'
@@ -9,7 +9,7 @@
 #' of length `n`, the final element corresponds to retrospective lag 0 and the
 #' first element corresponds to positional lag `n - 1`.
 #'
-#' `compare_exposures()` is descriptive. It compares exposure histories
+#' `compare_exposures()` is descriptive. It compares exposure profiles
 #' themselves and does not estimate DLNM effects, disease risks, or model
 #' predictions.
 #'
@@ -33,7 +33,7 @@
 #'   values, be strictly increasing, and be equally spaced.
 #'
 #'   Equal spacing is required because EpiExposure profiles represent complete
-#'   regular exposure histories and several global metrics treat each temporal
+#'   regular exposure profiles and several global metrics treat each temporal
 #'   position equally.
 #'
 #'   If `NULL`, `0:(n - 1)` is used.
@@ -54,7 +54,7 @@
 #'       distance, magnitude, correlation, peak-timing, center-of-mass, and
 #'       high-exposure overlap summaries.}
 #'     \item{`"timewise"`}{Returns one row per chronological position and
-#'       pairwise comparison, retaining the complete exposure histories.}
+#'       pairwise comparison, retaining the complete exposure profiles.}
 #'   }
 #' @param cor_method Character correlation method used in `mode = "global"`.
 #'   Available options are:
@@ -143,7 +143,7 @@
 #'
 #' `L1` and `L2` increase with the number of represented time positions. `MAE`
 #' and `RMSE` are therefore also returned when comparisons across equal-unit
-#' histories of different lengths are needed.
+#' profiles of different lengths are needed.
 #'
 #' These distances retain the units/scaling of the exposure profile and should
 #' only be compared across profiles of the same exposure variable and units.
@@ -465,7 +465,7 @@ compare_exposures <- function(
       )) {
     stop(
       "`time` must be equally spaced. EpiExposure exposure profiles represent ",
-      "complete regular temporal histories.",
+      "complete regular temporal profiles.",
       call. = FALSE
     )
   }

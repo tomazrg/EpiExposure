@@ -54,7 +54,7 @@ panel. Default is `3`.}
 Default is `1`.}
 
 \item{sample_smooth}{Logical scalar. If `TRUE`, draw-level curves are shown
-with `geom_smooth(se = FALSE)`, reproducing the historical manual plot.
+with `geom_smooth(se = FALSE)`, reproducing the original manual plot.
 If `FALSE`, draw-level curves are connected with `geom_line()`. Summary
 outputs are always displayed with a smoothed central curve and, when
 available, dashed smoothed lower and upper interval curves.}
@@ -78,7 +78,7 @@ used for the exposure panel. If `NULL`, a default label is generated.}
 
 \item{exposure_colors}{Character vector of colors used for exposure-
 difference curves. Named vectors are supported. The default reproduces the
-historical manual palette.}
+original manual palette.}
 
 \item{base_size}{Positive finite base font size. Default is `10`.}
 

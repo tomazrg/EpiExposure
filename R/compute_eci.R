@@ -4,7 +4,7 @@
 #' fitted EpiExposure model is supplied, a model-weighted cumulative exposure
 #' impact (`ECI_weighted`) for one or more exposure variables.
 #'
-#' Exposure histories are interpreted chronologically, from the oldest
+#' Exposure profiles are interpreted chronologically, from the oldest
 #' observation to the most recent observation. The most recent value is
 #' associated internally with lag 0.
 #'
@@ -23,7 +23,7 @@
 #'
 #'   Profiles must be chronological from oldest to most recent. When `fit` is
 #'   supplied, every focal exposure profile must contain **exactly**
-#'   `max_lag + 1` observations for that fitted exposure. Histories that are
+#'   `max_lag + 1` observations for that fitted exposure. Profiles that are
 #'   shorter or longer are rejected; `compute_eci()` never selects a temporal
 #'   window silently from a longer profile.
 #'
@@ -31,7 +31,7 @@
 #'   `profile` must be one finite numeric vector and the function simply returns
 #'   its descriptive cumulative sum.
 #' @param data Optional non-empty long-format data frame containing observed
-#'   chronological exposure histories. Supply exactly one of `profile` or
+#'   chronological exposure profiles. Supply exactly one of `profile` or
 #'   `data`.
 #'
 #'   `data` must contain the grouping column named by `group`, the time column
@@ -41,7 +41,7 @@
 #'   rejected. If a method-based reference is used, `data` must additionally
 #'   contain every exposure in the fitted model because those variables are
 #'   needed to construct the joint reference profile.
-#' @param group Character scalar naming the independent-history grouping column
+#' @param group Character scalar naming the independent-profile grouping column
 #'   in `data`. Required when `data` is supplied.
 #' @param time Character scalar naming the chronological numeric time column in
 #'   `data`. Default is `"time"`. Times must be unique and equally spaced within
@@ -178,7 +178,7 @@
 #' @details
 #' ## Raw ECI
 #'
-#' For the discrete exposure history used by the fitted lag window,
+#' For the discrete exposure profile used by the fitted lag window,
 #'
 #' \deqn{
 #'   ECI_{raw} = \sum_{j=0}^{L} x_j.
@@ -199,11 +199,11 @@
 #' Neither raw quantity incorporates the fitted exposure-response or lag-response
 #' shape.
 #'
-#' ## Exact exposure-history length
+#' ## Exact exposure-profile length
 #'
 #' When a fitted model is supplied, `compute_eci()` uses the EpiExposure exact
-#' temporal-history contract. For a fitted maximum lag `L`, every evaluated
-#' focal exposure history must contain exactly
+#' temporal-profile contract. For a fitted maximum lag `L`, every evaluated
+#' focal exposure profile must contain exactly
 #'
 #' \deqn{
 #'   L + 1
@@ -211,7 +211,7 @@
 #'
 #' chronological observations: the first value represents lag `L` and the last
 #' value represents lag 0. All fitted exposures share the same `max_lag`.
-#' Longer histories are not truncated with `tail()` and shorter histories are
+#' Longer profiles are not truncated with `tail()` and shorter profiles are
 #' not padded. This prevents ambiguity about which exposure window generated the
 #' cumulative impact and keeps ECI calculations comparable across profiles,
 #' groups, and downstream lag decompositions.
@@ -294,7 +294,7 @@
 #'   B = g^{-1}(X_{ref}\beta).
 #' }
 #'
-#' Let \eqn{X_{target}} replace only the focal exposure history by the evaluated
+#' Let \eqn{X_{target}} replace only the focal exposure profile by the evaluated
 #' profile. Then
 #'
 #' \deqn{
@@ -1108,7 +1108,7 @@ compute_eci <- function(
           required_length - 1L,
           "; received " ,
           received_length,
-          ". Longer histories are not truncated and shorter histories are " ,
+          ". Longer profiles are not truncated and shorter profiles are " ,
           "not padded.",
           call. = FALSE
         )
@@ -1309,7 +1309,7 @@ compute_eci <- function(
     if (length(unique_required_lengths) != 1L) {
       stop(
         "The requested focal exposures have different fitted `max_lag` values " ,
-        "and therefore cannot share one exact-length long-format history in " ,
+        "and therefore cannot share one exact-length long-format profile in " ,
         "`data`. Requested lengths: " ,
         paste(
           paste0(
@@ -1347,7 +1347,7 @@ compute_eci <- function(
         required_group_length,
         " observations for fitted max_lag = " ,
         required_group_length - 1L,
-        ". Group(s) with non-matching history length include: " ,
+        ". Group(s) with non-matching profile length include: " ,
         paste(
           utils::head(
             examples,
@@ -1356,7 +1356,7 @@ compute_eci <- function(
           collapse = ", "
         ),
         if (length(examples) > 5L) "; ..." else ".",
-        " Longer histories are not truncated and shorter histories are not padded.",
+        " Longer profiles are not truncated and shorter profiles are not padded.",
         call. = FALSE
       )
     }
@@ -1745,7 +1745,7 @@ compute_eci <- function(
         length(
           profile_values
         ),
-        ". Longer histories are not truncated and shorter histories are not padded.",
+        ". Longer profiles are not truncated and shorter profiles are not padded.",
         call. = FALSE
       )
     }

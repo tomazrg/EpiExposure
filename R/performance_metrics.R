@@ -21,7 +21,7 @@
 # - performance is evaluated on the exact finite support supplied by the
 #   caller; non-finite pairs are never discarded silently.
 #
-# This file does not consume raw exposure histories and therefore has no
+# This file does not consume raw exposure profiles and therefore has no
 # `max_lag + 1` validation responsibility.
 
 

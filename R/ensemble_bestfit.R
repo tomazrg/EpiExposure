@@ -16,8 +16,8 @@
 #'   `find_bestfit()`. The function requires the standardized metadata stored by
 #'   that function, including `family`, `outcome_type`, `rank_metric`,
 #'   `threshold`, the prediction contract, the cross-validation method,
-#'   `fold_assignments`, the common fitted `max_lag`, the expected history
-#'   length (`max_lag + 1`), and the EpiExposure exact-history contract.
+#'   `fold_assignments`, the common fitted `max_lag`, the expected profile
+#'   length (`max_lag + 1`), and the EpiExposure exact-profile contract.
 #' @param predictions Optional data frame of OOF predictions. If `NULL`,
 #'   `attr(bestfit, "predictions")` is used. Under the current
 #'   `find_bestfit()` contract, required columns include `model_col`, `group`,
@@ -40,8 +40,8 @@
 #'   exposures requested from the retained fitted models. Rows are ordered
 #'   internally by `group` and `time`, and time must satisfy the regular-series
 #'   requirements used elsewhere in EpiExposure. Every group must contain
-#'   exactly the common fitted `max_lag + 1` observations. Longer histories are
-#'   not truncated and shorter histories are not padded.
+#'   exactly the common fitted `max_lag + 1` observations. Longer profiles are
+#'   not truncated and shorter profiles are not padded.
 #' @param group Character scalar naming the grouping column in `data` for
 #'   automatic lag decomposition.
 #' @param var Optional unique character vector of exposure variables requested
@@ -221,22 +221,22 @@
 #' ensemble performance should be interpreted as OOF ensemble performance for
 #' model development rather than as an independent external-validation estimate.
 #'
-#' ## Exact common lag/history contract
+#' ## Exact common lag/profile contract
 #'
-#' `ensemble_bestfit()` inherits the exact-history contract established by the
+#' `ensemble_bestfit()` inherits the exact-profile contract established by the
 #' current `find_bestfit()`: all candidate/fitted exposures use one common
-#' non-negative integer `max_lag`, and every original exposure history contains
+#' non-negative integer `max_lag`, and every original exposure profile contains
 #' exactly `max_lag + 1` equally spaced observations.
 #'
 #' For automatic lag decomposition, the retained fitted models must report the
 #' same `max_lag`, `history_length`, and `history_contract` as `bestfit`, and
-#' every group supplied in `data` must contain exactly that history length.
-#' Histories are never truncated, padded, or silently realigned.
+#' every group supplied in `data` must contain exactly that profile length.
+#' Profiles are never truncated, padded, or silently realigned.
 #'
 #' If precomputed `lag_data` is supplied, the original long-format exposure
-#' histories are no longer available to this function. In that route,
+#' profiles are no longer available to this function. In that route,
 #' `ensemble_bestfit()` validates the lag values against the inherited common
-#' `max_lag` but cannot reconstruct the original history row counts.
+#' `max_lag` but cannot reconstruct the original profile row counts.
 #'
 #' ## Lag ensembles
 #'
@@ -855,7 +855,7 @@ ensemble_bestfit <- function(
     "all_fitted_exposures_same_exact_max_lag_plus_one"
   )) {
     stop(
-      "`bestfit` does not satisfy the current EpiExposure exact-history ",
+      "`bestfit` does not satisfy the current EpiExposure exact-profile ",
       "contract.",
       call. = FALSE
     )
@@ -2964,7 +2964,7 @@ ensemble_bestfit <- function(
           collapse = ", "
         ),
         if (length(examples) > 5L) "; ..." else ".",
-        " Histories are not truncated, padded, or silently realigned.",
+        " Profiles are not truncated, padded, or silently realigned.",
         call. = FALSE
       )
     }
@@ -3040,7 +3040,7 @@ ensemble_bestfit <- function(
         stop(
           "Retained fit ",
           model_id,
-          " does not match the `bestfit` exact-history metadata. All selected ",
+          " does not match the `bestfit` exact-profile metadata. All selected ",
           "models must use the same max_lag and exactly max_lag + 1 time points.",
           call. = FALSE
         )

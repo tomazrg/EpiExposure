@@ -58,7 +58,7 @@ supplied, `upper` must also be supplied.}
   length and are paired by position; scalar parameters are recycled.}
 
 \item{parameter_mode}{Character controlling interpretation of `slope` and
-  `intercept`. One of `"uniform"` (default, preserving the historical
+  `intercept`. One of `"uniform"` (default, preserving the original
   interface), `"values"`, or `"draws"`.
 
   `"values"` evaluates exact supplied parameter values. For example,
@@ -284,7 +284,7 @@ a tunable modeling parameter.
 
 ## Parameter simulations
 
-`parameter_mode` removes the historical ambiguity of two-value parameter
+`parameter_mode` removes the original ambiguity of two-value parameter
 vectors.
 
 With `"values"`, supplied parameter values are exact. All slope-intercept

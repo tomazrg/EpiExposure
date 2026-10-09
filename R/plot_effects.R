@@ -256,7 +256,7 @@
 #'   results are both stored in `effect`, their aliases validate the
 #'   `epiexposure_effect_measure` attribute created by `summarise_effects()`.
 #' @param period_exclude_samples Samples removed from period draw-level plots.
-#'   Default `10` preserves the historical display; use `NULL` to retain all
+#'   Default `10` preserves the original display; use `NULL` to retain all
 #'   samples.
 #' @param period_palette `NULL` uses viridis; otherwise a vector of at least two
 #'   colors.

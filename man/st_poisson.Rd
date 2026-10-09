@@ -6,18 +6,18 @@
 \title{Simulated spatial poisson epidemiological dataset}
 \format{
 A data frame with rows representing temporal observations within
-  epidemic exposure histories and the following variables:
+  epidemic exposure profiles and the following variables:
 \describe{
   \item{epi_id}{Unique numeric identifier for each epidemic.}
   \item{block}{Experimental block identifier.}
-  \item{time}{Chronological time index within each epidemic history.}
+  \item{time}{Chronological time index within each epidemic profile.}
   \item{x_coord}{First numeric spatial coordinate of the epidemic location.}
   \item{y_coord}{Second numeric spatial coordinate of the epidemic location.}
   \item{tmean}{Daily mean temperature in degrees Celsius.}
   \item{wetness}{Daily leaf wetness duration in hours.}
   \item{rain}{Daily rainfall in millimeters.}
   \item{y}{Non-negative count disease outcome repeated across the rows
-  of each epidemic history.}
+  of each epidemic profile.}
 }
 }
 \source{
@@ -28,14 +28,14 @@ st_poisson
 }
 \description{
 A simulated longitudinal dataset containing complete environmental exposure
-histories and spatial coordinates for demonstrating distributed
+profiles and spatial coordinates for demonstrating distributed
 exposure-lag models with Matérn spatial dependence and a poisson disease
 outcome.
 }
 \details{
 The response, block, and spatial coordinates are repeated across the
 temporal rows belonging to the same epidemic because each complete exposure
-history is associated with one final epidemic-level disease outcome.
+profile is associated with one final epidemic-level disease outcome.
 }
 \examples{
 data("st_poisson", package = "EpiExposure")
