@@ -278,19 +278,34 @@
 #' harmonized across the supported response families.
 #'
 #' @examples
-#' \dontrun{
-#' # These alternatives assume an epidemic-level design `dat` and
-#' # a matching cross-basis specification `spec` already exist:
-#' fit_epidlnm(dat, "spamm", "poisson", random_effect = "epi_id",
-#'             spatial_effect = NULL, epiexposure_spec = spec)
-#' fit_epidlnm(dat, "spamm", "poisson", spatial_effect = c("x_coord", "y_coord"),
-#'             epiexposure_spec = spec)
-#' fit_epidlnm(dat, "spamm", "poisson", random_effect = "block_id",
-#'             spatial_effect = c("x_coord", "y_coord"), epiexposure_spec = spec)
-#' fit_epidlnm(dat, "spamm", "poisson", random_effect = "block_id",
-#'             spatial_effect = c("x_coord", "y_coord"),
-#'             spatial_group = "year", epiexposure_spec = spec)
-#' }
+#' # Minimal epidemic-level design with one exposure basis column
+#' dat <- data.frame(
+#'   y_model = c(0.12, 0.18, 0.25, 0.31, 0.38, 0.44, 0.51, 0.57),
+#'   cb_rain_1 = c(-1.5, -1.0, -0.5, 0, 0.5, 1.0, 1.5, 2.0)
+#' )
+#'
+#' # Cross-basis specification corresponding to the fitted exposure
+#' spec <- list(
+#'   rain = list(
+#'     max_lag = 0L,
+#'     argvar = list(fun = "lin"),
+#'     arglag = list(fun = "integer")
+#'   )
+#' )
+#'
+#' fit <- fit_epidlnm(
+#'   data = dat,
+#'   model_engine = "glm",
+#'   family = "gaussian",
+#'   epiexposure_spec = spec
+#' )
+#'
+#' stats::coef(fit)
+#'
+#' attr(fit, "epiexposure_engine")
+#' attr(fit, "epiexposure_family_name")
+#' attr(fit, "epiexposure_vars")
+#'
 #' @export
 fit_epidlnm <- function(
     data,

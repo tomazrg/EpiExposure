@@ -18,7 +18,7 @@ Authors@R: c(person(
          role = "aut",
          email = "FDallaLana@agcenter.lsu.edu",
          comment = c("ORCID" = "0000-0002-3112-6197")))
-Description: Tools for modeling and interpreting environmental
+Description: Supports modeling and interpretation of environmental
     exposure-lag-response relationships in plant disease epidemiology using
     distributed lag non-linear models (DLNMs). Provides functions for defining
     complete exposure profiles, evaluating model identifiability, summarizing

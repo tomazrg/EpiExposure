@@ -451,6 +451,64 @@ user-defined visualizations.
 The rows belonging to the same draw should remain associated when comparing
 periods, exposures, scenarios, or contrasts.
 
+## Comparing period-specific effects
+
+Period-specific effects can be compared against a selected reference period using `compare_periods()`. Comparisons are made for the same exposure variable and the same evaluated exposure value, ensuring that differences among periods are not confounded by differences in exposure level.
+
+When uncertainty is included, `compare_periods()` requires the sample-level output from `summarise_effects()`. Target and reference periods are first matched within each joint parameter draw. Differences and ratios are calculated draw by draw and summarized only afterward, preserving the covariance among period-specific effects.
+
+The following workflow compares all periods against `Period1`, which represents the most recent retrospective exposure interval in this example:
+
+```{r compare-periods, eval=FALSE}
+epi_p_samples <- summarise_effects(
+  fit = fit,
+  data = epi_data,
+  scale = "period",
+  lag_periods = periods,
+  effect_measure = "percent",
+  uncertainty = TRUE,
+  n_samples = 20,
+  output = "samples"
+)
+
+period_comparison <- compare_periods(
+  period_df = epi_p_samples,
+  period_ref = "Period1",
+  periods = periods,
+  output = "summary"
+)
+```
+
+The main comparison columns are:
+
+- `eta_diff`: difference between the target and reference periods on the fitted
+  link scale;
+- `diff`: arithmetic difference between the displayed period-specific effects;
+- `ratio`: ratio of period-specific response ratios for log-link models or
+  period-specific odds ratios for logit-link models;
+- `ratio_percent`: percentage representation of the period-relative ratio;
+- `predicted_diff`: difference between the period-specific expected responses;
+- `delta_diff`: difference between the absolute response-scale changes relative
+  to the common exposure reference profile;
+- `lag_start`, `lag_end`, and `n_lags`: temporal boundaries and widths of the
+  compared periods;
+- columns ending in `_lower` and `_upper`: empirical uncertainty limits
+  calculated after the draw-by-draw comparisons.
+
+For the fitted model with a logit link, `ratio` compares the
+period-specific odds ratios. A value above 1 indicates a larger odds ratio in the target period than in `Period1`, whereas a value below 1 indicates a smaller odds ratio.
+
+Because the expected Beta response is expressed as a proportion,
+`predicted_diff` can be multiplied by 100 to obtain the difference in
+percentage points between periods.
+
+Period-specific effects are cumulative over the lags included in each period.
+Consequently, a period comparison may reflect both the fitted lag-response
+pattern and differences in the number of included lags. The results should
+therefore be interpreted according to the biological meaning and temporal
+width of the predefined periods.
+
+
 # Reducing the fitted DLNM association
 
 ## Why reduce an exposure-lag association?

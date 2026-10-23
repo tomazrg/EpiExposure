@@ -13,11 +13,14 @@
 #' are not added.
 #'
 #' @param bestfit Non-empty data frame returned by the current
-#'   `find_bestfit()`. The function requires the standardized metadata stored by
-#'   that function, including `family`, `outcome_type`, `rank_metric`,
-#'   `threshold`, the prediction contract, the cross-validation method,
-#'   `fold_assignments`, the common fitted `max_lag`, the expected profile
-#'   length (`max_lag + 1`), and the EpiExposure exact-profile contract.
+#'   `find_bestfit()` using `validation_method = "LOOCV"` or
+#'   `validation_method = "k-fold"`. The function requires the standardized
+#'   metadata stored by `find_bestfit()`, including `family`, `outcome_type`,
+#'   `rank_metric`, `threshold`, the prediction contract,
+#'   `validation_method`, `validation_scheme`, `validation_assignments`, the
+#'   common fitted `max_lag`, the expected profile length (`max_lag + 1`), and
+#'   the EpiExposure exact-profile contract. Results produced with
+#'   `validation_method = "holdout"` are not supported.
 #' @param predictions Optional data frame of OOF predictions. If `NULL`,
 #'   `attr(bestfit, "predictions")` is used. Under the current
 #'   `find_bestfit()` contract, required columns include `model_col`, `group`,
@@ -156,10 +159,11 @@
 #'   }
 #'
 #'   The returned list also carries the inherited family, threshold,
-#'   population/expected-response prediction contract, CV metadata
-#'   (`cv_method`, `cv_scheme`, `k`, `cv_stratified`, `fold_assignments`, and
-#'   `fold_balance`), and temporal metadata (`max_lag`, `history_length`,
-#'   `history_contract`, and `time_step`).
+#'   population/expected-response prediction contract, validation metadata
+#'   (`validation_method`, `validation_scheme`, `k`, `validation_seed`,
+#'   `validation_stratified`, `validation_assignments`, and
+#'   `validation_balance`), and temporal metadata (`max_lag`,
+#'   `history_length`, `history_contract`, and `time_step`).
 #'
 #' @details
 #' ## Model-level OOF ensemble contract
@@ -185,7 +189,35 @@
 #' calibrated probability, so ROC AUC, Brier score, and Log Loss are returned
 #' as `NA` for hard voting.
 #'
-#' ## Stacking and the CV folds
+#' ## Supported validation methods and holdout exclusion
+#'
+#' `ensemble_bestfit()` accepts results produced by `find_bestfit()` with
+#' `validation_method = "LOOCV"` or `validation_method = "k-fold"`. Under
+#' these validation schemes, every successfully evaluated group receives one
+#' out-of-fold prediction, and the selected models are required to share the
+#' same complete OOF support.
+#'
+#' Results produced with `validation_method = "holdout"` are intentionally not
+#' supported. Grouped holdout generates evaluation predictions for only one
+#' reserved subset of groups. If that same subset were used to select models,
+#' estimate ensemble weights, and report ensemble performance, the resulting
+#' performance would not represent an independent final assessment.
+#'
+#' Numerically, simple combinations such as unweighted averaging could be
+#' calculated on holdout predictions. However, supporting them alongside
+#' weighted and stacked ensembles would create different validation supports
+#' and inferential contracts across methods. EpiExposure therefore applies one
+#' consistent rule to all model-level ensemble methods: ensemble construction
+#' and evaluation require aligned predictions from at least two validation
+#' folds.
+#'
+#' A holdout-based ensemble workflow would require separate data roles, such as
+#' a training set for fitting the base models, a validation set for selecting
+#' models and estimating ensemble weights, and an independent test set for
+#' final evaluation. That three-way partition is outside the current
+#' `find_bestfit()` validation contract.
+#'
+#' ## Stacking and validation folds
 #'
 #' Stacking has two separate outputs that should not be confused.
 #'
@@ -396,8 +428,8 @@ ensemble_bestfit <- function(
   if (predictions_needed &&
       !all(c(prediction_group_col, prediction_fold_col) %in% id_cols)) {
     stop(
-      "For model-level ensembles under the current EpiExposure CV contract, ",
-      "`id_cols` must include both 'group' and 'fold'.",
+      "For model-level ensembles under the current EpiExposure validation ",
+      "contract, `id_cols` must include both 'group' and 'fold'.",
       call. = FALSE
     )
   }
@@ -555,13 +587,17 @@ ensemble_bestfit <- function(
     "prediction_level",
     "prediction_estimand",
     "prediction_contract",
-    "cv_method",
-    "cv_scheme",
-    "fold_assignments",
+    "validation_method",
+    "validation_scheme",
+    "validation_seed",
+    "validation_stratified",
+    "validation_assignments",
+    "validation_balance",
     "basis_training_only",
     "max_lag",
     "history_length",
-    "history_contract"
+    "history_contract",
+    "time_step"
   )
 
   missing_attributes <- required_attributes[
@@ -676,23 +712,29 @@ ensemble_bestfit <- function(
     )
   }
 
-  cv_method <- as.character(
-    attr(bestfit, "cv_method", exact = TRUE)
+  validation_method <- as.character(
+    attr(bestfit, "validation_method", exact = TRUE)
   )
-  cv_scheme <- as.character(
-    attr(bestfit, "cv_scheme", exact = TRUE)
+  validation_scheme <- as.character(
+    attr(bestfit, "validation_scheme", exact = TRUE)
   )
 
-  if (length(cv_method) != 1L ||
-      is.na(cv_method) ||
-      !cv_method %in% c("LOOCV", "k-fold")) {
+  if (length(validation_method) != 1L ||
+      is.na(validation_method) ||
+      !validation_method %in% c("LOOCV", "k-fold")) {
     stop(
-      "`bestfit` contains invalid `cv_method` metadata.",
+      "`bestfit` contains unsupported `validation_method` metadata: ",
+      sQuote(validation_method),
+      ". `ensemble_bestfit()` requires aligned out-of-fold predictions from ",
+      "`validation_method = \"LOOCV\"` or `\"k-fold\"`. Grouped holdout ",
+      "results are not supported because they contain evaluation predictions ",
+      "for only one reserved subset and do not provide the multi-fold support ",
+      "required by the current ensemble validation contract.",
       call. = FALSE
     )
   }
 
-  valid_cv_schemes <- c(
+  valid_validation_schemes <- c(
     LOOCV = "leave_one_group_out",
     `k-fold` = if (identical(outcome_type, "binary")) {
       "stratified_grouped_k_fold"
@@ -701,14 +743,15 @@ ensemble_bestfit <- function(
     }
   )
 
-  if (length(cv_scheme) != 1L ||
-      is.na(cv_scheme) ||
+  if (length(validation_scheme) != 1L ||
+      is.na(validation_scheme) ||
       !identical(
-        cv_scheme,
-        unname(valid_cv_schemes[[cv_method]])
+        validation_scheme,
+        unname(valid_validation_schemes[[validation_method]])
       )) {
     stop(
-      "`bestfit` contains inconsistent `cv_method`/`cv_scheme` metadata.",
+      "`bestfit` contains inconsistent `validation_method` and ",
+      "`validation_scheme` metadata.",
       call. = FALSE
     )
   }
@@ -719,94 +762,210 @@ ensemble_bestfit <- function(
       !is_whole_scalar(effective_k) ||
       effective_k < 2L) {
     stop(
-      "`bestfit` contains invalid cross-validation `k` metadata.",
+      "`bestfit` contains invalid validation `k` metadata.",
       call. = FALSE
     )
   }
   effective_k <- as.integer(effective_k)
 
-  cv_stratified <- attr(
+  validation_stratified <- attr(
     bestfit,
-    "cv_stratified",
+    "validation_stratified",
     exact = TRUE
   )
 
-  if (is.null(cv_stratified) ||
-      !valid_flag(cv_stratified)) {
+  if (is.null(validation_stratified) ||
+      !valid_flag(validation_stratified)) {
     stop(
-      "`bestfit` contains invalid `cv_stratified` metadata.",
+      "`bestfit` contains invalid `validation_stratified` metadata.",
       call. = FALSE
     )
   }
 
   expected_stratified <-
-    identical(cv_method, "k-fold") &&
+    identical(validation_method, "k-fold") &&
     identical(outcome_type, "binary")
 
-  if (!identical(cv_stratified, expected_stratified)) {
+  if (!identical(validation_stratified, expected_stratified)) {
     stop(
-      "`bestfit` contains inconsistent binomial CV stratification metadata.",
+      "`bestfit` contains inconsistent validation-stratification metadata.",
       call. = FALSE
     )
   }
 
-  fold_assignments <- attr(
+  validation_assignments <- attr(
     bestfit,
-    "fold_assignments",
+    "validation_assignments",
     exact = TRUE
   )
 
-  if (!is.data.frame(fold_assignments) ||
-      !nrow(fold_assignments) ||
+  if (!is.data.frame(validation_assignments) ||
+      !nrow(validation_assignments) ||
       !all(
-        c("group", "fold", "observed") %in%
-        names(fold_assignments)
+        c("group", "partition", "fold", "observed") %in%
+        names(validation_assignments)
       )) {
     stop(
-      "`bestfit` contains invalid `fold_assignments` metadata.",
+      "`bestfit` contains invalid `validation_assignments` metadata.",
       call. = FALSE
     )
   }
 
-  if (anyNA(fold_assignments$group) ||
-      anyDuplicated(as.character(fold_assignments$group)) ||
-      !is.numeric(fold_assignments$fold) ||
-      anyNA(fold_assignments$fold) ||
-      any(fold_assignments$fold !=
-          as.integer(fold_assignments$fold)) ||
-      any(fold_assignments$fold < 1L |
-          fold_assignments$fold > effective_k) ||
-      !is.numeric(fold_assignments$observed) ||
-      anyNA(fold_assignments$observed) ||
-      any(!is.finite(fold_assignments$observed))) {
+  if (anyNA(validation_assignments$group) ||
+      anyDuplicated(as.character(validation_assignments$group)) ||
+      !is.numeric(validation_assignments$fold) ||
+      anyNA(validation_assignments$fold) ||
+      any(validation_assignments$fold !=
+          as.integer(validation_assignments$fold)) ||
+      any(validation_assignments$fold < 1L |
+          validation_assignments$fold > effective_k) ||
+      !is.numeric(validation_assignments$observed) ||
+      anyNA(validation_assignments$observed) ||
+      any(!is.finite(validation_assignments$observed))) {
     stop(
-      "`bestfit$fold_assignments` metadata are internally invalid.",
+      "`bestfit$validation_assignments` metadata are internally invalid.",
       call. = FALSE
     )
   }
 
-  fold_assignments$group <- as.character(
-    fold_assignments$group
-  )
-  fold_assignments$fold <- as.integer(
-    fold_assignments$fold
+  if (anyNA(validation_assignments$partition) ||
+      any(validation_assignments$partition != "evaluation")) {
+    stop(
+      "LOOCV and k-fold `validation_assignments` must use ",
+      "`partition = \"evaluation\"` for every group.",
+      call. = FALSE
+    )
+  }
+
+  validation_assignments$group <- as.character(
+    validation_assignments$group
   )
 
-  fold_balance <- attr(
+  validation_assignments$fold <- as.integer(
+    validation_assignments$fold
+  )
+
+  validation_balance <- attr(
     bestfit,
-    "fold_balance",
+    "validation_balance",
     exact = TRUE
   )
 
-  if (!is.null(fold_balance) &&
-      !is.data.frame(fold_balance)) {
+  if (!is.data.frame(validation_balance) ||
+      !nrow(validation_balance) ||
+      !all(
+        c("partition", "fold", "n_groups") %in%
+        names(validation_balance)
+      )) {
     stop(
-      "`bestfit` contains invalid `fold_balance` metadata.",
+      "`bestfit` contains invalid `validation_balance` metadata.",
       call. = FALSE
     )
   }
 
-  cv_seed <- attr(bestfit, "cv_seed", exact = TRUE)
+  if (anyNA(validation_balance$partition) ||
+      any(validation_balance$partition != "evaluation") ||
+      !is.numeric(validation_balance$fold) ||
+      anyNA(validation_balance$fold) ||
+      any(
+        validation_balance$fold !=
+        as.integer(validation_balance$fold)
+      ) ||
+      any(
+        validation_balance$fold < 1L |
+        validation_balance$fold > effective_k
+      ) ||
+      !is.numeric(validation_balance$n_groups) ||
+      anyNA(validation_balance$n_groups) ||
+      any(
+        validation_balance$n_groups < 1L |
+        validation_balance$n_groups !=
+        as.integer(validation_balance$n_groups)
+      )) {
+    stop(
+      "`bestfit$validation_balance` metadata are internally invalid.",
+      call. = FALSE
+    )
+  }
+
+  validation_balance$fold <- as.integer(
+    validation_balance$fold
+  )
+
+  validation_balance$n_groups <- as.integer(
+    validation_balance$n_groups
+  )
+
+  if (anyDuplicated(validation_balance$fold) ||
+      !setequal(
+        validation_balance$fold,
+        seq_len(effective_k)
+      )) {
+    stop(
+      "`bestfit$validation_balance` must contain exactly one row for each ",
+      "validation fold from 1 through `k`.",
+      call. = FALSE
+    )
+  }
+
+  observed_fold_sizes <- tabulate(
+    validation_assignments$fold,
+    nbins = effective_k
+  )
+
+  balance_order <- match(
+    seq_len(effective_k),
+    validation_balance$fold
+  )
+
+  if (anyNA(balance_order) ||
+      !identical(
+        as.integer(
+          validation_balance$n_groups[
+            balance_order
+          ]
+        ),
+        as.integer(observed_fold_sizes)
+      )) {
+    stop(
+      "`bestfit$validation_balance$n_groups` does not match the group counts ",
+      "in `validation_assignments`.",
+      call. = FALSE
+    )
+  }
+
+  validation_seed <- attr(
+    bestfit,
+    "validation_seed",
+    exact = TRUE
+  )
+
+  if (!is.numeric(validation_seed) ||
+      length(validation_seed) != 1L) {
+    stop(
+      "`bestfit` contains invalid `validation_seed` metadata.",
+      call. = FALSE
+    )
+  }
+
+  if (!is.na(validation_seed) &&
+      (
+        !is.finite(validation_seed) ||
+        validation_seed < 0 ||
+        validation_seed > .Machine$integer.max ||
+        validation_seed != floor(validation_seed)
+      )) {
+    stop(
+      "`bestfit` contains invalid `validation_seed` metadata.",
+      call. = FALSE
+    )
+  }
+
+  validation_seed <- if (is.na(validation_seed)) {
+    NA_integer_
+  } else {
+    as.integer(validation_seed)
+  }
   max_lag_metadata <- attr(bestfit, "max_lag", exact = TRUE)
   history_length_metadata <- attr(
     bestfit,
@@ -1066,9 +1225,9 @@ ensemble_bestfit <- function(
       family_name,
       ", outcome_type = ",
       outcome_type,
-      ", CV = ",
-      cv_method,
-      if (identical(cv_method, "k-fold")) {
+      ", validation = ",
+      validation_method,
+      if (identical(validation_method, "k-fold")) {
         paste0(" (k=", effective_k, ")")
       } else {
         ""
@@ -1440,41 +1599,41 @@ ensemble_bestfit <- function(
     )
   }
 
-  validate_predictions_against_cv <- function(
+  validate_predictions_against_validation <- function(
     prediction_data
   ) {
-    required_cv <- c(
+    required_validation <- c(
       prediction_group_col,
       prediction_fold_col,
       response_col
     )
 
-    missing_cv <- setdiff(
-      required_cv,
+    missing_validation <- setdiff(
+      required_validation,
       names(prediction_data)
     )
 
-    if (length(missing_cv)) {
+    if (length(missing_validation)) {
       stop(
-        "OOF predictions are missing current CV-contract column(s): ",
-        paste(missing_cv, collapse = ", "),
+        "OOF predictions are missing validation-contract column(s): ",
+        paste(missing_validation, collapse = ", "),
         ".",
         call. = FALSE
       )
     }
 
-    cv_rows <- unique(
+    validation_rows <- unique(
       prediction_data[
         ,
-        required_cv,
+        required_validation,
         drop = FALSE
       ]
     )
 
     group_split <- split(
-      cv_rows,
+      validation_rows,
       as.character(
-        cv_rows[[prediction_group_col]]
+        validation_rows[[prediction_group_col]]
       )
     )
 
@@ -1493,38 +1652,38 @@ ensemble_bestfit <- function(
     }
 
     match_index <- match(
-      as.character(cv_rows[[prediction_group_col]]),
-      fold_assignments$group
+      as.character(validation_rows[[prediction_group_col]]),
+      validation_assignments$group
     )
 
     if (anyNA(match_index)) {
       stop(
         "`predictions` contains group(s) absent from ",
-        "`attr(bestfit, 'fold_assignments')`.",
+        "`attr(bestfit, 'validation_assignments')`.",
         call. = FALSE
       )
     }
 
-    expected_fold <- fold_assignments$fold[
+    expected_fold <- validation_assignments$fold[
       match_index
     ]
-    expected_observed <- fold_assignments$observed[
+    expected_observed <- validation_assignments$observed[
       match_index
     ]
 
     if (any(
-      as.integer(cv_rows[[prediction_fold_col]]) !=
+      as.integer(validation_rows[[prediction_fold_col]]) !=
       expected_fold
     )) {
       stop(
-        "OOF fold identifiers in `predictions` do not match ",
-        "`attr(bestfit, 'fold_assignments')`.",
+        "Validation-fold identifiers in `predictions` do not match ",
+        "`attr(bestfit, 'validation_assignments')`.",
         call. = FALSE
       )
     }
 
     observed_value <- as.numeric(
-      cv_rows[[response_col]]
+      validation_rows[[response_col]]
     )
 
     if (any(!is.finite(observed_value)) ||
@@ -1534,7 +1693,7 @@ ensemble_bestfit <- function(
         )) {
       stop(
         "Observed outcomes in `predictions` do not match ",
-        "`attr(bestfit, 'fold_assignments')`.",
+        "`attr(bestfit, 'validation_assignments')`.",
         call. = FALSE
       )
     }
@@ -1645,7 +1804,7 @@ ensemble_bestfit <- function(
       )
     }
 
-    validate_predictions_against_cv(
+    validate_predictions_against_validation(
       prediction_data
     )
 
@@ -1700,7 +1859,8 @@ ensemble_bestfit <- function(
           "; extra identifier(s): ",
           length(extra_current),
           "). Choose models with the same successful OOF groups or rerun ",
-          "`find_bestfit()` so selected candidates complete the same CV support.",
+          "`find_bestfit()` so selected candidates complete the same validation",
+          "support.",
           call. = FALSE
         )
       }
@@ -1725,7 +1885,7 @@ ensemble_bestfit <- function(
         as.character(
           obs_df[[prediction_group_col]]
         ),
-        fold_assignments$group
+        validation_assignments$group
       ),
       obs_df[[prediction_fold_col]]
     )
@@ -1818,7 +1978,8 @@ ensemble_bestfit <- function(
 
     if (length(unique(fold_vector)) < 2L) {
       stop(
-        "At least two distinct CV folds are required for ensemble evaluation.",
+        "At least two distinct validation folds are required for ensemble",
+        "evaluation.",
         call. = FALSE
       )
     }
@@ -2294,7 +2455,7 @@ ensemble_bestfit <- function(
 
     if (length(fold_levels) < 2L) {
       stop(
-        "Stacking requires at least two CV folds.",
+        "Stacking requires at least two validation folds.",
         call. = FALSE
       )
     }
@@ -2751,9 +2912,11 @@ ensemble_bestfit <- function(
         n_oof = prediction_matrix$n_oof,
         family = family_name,
         outcome_type = outcome_type,
-        cv_method = cv_method,
-        cv_scheme = cv_scheme,
+        validation_method = validation_method,
+        validation_scheme = validation_scheme,
         k = effective_k,
+        validation_seed = validation_seed,
+        validation_stratified = validation_stratified,
         weight_metric = weight_metric,
         metric_direction = metric_direction,
         threshold = if (
@@ -3755,13 +3918,13 @@ ensemble_bestfit <- function(
     prediction_level = prediction_level,
     prediction_estimand = prediction_estimand,
     prediction_contract = prediction_contract,
-    cv_method = cv_method,
-    cv_scheme = cv_scheme,
+    validation_method = validation_method,
+    validation_scheme = validation_scheme,
     k = effective_k,
-    cv_seed = cv_seed,
-    cv_stratified = cv_stratified,
-    fold_assignments = fold_assignments,
-    fold_balance = fold_balance,
+    validation_seed = validation_seed,
+    validation_stratified = validation_stratified,
+    validation_assignments = validation_assignments,
+    validation_balance = validation_balance,
     basis_training_only = TRUE,
     max_lag = max_lag_metadata,
     history_length = history_length_metadata,

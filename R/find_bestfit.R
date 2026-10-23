@@ -330,53 +330,31 @@
 #' not change the caller's global `future::plan()`.
 #'
 #' @examples
-#' \dontrun{
-#' # Existing grouped-validation examples:
-#' find_bestfit(dat, vars = "tmean", max_lag = 10, model_engine = "spamm",
-#'              family = "poisson", random_effect = "epi_id")
-#' find_bestfit(dat, vars = "tmean", max_lag = 10, model_engine = "spamm",
-#'              family = "poisson", spatial_effect = c("x_coord", "y_coord"))
-#' find_bestfit(dat, vars = "tmean", max_lag = 10, model_engine = "spamm",
-#'              family = "poisson", random_effect = "block_id",
-#'              spatial_effect = c("x_coord", "y_coord"))
-#' find_bestfit(dat, vars = "tmean", max_lag = 10, model_engine = "spamm",
-#'              family = "poisson", random_effect = "block_id",
-#'              spatial_effect = c("x_coord", "y_coord"), spatial_group = "year")
-#'
-#' # Grouped proportional holdout for a non-binary response:
-#' best_holdout <- find_bestfit(
-#'   data = dat,
+#' \donttest{
+#' best_models <- find_bestfit(
+#'   data = epi_data,
 #'   response = "y",
 #'   group = "epi_id",
 #'   time = "time",
-#'   vars = c("tmean", "rain", "wetness"),
-#'   max_lag = 10,
-#'   model_engine = "glm",
-#'   family = "poisson",
+#'   vars = "wetness",
+#'   max_lag = 85,
+#'   df_var_grid = 2,
+#'   df_lag_grid = 2,
+#'   var_sets = list("wetness"),
+#'   model_engine = "glmmTMB",
+#'   family = "beta",
 #'   validation_method = "holdout",
-#'   test_prop = 0.30,
+#'   test_prop = 0.20,
 #'   seed = 123,
+#'   min_success = 2,
 #'   top_n = 1,
-#'   keep_fits = TRUE
+#'   keep_fits = FALSE,
+#'   verbose = FALSE
 #' )
 #'
-#' # Grouped stratified holdout for a binary response:
-#' best_binary_holdout <- find_bestfit(
-#'   data = dat_binomial,
-#'   response = "y",
-#'   group = "epi_id",
-#'   time = "time",
-#'   vars = c("tmean", "rain"),
-#'   max_lag = 10,
-#'   model_engine = "glm",
-#'   family = "binomial",
-#'   validation_method = "holdout",
-#'   test_prop = 0.30,
-#'   seed = 123,
-#'   top_n = 1,
-#'   keep_fits = TRUE
-#' )
+#' head(best_models)
 #' }
+#'
 #' @export
 find_bestfit <- function(
     data,
@@ -1773,6 +1751,7 @@ find_bestfit <- function(
     attr(out, "epiexposure_max_lag") <- template_info$max_lag
     attr(out, "epiexposure_history_length") <- template_info$history_length
     attr(out, "epiexposure_history_contract") <- template_info$history_contract
+    attr(out, "epiexposure_time_step") <- time_step
 
     out
   }
@@ -4119,9 +4098,40 @@ find_bestfit <- function(
   }
 
   if (!length(results)) {
+
+    failure_data <- if (length(failures)) {
+      do.call(rbind, failures)
+    } else {
+      data.frame()
+    }
+
+    if (
+      nrow(failure_data) &&
+      "error" %in% names(failure_data)
+    ) {
+      failure_counts <- sort(
+        table(failure_data$error),
+        decreasing = TRUE
+      )
+
+      failure_preview <- paste(
+        paste0(
+          names(utils::head(failure_counts, 3L)),
+          " [n = ",
+          as.integer(utils::head(failure_counts, 3L)),
+          "]"
+        ),
+        collapse = " | "
+      )
+    } else {
+      failure_preview <- "No detailed validation failure was recorded."
+    }
+
     stop(
       "No candidate model produced at least `min_success` successful ",
-      "group-level out-of-sample validation predictions.",
+      "group-level out-of-sample validation predictions.\n",
+      "Most frequent validation failure(s): ",
+      failure_preview,
       call. = FALSE
     )
   }

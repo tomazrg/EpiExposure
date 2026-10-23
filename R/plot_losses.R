@@ -112,40 +112,91 @@
 #' is calculated.
 #'
 #' @examples
-#' \dontrun{
-#' # Heatmaps using the shortened simulate_losses() output names
-#' plot_losses(
+#' # Small simulated loss surface
+#' losses <- expand.grid(
+#'   rain = seq(0, 12, by = 3),
+#'   att_yield = seq(4000, 8000, by = 1000)
+#' )
+#'
+#' losses$yield_loss <- with(
+#'   losses,
+#'   0.04 * rain * att_yield
+#' )
+#'
+#' losses$econ_loss <- losses$yield_loss * 0.25
+#'
+#' # Heatmap of yield loss
+#' loss_heatmap <- plot_losses(
 #'   losses,
 #'   x = "rain",
 #'   type = "heatmap",
-#'   facet = c("tmean", "wetness"),
-#'   x_breaks = seq(0, 15, by = 3),
-#'   y_breaks = seq(4000, 12000, by = 2000),
+#'   plots = "yield",
+#'   x_breaks = seq(0, 12, by = 3),
+#'   y_breaks = seq(4000, 8000, by = 1000),
 #'   x_label = "Daily precipitation (mm)",
-#'   nrow = 2,
-#'   facet_ncol = 4
+#'   show_yield_x_text = TRUE,
+#'   show_yield_x_label = TRUE
 #' )
 #'
-#' # Regression from summary-style output
-#' plot_losses(
-#'   losses,
+#' # Summary-style regression data
+#' regression_losses <- data.frame(
+#'   rain = rep(seq(0, 12, length.out = 20), 2),
+#'   att_yield = 6000,
+#'   intercept_sim = rep(c(0.95, 0.90), each = 20),
+#'   slope_sim = rep(c(-0.015, -0.025), each = 20)
+#' )
+#'
+#' regression_losses$ap_yield <- with(
+#'   regression_losses,
+#'   att_yield * (intercept_sim + slope_sim * rain)
+#' )
+#'
+#' regression_losses$ap_yield_lower <-
+#'   regression_losses$ap_yield - 150
+#'
+#' regression_losses$ap_yield_upper <-
+#'   regression_losses$ap_yield + 150
+#'
+#' summary_regression_plot <- plot_losses(
+#'   regression_losses,
 #'   x = "rain",
 #'   type = "regression",
 #'   reg_y = "ap_yield",
-#'   att_yield = 9000,
-#'   facet = c("tmean", "wetness")
+#'   att_yield = 6000,
+#'   x_label = "Daily precipitation (mm)"
 #' )
 #'
-#' # Regression from draw-level output containing `sample`
-#' plot_losses(
+#' # Draw-level regression data
+#' losses_samples <- expand.grid(
+#'   rain = seq(0, 12, length.out = 20),
+#'   sample = 1:3
+#' )
+#'
+#' losses_samples$att_yield <- 6000
+#' losses_samples$intercept_sim <- 0.95
+#' losses_samples$slope_sim <- -0.02
+#'
+#' losses_samples$ap_yield <- with(
+#'   losses_samples,
+#'   att_yield *
+#'     (intercept_sim + slope_sim * rain) +
+#'     sample * 25
+#' )
+#'
+#' sample_regression_plot <- plot_losses(
 #'   losses_samples,
 #'   x = "rain",
 #'   type = "regression",
 #'   reg_y = "ap_yield",
-#'   att_yield = 9000,
-#'   facet = c("tmean", "wetness")
+#'   att_yield = 6000,
+#'   x_label = "Daily precipitation (mm)"
 #' )
-#' }
+#'
+#' stopifnot(
+#'   inherits(loss_heatmap, "ggplot"),
+#'   inherits(summary_regression_plot, "ggplot"),
+#'   inherits(sample_regression_plot, "ggplot")
+#' )
 #'
 #' @importFrom rlang .data
 #' @export
