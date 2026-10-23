@@ -495,53 +495,43 @@ not change the caller's global `future::plan()`.</p>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
-<span class="r-in"><span><span class="co"># Existing grouped-validation examples:</span></span></span>
-<span class="r-in"><span><span class="fu">find_bestfit</span><span class="op">(</span><span class="va">dat</span>, vars <span class="op">=</span> <span class="st">"tmean"</span>, max_lag <span class="op">=</span> <span class="fl">10</span>, model_engine <span class="op">=</span> <span class="st">"spamm"</span>,</span></span>
-<span class="r-in"><span>             family <span class="op">=</span> <span class="st">"poisson"</span>, random_effect <span class="op">=</span> <span class="st">"epi_id"</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="fu">find_bestfit</span><span class="op">(</span><span class="va">dat</span>, vars <span class="op">=</span> <span class="st">"tmean"</span>, max_lag <span class="op">=</span> <span class="fl">10</span>, model_engine <span class="op">=</span> <span class="st">"spamm"</span>,</span></span>
-<span class="r-in"><span>             family <span class="op">=</span> <span class="st">"poisson"</span>, spatial_effect <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"x_coord"</span>, <span class="st">"y_coord"</span><span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="fu">find_bestfit</span><span class="op">(</span><span class="va">dat</span>, vars <span class="op">=</span> <span class="st">"tmean"</span>, max_lag <span class="op">=</span> <span class="fl">10</span>, model_engine <span class="op">=</span> <span class="st">"spamm"</span>,</span></span>
-<span class="r-in"><span>             family <span class="op">=</span> <span class="st">"poisson"</span>, random_effect <span class="op">=</span> <span class="st">"block_id"</span>,</span></span>
-<span class="r-in"><span>             spatial_effect <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"x_coord"</span>, <span class="st">"y_coord"</span><span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="fu">find_bestfit</span><span class="op">(</span><span class="va">dat</span>, vars <span class="op">=</span> <span class="st">"tmean"</span>, max_lag <span class="op">=</span> <span class="fl">10</span>, model_engine <span class="op">=</span> <span class="st">"spamm"</span>,</span></span>
-<span class="r-in"><span>             family <span class="op">=</span> <span class="st">"poisson"</span>, random_effect <span class="op">=</span> <span class="st">"block_id"</span>,</span></span>
-<span class="r-in"><span>             spatial_effect <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"x_coord"</span>, <span class="st">"y_coord"</span><span class="op">)</span>, spatial_group <span class="op">=</span> <span class="st">"year"</span><span class="op">)</span></span></span>
-<span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Grouped proportional holdout for a non-binary response:</span></span></span>
-<span class="r-in"><span><span class="va">best_holdout</span> <span class="op">&lt;-</span> <span class="fu">find_bestfit</span><span class="op">(</span></span></span>
-<span class="r-in"><span>  data <span class="op">=</span> <span class="va">dat</span>,</span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># \donttest{</span></span></span>
+<span class="r-in"><span><span class="va">best_models</span> <span class="op">&lt;-</span> <span class="fu">find_bestfit</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  data <span class="op">=</span> <span class="va">epi_data</span>,</span></span>
 <span class="r-in"><span>  response <span class="op">=</span> <span class="st">"y"</span>,</span></span>
 <span class="r-in"><span>  group <span class="op">=</span> <span class="st">"epi_id"</span>,</span></span>
 <span class="r-in"><span>  time <span class="op">=</span> <span class="st">"time"</span>,</span></span>
-<span class="r-in"><span>  vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"tmean"</span>, <span class="st">"rain"</span>, <span class="st">"wetness"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>  max_lag <span class="op">=</span> <span class="fl">10</span>,</span></span>
-<span class="r-in"><span>  model_engine <span class="op">=</span> <span class="st">"glm"</span>,</span></span>
-<span class="r-in"><span>  family <span class="op">=</span> <span class="st">"poisson"</span>,</span></span>
+<span class="r-in"><span>  vars <span class="op">=</span> <span class="st">"wetness"</span>,</span></span>
+<span class="r-in"><span>  max_lag <span class="op">=</span> <span class="fl">85</span>,</span></span>
+<span class="r-in"><span>  df_var_grid <span class="op">=</span> <span class="fl">2</span>,</span></span>
+<span class="r-in"><span>  df_lag_grid <span class="op">=</span> <span class="fl">2</span>,</span></span>
+<span class="r-in"><span>  var_sets <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="st">"wetness"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  model_engine <span class="op">=</span> <span class="st">"glmmTMB"</span>,</span></span>
+<span class="r-in"><span>  family <span class="op">=</span> <span class="st">"beta"</span>,</span></span>
 <span class="r-in"><span>  validation_method <span class="op">=</span> <span class="st">"holdout"</span>,</span></span>
-<span class="r-in"><span>  test_prop <span class="op">=</span> <span class="fl">0.30</span>,</span></span>
+<span class="r-in"><span>  test_prop <span class="op">=</span> <span class="fl">0.20</span>,</span></span>
 <span class="r-in"><span>  seed <span class="op">=</span> <span class="fl">123</span>,</span></span>
+<span class="r-in"><span>  min_success <span class="op">=</span> <span class="fl">2</span>,</span></span>
 <span class="r-in"><span>  top_n <span class="op">=</span> <span class="fl">1</span>,</span></span>
-<span class="r-in"><span>  keep_fits <span class="op">=</span> <span class="cn">TRUE</span></span></span>
+<span class="r-in"><span>  keep_fits <span class="op">=</span> <span class="cn">FALSE</span>,</span></span>
+<span class="r-in"><span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Grouped stratified holdout for a binary response:</span></span></span>
-<span class="r-in"><span><span class="va">best_binary_holdout</span> <span class="op">&lt;-</span> <span class="fu">find_bestfit</span><span class="op">(</span></span></span>
-<span class="r-in"><span>  data <span class="op">=</span> <span class="va">dat_binomial</span>,</span></span>
-<span class="r-in"><span>  response <span class="op">=</span> <span class="st">"y"</span>,</span></span>
-<span class="r-in"><span>  group <span class="op">=</span> <span class="st">"epi_id"</span>,</span></span>
-<span class="r-in"><span>  time <span class="op">=</span> <span class="st">"time"</span>,</span></span>
-<span class="r-in"><span>  vars <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"tmean"</span>, <span class="st">"rain"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>  max_lag <span class="op">=</span> <span class="fl">10</span>,</span></span>
-<span class="r-in"><span>  model_engine <span class="op">=</span> <span class="st">"glm"</span>,</span></span>
-<span class="r-in"><span>  family <span class="op">=</span> <span class="st">"binomial"</span>,</span></span>
-<span class="r-in"><span>  validation_method <span class="op">=</span> <span class="st">"holdout"</span>,</span></span>
-<span class="r-in"><span>  test_prop <span class="op">=</span> <span class="fl">0.30</span>,</span></span>
-<span class="r-in"><span>  seed <span class="op">=</span> <span class="fl">123</span>,</span></span>
-<span class="r-in"><span>  top_n <span class="op">=</span> <span class="fl">1</span>,</span></span>
-<span class="r-in"><span>  keep_fits <span class="op">=</span> <span class="cn">TRUE</span></span></span>
-<span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">best_models</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   rank model_id df_var df_lag    vars n_vars       CCC        Cb       rho</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1    1        1      2      2 wetness      1 0.6431441 0.8898498 0.7227558</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        RMSE       MAE n_groups_total n_folds n_success_folds n_failed_folds</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 0.1976386 0.1707208            520       1               1              0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   n_predictions n_success n_failed n_warning_folds warning_rate</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1           104       104        0               0            0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   n_warning_events n_knot_warning_folds n_convergence_warning_folds</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                0                    0                           0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   n_hessian_warning_folds n_other_warning_folds n_knot_warning_events</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                       0                     0                     0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   n_convergence_warning_events n_hessian_warning_events n_other_warning_events</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1                            0                        0                      0</span>
+<span class="r-in"><span><span class="co"># }</span></span></span>
+<span class="r-in"><span></span></span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

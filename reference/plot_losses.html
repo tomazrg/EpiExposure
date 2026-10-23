@@ -355,40 +355,91 @@ is calculated.</p>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
-<span class="r-in"><span><span class="co"># Heatmaps using the shortened simulate_losses() output names</span></span></span>
-<span class="r-in"><span><span class="fu">plot_losses</span><span class="op">(</span></span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># Small simulated loss surface</span></span></span>
+<span class="r-in"><span><span class="va">losses</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/expand.grid.html" class="external-link">expand.grid</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  rain <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">12</span>, by <span class="op">=</span> <span class="fl">3</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  att_yield <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">4000</span>, <span class="fl">8000</span>, by <span class="op">=</span> <span class="fl">1000</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">losses</span><span class="op">$</span><span class="va">yield_loss</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/with.html" class="external-link">with</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="va">losses</span>,</span></span>
+<span class="r-in"><span>  <span class="fl">0.04</span> <span class="op">*</span> <span class="va">rain</span> <span class="op">*</span> <span class="va">att_yield</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">losses</span><span class="op">$</span><span class="va">econ_loss</span> <span class="op">&lt;-</span> <span class="va">losses</span><span class="op">$</span><span class="va">yield_loss</span> <span class="op">*</span> <span class="fl">0.25</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Heatmap of yield loss</span></span></span>
+<span class="r-in"><span><span class="va">loss_heatmap</span> <span class="op">&lt;-</span> <span class="fu">plot_losses</span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="va">losses</span>,</span></span>
 <span class="r-in"><span>  x <span class="op">=</span> <span class="st">"rain"</span>,</span></span>
 <span class="r-in"><span>  type <span class="op">=</span> <span class="st">"heatmap"</span>,</span></span>
-<span class="r-in"><span>  facet <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"tmean"</span>, <span class="st">"wetness"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>  x_breaks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">15</span>, by <span class="op">=</span> <span class="fl">3</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>  y_breaks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">4000</span>, <span class="fl">12000</span>, by <span class="op">=</span> <span class="fl">2000</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  plots <span class="op">=</span> <span class="st">"yield"</span>,</span></span>
+<span class="r-in"><span>  x_breaks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">12</span>, by <span class="op">=</span> <span class="fl">3</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  y_breaks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">4000</span>, <span class="fl">8000</span>, by <span class="op">=</span> <span class="fl">1000</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>  x_label <span class="op">=</span> <span class="st">"Daily precipitation (mm)"</span>,</span></span>
-<span class="r-in"><span>  nrow <span class="op">=</span> <span class="fl">2</span>,</span></span>
-<span class="r-in"><span>  facet_ncol <span class="op">=</span> <span class="fl">4</span></span></span>
+<span class="r-in"><span>  show_yield_x_text <span class="op">=</span> <span class="cn">TRUE</span>,</span></span>
+<span class="r-in"><span>  show_yield_x_label <span class="op">=</span> <span class="cn">TRUE</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Regression from summary-style output</span></span></span>
-<span class="r-in"><span><span class="fu">plot_losses</span><span class="op">(</span></span></span>
-<span class="r-in"><span>  <span class="va">losses</span>,</span></span>
+<span class="r-in"><span><span class="co"># Summary-style regression data</span></span></span>
+<span class="r-in"><span><span class="va">regression_losses</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  rain <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">12</span>, length.out <span class="op">=</span> <span class="fl">20</span><span class="op">)</span>, <span class="fl">2</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  att_yield <span class="op">=</span> <span class="fl">6000</span>,</span></span>
+<span class="r-in"><span>  intercept_sim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.95</span>, <span class="fl">0.90</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">20</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  slope_sim <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="op">-</span><span class="fl">0.015</span>, <span class="op">-</span><span class="fl">0.025</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">20</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">regression_losses</span><span class="op">$</span><span class="va">ap_yield</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/with.html" class="external-link">with</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="va">regression_losses</span>,</span></span>
+<span class="r-in"><span>  <span class="va">att_yield</span> <span class="op">*</span> <span class="op">(</span><span class="va">intercept_sim</span> <span class="op">+</span> <span class="va">slope_sim</span> <span class="op">*</span> <span class="va">rain</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">regression_losses</span><span class="op">$</span><span class="va">ap_yield_lower</span> <span class="op">&lt;-</span></span></span>
+<span class="r-in"><span>  <span class="va">regression_losses</span><span class="op">$</span><span class="va">ap_yield</span> <span class="op">-</span> <span class="fl">150</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">regression_losses</span><span class="op">$</span><span class="va">ap_yield_upper</span> <span class="op">&lt;-</span></span></span>
+<span class="r-in"><span>  <span class="va">regression_losses</span><span class="op">$</span><span class="va">ap_yield</span> <span class="op">+</span> <span class="fl">150</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">summary_regression_plot</span> <span class="op">&lt;-</span> <span class="fu">plot_losses</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="va">regression_losses</span>,</span></span>
 <span class="r-in"><span>  x <span class="op">=</span> <span class="st">"rain"</span>,</span></span>
 <span class="r-in"><span>  type <span class="op">=</span> <span class="st">"regression"</span>,</span></span>
 <span class="r-in"><span>  reg_y <span class="op">=</span> <span class="st">"ap_yield"</span>,</span></span>
-<span class="r-in"><span>  att_yield <span class="op">=</span> <span class="fl">9000</span>,</span></span>
-<span class="r-in"><span>  facet <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"tmean"</span>, <span class="st">"wetness"</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  att_yield <span class="op">=</span> <span class="fl">6000</span>,</span></span>
+<span class="r-in"><span>  x_label <span class="op">=</span> <span class="st">"Daily precipitation (mm)"</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># Regression from draw-level output containing `sample`</span></span></span>
-<span class="r-in"><span><span class="fu">plot_losses</span><span class="op">(</span></span></span>
+<span class="r-in"><span><span class="co"># Draw-level regression data</span></span></span>
+<span class="r-in"><span><span class="va">losses_samples</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/expand.grid.html" class="external-link">expand.grid</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  rain <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">12</span>, length.out <span class="op">=</span> <span class="fl">20</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  sample <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">losses_samples</span><span class="op">$</span><span class="va">att_yield</span> <span class="op">&lt;-</span> <span class="fl">6000</span></span></span>
+<span class="r-in"><span><span class="va">losses_samples</span><span class="op">$</span><span class="va">intercept_sim</span> <span class="op">&lt;-</span> <span class="fl">0.95</span></span></span>
+<span class="r-in"><span><span class="va">losses_samples</span><span class="op">$</span><span class="va">slope_sim</span> <span class="op">&lt;-</span> <span class="op">-</span><span class="fl">0.02</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">losses_samples</span><span class="op">$</span><span class="va">ap_yield</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/with.html" class="external-link">with</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="va">losses_samples</span>,</span></span>
+<span class="r-in"><span>  <span class="va">att_yield</span> <span class="op">*</span></span></span>
+<span class="r-in"><span>    <span class="op">(</span><span class="va">intercept_sim</span> <span class="op">+</span> <span class="va">slope_sim</span> <span class="op">*</span> <span class="va">rain</span><span class="op">)</span> <span class="op">+</span></span></span>
+<span class="r-in"><span>    <span class="va">sample</span> <span class="op">*</span> <span class="fl">25</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">sample_regression_plot</span> <span class="op">&lt;-</span> <span class="fu">plot_losses</span><span class="op">(</span></span></span>
 <span class="r-in"><span>  <span class="va">losses_samples</span>,</span></span>
 <span class="r-in"><span>  x <span class="op">=</span> <span class="st">"rain"</span>,</span></span>
 <span class="r-in"><span>  type <span class="op">=</span> <span class="st">"regression"</span>,</span></span>
 <span class="r-in"><span>  reg_y <span class="op">=</span> <span class="st">"ap_yield"</span>,</span></span>
-<span class="r-in"><span>  att_yield <span class="op">=</span> <span class="fl">9000</span>,</span></span>
-<span class="r-in"><span>  facet <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"tmean"</span>, <span class="st">"wetness"</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  att_yield <span class="op">=</span> <span class="fl">6000</span>,</span></span>
+<span class="r-in"><span>  x_label <span class="op">=</span> <span class="st">"Daily precipitation (mm)"</span></span></span>
 <span class="r-in"><span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/stopifnot.html" class="external-link">stopifnot</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">inherits</a></span><span class="op">(</span><span class="va">loss_heatmap</span>, <span class="st">"ggplot"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">inherits</a></span><span class="op">(</span><span class="va">summary_regression_plot</span>, <span class="st">"ggplot"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">inherits</a></span><span class="op">(</span><span class="va">sample_regression_plot</span>, <span class="st">"ggplot"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

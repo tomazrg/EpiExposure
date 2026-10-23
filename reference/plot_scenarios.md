@@ -405,56 +405,80 @@ The user can instead request the individual sample predictions with
 ## Examples
 
 ``` r
-if (FALSE) { # \dontrun{
 # -----------------------------------------------------------------------
 # 1. GRID + SAMPLES
 # -----------------------------------------------------------------------
-pred_grid_samples <- simulate_scenarios(
-  fit = fit,
-  scenarios = range_grid,
-  data = sim_data,
-  uncertainty = TRUE,
-  output = "samples",
-  n_samples = 20,
-  seed = 1234
+pred_grid_samples <- expand.grid(
+  rain = seq(0, 12, by = 3),
+  sample = 1:3
 )
 
-plot_scenarios(
+pred_grid_samples$prediction <- with(
+  pred_grid_samples,
+  0.05 + 0.015 * rain + 0.005 * sample
+)
+
+grid_samples_plot <- plot_scenarios(
   data = pred_grid_samples,
   x = "rain",
   scenario_type = "grid",
   output = "samples",
-  facet = c("wetness", "tmean"),
+  smooth = FALSE,
   scale_factor = 100,
-  x_limits = c(0, 15)
+  x_label = "Daily precipitation (mm)",
+  y_label = "Predicted (%)"
 )
 
-# Because output = "auto" is the default, the same plot can be requested as:
-plot_scenarios(
+# The default output = "auto" identifies the sample column automatically.
+grid_auto_plot <- plot_scenarios(
   data = pred_grid_samples,
   x = "rain",
   scenario_type = "grid",
-  facet = c("wetness", "tmean"),
-  scale_factor = 100,
-  x_limits = c(0, 15)
+  smooth = FALSE,
+  scale_factor = 100
 )
 
 # -----------------------------------------------------------------------
 # 2. GRID + SUMMARY
 # -----------------------------------------------------------------------
-plot_scenarios(
+pred_grid_summary <- data.frame(
+  rain = seq(0, 12, by = 2)
+)
+
+pred_grid_summary$prediction <-
+  0.05 + 0.015 * pred_grid_summary$rain
+
+pred_grid_summary$prediction_lower <-
+  pred_grid_summary$prediction - 0.02
+
+pred_grid_summary$prediction_upper <-
+  pred_grid_summary$prediction + 0.02
+
+grid_summary_plot <- plot_scenarios(
   data = pred_grid_summary,
   x = "rain",
   scenario_type = "grid",
   output = "summary",
-  facet = c("wetness", "tmean"),
-  scale_factor = 100
+  smooth = FALSE,
+  scale_factor = 100,
+  x_label = "Daily precipitation (mm)",
+  y_label = "Predicted (%)"
 )
 
 # -----------------------------------------------------------------------
 # 3. PAIRED + SAMPLES
 # -----------------------------------------------------------------------
-plot_scenarios(
+pred_paired_samples <- expand.grid(
+  rain = c(0, 4, 8, 12),
+  sample = 1:5
+)
+
+pred_paired_samples$prediction <- with(
+  pred_paired_samples,
+  0.05 + 0.015 * rain + 0.004 * sample
+)
+
+paired_samples_plot <- plot_scenarios(
   data = pred_paired_samples,
   x = "rain",
   scenario_type = "paired",
@@ -464,20 +488,17 @@ plot_scenarios(
   y_label = "Predicted (%)"
 )
 
-# Show the individual sample predictions instead of boxplots:
-plot_scenarios(
-  data = pred_paired_samples,
-  x = "rain",
-  scenario_type = "paired",
-  output = "samples",
-  paired_samples_geom = "jitter",
-  scale_factor = 100
-)
-
 # -----------------------------------------------------------------------
 # 4. PAIRED + SUMMARY
 # -----------------------------------------------------------------------
-plot_scenarios(
+pred_paired_summary <- data.frame(
+  rain = c(0, 4, 8, 12),
+  prediction = c(0.06, 0.12, 0.19, 0.25),
+  prediction_lower = c(0.04, 0.09, 0.15, 0.20),
+  prediction_upper = c(0.08, 0.15, 0.23, 0.30)
+)
+
+paired_summary_plot <- plot_scenarios(
   data = pred_paired_summary,
   x = "rain",
   scenario_type = "paired",
@@ -486,5 +507,12 @@ plot_scenarios(
   x_label = "Daily precipitation (mm)",
   y_label = "Predicted (%)"
 )
-} # }
+
+stopifnot(
+  inherits(grid_samples_plot, "ggplot"),
+  inherits(grid_auto_plot, "ggplot"),
+  inherits(grid_summary_plot, "ggplot"),
+  inherits(paired_samples_plot, "ggplot"),
+  inherits(paired_summary_plot, "ggplot")
+)
 ```

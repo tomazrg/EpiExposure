@@ -41,13 +41,16 @@ ensemble_bestfit(
 
 - bestfit:
 
-  Non-empty data frame returned by the current \`find_bestfit()\`. The
-  function requires the standardized metadata stored by that function,
-  including \`family\`, \`outcome_type\`, \`rank_metric\`,
-  \`threshold\`, the prediction contract, the cross-validation method,
-  \`fold_assignments\`, the common fitted \`max_lag\`, the expected
-  profile length (\`max_lag + 1\`), and the EpiExposure exact-profile
-  contract.
+  Non-empty data frame returned by the current \`find_bestfit()\` using
+  \`validation_method = "LOOCV"\` or \`validation_method = "k-fold"\`.
+  The function requires the standardized metadata stored by
+  \`find_bestfit()\`, including \`family\`, \`outcome_type\`,
+  \`rank_metric\`, \`threshold\`, the prediction contract,
+  \`validation_method\`, \`validation_scheme\`,
+  \`validation_assignments\`, the common fitted \`max_lag\`, the
+  expected profile length (\`max_lag + 1\`), and the EpiExposure
+  exact-profile contract. Results produced with \`validation_method =
+  "holdout"\` are not supported.
 
 - predictions:
 
@@ -289,10 +292,11 @@ A list containing:
   Warnings captured while evaluating ensemble performance metrics.
 
 The returned list also carries the inherited family, threshold,
-population/expected-response prediction contract, CV metadata
-(\`cv_method\`, \`cv_scheme\`, \`k\`, \`cv_stratified\`,
-\`fold_assignments\`, and \`fold_balance\`), and temporal metadata
-(\`max_lag\`, \`history_length\`, \`history_contract\`, and
+population/expected-response prediction contract, validation metadata
+(\`validation_method\`, \`validation_scheme\`, \`k\`,
+\`validation_seed\`, \`validation_stratified\`,
+\`validation_assignments\`, and \`validation_balance\`), and temporal
+metadata (\`max_lag\`, \`history_length\`, \`history_contract\`, and
 \`time_step\`).
 
 ## Details
@@ -330,7 +334,36 @@ model. \`vote_fraction\` is reported for interpretation but is not
 treated as a calibrated probability, so ROC AUC, Brier score, and Log
 Loss are returned as \`NA\` for hard voting.
 
-\## Stacking and the CV folds
+\## Supported validation methods and holdout exclusion
+
+\`ensemble_bestfit()\` accepts results produced by \`find_bestfit()\`
+with \`validation_method = "LOOCV"\` or \`validation_method =
+"k-fold"\`. Under these validation schemes, every successfully evaluated
+group receives one out-of-fold prediction, and the selected models are
+required to share the same complete OOF support.
+
+Results produced with \`validation_method = "holdout"\` are
+intentionally not supported. Grouped holdout generates evaluation
+predictions for only one reserved subset of groups. If that same subset
+were used to select models, estimate ensemble weights, and report
+ensemble performance, the resulting performance would not represent an
+independent final assessment.
+
+Numerically, simple combinations such as unweighted averaging could be
+calculated on holdout predictions. However, supporting them alongside
+weighted and stacked ensembles would create different validation
+supports and inferential contracts across methods. EpiExposure therefore
+applies one consistent rule to all model-level ensemble methods:
+ensemble construction and evaluation require aligned predictions from at
+least two validation folds.
+
+A holdout-based ensemble workflow would require separate data roles,
+such as a training set for fitting the base models, a validation set for
+selecting models and estimating ensemble weights, and an independent
+test set for final evaluation. That three-way partition is outside the
+current \`find_bestfit()\` validation contract.
+
+\## Stacking and validation folds
 
 Stacking has two separate outputs that should not be confused.
 

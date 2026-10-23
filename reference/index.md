@@ -90,4 +90,4 @@
 - [`plot_losses()`](https://tomazrg.github.io/EpiExposure/reference/plot_losses.md)
   : Plot simulated yield and economic losses
 - [`plot_performance()`](https://tomazrg.github.io/EpiExposure/reference/plot_performance.md)
-  : Plot observed versus predicted model performance
+  : Plot out-of-fold model performance
